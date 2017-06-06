@@ -6,5 +6,5 @@ set RRBIN=%RR%\bin
 
 if not exist %RRBIN% mkdir %RRBIN%
 pushd %RRBIN%
-cl -Zi %RRSRC%\win32_platform.cpp
+cl -Zi %RRSRC%\win32_platform.cpp user32.lib
 popd
