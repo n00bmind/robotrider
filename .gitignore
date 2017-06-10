@@ -1,2 +1,4 @@
 *.un~
 *.swp
+*.db
+*.ipch
