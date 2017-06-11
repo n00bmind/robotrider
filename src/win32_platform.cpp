@@ -444,15 +444,16 @@ WinMain( HINSTANCE hInstance,
             Win32SoundOutput soundOutput = {};
             soundOutput.samplesPerSecond = 48000;
             soundOutput.bytesPerSample = sizeof(s16)*2;  
-            soundOutput.latencySamples = 375; // ~8ms.
-            soundOutput.secondaryBufferSize = soundOutput.latencySamples * soundOutput.bytesPerSample;
+            // FIXME How come a value of 375 (8ms.) produces no glitches at all while SPS / 30 (33ms.) is glitchy as hell!?
+            soundOutput.latencySamples = soundOutput.samplesPerSecond / 15; // ~66ms.
+            soundOutput.secondaryBufferSize = soundOutput.samplesPerSecond * soundOutput.bytesPerSample;
             soundOutput.toneHz = 256;
             soundOutput.toneAmp = 2000;
             soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
             soundOutput.runningSampleIndex = 0;
 
             Win32InitDirectSound( window, soundOutput.samplesPerSecond, soundOutput.secondaryBufferSize );
-            Win32FillSoundBuffer( &soundOutput, 0, soundOutput.secondaryBufferSize );
+            Win32FillSoundBuffer( &soundOutput, 0, soundOutput.latencySamples * soundOutput.bytesPerSample );
             globalSecondaryBuffer->Play( 0, 0, DSBPLAY_LOOPING );
 
             HDC deviceContext = GetDC( window );
@@ -507,21 +508,20 @@ WinMain( HINSTANCE hInstance,
                 DWORD playCursor, writeCursor;
                 if( SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition( &playCursor, &writeCursor )) )
                 {
-                    DWORD byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
                     DWORD bytesToWrite;
+                    DWORD byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample)
+                        % soundOutput.secondaryBufferSize;
+                    DWORD targetCursor = (playCursor + (soundOutput.latencySamples * soundOutput.bytesPerSample))
+                        % soundOutput.secondaryBufferSize;
 
-                    if( byteToLock == playCursor )
-                    {
-                        bytesToWrite = 0;
-                    }
-                    else if( byteToLock > playCursor )
+                    if( byteToLock > targetCursor )
                     {
                         bytesToWrite = soundOutput.secondaryBufferSize - byteToLock;
-                        bytesToWrite += playCursor;
+                        bytesToWrite += targetCursor;
                     }
                     else
                     {
-                        bytesToWrite = playCursor - byteToLock;
+                        bytesToWrite = targetCursor - byteToLock;
                     }
 
                     Win32FillSoundBuffer( &soundOutput, byteToLock, bytesToWrite );
