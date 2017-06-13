@@ -3,6 +3,7 @@
 #include <xinput.h>
 #include <dsound.h>
 #include <math.h>
+#include <stdio.h>
 
 #define global static
 #define internal static
@@ -23,6 +24,8 @@ typedef int64_t s64;
 typedef s32 b32;
 typedef float r32;
 typedef double r64;
+
+#include "robotrider.cpp"
 
 
 struct Win32OffscreenBuffer
@@ -147,7 +150,7 @@ Win32InitDirectSound( HWND window, u32 samplesPerSecond, u32 bufferSize )
 
                         if( SUCCEEDED(directSound->CreateSoundBuffer( &bufferDescription, &globalSecondaryBuffer, 0 )) )
                         {
-                            OutputDebugString( "SUCCESS" );
+                            // TODO Diagnostic
                         }
                         else
                         {
@@ -232,27 +235,6 @@ Win32GetWindowDimension( HWND window )
     result.height = clientRect.bottom - clientRect.top;
 
     return result;
-}
-
-internal void
-RenderWeirdGradient( Win32OffscreenBuffer *buffer, int xOffset, int yOffset )
-{
-    int width = buffer->width;
-    int height = buffer->height;
-    
-    int pitch = width * buffer->bytesPerPixel;
-    u8 *row = (u8 *)buffer->memory;
-    for( int y = 0; y < height; ++y )
-    {
-        u32 *pixel = (u32 *)row;
-        for( int x = 0; x < width; ++x )
-        {
-            u8 b = (x + xOffset);
-            u8 g = (y + yOffset);
-            *pixel++ = ((g << 8) | b);
-        }
-        row += pitch;
-    }
 }
 
 internal void
@@ -413,6 +395,9 @@ WinMain( HINSTANCE hInstance,
     Win32LoadXInput();
     Win32ResizeDIBSection( &globalBackBuffer, 1280, 720 );
 
+    LARGE_INTEGER perfCounterFrequency;
+    QueryPerformanceFrequency( &perfCounterFrequency );
+
     WNDCLASS windowClass = {};
 
     windowClass.style = CS_HREDRAW|CS_VREDRAW;
@@ -437,7 +422,6 @@ WinMain( HINSTANCE hInstance,
                                             
         if( window )
         {
-            MSG message;
             int xOffset = 0;
             int yOffset = 0;
 
@@ -458,9 +442,15 @@ WinMain( HINSTANCE hInstance,
 
             HDC deviceContext = GetDC( window );
             globalRunning = true;
-            
+
+            LARGE_INTEGER lastCounter;
+            QueryPerformanceCounter( &lastCounter );
+            s64 lastCycleCounter = __rdtsc();
+
             while( globalRunning )
             {
+                MSG message;
+
                 while( PeekMessage( &message, 0, 0, 0, PM_REMOVE ) )
                 {
                     if( message.message == WM_QUIT)
@@ -503,7 +493,12 @@ WinMain( HINSTANCE hInstance,
                     }
                 }
 
-                RenderWeirdGradient( &globalBackBuffer, xOffset, yOffset );
+                GameOffscreenBuffer buffer = {};
+                buffer.memory = globalBackBuffer.memory;
+                buffer.width = globalBackBuffer.width;
+                buffer.height = globalBackBuffer.height;
+                buffer.bytesPerPixel = globalBackBuffer.bytesPerPixel;
+                GameUpdateAndRender( &buffer );
 
                 DWORD playCursor, writeCursor;
                 if( SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition( &playCursor, &writeCursor )) )
@@ -531,6 +526,25 @@ WinMain( HINSTANCE hInstance,
                 Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
 
                 ++xOffset;
+
+                LARGE_INTEGER endCounter;
+                QueryPerformanceCounter( &endCounter );
+                s64 endCycleCounter = __rdtsc();
+
+                u64 counterElapsed = endCounter.QuadPart - lastCounter.QuadPart;
+                u64 cyclesElapsed = endCycleCounter - lastCycleCounter;
+
+                r32 msElapsed = 1000.f * counterElapsed / perfCounterFrequency.QuadPart;
+                r32 fps = (r32)perfCounterFrequency.QuadPart / counterElapsed;
+                u32 kCyclesElapsed = (u32)(cyclesElapsed / 1000);
+#if 0
+                char buffer[256];
+                sprintf( buffer, "FPS: %.02f (%d Kcycles)\n", fps, kCyclesElapsed );
+                OutputDebugString( buffer );
+#endif
+
+                lastCounter = endCounter;
+                lastCycleCounter = endCycleCounter;
             }
         }
         else
