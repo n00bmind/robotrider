@@ -23,9 +23,47 @@ RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset )
 }
 
 internal void
-GameUpdateAndRender( GameOffscreenBuffer *buffer )
+GameOutputSound( GameSoundBuffer *buffer, int toneHz )
 {
-    int blueOffset = 0;
-    int greenOffset = 0;
-    RenderWeirdGradient( buffer, blueOffset, greenOffset );
+    local_persistent r32 tSine;
+    u32 toneAmp = 3000;
+    u32 wavePeriod = buffer->samplesPerSecond / toneHz;
+
+    s16 *sampleOut = buffer->samples;
+    for( DWORD sampleIndex = 0; sampleIndex < buffer->sampleCount; ++sampleIndex )
+    {
+        r32 sineValue = sinf( tSine );
+        s16 sampleValue = (s16)(sineValue * toneAmp);
+        *sampleOut++ = sampleValue;
+        *sampleOut++ = sampleValue;
+
+        tSine += 2.f * PI32 * 1.0f / wavePeriod;
+    }
+}
+
+internal void
+GameUpdateAndRender( GameInput *input, GameOffscreenBuffer *videoBuffer, GameSoundBuffer *soundBuffer )
+{
+    local_persistent int blueOffset = 0;
+    local_persistent int greenOffset = 0;
+    local_persistent int toneHz = 256;
+
+    GameControllerInput *input0 = &input->controllers[0];
+    if( input0->isAnalog )
+    {
+        toneHz = 256 + (int)(128.f * input0->endY);
+        blueOffset += (int)(4.f * input0->endX);
+    }
+    else
+    {
+
+    }
+
+    if( input0->aButton.endedDown )
+    {
+        greenOffset += 5;
+    }
+
+    GameOutputSound( soundBuffer, toneHz );
+    RenderWeirdGradient( videoBuffer, blueOffset, greenOffset );
 }
