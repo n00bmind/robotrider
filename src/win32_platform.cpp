@@ -444,6 +444,12 @@ WinMain( HINSTANCE hInstance,
             s16 *soundSamples = (s16 *)VirtualAlloc( 0, soundOutput.secondaryBufferSize,
                                                      MEM_COMMIT, PAGE_READWRITE );
 
+            GameMemory gameMemory = {};
+            gameMemory.permanentStorageSize = MEGABYTES(64);
+            gameMemory.permanentStorage = VirtualAlloc( 0, gameMemory.permanentStorage,
+                                                     MEM_COMMIT, PAGE_READWRITE );
+
+
             GameInput input[2] = {};
             GameInput *newInput = &input[0];
             GameInput *oldInput = &input[1];
@@ -581,7 +587,8 @@ WinMain( HINSTANCE hInstance,
                 // TODO Check if we have crackles when going lower than 30 FPS
                 soundBuffer.sampleCount = bytesToWrite / soundOutput.bytesPerSample;
                 soundBuffer.samples = soundSamples;
-                GameUpdateAndRender( newInput, &videoBuffer, &soundBuffer );
+
+                GameUpdateAndRender( gameMemory, newInput, &videoBuffer, &soundBuffer );
 
                 if( soundIsValid )
                 {

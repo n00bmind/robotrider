@@ -2,6 +2,9 @@
 #define __ROBOTRIDER_H__ 
 
 #define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
+#define KILOBYTES(value) ((value)*1024)
+#define MEGABYTES(value) (KILOBYTES(value)*1024)
+#define GIGABYTES(value) (MEGABYTES(value)*1024)
 
 //
 // Services that the platform layer provides to the game
@@ -69,9 +72,28 @@ struct GameInput
     GameControllerInput controllers[4];
 };
 
+struct GameMemory
+{
+    b32 isInitialized;
+
+    u64 permanentStorageSize;
+    void *permanentStorage;
+};
 
 internal void GameUpdateAndRender( GameInput *input, GameOffscreenBuffer *videoBuffer, GameSoundBuffer *soundBuffer );
 
+
+
+//
+// Other stuff
+//
+
+struct GameState
+{
+    int blueOffset;
+    int greenOffset;
+    int toneHz;
+};
 
 
 

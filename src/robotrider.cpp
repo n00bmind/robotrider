@@ -42,11 +42,16 @@ GameOutputSound( GameSoundBuffer *buffer, int toneHz )
 }
 
 internal void
-GameUpdateAndRender( GameInput *input, GameOffscreenBuffer *videoBuffer, GameSoundBuffer *soundBuffer )
+GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *videoBuffer, GameSoundBuffer *soundBuffer )
 {
-    local_persistent int blueOffset = 0;
-    local_persistent int greenOffset = 0;
-    local_persistent int toneHz = 256;
+    // Init storage for the game state
+    GameState *gameState = (GameState *)memory->permanentStorage;
+    if( !memory->isInitialized )
+    {
+        gameState->blueOffset = 0;
+        gameState->greenOffset = 0;
+        gameState->toneHz = 256;
+    }
 
     GameControllerInput *input0 = &input->controllers[0];
     if( input0->isAnalog )
