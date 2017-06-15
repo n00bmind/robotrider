@@ -1,7 +1,14 @@
 #ifndef __ROBOTRIDER_H__
 #define __ROBOTRIDER_H__ 
 
+#if DEBUG
+#define ASSERT(expression) if( !(expression) ) { *(int *)0 = 0; }
+#else
+#define ASSERT(expression)
+#endif
+
 #define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
+
 #define KILOBYTES(value) ((value)*1024)
 #define MEGABYTES(value) (KILOBYTES(value)*1024)
 #define GIGABYTES(value) (MEGABYTES(value)*1024)
@@ -69,6 +76,7 @@ struct GameControllerInput
 
 struct GameInput
 {
+    r32 secondsElapsed;
     GameControllerInput controllers[4];
 };
 
@@ -77,7 +85,10 @@ struct GameMemory
     b32 isInitialized;
 
     u64 permanentStorageSize;
-    void *permanentStorage;
+    void *permanentStorage;     // NOTE Required to be cleared to zero at startup
+
+    u64 transientStorageSize;
+    void *transientStorage;     // NOTE Required to be cleared to zero at startup
 };
 
 internal void GameUpdateAndRender( GameInput *input, GameOffscreenBuffer *videoBuffer, GameSoundBuffer *soundBuffer );

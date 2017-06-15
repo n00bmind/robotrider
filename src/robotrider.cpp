@@ -44,6 +44,8 @@ GameOutputSound( GameSoundBuffer *buffer, int toneHz )
 internal void
 GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *videoBuffer, GameSoundBuffer *soundBuffer )
 {
+    ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
+
     // Init storage for the game state
     GameState *gameState = (GameState *)memory->permanentStorage;
     if( !memory->isInitialized )
@@ -51,13 +53,15 @@ GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *
         gameState->blueOffset = 0;
         gameState->greenOffset = 0;
         gameState->toneHz = 256;
+
+        memory->isInitialized = true;
     }
 
     GameControllerInput *input0 = &input->controllers[0];
     if( input0->isAnalog )
     {
-        toneHz = 256 + (int)(128.f * input0->endY);
-        blueOffset += (int)(4.f * input0->endX);
+        gameState->toneHz = 256 + (int)(128.f * input0->endY);
+        gameState->blueOffset += (int)(4.f * input0->endX);
     }
     else
     {
@@ -66,9 +70,9 @@ GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *
 
     if( input0->aButton.endedDown )
     {
-        greenOffset += 5;
+        gameState->greenOffset += 5;
     }
 
-    GameOutputSound( soundBuffer, toneHz );
-    RenderWeirdGradient( videoBuffer, blueOffset, greenOffset );
+    GameOutputSound( soundBuffer, gameState->toneHz );
+    RenderWeirdGradient( videoBuffer, gameState->blueOffset, gameState->greenOffset );
 }
