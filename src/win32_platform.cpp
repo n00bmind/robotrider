@@ -34,6 +34,92 @@ global bool globalRunning;
 global Win32OffscreenBuffer globalBackBuffer;
 global LPDIRECTSOUNDBUFFER globalSecondaryBuffer;
 
+internal DEBUGReadFileResult
+DEBUGPlatformReadEntireFile( char *filename )
+{
+    DEBUGReadFileResult result = {};
+
+    HANDLE fileHandle = CreateFile( filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
+    if( fileHandle != INVALID_HANDLE_VALUE )
+    {
+        LARGE_INTEGER fileSize;
+        if( GetFileSizeEx( fileHandle, &fileSize ) )
+        {
+            u32 fileSize32 = SafeTruncU64( fileSize.QuadPart );
+            result.contents = VirtualAlloc( 0, fileSize32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+
+            if( result.contents )
+            {
+                DWORD bytesRead;
+                if( ReadFile( fileHandle, result.contents, fileSize32, &bytesRead, 0 )
+                    && (fileSize32 == bytesRead) )
+                {
+                    result.contentSize = fileSize32;
+                }
+                else
+                {
+                    // TODO Log
+                    DEBUGPlatformFreeFileMemory( result.contents );
+                    result.contents = 0;
+                }
+            }
+            else
+            {
+                // TODO Log
+            }
+        }
+        else
+        {
+            // TODO Log
+        }
+
+        CloseHandle( fileHandle );
+    }
+    else
+    {
+        // TODO Log
+    }
+
+    return result;
+}
+
+internal void
+DEBUGPlatformFreeFileMemory( void *memory )
+{
+    if( memory )
+    {
+        VirtualFree( memory, 0, MEM_RELEASE );
+    }
+}
+
+internal b32
+DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory )
+{
+    b32 result = false;
+
+    HANDLE fileHandle = CreateFile( filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0 );
+    if( fileHandle != INVALID_HANDLE_VALUE )
+    {
+        DWORD bytesWritten;
+        if( WriteFile( fileHandle, memory, memorySize, &bytesWritten, 0 ) )
+        {
+            result = (bytesWritten == memorySize);
+        }
+        else
+        {
+            // TODO Log
+        }
+
+        CloseHandle( fileHandle );
+    }
+    else
+    {
+        // TODO Log
+    }
+
+    return result;
+}
+
 
 // XInput function pointers and stubs
 #define XINPUT_GET_STATE(name) DWORD WINAPI name( DWORD dwUserIndex, XINPUT_STATE *pState )

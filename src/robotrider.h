@@ -13,11 +13,27 @@
 #define MEGABYTES(value) (KILOBYTES(value)*1024)
 #define GIGABYTES(value) (MEGABYTES(value)*1024)
 
+
+inline u32 SafeTruncU64( u64 value )
+{
+    ASSERT( value <= 0xFFFFFFFF );
+    u32 result = (u32)value;
+    return result;
+}
+
 //
 // Services that the platform layer provides to the game
 //
-
-
+#if DEBUG
+struct DEBUGReadFileResult
+{
+    u32 contentSize;
+    void *contents;
+};
+DEBUGReadFileResult DEBUGPlatformReadEntireFile( char *filename );
+void DEBUGPlatformFreeFileMemory( void *bitmapMemory );
+b32 DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory );
+#endif
 
 
 //
