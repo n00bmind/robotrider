@@ -33,6 +33,8 @@ typedef double r64;
 global bool globalRunning;
 global Win32OffscreenBuffer globalBackBuffer;
 global LPDIRECTSOUNDBUFFER globalSecondaryBuffer;
+global s64 globalPerfCounterFrequency;
+
 
 internal DEBUGReadFileResult
 DEBUGPlatformReadEntireFile( char *filename )
@@ -183,13 +185,13 @@ Win32InitDirectSound( HWND window, u32 samplesPerSecond, u32 bufferSize )
         {
             if( SUCCEEDED(directSound->SetCooperativeLevel( window, DSSCL_PRIORITY )) )
             {
-                DSBUFFERDESC bufferDescription = {};
-                bufferDescription.dwSize = sizeof(bufferDescription);
-                bufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
+                DSBUFFERDESC primaryDesc = {};
+                primaryDesc.dwSize = sizeof(primaryDesc);
+                primaryDesc.dwFlags = DSBCAPS_PRIMARYBUFFER;
 
                 // TODO DSBAPS_GLOBALFOCUS?
                 LPDIRECTSOUNDBUFFER primaryBuffer;
-                if( SUCCEEDED(directSound->CreateSoundBuffer( &bufferDescription, &primaryBuffer, 0 )) )
+                if( SUCCEEDED(directSound->CreateSoundBuffer( &primaryDesc, &primaryBuffer, 0 )) )
                 {
                     WAVEFORMATEX waveFormat = {};
                     waveFormat.wFormatTag = WAVE_FORMAT_PCM;
@@ -202,13 +204,13 @@ Win32InitDirectSound( HWND window, u32 samplesPerSecond, u32 bufferSize )
 
                     if( SUCCEEDED(primaryBuffer->SetFormat( &waveFormat )) )
                     {
-                        DSBUFFERDESC bufferDescription = {};
-                        bufferDescription.dwSize = sizeof(bufferDescription);
-                        bufferDescription.dwFlags = 0;
-                        bufferDescription.dwBufferBytes = bufferSize;
-                        bufferDescription.lpwfxFormat = &waveFormat;
+                        DSBUFFERDESC secondaryDesc = {};
+                        secondaryDesc.dwSize = sizeof(secondaryDesc);
+                        secondaryDesc.dwFlags = 0;
+                        secondaryDesc.dwBufferBytes = bufferSize;
+                        secondaryDesc.lpwfxFormat = &waveFormat;
 
-                        if( SUCCEEDED(directSound->CreateSoundBuffer( &bufferDescription, &globalSecondaryBuffer, 0 )) )
+                        if( SUCCEEDED(directSound->CreateSoundBuffer( &secondaryDesc, &globalSecondaryBuffer, 0 )) )
                         {
                             // TODO Diagnostic
                         }
@@ -357,11 +359,121 @@ Win32DisplayInWindow( Win32OffscreenBuffer *buffer, HDC deviceContext, int windo
 }
 
 internal void
+Win32ProcessKeyboardMessage( GameButtonState *newState, b32 isDown )
+{
+    ASSERT( newState->endedDown != isDown );
+    newState->endedDown = isDown;
+    ++newState->halfTransitionCount;
+}
+
+internal void
 Win32ProcessXInputDigitalButton( DWORD buttonStateBits, GameButtonState *oldState, DWORD buttonBit,
                                  GameButtonState *newState )
 {
     newState->endedDown = ((buttonStateBits & buttonBit) == buttonBit);
     newState->halfTransitionCount = (oldState->endedDown != newState->endedDown) ? 1 : 0;
+}
+
+internal r32
+Win32ProcessXInputStickValue( SHORT value, SHORT deadZoneThreshold )
+{
+    // TODO Cube the values as explained in the XInput help
+    // to give more sensitivity to the movement
+    r32 result = 0;
+    // TODO Does hardware have a round deadzone?
+    if( value < -deadZoneThreshold )
+    {
+        result = (r32)(value + deadZoneThreshold) / (32768.0f - deadZoneThreshold);
+    }
+    else if( value > XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE )
+    {
+        result = (r32)(value - deadZoneThreshold) / (32767.0f - deadZoneThreshold);
+    }
+
+    return result;
+}
+internal void Win32ProcessPendingMessages( GameControllerInput *keyboardController )
+{
+    MSG message;
+    while( PeekMessage( &message, 0, 0, 0, PM_REMOVE ) )
+    {
+        if( message.message == WM_QUIT)
+        {
+            globalRunning = false;
+        }
+
+        switch( message.message )
+        {
+            case WM_SYSKEYDOWN:
+            case WM_SYSKEYUP:
+            case WM_KEYDOWN:
+            case WM_KEYUP:
+            {
+                u32 vkCode = SafeTruncU64( message.wParam );
+                bool wasDown = ((message.lParam & (1 << 30)) != 0);
+                bool isDown =  ((message.lParam & (1 << 31)) == 0);
+                if( isDown != wasDown )
+                {
+                    if( vkCode == 'W' )
+                    {
+                        Win32ProcessKeyboardMessage( &keyboardController->dUp, isDown );
+                    }
+                    else if( vkCode == 'A' )
+                    {
+                        Win32ProcessKeyboardMessage( &keyboardController->dLeft, isDown );
+                    }
+                    else if( vkCode == 'S' )
+                    {
+                        Win32ProcessKeyboardMessage( &keyboardController->dDown, isDown );
+                    }
+                    else if( vkCode == 'D' )
+                    {
+                        Win32ProcessKeyboardMessage( &keyboardController->dRight, isDown );
+                    }
+                    else if( vkCode == 'Q' )
+                    {
+                        Win32ProcessKeyboardMessage( &keyboardController->leftShoulder, isDown );
+                    }
+                    else if( vkCode == 'E' )
+                    {
+                        Win32ProcessKeyboardMessage( &keyboardController->rightShoulder, isDown );
+                    }
+                    else if( vkCode == VK_UP )
+                    {
+                    }
+                    else if( vkCode == VK_DOWN )
+                    {
+                    }
+                    else if( vkCode == VK_LEFT )
+                    {
+                    }
+                    else if( vkCode == VK_RIGHT )
+                    {
+                    }
+                    else if( vkCode == VK_SPACE )
+                    {
+
+                    }
+                    else if( vkCode == VK_ESCAPE )
+                    {
+                        globalRunning = false;
+                    }
+                }
+
+                b32 altKeyWasDown = ((message.lParam & (1<<29)) != 0);
+                if( vkCode == VK_F4 && altKeyWasDown )
+                {
+                    globalRunning = false;
+                }
+            } break;
+
+            default:
+            {
+                TranslateMessage( &message );
+                DispatchMessage( &message );
+            } break;
+        }
+    }
 }
 
 LRESULT CALLBACK
@@ -397,65 +509,7 @@ Win32WindowProc( HWND hwnd,
         case WM_KEYDOWN:
         case WM_KEYUP:
         {
-            u32 vkCode = wParam;
-            bool wasDown = ((lParam & (1 << 30)) != 0);
-            bool isDown =  ((lParam & (1 << 31)) == 0);
-            if( isDown != wasDown )
-            {
-                if( vkCode == 'W' )
-                {
-
-                }
-                else if( vkCode == 'A' )
-                {
-
-                }
-                else if( vkCode == 'S' )
-                {
-
-                }
-                else if( vkCode == 'D' )
-                {
-
-                }
-                else if( vkCode == 'Q' )
-                {
-
-                }
-                else if( vkCode == 'E' )
-                {
-
-                }
-                else if( vkCode == VK_UP )
-                {
-
-                }
-                else if( vkCode == VK_DOWN )
-                {
-
-                }
-                else if( vkCode == VK_LEFT )
-                {
-
-                }
-                else if( vkCode == VK_RIGHT )
-                {
-
-                }
-                else if( vkCode == VK_SPACE )
-                {
-
-                }
-                else if( vkCode == VK_ESCAPE )
-                {
-                }
-            }
-
-            b32 altKeyWasDown = ((lParam & (1<<29)) != 0);
-            if( vkCode == VK_F4 && altKeyWasDown )
-            {
-                globalRunning = false;
-            }
+            ASSERT( !"Received keyboard input in WindowProc!" );
         } break;
 
         case WM_CLOSE:
@@ -479,6 +533,21 @@ Win32WindowProc( HWND hwnd,
     return result;
 }
 
+inline LARGE_INTEGER
+Win32GetWallClock()
+{
+    LARGE_INTEGER result;
+    QueryPerformanceCounter( &result );
+    return result;
+}
+
+inline r32
+Win32GetSecondsElapsed( LARGE_INTEGER start, LARGE_INTEGER end )
+{
+    r32 result = (r32)(end.QuadPart - start.QuadPart) / (r32)globalPerfCounterFrequency;
+    return result;
+}
+
 int CALLBACK
 WinMain( HINSTANCE hInstance,
          HINSTANCE hPrevInstance,
@@ -488,8 +557,16 @@ WinMain( HINSTANCE hInstance,
     Win32LoadXInput();
     Win32ResizeDIBSection( &globalBackBuffer, 1280, 720 );
 
-    LARGE_INTEGER perfCounterFrequency;
-    QueryPerformanceFrequency( &perfCounterFrequency );
+    LARGE_INTEGER perfCounterFreqMeasure;
+    QueryPerformanceFrequency( &perfCounterFreqMeasure );
+    globalPerfCounterFrequency = perfCounterFreqMeasure.QuadPart;
+
+    // Set Windows schduler granularity so that our frame wait sleep is more granular
+    b32 sleepIsGranular = (timeBeginPeriod( 1 ) == TIMERR_NOERROR);
+    if( !sleepIsGranular )
+    {
+        // TODO Log a bit fat warning
+    }
 
     WNDCLASS windowClass = {};
 
@@ -551,74 +628,89 @@ WinMain( HINSTANCE hInstance,
                 HDC deviceContext = GetDC( window );
                 globalRunning = true;
 
-                LARGE_INTEGER lastCounter;
-                QueryPerformanceCounter( &lastCounter );
+                int targetGameUpdateHz = 60;
+                r32 targetElapsedPerFrameSecs = 1.0f / targetGameUpdateHz;
+
+                LARGE_INTEGER lastCounter = Win32GetWallClock();
                 s64 lastCycleCounter = __rdtsc();
 
                 while( globalRunning )
                 {
-                    MSG message;
+                    GameControllerInput *oldKeyboardController = GetController( oldInput, 0 );
+                    GameControllerInput *newKeyboardController = GetController( newInput, 0 );
+                    GameControllerInput zeroController = {};
+                    *newKeyboardController = {};
+                    newKeyboardController->isConnected = true;
 
-                    while( PeekMessage( &message, 0, 0, 0, PM_REMOVE ) )
+                    for( int buttonIndex = 0;
+                         buttonIndex < ARRAYCOUNT( newKeyboardController->buttons );
+                         ++buttonIndex )
                     {
-                        if( message.message == WM_QUIT)
-                        {
-                            globalRunning = false;
-                        }
-
-                        TranslateMessage( &message );
-                        DispatchMessage( &message );
+                        newKeyboardController->buttons[buttonIndex].endedDown =
+                            oldKeyboardController->buttons[buttonIndex].endedDown;
                     }
 
+                    Win32ProcessPendingMessages( newKeyboardController );
+
+                    // TODO Don't call GetState on disconnected controllers cause that has a big impact
                     // TODO Should we poll this more frequently?
+                    // First controller is the keyboard
+                    // TODO Mouse?
                     u32 maxControllerCount = XUSER_MAX_COUNT;
-                    if( maxControllerCount > ARRAYCOUNT( newInput->controllers ) )
+                    if( maxControllerCount > ARRAYCOUNT( newInput->_controllers ) - 1 )
                     {
-                        maxControllerCount = ARRAYCOUNT( newInput->controllers );
+                        maxControllerCount = ARRAYCOUNT( newInput->_controllers ) - 1;
                     }
 
-                    for( u32 controllerIndex = 0; controllerIndex < maxControllerCount; ++controllerIndex )
+                    for( u32 index = 0; index < maxControllerCount; ++index )
                     {
-                        GameControllerInput *oldController = &oldInput->controllers[controllerIndex];
-                        GameControllerInput *newController = &newInput->controllers[controllerIndex];
+                        DWORD controllerIndex = index + 1;
+                        GameControllerInput *oldController = GetController( oldInput, controllerIndex );
+                        GameControllerInput *newController = GetController( newInput, controllerIndex );
 
                         XINPUT_STATE controllerState;
                         if( XInputGetState( controllerIndex, &controllerState ) == ERROR_SUCCESS )
                         {
                             // Plugged in
+                            newController->isConnected = true;
                             XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
 
-                            // TODO DPad!
-                            bool dPadUp = (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
-                            bool dPadDown = (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
-                            bool dPadLeft = (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
-                            bool dPadRight = (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+                            newController->isAnalog = true;
 
-                            r32 x;
-                            if( pad->sThumbLX < 0 )
-                            {
-                                x = (r32)pad->sThumbLX / 32768.0f;
-                            }
-                            else
-                            {
-                                x = (r32)pad->sThumbLX / 32767.0f;
-                            }
-                            newController->minX = newController->maxX = newController->endX = x;
+                            newController->leftStick.startX = oldController->leftStick.endX;
+                            newController->leftStick.startY = oldController->leftStick.endY;
 
-                            r32 y;
-                            if( pad->sThumbLY < 0 )
-                            {
-                                y = (r32)pad->sThumbLY / 32768.0f;
-                            }
-                            else
-                            {
-                                y = (r32)pad->sThumbLY / 32767.0f;
-                            }
-                            newController->minY = newController->maxY = newController->endY = y;
+                            newController->leftStick.endX = Win32ProcessXInputStickValue( pad->sThumbLX,
+                                                                  XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE );
+                            newController->leftStick.avgX
+                                = (newController->leftStick.startX + newController->leftStick.endX) / 2;
 
-                            s16 stickX = pad->sThumbLX;
-                            s16 stickY = pad->sThumbLY;
+                            newController->leftStick.endY = Win32ProcessXInputStickValue( pad->sThumbLY,
+                                                                  XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE );
+                            newController->leftStick.avgY
+                                = (newController->leftStick.startY + newController->leftStick.endY) / 2;
+                            
+                            newController->rightStick.startX = oldController->rightStick.endX;
+                            newController->rightStick.startY = oldController->rightStick.endY;
 
+                            newController->rightStick.endX = Win32ProcessXInputStickValue( pad->sThumbRX,
+                                                                  XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE );
+                            newController->rightStick.avgX
+                                = (newController->rightStick.startX + newController->rightStick.endX) / 2;
+
+                            newController->rightStick.endY = Win32ProcessXInputStickValue( pad->sThumbRY,
+                                                                  XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE );
+                            newController->rightStick.avgY
+                                = (newController->rightStick.startY + newController->rightStick.endY) / 2;
+
+                            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dUp,
+                                                             XINPUT_GAMEPAD_DPAD_UP, &newController->dUp );
+                            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dDown,
+                                                             XINPUT_GAMEPAD_DPAD_DOWN, &newController->dDown );
+                            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dLeft,
+                                                             XINPUT_GAMEPAD_DPAD_LEFT, &newController->dLeft );
+                            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dRight,
+                                                             XINPUT_GAMEPAD_DPAD_RIGHT, &newController->dRight );
                             Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->aButton,
                                                              XINPUT_GAMEPAD_A, &newController->aButton );
                             Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->bButton,
@@ -627,6 +719,10 @@ WinMain( HINSTANCE hInstance,
                                                              XINPUT_GAMEPAD_X, &newController->xButton );
                             Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->yButton,
                                                              XINPUT_GAMEPAD_Y, &newController->yButton );
+                            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->leftThumb,
+                                                             XINPUT_GAMEPAD_LEFT_THUMB, &newController->leftThumb );
+                            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->rightThumb,
+                                                             XINPUT_GAMEPAD_RIGHT_THUMB, &newController->rightThumb );
                             Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->leftShoulder,
                                                              XINPUT_GAMEPAD_LEFT_SHOULDER, &newController->leftShoulder );
                             Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->rightShoulder,
@@ -639,12 +735,13 @@ WinMain( HINSTANCE hInstance,
                         else
                         {
                             // Controller not available
+                            newController->isConnected = false;
                         }
                     }
 
-                    DWORD byteToLock;
-                    DWORD bytesToWrite;
-                    DWORD targetCursor;
+                    DWORD byteToLock = 0;
+                    DWORD bytesToWrite = 0;
+                    DWORD targetCursor = 0;
                     DWORD playCursor, writeCursor;
 
                     b32 soundIsValid = false;
@@ -689,29 +786,45 @@ WinMain( HINSTANCE hInstance,
                         Win32FillSoundBuffer( &soundOutput, byteToLock, bytesToWrite, &soundBuffer );
                     }
 
-                    Win32WindowDimension dim = Win32GetWindowDimension( window );
-                    Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
-
                     GameInput *temp = newInput;
                     newInput = oldInput;
                     oldInput = temp;
 
-                    LARGE_INTEGER endCounter;
-                    QueryPerformanceCounter( &endCounter );
                     s64 endCycleCounter = __rdtsc();
-
-                    u64 counterElapsed = endCounter.QuadPart - lastCounter.QuadPart;
                     u64 cyclesElapsed = endCycleCounter - lastCycleCounter;
-
-                    r32 msElapsed = 1000.f * counterElapsed / perfCounterFrequency.QuadPart;
-                    r32 fps = (r32)perfCounterFrequency.QuadPart / counterElapsed;
                     u32 kCyclesElapsed = (u32)(cyclesElapsed / 1000);
-#if 0
+
+                    LARGE_INTEGER endCounter = Win32GetWallClock();
+                    r32 frameElapsedSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
+
+                    r32 elapsedSecs = frameElapsedSecs;
+                    if( elapsedSecs < targetElapsedPerFrameSecs )
+                    {
+                        while( elapsedSecs < targetElapsedPerFrameSecs )
+                        {
+                            if( sleepIsGranular )
+                            {
+                                DWORD sleepMs = (DWORD)(1000.0f * (targetElapsedPerFrameSecs - frameElapsedSecs));
+//                                Sleep( sleepMs );
+                            }
+                            elapsedSecs = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
+                        }
+                    }
+                    else
+                    {
+                        // TODO Log missed frame rate
+                    }
+
+                    Win32WindowDimension dim = Win32GetWindowDimension( window );
+                    Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
+
+#if 1
+                    r32 fps = 1.0f / elapsedSecs;
                     char buffer[256];
-                    sprintf( buffer, "FPS: %.02f (%d Kcycles)\n", fps, kCyclesElapsed );
+                    sprintf_s( buffer, ARRAYCOUNT( buffer ), "ms: %.02f - FPS: %.02f (%d Kcycles)\n", 1000.0f * elapsedSecs, fps, kCyclesElapsed );
                     OutputDebugString( buffer );
 #endif
-
+                    endCounter = Win32GetWallClock();
                     lastCounter = endCounter;
                     lastCycleCounter = endCycleCounter;
                 }

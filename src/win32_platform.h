@@ -19,10 +19,10 @@ struct Win32WindowDimension
 
 struct Win32SoundOutput
 {
-    int samplesPerSecond;
-    int bytesPerSample;  
-    int secondaryBufferSize;
-    u16 latencySamples;
+    u32 samplesPerSecond;
+    u32 bytesPerSample;  
+    u32 secondaryBufferSize;
+    u32 latencySamples;
     u32 runningSampleIndex;
 };
 

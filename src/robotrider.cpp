@@ -14,8 +14,8 @@ RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset )
         u32 *pixel = (u32 *)row;
         for( int x = 0; x < width; ++x )
         {
-            u8 b = (x + xOffset);
-            u8 g = (y + yOffset);
+            u8 b = (u8)(x + xOffset);
+            u8 g = (u8)(y + yOffset);
             *pixel++ = ((g << 8) | b);
         }
         row += pitch;
@@ -65,15 +65,22 @@ GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *
         memory->isInitialized = true;
     }
 
-    GameControllerInput *input0 = &input->controllers[0];
+    GameControllerInput *input0 = GetController( input, 0 );
     if( input0->isAnalog )
     {
-        gameState->toneHz = 256 + (int)(128.f * input0->endY);
-        gameState->blueOffset += (int)(4.f * input0->endX);
+        gameState->blueOffset += (int)(4.f * input0->leftStick.avgX);
+        gameState->toneHz = 256 + (int)(128.f * input0->leftStick.avgY);
     }
     else
     {
-
+        if( input0->dLeft.endedDown )
+        {
+            gameState->blueOffset -= 1;
+        }
+        if( input0->dRight.endedDown )
+        {
+            gameState->blueOffset += 1;
+        }
     }
 
     if( input0->aButton.endedDown )

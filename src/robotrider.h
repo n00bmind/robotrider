@@ -30,9 +30,9 @@ struct DEBUGReadFileResult
     u32 contentSize;
     void *contents;
 };
-DEBUGReadFileResult DEBUGPlatformReadEntireFile( char *filename );
-void DEBUGPlatformFreeFileMemory( void *bitmapMemory );
-b32 DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory );
+internal DEBUGReadFileResult DEBUGPlatformReadEntireFile( char *filename );
+internal void DEBUGPlatformFreeFileMemory( void *bitmapMemory );
+internal b32 DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory );
 #endif
 
 
@@ -49,9 +49,20 @@ struct GameOffscreenBuffer
 
 struct GameSoundBuffer
 {
-    int samplesPerSecond;
-    int sampleCount;
+    u32 samplesPerSecond;
+    u32 sampleCount;
     s16 *samples;
+};
+
+struct GameStickState
+{
+    // -1.0 to 1.0 range (negative is left/down, positive is up/right)
+    r32 startX;
+    r32 startY;
+    r32 avgX;
+    r32 avgY;
+    r32 endX;
+    r32 endY;
 };
 
 struct GameButtonState
@@ -62,39 +73,51 @@ struct GameButtonState
 
 struct GameControllerInput
 {
+    b32 isConnected;
     b32 isAnalog;
     
-    r32 startX;
-    r32 startY;
-    r32 minX;
-    r32 minY;
-    r32 maxX;
-    r32 maxY;
-    r32 endX;
-    r32 endY;
+    GameStickState leftStick;
+    GameStickState rightStick;
 
     union
     {
-        GameButtonState buttons[8];
         struct
         {
+            GameButtonState dUp;
+            GameButtonState dDown;
+            GameButtonState dLeft;
+            GameButtonState dRight;
+
             GameButtonState aButton;
             GameButtonState bButton;
             GameButtonState xButton;
             GameButtonState yButton;
+
+            GameButtonState leftThumb;
+            GameButtonState rightThumb;
             GameButtonState leftShoulder;
             GameButtonState rightShoulder;
+
             GameButtonState start;
             GameButtonState back;
         };
+        GameButtonState buttons[14];
     };
 };
 
 struct GameInput
 {
     r32 secondsElapsed;
-    GameControllerInput controllers[4];
+    GameControllerInput _controllers[5];
 };
+
+inline GameControllerInput *
+GetController( GameInput *input, int controllerIndex )
+{
+    ASSERT( controllerIndex < ARRAYCOUNT( input->_controllers ) );
+    GameControllerInput *result = &input->_controllers[controllerIndex];
+    return result;
+}
 
 struct GameMemory
 {
