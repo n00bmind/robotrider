@@ -800,13 +800,23 @@ WinMain( HINSTANCE hInstance,
                     r32 elapsedSecs = frameElapsedSecs;
                     if( elapsedSecs < targetElapsedPerFrameSecs )
                     {
+                        if( sleepIsGranular )
+                        {
+                            DWORD sleepMs = (DWORD)(1000.0f * (targetElapsedPerFrameSecs - frameElapsedSecs));
+                            if( sleepMs > 0 )
+                            {
+                                Sleep( sleepMs );
+                            }
+#if 0
+                            {
+                                char buffer[256];
+                                sprintf_s( buffer, ARRAYCOUNT( buffer ), "frameElapsedMs: %.02f - sleep for %dms.\n", frameElapsedSecs * 1000.0f, sleepMs );
+                                OutputDebugString( buffer );
+                            }
+#endif
+                        }
                         while( elapsedSecs < targetElapsedPerFrameSecs )
                         {
-                            if( sleepIsGranular )
-                            {
-                                DWORD sleepMs = (DWORD)(1000.0f * (targetElapsedPerFrameSecs - frameElapsedSecs));
-//                                Sleep( sleepMs );
-                            }
                             elapsedSecs = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
                         }
                     }
@@ -820,9 +830,11 @@ WinMain( HINSTANCE hInstance,
 
 #if 1
                     r32 fps = 1.0f / elapsedSecs;
-                    char buffer[256];
-                    sprintf_s( buffer, ARRAYCOUNT( buffer ), "ms: %.02f - FPS: %.02f (%d Kcycles)\n", 1000.0f * elapsedSecs, fps, kCyclesElapsed );
-                    OutputDebugString( buffer );
+                    {
+                        char buffer[256];
+                        sprintf_s( buffer, ARRAYCOUNT( buffer ), "ms: %.02f - FPS: %.02f (%d Kcycles)\n", 1000.0f * elapsedSecs, fps, kCyclesElapsed );
+                        OutputDebugString( buffer );
+                    }
 #endif
                     endCounter = Win32GetWallClock();
                     lastCounter = endCounter;
