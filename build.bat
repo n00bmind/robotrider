@@ -5,8 +5,8 @@ set RRSRC=src
 set RRBIN=bin
 
 set DEBUGFLAGS=-DDEBUG=1 -Z7
-set DISABLEFLAGS=-wd4201 -wd4100 -wd4189
-set LIBS=user32.lib gdi32.lib winmm.lib
+set DISABLEFLAGS=-wd4201 -wd4100 -wd4189 -wd4127 -wd4505
+set LIBS=user32.lib gdi32.lib winmm.lib ole32.lib
 
 if not exist %RRBIN% mkdir %RRBIN%
 pushd %RRBIN%

@@ -17,13 +17,13 @@ struct Win32WindowDimension
     int height;
 };
 
-struct Win32SoundOutput
+struct Win32AudioOutput
 {
-    u32 samplesPerSecond;
-    u32 bytesPerSample;  
-    u32 secondaryBufferSize;
+    u32 samplingRate;
+    u32 bytesPerFrame;  
+    u32 bufferSizeBytes;
     u32 latencySamples;
-    u32 runningSampleIndex;
+    u32 writePositionSamples;
 };
 
 #endif /* __WIN32_PLATFORM_H__ */
