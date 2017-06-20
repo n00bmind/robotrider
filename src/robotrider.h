@@ -47,10 +47,13 @@ struct GameOffscreenBuffer
     int bytesPerPixel;
 };
 
-struct GameSoundBuffer
+struct GameAudioBuffer
 {
+    // TODO Remove this
     u32 samplesPerSecond;
-    u32 sampleCount;
+    u32 frameCount;         // Audio frames to output
+    u16 channelCount;       // Channels per frame
+    // TODO Convert this to a format that is independent of final bitdepth (float?)
     s16 *samples;
 };
 
@@ -130,7 +133,7 @@ struct GameMemory
     void *transientStorage;     // NOTE Required to be cleared to zero at startup
 };
 
-internal void GameUpdateAndRender( GameInput *input, GameOffscreenBuffer *videoBuffer, GameSoundBuffer *soundBuffer );
+internal void GameUpdateAndRender( GameInput *input, GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer );
 
 
 

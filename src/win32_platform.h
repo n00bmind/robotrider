@@ -21,9 +21,9 @@ struct Win32AudioOutput
 {
     u32 samplingRate;
     u32 bytesPerFrame;  
-    u32 bufferSizeBytes;
-    u32 latencySamples;
-    u32 writePositionSamples;
+    u32 bufferSizeFrames;
+    u32 systemLatencyFrames;
+    u32 writePositionFrames;
 };
 
 #endif /* __WIN32_PLATFORM_H__ */
