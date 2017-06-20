@@ -1,7 +1,6 @@
 #include <windows.h>
 #include <stdint.h>
 #include <xinput.h>
-#include <dsound.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <math.h>
@@ -38,7 +37,6 @@ typedef double r64;
 
 global bool globalRunning;
 global Win32OffscreenBuffer globalBackBuffer;
-global LPDIRECTSOUNDBUFFER globalSecondaryBuffer;
 global IAudioClient* globalAudioClient;
 global IAudioRenderClient* globalAudioRenderClient;
 global s64 globalPerfCounterFrequency;
@@ -203,6 +201,11 @@ Win32InitWASAPI( u32 samplingRate, u16 bitsPerSample, u16 channelCount, u32 buff
         ASSERT( false );
     }
     
+    // TODO Try to use the format returned by GetMixFormat() 
+    // (using the native sampling rate seems to be particularly important)
+    WAVEFORMATEX* mixFormat;
+    globalAudioClient->GetMixFormat( &mixFormat );
+
     WAVEFORMATEXTENSIBLE waveFormat;
     waveFormat.Format.cbSize = sizeof(waveFormat);
     waveFormat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
@@ -241,7 +244,7 @@ Win32InitWASAPI( u32 samplingRate, u16 bitsPerSample, u16 channelCount, u32 buff
 }
 
 
-
+/*
 // DirectSound function pointers and stubs
 #define DIRECTSOUND_CREATE(name) HRESULT WINAPI name( LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter )
 typedef DIRECTSOUND_CREATE(DirectSoundCreateFunc);
@@ -320,6 +323,7 @@ Win32InitDirectSound( HWND window, u32 samplesPerSecond, u32 bufferSize )
         // TODO Diagnostic
     }
 }
+*/
 
 internal void
 Win32BlitAudioBuffer( GameAudioBuffer *sourceBuffer, u32 framesToWrite, Win32AudioOutput *audioOutput )
@@ -359,7 +363,8 @@ Win32BlitAudioBuffer( GameAudioBuffer *sourceBuffer, u32 framesToWrite, Win32Aud
     }
     */
     BYTE *audioData;
-    if( SUCCEEDED(globalAudioRenderClient->GetBuffer( framesToWrite, &audioData )) )
+    HRESULT hr = globalAudioRenderClient->GetBuffer( framesToWrite, &audioData );
+    if( hr == S_OK )
     {
         s16* sourceSample = sourceBuffer->samples;
         s16* destSample = (s16*)audioData;
@@ -367,10 +372,14 @@ Win32BlitAudioBuffer( GameAudioBuffer *sourceBuffer, u32 framesToWrite, Win32Aud
         {
             *destSample++ = *sourceSample++;
             *destSample++ = *sourceSample++;
-            ++audioOutput->writePositionFrames;
+            ++audioOutput->runningFrameCount;
         }
 
         globalAudioRenderClient->ReleaseBuffer( framesToWrite, 0 );
+    }
+    else
+    {
+        ASSERT( false && hr );
     }
 }
 
@@ -737,10 +746,11 @@ WinMain( HINSTANCE hInstance,
          int nCmdShow )
 {
     Win32AudioOutput audioOutput = {};
-    audioOutput.samplingRate = 48000;
+    audioOutput.samplingRate = 44100;
     audioOutput.bytesPerFrame = AUDIO_BITDEPTH * AUDIO_CHANNELS / 8;
     audioOutput.bufferSizeFrames = audioOutput.samplingRate;            // 1 sec.
-    audioOutput.writePositionFrames = 0;
+    audioOutput.gameLatencyFrames = 1024;
+    audioOutput.runningFrameCount = 0;
 
     // Init subsystems
     Win32InitXInput();
@@ -788,8 +798,6 @@ WinMain( HINSTANCE hInstance,
                                             
         if( window )
         {
-            globalSecondaryBuffer->Play( 0, 0, DSBPLAY_LOOPING );
-
             s16 *soundSamples = (s16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                      MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
@@ -814,6 +822,8 @@ WinMain( HINSTANCE hInstance,
                 r32 targetElapsedPerFrameSecs = 1.0f / VIDEO_TARGET_FRAMERATE;
 
                 HDC deviceContext = GetDC( window );
+                HRESULT hr = globalAudioClient->Start();
+                ASSERT( hr == S_OK );
                 globalRunning = true;
 
                 LARGE_INTEGER lastCounter = Win32GetWallClock();
@@ -863,6 +873,10 @@ WinMain( HINSTANCE hInstance,
                         {
                             // TODO Log "available space in audio buffer is less than system latency"
                         }
+                        else if( framesToWrite > audioOutput.gameLatencyFrames )
+                        {
+                            framesToWrite = audioOutput.gameLatencyFrames;
+                        }
                     }
 
                     // Prepare audio & video buffers
@@ -875,6 +889,7 @@ WinMain( HINSTANCE hInstance,
                     GameAudioBuffer audioBuffer = {};
                     audioBuffer.samplesPerSecond = audioOutput.samplingRate;
                     // TODO In the future, when we pass frame delta time to the game, frameCount won't be needed
+                    audioBuffer.channelCount = AUDIO_CHANNELS;
                     audioBuffer.frameCount = bytesToWrite / audioOutput.bytesPerFrame;
                     audioBuffer.samples = soundSamples;
 

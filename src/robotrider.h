@@ -53,7 +53,8 @@ struct GameAudioBuffer
     u32 samplesPerSecond;
     u32 frameCount;         // Audio frames to output
     u16 channelCount;       // Channels per frame
-    // TODO Convert this to a format that is independent of final bitdepth (float?)
+    // TODO Convert this to a format that is independent of final bitdepth (32bit-float?)
+    // (some audio mixers even support this natively, it seems)
     s16 *samples;
 };
 

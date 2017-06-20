@@ -23,7 +23,8 @@ struct Win32AudioOutput
     u32 bytesPerFrame;  
     u32 bufferSizeFrames;
     u32 systemLatencyFrames;
-    u32 writePositionFrames;
+    u32 gameLatencyFrames;
+    u32 runningFrameCount;
 };
 
 #endif /* __WIN32_PLATFORM_H__ */

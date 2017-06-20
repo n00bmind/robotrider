@@ -23,14 +23,14 @@ RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset )
 }
 
 internal void
-GameOutputSound( GameSoundBuffer *buffer, int toneHz )
+GameOutputAudio( GameAudioBuffer *buffer, int toneHz )
 {
     local_persistent r32 tSine;
     u32 toneAmp = 3000;
     u32 wavePeriod = buffer->samplesPerSecond / toneHz;
 
     s16 *sampleOut = buffer->samples;
-    for( DWORD sampleIndex = 0; sampleIndex < buffer->sampleCount; ++sampleIndex )
+    for( DWORD sampleIndex = 0; sampleIndex < buffer->frameCount; ++sampleIndex )
     {
         r32 sineValue = sinf( tSine );
         s16 sampleValue = (s16)(sineValue * toneAmp);
@@ -42,7 +42,7 @@ GameOutputSound( GameSoundBuffer *buffer, int toneHz )
 }
 
 internal void
-GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *videoBuffer, GameSoundBuffer *soundBuffer )
+GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer )
 {
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
 
@@ -88,6 +88,6 @@ GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *
         gameState->greenOffset += 5;
     }
 
-    GameOutputSound( soundBuffer, gameState->toneHz );
+    GameOutputAudio( audioBuffer, gameState->toneHz );
     RenderWeirdGradient( videoBuffer, gameState->blueOffset, gameState->greenOffset );
 }
