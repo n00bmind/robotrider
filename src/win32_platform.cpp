@@ -41,6 +41,8 @@ global IAudioClient* globalAudioClient;
 global IAudioRenderClient* globalAudioRenderClient;
 global s64 globalPerfCounterFrequency;
 
+
+
 internal DEBUGReadFileResult
 DEBUGPlatformReadEntireFile( char *filename )
 {
@@ -171,10 +173,13 @@ Win32InitXInput()
     }
 }
 
+
 // WASAPI functions
-internal void
-Win32InitWASAPI( u32 samplingRate, u16 bitsPerSample, u16 channelCount, u32 bufferSizeSamples )
+internal Win32AudioOutput
+Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount )
 {
+    u32 bufferSizeFrames = samplingRate;    // 1 second
+
     if( FAILED(CoInitializeEx( 0, COINIT_SPEED_OVER_MEMORY )) )
     {
         // TODO Diagnostic
@@ -201,30 +206,33 @@ Win32InitWASAPI( u32 samplingRate, u16 bitsPerSample, u16 channelCount, u32 buff
         ASSERT( false );
     }
     
-    // TODO Try to use the format returned by GetMixFormat() 
-    // (using the native sampling rate seems to be particularly important)
-    WAVEFORMATEX* mixFormat;
-    globalAudioClient->GetMixFormat( &mixFormat );
-
     WAVEFORMATEXTENSIBLE waveFormat;
     waveFormat.Format.cbSize = sizeof(waveFormat);
     waveFormat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
     waveFormat.Format.nChannels = channelCount;
     waveFormat.Format.nSamplesPerSec = samplingRate;
-    waveFormat.Format.wBitsPerSample = bitsPerSample;
+    waveFormat.Format.wBitsPerSample = bitDepth;
     waveFormat.Format.nBlockAlign = (WORD)(waveFormat.Format.nChannels * waveFormat.Format.wBitsPerSample / 8);
     waveFormat.Format.nAvgBytesPerSec = waveFormat.Format.nSamplesPerSec * waveFormat.Format.nBlockAlign;
-    waveFormat.Samples.wValidBitsPerSample = bitsPerSample;
+    waveFormat.Samples.wValidBitsPerSample = bitDepth;
     waveFormat.dwChannelMask = KSAUDIO_SPEAKER_STEREO;
     waveFormat.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
 
-    REFERENCE_TIME bufferDuration = 10000000ULL * bufferSizeSamples / samplingRate; // buffer size in hundreds of nanoseconds
+    REFERENCE_TIME bufferDuration = 10000000ULL;     // buffer size in hundreds of nanoseconds (1 sec.)
     HRESULT result = globalAudioClient->Initialize( AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_NOPERSIST,
-                                              bufferDuration, 0, &waveFormat.Format, nullptr );
+                                              bufferDuration, 0, (WAVEFORMATEX *)&waveFormat, nullptr );
 	if( result != S_OK )
     {
+        WAVEFORMATEXTENSIBLE* mixFormat;
+        globalAudioClient->GetMixFormat( (WAVEFORMATEX **)&mixFormat );
+
+        // Try to initialize again using the known to work samplingRate
+        waveFormat.Format.nSamplesPerSec = mixFormat->Format.nSamplesPerSec;
+        waveFormat.Format.nAvgBytesPerSec = waveFormat.Format.nSamplesPerSec * waveFormat.Format.nBlockAlign;
+        result = globalAudioClient->Initialize( AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_NOPERSIST,
+                                                bufferDuration, 0, (WAVEFORMATEX *)&waveFormat, nullptr );
         // TODO Diagnostic
-        ASSERT( false && result );
+        ASSERT( result == S_OK );
     }
 
     if( FAILED(globalAudioClient->GetService( IID_PPV_ARGS(&globalAudioRenderClient) )) )
@@ -233,135 +241,27 @@ Win32InitWASAPI( u32 samplingRate, u16 bitsPerSample, u16 channelCount, u32 buff
         ASSERT( false );
     }
 
-    u32 soundFrameCount;
-    if( FAILED(globalAudioClient->GetBufferSize( &soundFrameCount )) )
+    u32 audioFramesCount;
+    if( FAILED(globalAudioClient->GetBufferSize( &audioFramesCount )) )
     {
         // TODO Diagnostic
         ASSERT( false );
     }
 
-    ASSERT( bufferSizeSamples <= soundFrameCount );
+    ASSERT( bufferSizeFrames <= audioFramesCount );
+
+    Win32AudioOutput audioOutput = {};
+    audioOutput.samplingRate = waveFormat.Format.nSamplesPerSec;
+    audioOutput.bytesPerFrame = AUDIO_BITDEPTH * AUDIO_CHANNELS / 8;
+    audioOutput.bufferSizeFrames = bufferSizeFrames;
+    audioOutput.runningFrameCount = 0;
+
+    return audioOutput;
 }
-
-
-/*
-// DirectSound function pointers and stubs
-#define DIRECTSOUND_CREATE(name) HRESULT WINAPI name( LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter )
-typedef DIRECTSOUND_CREATE(DirectSoundCreateFunc);
-
-internal void
-Win32InitDirectSound( HWND window, u32 samplesPerSecond, u32 bufferSize )
-{
-    HMODULE DSoundLibrary = LoadLibrary( "dsound.dll" );
-
-    if( DSoundLibrary )
-    {
-        DirectSoundCreateFunc *DirectSoundCreate
-            = (DirectSoundCreateFunc *)GetProcAddress( DSoundLibrary, "DirectSoundCreate" ); 
-
-        LPDIRECTSOUND directSound;
-        if( DirectSoundCreate && SUCCEEDED(DirectSoundCreate( 0, &directSound, 0)) )
-        {
-            if( SUCCEEDED(directSound->SetCooperativeLevel( window, DSSCL_PRIORITY )) )
-            {
-                DSBUFFERDESC primaryDesc = {};
-                primaryDesc.dwSize = sizeof(primaryDesc);
-                primaryDesc.dwFlags = DSBCAPS_PRIMARYBUFFER;
-
-                // TODO DSBAPS_GLOBALFOCUS?
-                LPDIRECTSOUNDBUFFER primaryBuffer;
-                if( SUCCEEDED(directSound->CreateSoundBuffer( &primaryDesc, &primaryBuffer, 0 )) )
-                {
-                    WAVEFORMATEX waveFormat = {};
-                    waveFormat.wFormatTag = WAVE_FORMAT_PCM;
-                    waveFormat.nChannels = 2;
-                    waveFormat.nSamplesPerSec = samplesPerSecond;
-                    waveFormat.wBitsPerSample = 16;
-                    waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;
-                    waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
-                    waveFormat.cbSize = 0;
-
-                    if( SUCCEEDED(primaryBuffer->SetFormat( &waveFormat )) )
-                    {
-                        DSBUFFERDESC secondaryDesc = {};
-                        secondaryDesc.dwSize = sizeof(secondaryDesc);
-                        secondaryDesc.dwFlags = 0;
-                        secondaryDesc.dwBufferBytes = bufferSize;
-                        secondaryDesc.lpwfxFormat = &waveFormat;
-
-                        if( SUCCEEDED(directSound->CreateSoundBuffer( &secondaryDesc, &globalSecondaryBuffer, 0 )) )
-                        {
-                            // TODO Diagnostic
-                        }
-                        else
-                        {
-                            // TODO Diagnostic
-                        }
-                    }
-                    else
-                    {
-                        // TODO Diagnostic
-                    }
-                }
-                else
-                {
-                    // TODO Diagnostic
-                }
-            }
-            else
-            {
-                // TODO Diagnostic
-            }
-        }
-        else
-        {
-            // TODO Diagnostic
-        }
-    }
-    else
-    {
-        // TODO Diagnostic
-    }
-}
-*/
 
 internal void
 Win32BlitAudioBuffer( GameAudioBuffer *sourceBuffer, u32 framesToWrite, Win32AudioOutput *audioOutput )
 {
-    /*
-    VOID *region1;
-    DWORD region1Size;
-    VOID *region2;
-    DWORD region2Size;
-
-    if( SUCCEEDED(globalSecondaryBuffer->Lock( byteToLock, bytesToWrite,
-                                               &region1, &region1Size,
-                                               &region2, &region2Size,
-                                               0 )) )
-    {
-        s16 *sourceSample = sourceBuffer->samples;
-
-        // TODO Assert that region1Size/region2Size are valid
-        s16 *destSample = (s16 *)region1;
-        DWORD region1SampleCount = region1Size / audioOutput->bytesPerFrame;
-        for( DWORD sampleIndex = 0; sampleIndex < region1SampleCount; ++sampleIndex )
-        {
-            *destSample++ = *sourceSample++;
-            *destSample++ = *sourceSample++;
-            ++audioOutput->writePositionFrames;
-        }
-
-        destSample = (s16 *)region2;
-        DWORD region2SampleCount = region2Size / audioOutput->bytesPerFrame;
-        for( DWORD sampleIndex = 0; sampleIndex < region2SampleCount; ++sampleIndex )
-        {
-            *destSample++ = *sourceSample++;
-            *destSample++ = *sourceSample++;
-            ++audioOutput->writePositionFrames;
-        }
-        globalSecondaryBuffer->Unlock( region1, region1Size, region2, region2Size );
-    }
-    */
     BYTE *audioData;
     HRESULT hr = globalAudioRenderClient->GetBuffer( framesToWrite, &audioData );
     if( hr == S_OK )
@@ -382,6 +282,7 @@ Win32BlitAudioBuffer( GameAudioBuffer *sourceBuffer, u32 framesToWrite, Win32Aud
         ASSERT( false && hr );
     }
 }
+
 
 internal Win32WindowDimension
 Win32GetWindowDimension( HWND window )
@@ -429,6 +330,7 @@ Win32DisplayInWindow( Win32OffscreenBuffer *buffer, HDC deviceContext, int windo
                    DIB_RGB_COLORS,
                    SRCCOPY );
 }
+
 
 internal GameControllerInput*
 Win32ResetKeyboardController( GameInput* oldInput, GameInput* newInput )
@@ -576,6 +478,7 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 
 }
 
+
 internal void Win32ProcessPendingMessages( GameControllerInput *keyboardController )
 {
     MSG message;
@@ -717,6 +620,7 @@ Win32WindowProc( HWND hwnd,
     return result;
 }
 
+
 inline LARGE_INTEGER
 Win32GetWallClock()
 {
@@ -745,23 +649,16 @@ WinMain( HINSTANCE hInstance,
          LPSTR lpCmdLine,
          int nCmdShow )
 {
-    Win32AudioOutput audioOutput = {};
-    audioOutput.samplingRate = 44100;
-    audioOutput.bytesPerFrame = AUDIO_BITDEPTH * AUDIO_CHANNELS / 8;
-    audioOutput.bufferSizeFrames = audioOutput.samplingRate;            // 1 sec.
-    audioOutput.gameLatencyFrames = 1024;
-    audioOutput.runningFrameCount = 0;
-
     // Init subsystems
     Win32InitXInput();
     Win32AllocateBackBuffer( &globalBackBuffer, 1280, 720 );
-    // TODO Determine appropriate buffer size
-    Win32InitWASAPI( audioOutput.samplingRate, AUDIO_BITDEPTH, AUDIO_CHANNELS, audioOutput.samplingRate/2 );
+    Win32AudioOutput audioOutput = Win32InitWASAPI( 44100, AUDIO_BITDEPTH, AUDIO_CHANNELS );
+
     // Determine system latency
     REFERENCE_TIME latency;
     globalAudioClient->GetStreamLatency( &latency );
     u32 audioFramesPerSec = audioOutput.samplingRate;
-    audioOutput.systemLatencyFrames = Ceil( (u64)latency * audioFramesPerSec / 10000000.0 );
+    audioOutput.systemLatencyFrames = (u16)Ceil( (u64)latency * audioFramesPerSec / 10000000.0 );
 
     LARGE_INTEGER perfCounterFreqMeasure;
     QueryPerformanceFrequency( &perfCounterFreqMeasure );
@@ -820,6 +717,8 @@ WinMain( HINSTANCE hInstance,
                 GameInput *oldInput = &input[1];
 
                 r32 targetElapsedPerFrameSecs = 1.0f / VIDEO_TARGET_FRAMERATE;
+                // Assume our target for the first frame
+                r32 lastDeltaTimeSecs = targetElapsedPerFrameSecs;
 
                 HDC deviceContext = GetDC( window );
                 HRESULT hr = globalAudioClient->Start();
@@ -837,45 +736,23 @@ WinMain( HINSTANCE hInstance,
 
                     Win32ProcessXInputControllers( oldInput, newInput );
 
-                    DWORD byteToLock = 0;
-                    DWORD bytesToWrite = 0;
-                    DWORD targetCursor = 0;
-                    DWORD playCursor, writeCursor;
-
-                    // Figure out how many frames of audio to write in the next update
-                    // TODO In the future, when we pass frame delta time to the game, this calculation won't be needed
-                    // (will always be the amount of time that passed, if we didn't reach the framerate,  else the framerate time)
-                    /*
-                    if( SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition( &playCursor, &writeCursor )) )
-                    {
-                        byteToLock = (audioOutput.writePositionSamples * audioOutput.bytesPerFrame)
-                            % audioOutput.bufferSizeBytes;
-                        targetCursor = (playCursor + (audioOutput.latencySamples * audioOutput.bytesPerFrame))
-                            % audioOutput.bufferSizeBytes;
-
-                        if( byteToLock > targetCursor )
-                        {
-                            bytesToWrite = audioOutput.bufferSizeBytes - byteToLock;
-                            bytesToWrite += targetCursor;
-                        }
-                        else
-                        {
-                            bytesToWrite = targetCursor - byteToLock;
-                        }
-                    }
-                    */
                     u32 framesToWrite = 0;
                     u32 audioPaddingFrames;
                     if( SUCCEEDED(globalAudioClient->GetCurrentPadding( &audioPaddingFrames )) )
                     {
-                        framesToWrite = audioOutput.bufferSizeFrames - audioPaddingFrames;
+                        // TODO What's going on here?? This should be enough..
+                        // Check the first fake deltatime, that may fuck up something
+                        framesToWrite = Ceil( (r64)lastDeltaTimeSecs * audioOutput.samplingRate );
                         if( framesToWrite < audioOutput.systemLatencyFrames )
                         {
-                            // TODO Log "available space in audio buffer is less than system latency"
+                            // TODO Test if this is a problem
+                            ASSERT( false );
                         }
-                        else if( framesToWrite > audioOutput.gameLatencyFrames )
+                        else if( framesToWrite > audioOutput.bufferSizeFrames )
                         {
-                            framesToWrite = audioOutput.gameLatencyFrames;
+                            // TODO This should really be the maximum amount available obtained with GetCurrentPadding!
+                            framesToWrite = audioOutput.bufferSizeFrames;
+                            // TODO Diagnostic
                         }
                     }
 
@@ -888,9 +765,8 @@ WinMain( HINSTANCE hInstance,
 
                     GameAudioBuffer audioBuffer = {};
                     audioBuffer.samplesPerSecond = audioOutput.samplingRate;
-                    // TODO In the future, when we pass frame delta time to the game, frameCount won't be needed
                     audioBuffer.channelCount = AUDIO_CHANNELS;
-                    audioBuffer.frameCount = bytesToWrite / audioOutput.bytesPerFrame;
+                    audioBuffer.frameCount = framesToWrite;
                     audioBuffer.samples = soundSamples;
 
                     // Ask the game to render one frame
@@ -911,6 +787,7 @@ WinMain( HINSTANCE hInstance,
                     r32 frameElapsedSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
 
                     // Wait till the target frame time
+                    // TODO Check what happens to audio when we don't reach our target framerate, or when disabling "VSync"
                     r32 elapsedSecs = frameElapsedSecs;
                     if( elapsedSecs < targetElapsedPerFrameSecs )
                     {
@@ -943,17 +820,18 @@ WinMain( HINSTANCE hInstance,
                     Win32WindowDimension dim = Win32GetWindowDimension( window );
                     Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
 
-#if 1
-                    r32 fps = 1.0f / elapsedSecs;
-                    {
-                        char buffer[256];
-                        sprintf_s( buffer, ARRAYCOUNT( buffer ), "ms: %.02f - FPS: %.02f (%d Kcycles)\n", 1000.0f * elapsedSecs, fps, kCyclesElapsed );
-                        OutputDebugString( buffer );
-                    }
-#endif
+                    lastDeltaTimeSecs = elapsedSecs;
                     endCounter = Win32GetWallClock();
                     lastCounter = endCounter;
                     lastCycleCounter = endCycleCounter;
+#if 1
+                    {
+                        r32 fps = 1.0f / lastDeltaTimeSecs;
+                        char buffer[256];
+                        sprintf_s( buffer, ARRAYCOUNT( buffer ), "ms: %.02f - FPS: %.02f (%d Kcycles)\n", 1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed );
+                        OutputDebugString( buffer );
+                    }
+#endif
                 }
             }
             else
