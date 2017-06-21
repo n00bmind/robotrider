@@ -26,7 +26,7 @@ internal void
 GameOutputAudio( GameAudioBuffer *buffer, int toneHz )
 {
     local_persistent r32 tSine;
-    u32 toneAmp = 3000;
+    u32 toneAmp = 6000;
     u32 wavePeriod = buffer->samplesPerSecond / toneHz;
 
     s16 *sampleOut = buffer->samples;

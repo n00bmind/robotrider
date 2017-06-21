@@ -3,6 +3,7 @@
 #include <xinput.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
+#include <audiosessiontypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <malloc.h>
@@ -12,10 +13,16 @@
 #define local_persistent static
 
 #define PI32 3.141592653589f
-#define VIDEO_TARGET_FRAMERATE 60
+#define VIDEO_TARGET_FRAMERATE 30
 #define AUDIO_BITDEPTH 16
 #define AUDIO_CHANNELS 2
 
+#ifndef AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
+#define AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM 0x80000000
+#endif
+#ifndef AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY
+#define AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY 0x08000000
+#endif
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -218,15 +225,24 @@ Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount )
     waveFormat.dwChannelMask = KSAUDIO_SPEAKER_STEREO;
     waveFormat.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
 
+    // TODO Use EVENTCALLBACK mode because this seems to improve latency
     REFERENCE_TIME bufferDuration = 10000000ULL;     // buffer size in hundreds of nanoseconds (1 sec.)
-    HRESULT result = globalAudioClient->Initialize( AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_NOPERSIST,
-                                              bufferDuration, 0, (WAVEFORMATEX *)&waveFormat, nullptr );
+    HRESULT result = globalAudioClient->Initialize( AUDCLNT_SHAREMODE_SHARED,
+                                                    AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM|AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
+                                                    bufferDuration, 0, (WAVEFORMATEX *)&waveFormat, nullptr );
+    // TODO Diagnostic
+    ASSERT( result == S_OK );
+
+#if 0
+    // Try to initialize again using the device preferred sample rate
 	if( result != S_OK )
     {
+        // Discard partially initialized IAudioClient because some devices will fail otherwise
+        ASSERT( SUCCEEDED(device->Activate( __uuidof(IAudioClient), CLSCTX_ALL, NULL, (LPVOID *)&globalAudioClient )) );
+        
         WAVEFORMATEXTENSIBLE* mixFormat;
         globalAudioClient->GetMixFormat( (WAVEFORMATEX **)&mixFormat );
 
-        // Try to initialize again using the known to work samplingRate
         waveFormat.Format.nSamplesPerSec = mixFormat->Format.nSamplesPerSec;
         waveFormat.Format.nAvgBytesPerSec = waveFormat.Format.nSamplesPerSec * waveFormat.Format.nBlockAlign;
         result = globalAudioClient->Initialize( AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_NOPERSIST,
@@ -234,6 +250,7 @@ Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount )
         // TODO Diagnostic
         ASSERT( result == S_OK );
     }
+#endif
 
     if( FAILED(globalAudioClient->GetService( IID_PPV_ARGS(&globalAudioRenderClient) )) )
     {
@@ -652,7 +669,7 @@ WinMain( HINSTANCE hInstance,
     // Init subsystems
     Win32InitXInput();
     Win32AllocateBackBuffer( &globalBackBuffer, 1280, 720 );
-    Win32AudioOutput audioOutput = Win32InitWASAPI( 44100, AUDIO_BITDEPTH, AUDIO_CHANNELS );
+    Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS );
 
     // Determine system latency
     REFERENCE_TIME latency;
@@ -721,9 +738,9 @@ WinMain( HINSTANCE hInstance,
                 r32 lastDeltaTimeSecs = targetElapsedPerFrameSecs;
 
                 HDC deviceContext = GetDC( window );
-                HRESULT hr = globalAudioClient->Start();
-                ASSERT( hr == S_OK );
                 globalRunning = true;
+
+                ASSERT( globalAudioClient->Start() == S_OK );
 
                 LARGE_INTEGER lastCounter = Win32GetWallClock();
                 s64 lastCycleCounter = __rdtsc();
@@ -741,8 +758,8 @@ WinMain( HINSTANCE hInstance,
                     if( SUCCEEDED(globalAudioClient->GetCurrentPadding( &audioPaddingFrames )) )
                     {
                         // TODO What's going on here?? This should be enough..
-                        // Check the first fake deltatime, that may fuck up something
-                        framesToWrite = Ceil( (r64)lastDeltaTimeSecs * audioOutput.samplingRate );
+                        //framesToWrite = Ceil( (r64)lastDeltaTimeSecs * audioOutput.samplingRate );
+                        framesToWrite = audioOutput.samplingRate / VIDEO_TARGET_FRAMERATE;
                         if( framesToWrite < audioOutput.systemLatencyFrames )
                         {
                             // TODO Test if this is a problem
@@ -773,7 +790,7 @@ WinMain( HINSTANCE hInstance,
                     GameUpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer );
 
                     // Blit audio buffer to output
-                    Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
+//                    Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
 
                     GameInput *temp = newInput;
                     newInput = oldInput;
@@ -816,6 +833,7 @@ WinMain( HINSTANCE hInstance,
                         // TODO Log missed frame rate
                     }
 
+                    Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
                     // Blit video to output
                     Win32WindowDimension dim = Win32GetWindowDimension( window );
                     Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
