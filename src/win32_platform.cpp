@@ -13,7 +13,7 @@
 #define local_persistent static
 
 #define PI32 3.141592653589f
-#define VIDEO_TARGET_FRAMERATE 30
+#define VIDEO_TARGET_FRAMERATE 60
 #define AUDIO_BITDEPTH 16
 #define AUDIO_CHANNELS 2
 
@@ -183,10 +183,8 @@ Win32InitXInput()
 
 // WASAPI functions
 internal Win32AudioOutput
-Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount )
+Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount, u32 bufferSizeFrames )
 {
-    u32 bufferSizeFrames = samplingRate;    // 1 second
-
     if( FAILED(CoInitializeEx( 0, COINIT_SPEED_OVER_MEMORY )) )
     {
         // TODO Diagnostic
@@ -226,7 +224,7 @@ Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount )
     waveFormat.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
 
     // TODO Use EVENTCALLBACK mode because this seems to improve latency
-    REFERENCE_TIME bufferDuration = 10000000ULL;     // buffer size in hundreds of nanoseconds (1 sec.)
+    REFERENCE_TIME bufferDuration = 10000000ULL * bufferSizeFrames / samplingRate;     // buffer size in hundreds of nanoseconds (1 sec.)
     HRESULT result = globalAudioClient->Initialize( AUDCLNT_SHAREMODE_SHARED,
                                                     AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM|AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
                                                     bufferDuration, 0, (WAVEFORMATEX *)&waveFormat, nullptr );
@@ -265,7 +263,7 @@ Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount )
         ASSERT( false );
     }
 
-    ASSERT( bufferSizeFrames <= audioFramesCount );
+    ASSERT( bufferSizeFrames == audioFramesCount );
 
     Win32AudioOutput audioOutput = {};
     audioOutput.samplingRate = waveFormat.Format.nSamplesPerSec;
@@ -669,7 +667,7 @@ WinMain( HINSTANCE hInstance,
     // Init subsystems
     Win32InitXInput();
     Win32AllocateBackBuffer( &globalBackBuffer, 1280, 720 );
-    Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS );
+    Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS, 2500 );
 
     // Determine system latency
     REFERENCE_TIME latency;
@@ -745,6 +743,7 @@ WinMain( HINSTANCE hInstance,
                 LARGE_INTEGER lastCounter = Win32GetWallClock();
                 s64 lastCycleCounter = __rdtsc();
 
+                u32 runningFrameCounter = 0;
                 while( globalRunning )
                 {
                     // Process input
@@ -757,20 +756,11 @@ WinMain( HINSTANCE hInstance,
                     u32 audioPaddingFrames;
                     if( SUCCEEDED(globalAudioClient->GetCurrentPadding( &audioPaddingFrames )) )
                     {
-                        // TODO What's going on here?? This should be enough..
-                        //framesToWrite = Ceil( (r64)lastDeltaTimeSecs * audioOutput.samplingRate );
-                        framesToWrite = audioOutput.samplingRate / VIDEO_TARGET_FRAMERATE;
-                        if( framesToWrite < audioOutput.systemLatencyFrames )
-                        {
-                            // TODO Test if this is a problem
-                            ASSERT( false );
-                        }
-                        else if( framesToWrite > audioOutput.bufferSizeFrames )
-                        {
-                            // TODO This should really be the maximum amount available obtained with GetCurrentPadding!
-                            framesToWrite = audioOutput.bufferSizeFrames;
-                            // TODO Diagnostic
-                        }
+                        // TODO Try priming the buffer with something like half a frame's worth of silence
+                        // that could help improving synchronization with the next video blit
+
+                        // Write enough to keep the buffer as full as possible
+                        framesToWrite = audioOutput.bufferSizeFrames - audioPaddingFrames;
                     }
 
                     // Prepare audio & video buffers
@@ -787,10 +777,10 @@ WinMain( HINSTANCE hInstance,
                     audioBuffer.samples = soundSamples;
 
                     // Ask the game to render one frame
-                    GameUpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer );
+                    GameUpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer, (runningFrameCounter % VIDEO_TARGET_FRAMERATE) == 0 );
 
                     // Blit audio buffer to output
-//                    Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
+                    Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
 
                     GameInput *temp = newInput;
                     newInput = oldInput;
@@ -833,20 +823,22 @@ WinMain( HINSTANCE hInstance,
                         // TODO Log missed frame rate
                     }
 
-                    Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
+                    endCounter = Win32GetWallClock();
+                    lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
+                    lastCounter = endCounter;
+
                     // Blit video to output
                     Win32WindowDimension dim = Win32GetWindowDimension( window );
                     Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
 
-                    lastDeltaTimeSecs = elapsedSecs;
-                    endCounter = Win32GetWallClock();
-                    lastCounter = endCounter;
                     lastCycleCounter = endCycleCounter;
+                    ++runningFrameCounter;
 #if 1
                     {
                         r32 fps = 1.0f / lastDeltaTimeSecs;
                         char buffer[256];
-                        sprintf_s( buffer, ARRAYCOUNT( buffer ), "ms: %.02f - FPS: %.02f (%d Kcycles)\n", 1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed );
+                        sprintf_s( buffer, ARRAYCOUNT( buffer ), "ms: %.02f - FPS: %.02f (%d Kcycles) - audio padding: %d\n",
+                                   1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed, audioPaddingFrames );
                         OutputDebugString( buffer );
                     }
 #endif

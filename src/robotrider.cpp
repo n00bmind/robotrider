@@ -2,7 +2,7 @@
 
 
 internal void
-RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset )
+RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset, b32 beep )
 {
     int width = buffer->width;
     int height = buffer->height;
@@ -16,14 +16,14 @@ RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset )
         {
             u8 b = (u8)(x + xOffset);
             u8 g = (u8)(y + yOffset);
-            *pixel++ = ((g << 8) | b);
+            *pixel++ = beep ? 0xFFFFFFFF : ((g << 8) | b);
         }
         row += pitch;
     }
 }
 
 internal void
-GameOutputAudio( GameAudioBuffer *buffer, int toneHz )
+GameOutputAudio( GameAudioBuffer *buffer, int toneHz, b32 beep )
 {
     local_persistent r32 tSine;
     u32 toneAmp = 6000;
@@ -34,15 +34,16 @@ GameOutputAudio( GameAudioBuffer *buffer, int toneHz )
     {
         r32 sineValue = sinf( tSine );
         s16 sampleValue = (s16)(sineValue * toneAmp);
-        *sampleOut++ = sampleValue;
-        *sampleOut++ = sampleValue;
+        *sampleOut++ = beep ? 32767 : sampleValue;
+        *sampleOut++ = beep ? 32767 : sampleValue;
 
         tSine += 2.f * PI32 * 1.0f / wavePeriod;
     }
 }
 
 internal void
-GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer )
+GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer,
+                     b32 beep )
 {
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
 
@@ -88,6 +89,6 @@ GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *
         gameState->greenOffset += 5;
     }
 
-    GameOutputAudio( audioBuffer, gameState->toneHz );
-    RenderWeirdGradient( videoBuffer, gameState->blueOffset, gameState->greenOffset );
+    GameOutputAudio( audioBuffer, gameState->toneHz, beep );
+    RenderWeirdGradient( videoBuffer, gameState->blueOffset, gameState->greenOffset, beep );
 }

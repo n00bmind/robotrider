@@ -134,7 +134,7 @@ struct GameMemory
     void *transientStorage;     // NOTE Required to be cleared to zero at startup
 };
 
-internal void GameUpdateAndRender( GameInput *input, GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer );
+internal void GameUpdateAndRender( GameInput *input, GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer, b32 beep );
 
 
 

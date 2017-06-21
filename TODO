@@ -1,0 +1,15 @@
+    ::::::::::::::::
+    :: robotrider ::
+    ::::::::::::::::
+
+AUDIO
+- Win32: switch WASAPI to callback mode to reduce buffer size and improve latency.
+  This implies creating a separate dedicated thread that just blits audio to the output.
+  The buffer strategy wouldn't change, the game would check how much space is available and
+  would produce the same amount of frames, and the blitter thread would simply blit said
+  amount to the device.
+  Refs:
+  https://msdn.microsoft.com/en-us/library/windows/desktop/dd370875(v=vs.85).aspx
+  https://msdn.microsoft.com/en-us/library/windows/desktop/dd370844(v=vs.85).aspx
+  https://github.com/pauldotknopf/WindowsSDK7-Samples/blob/master/multimedia/audio/RenderExclusiveEventDriven/WASAPIRenderer.cpp
+
