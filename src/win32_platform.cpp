@@ -667,13 +667,15 @@ WinMain( HINSTANCE hInstance,
     // Init subsystems
     Win32InitXInput();
     Win32AllocateBackBuffer( &globalBackBuffer, 1280, 720 );
-    Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS, 2500 );
+    // TODO Test what a safe value for buffer size/latency is with several audio cards
+    // (stress test by artificially lowering the framerate)
+    Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS, 2000 );
 
     // Determine system latency
     REFERENCE_TIME latency;
     globalAudioClient->GetStreamLatency( &latency );
-    u32 audioFramesPerSec = audioOutput.samplingRate;
-    audioOutput.systemLatencyFrames = (u16)Ceil( (u64)latency * audioFramesPerSec / 10000000.0 );
+    audioOutput.systemLatencyFrames = (u16)Ceil( (u64)latency * audioOutput.samplingRate / 10000000.0 );
+    u32 audioLatencyFrames = audioOutput.samplingRate / VIDEO_TARGET_FRAMERATE;
 
     LARGE_INTEGER perfCounterFreqMeasure;
     QueryPerformanceFrequency( &perfCounterFreqMeasure );
@@ -757,9 +759,7 @@ WinMain( HINSTANCE hInstance,
                     if( SUCCEEDED(globalAudioClient->GetCurrentPadding( &audioPaddingFrames )) )
                     {
                         // TODO Try priming the buffer with something like half a frame's worth of silence
-                        // that could help improving synchronization with the next video blit
 
-                        // Write enough to keep the buffer as full as possible
                         framesToWrite = audioOutput.bufferSizeFrames - audioPaddingFrames;
                     }
 
@@ -793,8 +793,12 @@ WinMain( HINSTANCE hInstance,
                     LARGE_INTEGER endCounter = Win32GetWallClock();
                     r32 frameElapsedSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
 
+#if 0
+                    // Artificially increase wait time from 0 to 20ms.
+                    int r = rand() % 20;
+                    targetElapsedPerFrameSecs = (1.0f / VIDEO_TARGET_FRAMERATE) + ((r32)r / 1000.0f);
+#endif
                     // Wait till the target frame time
-                    // TODO Check what happens to audio when we don't reach our target framerate, or when disabling "VSync"
                     r32 elapsedSecs = frameElapsedSecs;
                     if( elapsedSecs < targetElapsedPerFrameSecs )
                     {
