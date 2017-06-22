@@ -30,7 +30,7 @@ GameOutputAudio( GameAudioBuffer *buffer, int toneHz, b32 beep )
     u32 wavePeriod = buffer->samplesPerSecond / toneHz;
 
     s16 *sampleOut = buffer->samples;
-    for( DWORD sampleIndex = 0; sampleIndex < buffer->frameCount; ++sampleIndex )
+    for( u32 sampleIndex = 0; sampleIndex < buffer->frameCount; ++sampleIndex )
     {
         r32 sineValue = sinf( tSine );
         s16 sampleValue = (s16)(sineValue * toneAmp);
@@ -41,9 +41,7 @@ GameOutputAudio( GameAudioBuffer *buffer, int toneHz, b32 beep )
     }
 }
 
-internal void
-GameUpdateAndRender( GameMemory *memory, GameInput *input, GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer,
-                     b32 beep )
+GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
 

@@ -1,18 +1,13 @@
+#include "robotrider.h"
+
 #include <windows.h>
-#include <stdint.h>
 #include <xinput.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <audiosessiontypes.h>
-#include <math.h>
 #include <stdio.h>
-#include <malloc.h>
 
-#define global static
-#define internal static
-#define local_persistent static
 
-#define PI32 3.141592653589f
 #define VIDEO_TARGET_FRAMERATE 60
 #define AUDIO_BITDEPTH 16
 #define AUDIO_CHANNELS 2
@@ -24,22 +19,6 @@
 #define AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY 0x08000000
 #endif
 
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef int8_t s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
-
-typedef s32 b32;
-typedef float r32;
-typedef double r64;
-
-#include "robotrider.cpp"
-
 #include "win32_platform.h"
 
 global bool globalRunning;
@@ -50,7 +29,7 @@ global s64 globalPerfCounterFrequency;
 
 
 
-internal DEBUGReadFileResult
+DEBUGReadFileResult
 DEBUGPlatformReadEntireFile( char *filename )
 {
     DEBUGReadFileResult result = {};
@@ -99,7 +78,7 @@ DEBUGPlatformReadEntireFile( char *filename )
     return result;
 }
 
-internal void
+void
 DEBUGPlatformFreeFileMemory( void *memory )
 {
     if( memory )
@@ -108,7 +87,7 @@ DEBUGPlatformFreeFileMemory( void *memory )
     }
 }
 
-internal b32
+b32
 DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory )
 {
     b32 result = false;
@@ -134,6 +113,15 @@ DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory )
     }
 
     return result;
+}
+
+
+internal void
+Win32LoadGameCode()
+{
+    HMODULE gameCodeDLL = LoadLibrary( "robotrider.dll" );
+    
+    ...
 }
 
 
@@ -777,7 +765,8 @@ WinMain( HINSTANCE hInstance,
                     audioBuffer.samples = soundSamples;
 
                     // Ask the game to render one frame
-                    GameUpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer, (runningFrameCounter % VIDEO_TARGET_FRAMERATE) == 0 );
+                    GameUpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer,
+                                         (runningFrameCounter % VIDEO_TARGET_FRAMERATE) == 0 );
 
                     // Blit audio buffer to output
                     Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
@@ -809,13 +798,6 @@ WinMain( HINSTANCE hInstance,
                             {
                                 Sleep( sleepMs );
                             }
-#if 0
-                            {
-                                char buffer[256];
-                                sprintf_s( buffer, ARRAYCOUNT( buffer ), "frameElapsedMs: %.02f - sleep for %dms.\n", frameElapsedSecs * 1000.0f, sleepMs );
-                                OutputDebugString( buffer );
-                            }
-#endif
                         }
                         while( elapsedSecs < targetElapsedPerFrameSecs )
                         {

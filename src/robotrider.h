@@ -1,6 +1,13 @@
 #ifndef __ROBOTRIDER_H__
 #define __ROBOTRIDER_H__ 
 
+#include <stdint.h>
+#include <math.h>
+
+#define global static
+#define internal static
+#define local_persistent static
+
 #if DEBUG
 #define ASSERT(expression) if( !(expression) ) { *(int *)0 = 0; }
 #else
@@ -12,6 +19,23 @@
 #define KILOBYTES(value) ((value)*1024)
 #define MEGABYTES(value) (KILOBYTES(value)*1024)
 #define GIGABYTES(value) (MEGABYTES(value)*1024)
+
+#define PI32 3.141592653589f
+
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
+
+typedef s32 b32;
+typedef float r32;
+typedef double r64;
+
 
 
 inline u32 SafeTruncU64( u64 value )
@@ -30,9 +54,9 @@ struct DEBUGReadFileResult
     u32 contentSize;
     void *contents;
 };
-internal DEBUGReadFileResult DEBUGPlatformReadEntireFile( char *filename );
-internal void DEBUGPlatformFreeFileMemory( void *bitmapMemory );
-internal b32 DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory );
+DEBUGReadFileResult DEBUGPlatformReadEntireFile( char *filename );
+void DEBUGPlatformFreeFileMemory( void *memory );
+b32 DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory );
 #endif
 
 
@@ -134,7 +158,13 @@ struct GameMemory
     void *transientStorage;     // NOTE Required to be cleared to zero at startup
 };
 
-internal void GameUpdateAndRender( GameInput *input, GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer, b32 beep );
+#define GAME_UPDATE_AND_RENDER(name) \
+    void name( GameMemory *memory, GameInput *input, \
+               GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer, b32 beep )
+typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
+GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
+{
+}
 
 
 
