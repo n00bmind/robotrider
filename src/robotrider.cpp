@@ -50,11 +50,11 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if( !memory->isInitialized )
     {
         char *filename = __FILE__;
-        DEBUGReadFileResult file = DEBUGPlatformReadEntireFile( filename );
+        DEBUGReadFileResult file = memory->DEBUGPlatformReadEntireFile( filename );
         if( file.contents )
         {
-            DEBUGPlatformWriteEntireFile( "test.out", file.contentSize, file.contents );
-            DEBUGPlatformFreeFileMemory( file.contents );
+            memory->DEBUGPlatformWriteEntireFile( "test.out", file.contentSize, file.contents );
+            memory->DEBUGPlatformFreeFileMemory( file.contents );
         }
         
         gameState->blueOffset = 0;

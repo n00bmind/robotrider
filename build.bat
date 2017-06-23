@@ -11,6 +11,5 @@ set LIBS=user32.lib gdi32.lib winmm.lib ole32.lib
 
 if not exist %RRBIN% mkdir %RRBIN%
 pushd %RRBIN%
-cl %COMMONFLAGS% %DISABLEFLAGS% %DEBUGFLAGS% ..\%RRSRC%\robotrider.cpp /link /dll %LIBS%
-cl %COMMONFLAGS% %DISABLEFLAGS% %DEBUGFLAGS% ..\%RRSRC%\win32_platform.cpp /link -opt:ref -subsystem:windows,5.2 %LIBS%
-popd
+cl %COMMONFLAGS% %DISABLEFLAGS% %DEBUGFLAGS% ..\%RRSRC%\robotrider.cpp -Fmrobotrider.map /dll
+cl %COMMONFLAGS% %DISABLEFLAGS% %DEBUGFLAGS% ..\%RRSRC%\win32_platform.cpp -Fmwin32_platform.map /link -opt:ref -subsystem:windows,5.2 %LIBS%

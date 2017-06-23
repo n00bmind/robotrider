@@ -28,9 +28,15 @@ global IAudioRenderClient* globalAudioRenderClient;
 global s64 globalPerfCounterFrequency;
 
 
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
+{
+    if( memory )
+    {
+        VirtualFree( memory, 0, MEM_RELEASE );
+    }
+}
 
-DEBUGReadFileResult
-DEBUGPlatformReadEntireFile( char *filename )
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 {
     DEBUGReadFileResult result = {};
 
@@ -78,17 +84,7 @@ DEBUGPlatformReadEntireFile( char *filename )
     return result;
 }
 
-void
-DEBUGPlatformFreeFileMemory( void *memory )
-{
-    if( memory )
-    {
-        VirtualFree( memory, 0, MEM_RELEASE );
-    }
-}
-
-b32
-DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory )
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
     b32 result = false;
 
@@ -116,12 +112,33 @@ DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory )
 }
 
 
-internal void
+struct Win32GameCode
+{
+    HMODULE gameCodeDLL;
+    GameUpdateAndRenderFunc *UpdateAndRender;
+
+    b32 isValid;
+};
+
+internal Win32GameCode
 Win32LoadGameCode()
 {
-    HMODULE gameCodeDLL = LoadLibrary( "robotrider.dll" );
-    
-    ...
+    Win32GameCode result = {};
+
+    result.gameCodeDLL = LoadLibrary( "robotrider.dll" );
+    if( result.gameCodeDLL )
+    {
+        result.UpdateAndRender = (GameUpdateAndRenderFunc *)GetProcAddress( result.gameCodeDLL, "GameUpdateAndRender" );
+
+        result.isValid = result.UpdateAndRender != 0;
+    }
+
+    if( !result.isValid )
+    {
+        result.UpdateAndRender = GameUpdateAndRenderStub;
+    }
+
+    return result;
 }
 
 
@@ -653,6 +670,8 @@ WinMain( HINSTANCE hInstance,
          int nCmdShow )
 {
     // Init subsystems
+    Win32GameCode gameCode = Win32LoadGameCode();
+    
     Win32InitXInput();
     Win32AllocateBackBuffer( &globalBackBuffer, 1280, 720 );
     // TODO Test what a safe value for buffer size/latency is with several audio cards
@@ -708,6 +727,9 @@ WinMain( HINSTANCE hInstance,
             GameMemory gameMemory = {};
             gameMemory.permanentStorageSize = MEGABYTES(64);
             gameMemory.transientStorageSize = GIGABYTES((u64)4);
+            gameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
+            gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
+            gameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 
             u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
             gameMemory.permanentStorage = VirtualAlloc( baseAddress, totalSize,
@@ -765,8 +787,8 @@ WinMain( HINSTANCE hInstance,
                     audioBuffer.samples = soundSamples;
 
                     // Ask the game to render one frame
-                    GameUpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer,
-                                         (runningFrameCounter % VIDEO_TARGET_FRAMERATE) == 0 );
+                    gameCode.UpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer,
+                                              (runningFrameCounter % VIDEO_TARGET_FRAMERATE) == 0 );
 
                     // Blit audio buffer to output
                     Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );

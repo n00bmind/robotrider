@@ -49,14 +49,21 @@ inline u32 SafeTruncU64( u64 value )
 // Services that the platform layer provides to the game
 //
 #if DEBUG
+
 struct DEBUGReadFileResult
 {
     u32 contentSize;
     void *contents;
 };
-DEBUGReadFileResult DEBUGPlatformReadEntireFile( char *filename );
-void DEBUGPlatformFreeFileMemory( void *memory );
-b32 DEBUGPlatformWriteEntireFile( char*filename, u32 memorySize, void *memory );
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGReadFileResult name( char *filename )
+typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(DebugPlatformReadEntireFileFunc);
+
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name( void *memory )
+typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(DebugPlatformFreeFileMemoryFunc);
+
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name( char*filename, u32 memorySize, void *memory )
+typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
+
 #endif
 
 
@@ -156,6 +163,10 @@ struct GameMemory
 
     u64 transientStorageSize;
     void *transientStorage;     // NOTE Required to be cleared to zero at startup
+
+    DebugPlatformReadEntireFileFunc *DEBUGPlatformReadEntireFile;
+    DebugPlatformFreeFileMemoryFunc *DEBUGPlatformFreeFileMemory;
+    DebugPlatformWriteEntireFileFunc *DEBUGPlatformWriteEntireFile;
 };
 
 #define GAME_UPDATE_AND_RENDER(name) \
