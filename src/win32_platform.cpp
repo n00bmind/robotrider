@@ -125,7 +125,8 @@ Win32LoadGameCode()
 {
     Win32GameCode result = {};
 
-    result.gameCodeDLL = LoadLibrary( "robotrider.dll" );
+    CopyFile( "robotrider.dll", "rrgame.dll", FALSE );
+    result.gameCodeDLL = LoadLibrary( "rrgame.dll" );
     if( result.gameCodeDLL )
     {
         result.UpdateAndRender = (GameUpdateAndRenderFunc *)GetProcAddress( result.gameCodeDLL, "GameUpdateAndRender" );
@@ -139,6 +140,19 @@ Win32LoadGameCode()
     }
 
     return result;
+}
+
+internal void
+Win32UnloadGameCode( Win32GameCode *gameCode )
+{
+    if( gameCode->gameCodeDLL )
+    {
+        FreeLibrary( gameCode->gameCodeDLL );
+        gameCode->gameCodeDLL = 0;
+    }
+
+    gameCode->isValid = false;
+    gameCode->UpdateAndRender = GameUpdateAndRenderStub;
 }
 
 
@@ -670,8 +684,6 @@ WinMain( HINSTANCE hInstance,
          int nCmdShow )
 {
     // Init subsystems
-    Win32GameCode gameCode = Win32LoadGameCode();
-    
     Win32InitXInput();
     Win32AllocateBackBuffer( &globalBackBuffer, 1280, 720 );
     // TODO Test what a safe value for buffer size/latency is with several audio cards
@@ -755,9 +767,18 @@ WinMain( HINSTANCE hInstance,
                 LARGE_INTEGER lastCounter = Win32GetWallClock();
                 s64 lastCycleCounter = __rdtsc();
 
+                Win32GameCode game = Win32LoadGameCode();
+    
                 u32 runningFrameCounter = 0;
                 while( globalRunning )
                 {
+                    if( runningFrameCounter > 120 )
+                    {
+                        Win32UnloadGameCode( &game );
+                        game = Win32LoadGameCode();
+                        runningFrameCounter = 0;
+                    }
+
                     // Process input
                     GameControllerInput *newKeyboardController = Win32ResetKeyboardController( oldInput, newInput );
                     Win32ProcessPendingMessages( newKeyboardController );
@@ -787,7 +808,7 @@ WinMain( HINSTANCE hInstance,
                     audioBuffer.samples = soundSamples;
 
                     // Ask the game to render one frame
-                    gameCode.UpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer,
+                    game.UpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer,
                                               (runningFrameCounter % VIDEO_TARGET_FRAMERATE) == 0 );
 
                     // Blit audio buffer to output
