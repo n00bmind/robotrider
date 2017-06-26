@@ -11,6 +11,7 @@
 #define VIDEO_TARGET_FRAMERATE 60
 #define AUDIO_BITDEPTH 16
 #define AUDIO_CHANNELS 2
+#define AUDIO_LATENCY_SAMPLES 2200
 
 #ifndef AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
 #define AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM 0x80000000
@@ -112,21 +113,30 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 }
 
 
-struct Win32GameCode
+inline FILETIME
+Win32GetLastWriteTime( char *filename )
 {
-    HMODULE gameCodeDLL;
-    GameUpdateAndRenderFunc *UpdateAndRender;
+    FILETIME lastWriteTime = {};
 
-    b32 isValid;
-};
+    WIN32_FIND_DATA findData;
+    HANDLE findHandle = FindFirstFile( filename, &findData );
+    if( findHandle != INVALID_HANDLE_VALUE )
+    {
+        lastWriteTime = findData.ftLastWriteTime;
+        FindClose( findHandle );
+    }
+
+    return lastWriteTime;
+}
 
 internal Win32GameCode
-Win32LoadGameCode()
+Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath )
 {
     Win32GameCode result = {};
+    result.lastDLLWriteTime = Win32GetLastWriteTime( sourceDLLPath );
 
-    CopyFile( "robotrider.dll", "rrgame.dll", FALSE );
-    result.gameCodeDLL = LoadLibrary( "rrgame.dll" );
+    CopyFile( sourceDLLPath, tempDLLPath, FALSE );
+    result.gameCodeDLL = LoadLibrary( tempDLLPath );
     if( result.gameCodeDLL )
     {
         result.UpdateAndRender = (GameUpdateAndRenderFunc *)GetProcAddress( result.gameCodeDLL, "GameUpdateAndRender" );
@@ -683,12 +693,34 @@ WinMain( HINSTANCE hInstance,
          LPSTR lpCmdLine,
          int nCmdShow )
 {
+    char exeFilePath[MAX_PATH];
+    DWORD pathLen = GetModuleFileName( 0, exeFilePath, sizeof(exeFilePath) );
+    char *onePastLastSlash = exeFilePath;
+    for( char *scanChar = exeFilePath; *scanChar; ++scanChar )
+    {
+        if( *scanChar == '\\' )
+        {
+            onePastLastSlash = scanChar + 1;
+        }
+    }
+    if( onePastLastSlash != exeFilePath )
+    {
+        *onePastLastSlash = 0;
+    }
+
+    char *sourceDLLName = "robotrider.dll";
+    char sourceDLLPath[MAX_PATH];
+    sprintf_s( sourceDLLPath, ARRAYCOUNT(sourceDLLPath), "%s%s", exeFilePath, sourceDLLName );
+    char *tempDLLName = "robotrider_temp.dll";
+    char tempDLLPath[MAX_PATH];
+    sprintf_s( tempDLLPath, ARRAYCOUNT(tempDLLPath), "%s%s", exeFilePath, tempDLLName );
+
     // Init subsystems
     Win32InitXInput();
     Win32AllocateBackBuffer( &globalBackBuffer, 1280, 720 );
     // TODO Test what a safe value for buffer size/latency is with several audio cards
     // (stress test by artificially lowering the framerate)
-    Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS, 2000 );
+    Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS, AUDIO_LATENCY_SAMPLES );
 
     // Determine system latency
     REFERENCE_TIME latency;
@@ -767,16 +799,16 @@ WinMain( HINSTANCE hInstance,
                 LARGE_INTEGER lastCounter = Win32GetWallClock();
                 s64 lastCycleCounter = __rdtsc();
 
-                Win32GameCode game = Win32LoadGameCode();
+                Win32GameCode game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
     
                 u32 runningFrameCounter = 0;
                 while( globalRunning )
                 {
-                    if( runningFrameCounter > 120 )
+                    FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
+                    if( CompareFileTime( &dllWriteTime, &game.lastDLLWriteTime ) != 0 )
                     {
                         Win32UnloadGameCode( &game );
-                        game = Win32LoadGameCode();
-                        runningFrameCounter = 0;
+                        game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
                     }
 
                     // Process input

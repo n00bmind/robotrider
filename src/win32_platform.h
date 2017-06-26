@@ -26,4 +26,14 @@ struct Win32AudioOutput
     u32 runningFrameCount;
 };
 
+struct Win32GameCode
+{
+    HMODULE gameCodeDLL;
+    FILETIME lastDLLWriteTime;
+
+    GameUpdateAndRenderFunc *UpdateAndRender;
+
+    b32 isValid;
+};
+
 #endif /* __WIN32_PLATFORM_H__ */
