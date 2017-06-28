@@ -189,6 +189,9 @@ struct GameState
     int greenOffset;
     int toneHz;
     r32 tSine;
+
+    u32 playerX;
+    u32 playerY;
 };
 
 

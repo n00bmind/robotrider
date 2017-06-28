@@ -381,8 +381,11 @@ Win32ResetKeyboardController( GameInput* oldInput, GameInput* newInput )
 {
     GameControllerInput *oldKeyboardController = GetController( oldInput, 0 );
     GameControllerInput *newKeyboardController = GetController( newInput, 0 );
+
     *newKeyboardController = {};
     newKeyboardController->isConnected = true;
+    newKeyboardController->leftStick = oldKeyboardController->leftStick;
+    newKeyboardController->rightStick = oldKeyboardController->rightStick;
 
     for( int buttonIndex = 0;
          buttonIndex < ARRAYCOUNT( newKeyboardController->buttons );
@@ -523,7 +526,8 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 }
 
 
-internal void Win32ProcessPendingMessages( GameControllerInput *keyboardController )
+internal void
+Win32ProcessPendingMessages( GameControllerInput *keyboardController )
 {
     MSG message;
     while( PeekMessage( &message, 0, 0, 0, PM_REMOVE ) )
@@ -548,18 +552,23 @@ internal void Win32ProcessPendingMessages( GameControllerInput *keyboardControll
                     if( vkCode == 'W' )
                     {
                         Win32ProcessKeyboardMessage( &keyboardController->dUp, isDown );
+                        // Simulate fake stick
+                        keyboardController->leftStick.avgY = isDown ? 0.5f : 0.0f;
                     }
                     else if( vkCode == 'A' )
                     {
                         Win32ProcessKeyboardMessage( &keyboardController->dLeft, isDown );
+                        keyboardController->leftStick.avgX = isDown ? -0.5f : 0.0f;
                     }
                     else if( vkCode == 'S' )
                     {
                         Win32ProcessKeyboardMessage( &keyboardController->dDown, isDown );
+                        keyboardController->leftStick.avgY = isDown ? -0.5f : 0.0f;
                     }
                     else if( vkCode == 'D' )
                     {
                         Win32ProcessKeyboardMessage( &keyboardController->dRight, isDown );
+                        keyboardController->leftStick.avgX = isDown ? 0.5f : 0.0f;
                     }
                     else if( vkCode == 'Q' )
                     {

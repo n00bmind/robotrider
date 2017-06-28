@@ -23,6 +23,26 @@ RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset, b32 
 }
 
 internal void
+RenderPlayer( GameOffscreenBuffer *buffer, int playerX, int playerY )
+{
+    int top = playerY;
+    int bottom = playerY + 10;
+    u32 pitch = buffer->width * buffer->bytesPerPixel;
+
+    for( int x = playerX; x < playerX+10; ++x )
+    {
+        u8 *pixel = ((u8 *)buffer->memory
+                     + x*buffer->bytesPerPixel
+                     + top*pitch);
+        for( int y = top; y < bottom; ++y )
+        {
+            *(u32 *)pixel = 0xFFFFFFFF;
+            pixel += pitch;
+        }
+    }
+}
+
+internal void
 GameOutputAudio( GameState *gameState, GameAudioBuffer *buffer, int toneHz, b32 beep )
 {
     u32 toneAmp = 6000;
@@ -62,6 +82,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         gameState->toneHz = 256;
         gameState->tSine = 0.0f;
 
+        gameState->playerX = 100;
+        gameState->playerY = 100;
+
         memory->isInitialized = true;
     }
 
@@ -88,6 +111,10 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         gameState->greenOffset += 5;
     }
 
+    gameState->playerX += (int)(4.0f * input0->leftStick.avgX);
+    gameState->playerY -= (int)(4.0f * input0->leftStick.avgY);
+
     GameOutputAudio( gameState, audioBuffer, gameState->toneHz, beep );
     RenderWeirdGradient( videoBuffer, gameState->blueOffset, gameState->greenOffset, beep );
+    RenderPlayer( videoBuffer, gameState->playerX, gameState->playerY );
 }
