@@ -36,4 +36,28 @@ struct Win32GameCode
     b32 isValid;
 };
 
+struct Win32ReplayBuffer
+{
+    HANDLE fileHandle;
+    HANDLE memoryMap;
+    char filename[MAX_PATH];
+    void *memoryBlock;
+};
+
+#define MAX_REPLAY_BUFFERS 3
+struct Win32State
+{
+    void *gameMemoryBlock;
+    u64 gameMemorySize;
+    Win32ReplayBuffer replayBuffers[MAX_REPLAY_BUFFERS];
+
+    u32 inputRecordingIndex;
+    HANDLE recordingHandle;
+
+    u32 inputPlaybackIndex;
+    HANDLE playbackHandle;
+
+    char exeFilePath[MAX_PATH];
+};
+
 #endif /* __WIN32_PLATFORM_H__ */

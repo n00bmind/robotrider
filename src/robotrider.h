@@ -15,6 +15,8 @@
 #endif
 
 #define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
+#define STR(s) _STR(s)
+#define _STR(s) #s
 
 #define KILOBYTES(value) ((value)*1024)
 #define MEGABYTES(value) (KILOBYTES(value)*1024)
@@ -144,6 +146,9 @@ struct GameInput
 {
     r32 secondsElapsed;
     GameControllerInput _controllers[5];
+
+    GameButtonState mouseButtons[5];
+    s32 mouseX, mouseY, mouseZ;
 };
 
 inline GameControllerInput *
@@ -169,13 +174,14 @@ struct GameMemory
     DebugPlatformWriteEntireFileFunc *DEBUGPlatformWriteEntireFile;
 };
 
+#ifndef GAME_UPDATE_AND_RENDER
 #define GAME_UPDATE_AND_RENDER(name) \
     void name( GameMemory *memory, GameInput *input, \
-               GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer, b32 beep )
+               GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer, b32 debugBeep )
+#endif
 typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
 GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
-{
-}
+{ }
 
 
 

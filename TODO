@@ -13,3 +13,7 @@ AUDIO
   https://msdn.microsoft.com/en-us/library/windows/desktop/dd370844(v=vs.85).aspx
   https://github.com/pauldotknopf/WindowsSDK7-Samples/blob/master/multimedia/audio/RenderExclusiveEventDriven/WASAPIRenderer.cpp
 
+DEBUGGING
+- Really dump game state to disk (asynchronously)
+- Add a command line switch & ingame command to load a recorded input block from disk
+

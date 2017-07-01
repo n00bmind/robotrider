@@ -2,7 +2,7 @@
 
 
 internal void
-RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset, b32 beep )
+RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset, b32 debugBeep )
 {
     int width = buffer->width;
     int height = buffer->height;
@@ -16,7 +16,7 @@ RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset, b32 
         {
             u8 b = (u8)(x + xOffset);
             u8 g = (u8)(y + yOffset);
-            *pixel++ = beep ? 0xFFFFFFFF : ((g << 8) | b);
+            *pixel++ = debugBeep ? 0xFFFFFFFF : ((g << 16) | b);
         }
         row += pitch;
     }
@@ -43,7 +43,7 @@ RenderPlayer( GameOffscreenBuffer *buffer, int playerX, int playerY )
 }
 
 internal void
-GameOutputAudio( GameState *gameState, GameAudioBuffer *buffer, int toneHz, b32 beep )
+GameOutputAudio( GameState *gameState, GameAudioBuffer *buffer, int toneHz, b32 debugBeep )
 {
     u32 toneAmp = 6000;
     u32 wavePeriod = buffer->samplesPerSecond / toneHz;
@@ -51,10 +51,14 @@ GameOutputAudio( GameState *gameState, GameAudioBuffer *buffer, int toneHz, b32 
     s16 *sampleOut = buffer->samples;
     for( u32 sampleIndex = 0; sampleIndex < buffer->frameCount; ++sampleIndex )
     {
+#if 0
         r32 sineValue = sinf( gameState->tSine );
         s16 sampleValue = (s16)(sineValue * toneAmp);
-        *sampleOut++ = beep ? 32767 : sampleValue;
-        *sampleOut++ = beep ? 32767 : sampleValue;
+#else
+        s16 sampleValue = 0;
+#endif
+        *sampleOut++ = debugBeep ? 32767 : sampleValue;
+        *sampleOut++ = debugBeep ? 32767 : sampleValue;
 
         gameState->tSine += 2.f * PI32 * 1.0f / wavePeriod;
     }
@@ -69,14 +73,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     GameState *gameState = (GameState *)memory->permanentStorage;
     if( !memory->isInitialized )
     {
-        char *filename = __FILE__;
-        DEBUGReadFileResult file = memory->DEBUGPlatformReadEntireFile( filename );
-        if( file.contents )
-        {
-            memory->DEBUGPlatformWriteEntireFile( "test.out", file.contentSize, file.contents );
-            memory->DEBUGPlatformFreeFileMemory( file.contents );
-        }
-        
         gameState->blueOffset = 0;
         gameState->greenOffset = 0;
         gameState->toneHz = 256;
@@ -106,15 +102,20 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
 
-    if( input0->aButton.endedDown )
-    {
-        gameState->greenOffset += 5;
-    }
-
     gameState->playerX += (int)(4.0f * input0->leftStick.avgX);
     gameState->playerY -= (int)(4.0f * input0->leftStick.avgY);
 
-    GameOutputAudio( gameState, audioBuffer, gameState->toneHz, beep );
-    RenderWeirdGradient( videoBuffer, gameState->blueOffset, gameState->greenOffset, beep );
+    if( input0->aButton.endedDown )
+    {
+        gameState->playerY += 10;
+    }
+
+    GameOutputAudio( gameState, audioBuffer, gameState->toneHz, debugBeep );
+    RenderWeirdGradient( videoBuffer, gameState->blueOffset, gameState->greenOffset, debugBeep );
     RenderPlayer( videoBuffer, gameState->playerX, gameState->playerY );
+
+    //if( input->mouseButtons[0].endedDown )
+    //{
+        //RenderPlayer( videoBuffer, input->mouseX, input->mouseY );
+    //}
 }

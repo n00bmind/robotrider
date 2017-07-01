@@ -117,13 +117,11 @@ inline FILETIME
 Win32GetLastWriteTime( char *filename )
 {
     FILETIME lastWriteTime = {};
+    WIN32_FILE_ATTRIBUTE_DATA data;
 
-    WIN32_FIND_DATA findData;
-    HANDLE findHandle = FindFirstFile( filename, &findData );
-    if( findHandle != INVALID_HANDLE_VALUE )
+    if( GetFileAttributesEx( filename, GetFileExInfoStandard, &data ) )
     {
-        lastWriteTime = findData.ftLastWriteTime;
-        FindClose( findHandle );
+        lastWriteTime = data.ftLastWriteTime;
     }
 
     return lastWriteTime;
@@ -367,7 +365,7 @@ internal void
 Win32DisplayInWindow( Win32OffscreenBuffer *buffer, HDC deviceContext, int windowWidth, int windowHeight )
 {
     StretchDIBits( deviceContext,
-                   0, 0, windowWidth, windowHeight,
+                   0, 0, buffer->width, buffer->height,
                    0, 0, buffer->width, buffer->height,
                    buffer->memory,
                    &buffer->bitmapInfo,
@@ -384,6 +382,7 @@ Win32ResetKeyboardController( GameInput* oldInput, GameInput* newInput )
 
     *newKeyboardController = {};
     newKeyboardController->isConnected = true;
+
     newKeyboardController->leftStick = oldKeyboardController->leftStick;
     newKeyboardController->rightStick = oldKeyboardController->rightStick;
 
@@ -399,11 +398,20 @@ Win32ResetKeyboardController( GameInput* oldInput, GameInput* newInput )
 }
 
 internal void
+Win32ResetKeyboardController( GameControllerInput *keyboardController )
+{
+    *keyboardController = {};
+    keyboardController->isConnected = true;
+}
+
+internal void
 Win32ProcessKeyboardMessage( GameButtonState *newState, b32 isDown )
 {
-    ASSERT( newState->endedDown != isDown );
-    newState->endedDown = isDown;
-    ++newState->halfTransitionCount;
+    if( newState->endedDown != isDown )
+    {
+        newState->endedDown = isDown;
+        ++newState->halfTransitionCount;
+    }
 }
 
 internal void
@@ -457,9 +465,8 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
         {
             // Plugged in
             newController->isConnected = true;
+            newController->isAnalog = oldController->isAnalog;
             XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
-
-            newController->isAnalog = true;
 
             newController->leftStick.startX = oldController->leftStick.endX;
             newController->leftStick.startY = oldController->leftStick.endY;
@@ -486,6 +493,11 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
                                                                            XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE );
             newController->rightStick.avgY
                 = (newController->rightStick.startY + newController->rightStick.endY) / 2;
+
+            if( newController->leftStick.avgX != 0.0f || newController->leftStick.avgY != 0.0f )
+            {
+                newController->isAnalog = true;
+            }
 
             Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dUp,
                                              XINPUT_GAMEPAD_DPAD_UP, &newController->dUp );
@@ -515,6 +527,44 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
                                              XINPUT_GAMEPAD_START, &newController->start );
             Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->back,
                                              XINPUT_GAMEPAD_BACK, &newController->back );
+
+#if 1
+            // Link left stick and dPad direction buttons
+            if(pad->wButtons & XINPUT_GAMEPAD_DPAD_UP)
+            {
+                newController->leftStick.avgY = 1.0f;
+                newController->isAnalog = false;
+            }
+            if(pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
+            {
+                newController->leftStick.avgY = -1.0f;
+                newController->isAnalog = false;
+            }
+            if(pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
+            {
+                newController->leftStick.avgX = -1.0f;
+                newController->isAnalog = false;
+            }
+            if(pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
+            {
+                newController->leftStick.avgX = 1.0f;
+                newController->isAnalog = false;
+            }
+
+            r32 threshold = 0.5f;
+            Win32ProcessXInputDigitalButton( (newController->leftStick.avgX < -threshold) ? 1 : 0,
+                                            &oldController->dLeft, 1,
+                                            &newController->dLeft );
+            Win32ProcessXInputDigitalButton( (newController->leftStick.avgX > threshold) ? 1 : 0,
+                                            &oldController->dRight, 1,
+                                            &newController->dRight );
+            Win32ProcessXInputDigitalButton( (newController->leftStick.avgY < -threshold) ? 1 : 0,
+                                            &oldController->dDown, 1,
+                                            &newController->dDown );
+            Win32ProcessXInputDigitalButton( (newController->leftStick.avgY > threshold) ? 1 : 0,
+                                            &oldController->dUp, 1,
+                                            &newController->dUp );
+#endif
         }
         else
         {
@@ -527,7 +577,107 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 
 
 internal void
-Win32ProcessPendingMessages( GameControllerInput *keyboardController )
+Win32GetInputFilePath( Win32State *platformState, u32 slotIndex, b32 isInputStream,
+                       char* dest, u32 destCount )
+{
+    sprintf_s( dest, destCount, "%s%s%d%s%s", platformState->exeFilePath,
+               "gamestate", slotIndex, isInputStream ? "_input" : "", ".in" );
+}
+
+internal Win32ReplayBuffer*
+Win32GetReplayBuffer( Win32State *platformState, u32 index )
+{
+    ASSERT( index < ARRAYCOUNT(platformState->replayBuffers) );
+    Win32ReplayBuffer *replayBuffer = &platformState->replayBuffers[index];
+
+    return replayBuffer;
+}
+
+internal void
+Win32BeginInputRecording( Win32State *platformState, u32 inputRecordingIndex )
+{
+    // Since we use an index value of 0 as an off flag, valid indices start at 1
+    ASSERT( inputRecordingIndex > 0 && inputRecordingIndex < MAX_REPLAY_BUFFERS + 1 );
+    Win32ReplayBuffer *replayBuffer = Win32GetReplayBuffer( platformState, inputRecordingIndex - 1 );
+
+    if( replayBuffer->memoryBlock )
+    {
+        platformState->inputRecordingIndex = inputRecordingIndex;
+
+        char filename[MAX_PATH];
+        Win32GetInputFilePath( platformState, inputRecordingIndex, true,
+                               filename, ARRAYCOUNT(filename) );
+        platformState->recordingHandle = CreateFile( filename,
+                                                     GENERIC_WRITE, 0, 0,
+                                                     CREATE_ALWAYS, 0, 0 );
+
+        CopyMemory( replayBuffer->memoryBlock, platformState->gameMemoryBlock, platformState->gameMemorySize );
+        // TODO Write state to disk asynchronously
+    }
+}
+
+internal void
+Win32EndInputRecording( Win32State *platformState )
+{
+    CloseHandle( platformState->recordingHandle );
+    platformState->inputRecordingIndex = 0;
+}
+
+internal void
+Win32RecordInput( Win32State *platformState, GameInput *newInput )
+{
+    DWORD bytesWritten;
+    WriteFile( platformState->recordingHandle, newInput, sizeof(*newInput),
+                                  &bytesWritten, 0 );
+}
+
+internal void
+Win32BeginInputPlayback( Win32State *platformState, u32 inputPlaybackIndex )
+{
+    // Since we use an index value of 0 as an off flag, valid indices start at 1
+    ASSERT( inputPlaybackIndex > 0 && inputPlaybackIndex < MAX_REPLAY_BUFFERS + 1 );
+    Win32ReplayBuffer *replayBuffer = Win32GetReplayBuffer( platformState, inputPlaybackIndex - 1 );
+
+    if( replayBuffer->memoryBlock )
+    {
+        platformState->inputPlaybackIndex = inputPlaybackIndex;
+
+        char filename[MAX_PATH];
+        Win32GetInputFilePath( platformState, inputPlaybackIndex, true,
+                               filename, ARRAYCOUNT(filename) );
+        platformState->playbackHandle = CreateFile( filename,
+                                                    GENERIC_READ, 0, 0,
+                                                    OPEN_EXISTING, 0, 0 );
+
+        CopyMemory( platformState->gameMemoryBlock, replayBuffer->memoryBlock, platformState->gameMemorySize );
+    }
+}
+
+internal void
+Win32EndInputPlayback( Win32State *platformState )
+{
+    CloseHandle( platformState->playbackHandle );
+    platformState->inputPlaybackIndex = 0;
+}
+
+internal void
+Win32PlayBackInput( Win32State *platformState, GameInput *newInput )
+{
+    DWORD bytesRead;
+    if( ReadFile( platformState->playbackHandle, newInput, sizeof(*newInput),
+                                  &bytesRead, 0 ) == FALSE || bytesRead == 0 )
+    {
+        u32 playingIndex = platformState->inputPlaybackIndex;
+        Win32EndInputPlayback( platformState );
+        Win32BeginInputPlayback( platformState, playingIndex );
+        ReadFile( platformState->playbackHandle, newInput, sizeof(*newInput),
+                  &bytesRead, 0 );
+    }
+}
+
+
+internal void
+Win32ProcessPendingMessages( Win32State *platformState, GameControllerInput *keyboardController )
 {
     MSG message;
     while( PeekMessage( &message, 0, 0, 0, PM_REMOVE ) )
@@ -553,22 +703,22 @@ Win32ProcessPendingMessages( GameControllerInput *keyboardController )
                     {
                         Win32ProcessKeyboardMessage( &keyboardController->dUp, isDown );
                         // Simulate fake stick
-                        keyboardController->leftStick.avgY = isDown ? 0.5f : 0.0f;
+                        keyboardController->leftStick.avgY += isDown ? 0.5f : -0.5f;
                     }
                     else if( vkCode == 'A' )
                     {
                         Win32ProcessKeyboardMessage( &keyboardController->dLeft, isDown );
-                        keyboardController->leftStick.avgX = isDown ? -0.5f : 0.0f;
+                        keyboardController->leftStick.avgX += isDown ? -0.5f : 0.5f;
                     }
                     else if( vkCode == 'S' )
                     {
                         Win32ProcessKeyboardMessage( &keyboardController->dDown, isDown );
-                        keyboardController->leftStick.avgY = isDown ? -0.5f : 0.0f;
+                        keyboardController->leftStick.avgY += isDown ? -0.5f : 0.5f;
                     }
                     else if( vkCode == 'D' )
                     {
                         Win32ProcessKeyboardMessage( &keyboardController->dRight, isDown );
-                        keyboardController->leftStick.avgX = isDown ? 0.5f : 0.0f;
+                        keyboardController->leftStick.avgX += isDown ? 0.5f : -0.5f;
                     }
                     else if( vkCode == 'Q' )
                     {
@@ -592,12 +742,49 @@ Win32ProcessPendingMessages( GameControllerInput *keyboardController )
                     }
                     else if( vkCode == VK_SPACE )
                     {
-
+                    }
+                    else if( vkCode == VK_RETURN )
+                    {
+                        Win32ProcessKeyboardMessage( &keyboardController->aButton, isDown );
                     }
                     else if( vkCode == VK_ESCAPE )
                     {
-                        globalRunning = false;
+                        if( isDown )
+                        {
+#if DEBUG
+                            if( platformState->inputPlaybackIndex )
+                            {
+                                Win32EndInputPlayback( platformState );
+                                Win32ResetKeyboardController( keyboardController );
+                            }
+                            else
+#endif
+                            {
+                                globalRunning = false;
+                            }
+                        }
                     }
+
+#if DEBUG
+                    else if( vkCode == '1' )
+                    {
+                        if( isDown )
+                        {
+                            if( platformState->inputPlaybackIndex == 0 )
+                            {
+                                if( platformState->inputRecordingIndex == 0 )
+                                {
+                                    Win32BeginInputRecording( platformState, 1 );
+                                }
+                                else if( platformState->inputRecordingIndex == 1 )
+                                {
+                                    Win32EndInputRecording( platformState );
+                                    Win32BeginInputPlayback( platformState, 1 );
+                                }
+                            }
+                        }
+                    }
+#endif
                 }
 
                 b32 altKeyWasDown = ((message.lParam & (1<<29)) != 0);
@@ -626,6 +813,18 @@ Win32WindowProc( HWND hwnd,
     
     switch(uMsg)
     {
+        case WM_ACTIVATEAPP:
+        {
+            if( wParam == TRUE )
+            {
+                SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 255, LWA_ALPHA );
+            }
+            else
+            {
+                SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 128, LWA_ALPHA );
+            }
+        } break;
+
         case WM_SIZE:
         {
         } break;
@@ -696,33 +895,40 @@ Ceil( r64 value )
     return result;
 }
 
-int CALLBACK
-WinMain( HINSTANCE hInstance,
-         HINSTANCE hPrevInstance,
-         LPSTR lpCmdLine,
-         int nCmdShow )
+internal void
+Win32GetExeFilename( Win32State *state )
 {
-    char exeFilePath[MAX_PATH];
-    DWORD pathLen = GetModuleFileName( 0, exeFilePath, sizeof(exeFilePath) );
-    char *onePastLastSlash = exeFilePath;
-    for( char *scanChar = exeFilePath; *scanChar; ++scanChar )
+    DWORD pathLen = GetModuleFileName( 0, state->exeFilePath, sizeof(state->exeFilePath) );
+    char *onePastLastSlash = state->exeFilePath;
+    for( char *scanChar = state->exeFilePath; *scanChar; ++scanChar )
     {
         if( *scanChar == '\\' )
         {
             onePastLastSlash = scanChar + 1;
         }
     }
-    if( onePastLastSlash != exeFilePath )
+    if( onePastLastSlash != state->exeFilePath )
     {
         *onePastLastSlash = 0;
     }
+}
+
+int CALLBACK
+WinMain( HINSTANCE hInstance,
+         HINSTANCE hPrevInstance,
+         LPSTR lpCmdLine,
+         int nCmdShow )
+{
+    Win32State platformState = {};
+
+    Win32GetExeFilename( &platformState );
 
     char *sourceDLLName = "robotrider.dll";
     char sourceDLLPath[MAX_PATH];
-    sprintf_s( sourceDLLPath, ARRAYCOUNT(sourceDLLPath), "%s%s", exeFilePath, sourceDLLName );
+    sprintf_s( sourceDLLPath, ARRAYCOUNT(sourceDLLPath), "%s%s", platformState.exeFilePath, sourceDLLName );
     char *tempDLLName = "robotrider_temp.dll";
     char tempDLLPath[MAX_PATH];
-    sprintf_s( tempDLLPath, ARRAYCOUNT(tempDLLPath), "%s%s", exeFilePath, tempDLLName );
+    sprintf_s( tempDLLPath, ARRAYCOUNT(tempDLLPath), "%s%s", platformState.exeFilePath, tempDLLName );
 
     // Init subsystems
     Win32InitXInput();
@@ -757,7 +963,7 @@ WinMain( HINSTANCE hInstance,
 
     if( RegisterClass( &windowClass ) )
     {
-        HWND window = CreateWindowEx( 0,
+        HWND window = CreateWindowEx( 0, //WS_EX_TOPMOST|WS_EX_LAYERED,
                                       windowClass.lpszClassName,
                                       "RobotRider",
                                       WS_OVERLAPPEDWINDOW|WS_VISIBLE,
@@ -779,16 +985,49 @@ WinMain( HINSTANCE hInstance,
 
             GameMemory gameMemory = {};
             gameMemory.permanentStorageSize = MEGABYTES(64);
-            gameMemory.transientStorageSize = GIGABYTES((u64)4);
+            gameMemory.transientStorageSize = GIGABYTES((u64)1);
             gameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
             gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
             gameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 
             u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
+            // TODO Use MEM_LARGE_PAGES and call AdjustTokenPrivileges when not in XP
             gameMemory.permanentStorage = VirtualAlloc( baseAddress, totalSize,
                                                         MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
             gameMemory.transientStorage = (u8 *)gameMemory.permanentStorage
                 + gameMemory.permanentStorageSize;
+
+            platformState.gameMemoryBlock = gameMemory.permanentStorage;
+            platformState.gameMemorySize = totalSize;
+
+            for( int replayIndex = 0; replayIndex < ARRAYCOUNT(platformState.replayBuffers); ++replayIndex )
+            {
+                Win32ReplayBuffer *replayBuffer = &platformState.replayBuffers[replayIndex];
+
+                // Since we use an index value of 0 as an off flag, slot filenames start at 1
+                Win32GetInputFilePath( &platformState, replayIndex + 1, false,
+                                       replayBuffer->filename,
+                                       ARRAYCOUNT(replayBuffer->filename) );
+                replayBuffer->fileHandle = CreateFile( replayBuffer->filename,
+                                                       GENERIC_READ|GENERIC_WRITE, 0, 0,
+                                                       CREATE_ALWAYS, 0, 0 );
+                DWORD ignored;
+                DeviceIoControl( platformState.recordingHandle, FSCTL_SET_SPARSE, 0, 0, 0, 0, &ignored, 0 );
+
+                replayBuffer->memoryMap = CreateFileMapping( replayBuffer->fileHandle,
+                                                             0, PAGE_READWRITE,
+                                                             (platformState.gameMemorySize >> 32),
+                                                             platformState.gameMemorySize & 0xFFFFFFFF,
+                                                             0 );
+
+                replayBuffer->memoryBlock = MapViewOfFile( replayBuffer->memoryMap,
+                                                           FILE_MAP_ALL_ACCESS,
+                                                           0, 0, platformState.gameMemorySize );
+                if( !replayBuffer->memoryBlock )
+                {
+                    // TODO Diagnostic
+                }
+            }
 
             if( gameMemory.permanentStorage && gameMemory.transientStorage && soundSamples )
             {
@@ -800,7 +1039,6 @@ WinMain( HINSTANCE hInstance,
                 // Assume our target for the first frame
                 r32 lastDeltaTimeSecs = targetElapsedPerFrameSecs;
 
-                HDC deviceContext = GetDC( window );
                 globalRunning = true;
 
                 ASSERT( globalAudioClient->Start() == S_OK );
@@ -822,9 +1060,29 @@ WinMain( HINSTANCE hInstance,
 
                     // Process input
                     GameControllerInput *newKeyboardController = Win32ResetKeyboardController( oldInput, newInput );
-                    Win32ProcessPendingMessages( newKeyboardController );
+                    Win32ProcessPendingMessages( &platformState, newKeyboardController );
 
                     Win32ProcessXInputControllers( oldInput, newInput );
+
+                    POINT mouseP;
+                    GetCursorPos( &mouseP );
+                    ScreenToClient( window, &mouseP );
+                    newInput->mouseX = mouseP.x;
+                    newInput->mouseY = mouseP.y;
+                    Win32ProcessKeyboardMessage( &newInput->mouseButtons[0], GetKeyState( VK_LBUTTON ) & (1 << 15) );
+                    Win32ProcessKeyboardMessage( &newInput->mouseButtons[1], GetKeyState( VK_MBUTTON ) & (1 << 15) );
+                    Win32ProcessKeyboardMessage( &newInput->mouseButtons[2], GetKeyState( VK_RBUTTON ) & (1 << 15) );
+                    Win32ProcessKeyboardMessage( &newInput->mouseButtons[3], GetKeyState( VK_XBUTTON1 ) & (1 << 15) );
+                    Win32ProcessKeyboardMessage( &newInput->mouseButtons[4], GetKeyState( VK_XBUTTON2 ) & (1 << 15) );
+
+                    if( platformState.inputRecordingIndex )
+                    {
+                        Win32RecordInput( &platformState, newInput );
+                    }
+                    if( platformState.inputPlaybackIndex )
+                    {
+                        Win32PlayBackInput( &platformState, newInput );
+                    }
 
                     u32 framesToWrite = 0;
                     u32 audioPaddingFrames;
@@ -850,7 +1108,7 @@ WinMain( HINSTANCE hInstance,
 
                     // Ask the game to render one frame
                     game.UpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer,
-                                              (runningFrameCounter % VIDEO_TARGET_FRAMERATE) == 0 );
+                                              false );
 
                     // Blit audio buffer to output
                     Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
@@ -898,8 +1156,10 @@ WinMain( HINSTANCE hInstance,
                     lastCounter = endCounter;
 
                     // Blit video to output
+                    HDC deviceContext = GetDC( window );
                     Win32WindowDimension dim = Win32GetWindowDimension( window );
                     Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
+                    ReleaseDC( window, deviceContext );
 
                     lastCycleCounter = endCycleCounter;
                     ++runningFrameCounter;
