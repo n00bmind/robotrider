@@ -145,6 +145,7 @@ struct GameControllerInput
 struct GameInput
 {
     r32 secondsElapsed;
+
     GameControllerInput _controllers[5];
 
     GameButtonState mouseButtons[5];

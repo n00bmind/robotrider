@@ -1051,6 +1051,8 @@ WinMain( HINSTANCE hInstance,
                 u32 runningFrameCounter = 0;
                 while( globalRunning )
                 {
+                    newInput->secondsElapsed = lastDeltaTimeSecs;
+
                     FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
                     if( CompareFileTime( &dllWriteTime, &game.lastDLLWriteTime ) != 0 )
                     {
@@ -1163,7 +1165,7 @@ WinMain( HINSTANCE hInstance,
 
                     lastCycleCounter = endCycleCounter;
                     ++runningFrameCounter;
-#if 1
+#if 0
                     {
                         r32 fps = 1.0f / lastDeltaTimeSecs;
                         char buffer[256];
