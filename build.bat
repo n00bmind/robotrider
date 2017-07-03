@@ -8,7 +8,7 @@ set COMMONFLAGS=-MTd -nologo -FC -W4 -WX -Oi -GR- -EHa-
 set LINKERFLAGS=/opt:ref /incremental:no
 set DISABLEFLAGS=-wd4201 -wd4100 -wd4189 -wd4127 -wd4101 -wd4505
 set DEBUGFLAGS=-DDEBUG=1 -Z7
-set LIBS=user32.lib gdi32.lib winmm.lib ole32.lib
+set LIBS=user32.lib gdi32.lib winmm.lib ole32.lib opengl32.lib
 
 
 if not exist %RRBIN% mkdir %RRBIN%

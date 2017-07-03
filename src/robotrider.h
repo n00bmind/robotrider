@@ -22,7 +22,6 @@
 #define MEGABYTES(value) (KILOBYTES(value)*1024)
 #define GIGABYTES(value) (MEGABYTES(value)*1024)
 
-#define PI32 3.141592653589f
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -38,6 +37,7 @@ typedef s32 b32;
 typedef float r32;
 typedef double r64;
 
+#include "math.h"
 
 
 inline u32 SafeTruncU64( u64 value )

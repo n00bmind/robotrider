@@ -6,6 +6,7 @@
 #include <audioclient.h>
 #include <audiosessiontypes.h>
 #include <stdio.h>
+#include <gl/gl.h>
 
 
 #define VIDEO_TARGET_FRAMERATE 60
@@ -20,6 +21,7 @@
 #define AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY 0x08000000
 #endif
 
+#include "wglext.h"
 #include "win32_platform.h"
 
 global bool globalRunning;
@@ -888,12 +890,6 @@ Win32GetSecondsElapsed( LARGE_INTEGER start, LARGE_INTEGER end )
     return result;
 }
 
-inline u32
-Ceil( r64 value )
-{
-    u32 result = (u32)(value + 0.5);
-    return result;
-}
 
 internal void
 Win32GetExeFilename( Win32State *state )
@@ -912,6 +908,162 @@ Win32GetExeFilename( Win32State *state )
         *onePastLastSlash = 0;
     }
 }
+
+
+internal b32
+Win32InitOpenGL( HDC dc )
+{
+    b32 result = false;
+
+    PIXELFORMATDESCRIPTOR pfd =
+    {
+        sizeof(PIXELFORMATDESCRIPTOR),
+        1,
+        PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER,
+        PFD_TYPE_RGBA,
+        32,
+        0, 0, 0, 0, 0, 0,
+        0,
+        0,
+        0,
+        0, 0, 0, 0,
+        24,
+        8,
+        0,
+        PFD_MAIN_PLANE,
+        0,
+        0, 0, 0
+    };
+
+    int formatIndex = ChoosePixelFormat( dc, &pfd );
+
+    if( formatIndex )
+    {
+        if( SetPixelFormat( dc, formatIndex, &pfd ) )
+        {
+            HGLRC renderingContext = wglCreateContext( dc );
+
+            if( renderingContext )
+            {
+                if( wglMakeCurrent( dc, renderingContext ) )
+                {
+                    PFNWGLGETEXTENSIONSSTRINGARBPROC wglGetExtensionsStringARB
+                        = (PFNWGLGETEXTENSIONSSTRINGARBPROC)wglGetProcAddress( "wglGetExtensionsStringARB" );
+
+                    if( wglGetExtensionsStringARB )
+                    {
+                        // Parse available extensions
+                        char *extensionsString = (char *)wglGetExtensionsStringARB( dc );
+
+                        char *extensionsArray[1024];
+                        u32 extensionIndex = 0;
+
+                        char *nextToken = NULL;
+                        char *str = strtok_s( extensionsString, " ", &nextToken );
+                        while( str != NULL )
+                        {
+                            extensionsArray[extensionIndex++] = str;
+                            ASSERT( extensionIndex < ARRAYCOUNT(extensionsArray) );
+
+                            str = strtok_s( NULL, " ", &nextToken );
+                        }
+
+                        //if( Win32FindExtensionString( "WGL_ARB_pixel_format" ) )
+                        {
+                            PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB
+                                = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress( "wglChoosePixelFormatARB" );
+
+                            const int pixelFormatAttributes[] =
+                            {
+                                WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
+                                WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
+                                WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
+                                WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+                                WGL_COLOR_BITS_ARB, 32,
+                                WGL_DEPTH_BITS_ARB, 24,
+                                WGL_STENCIL_BITS_ARB, 8,
+                                0,        //End
+                            };
+
+                            int pixelFormat;
+                            UINT numFormats;
+                            if( wglChoosePixelFormatARB( dc, pixelFormatAttributes, NULL, 1, &pixelFormat, &numFormats ) )
+                            {
+                                if( SetPixelFormat( dc, pixelFormat, &pfd ) )
+                                {
+                                    const int contextAttributes[] =
+                                    {
+                                        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+                                        WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+#ifdef DEBUG
+                                        WGL_CONTEXT_DEBUG_BIT_ARB, GL_TRUE,
+#endif
+                                    };
+
+                                    PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB
+                                        = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress( "wglCreateContextAttribsARB" );
+
+                                    if( wglCreateContextAttribsARB )
+                                    {
+                                        // Destroy dummy context
+                                        wglMakeCurrent( dc, NULL );
+                                        wglDeleteContext( renderingContext );
+
+                                        renderingContext = wglCreateContextAttribsARB( dc, 0, contextAttributes );
+
+                                        if( renderingContext )
+                                        {
+                                            result = true;
+                                        }
+                                        else
+                                        {
+                                            // TODO
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // TODO
+                                    }
+                                }
+                                else
+                                {
+                                    // TODO Diagnostic
+                                }
+                            }
+                            else
+                            {
+                                // TODO Diagnostic
+                            }
+                        }
+                        //else
+                        {
+                            // TODO Diagnostic
+                        }
+                    }
+                    else
+                    {
+                        // TODO Diagnostic
+                    }
+                }
+            }
+            else
+            {
+                // TODO Diagnostic
+            }
+        }
+        else
+        {
+            // TODO Diagnostic
+        }
+    }
+    else
+    {
+        // TODO Diagnostic
+    }
+
+    return result;
+}
+
 
 int CALLBACK
 WinMain( HINSTANCE hInstance,
@@ -956,7 +1108,7 @@ WinMain( HINSTANCE hInstance,
 
     // Register window class and create game window
     WNDCLASS windowClass = {};
-    windowClass.style = CS_HREDRAW|CS_VREDRAW;
+    windowClass.style = CS_HREDRAW|CS_VREDRAW|CS_OWNDC;
     windowClass.lpfnWndProc = Win32WindowProc;
     windowClass.hInstance = hInstance;
     windowClass.lpszClassName = "RobotRiderWindowClass";
@@ -978,207 +1130,214 @@ WinMain( HINSTANCE hInstance,
                                             
         if( window )
         {
-            s16 *soundSamples = (s16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
-                                                     MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-
-            LPVOID baseAddress = DEBUG ? (LPVOID)GIGABYTES((u64)2048) : 0;
-
-            GameMemory gameMemory = {};
-            gameMemory.permanentStorageSize = MEGABYTES(64);
-            gameMemory.transientStorageSize = GIGABYTES((u64)1);
-            gameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
-            gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
-            gameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
-
-            u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
-            // TODO Use MEM_LARGE_PAGES and call AdjustTokenPrivileges when not in XP
-            gameMemory.permanentStorage = VirtualAlloc( baseAddress, totalSize,
-                                                        MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-            gameMemory.transientStorage = (u8 *)gameMemory.permanentStorage
-                + gameMemory.permanentStorageSize;
-
-            platformState.gameMemoryBlock = gameMemory.permanentStorage;
-            platformState.gameMemorySize = totalSize;
-
-            for( int replayIndex = 0; replayIndex < ARRAYCOUNT(platformState.replayBuffers); ++replayIndex )
+            HDC deviceContext = GetDC( window );
+            if( Win32InitOpenGL( deviceContext ) )
             {
-                Win32ReplayBuffer *replayBuffer = &platformState.replayBuffers[replayIndex];
+                s16 *soundSamples = (s16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
+                                                         MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
-                // Since we use an index value of 0 as an off flag, slot filenames start at 1
-                Win32GetInputFilePath( &platformState, replayIndex + 1, false,
-                                       replayBuffer->filename,
-                                       ARRAYCOUNT(replayBuffer->filename) );
-                replayBuffer->fileHandle = CreateFile( replayBuffer->filename,
-                                                       GENERIC_READ|GENERIC_WRITE, 0, 0,
-                                                       CREATE_ALWAYS, 0, 0 );
-                DWORD ignored;
-                DeviceIoControl( platformState.recordingHandle, FSCTL_SET_SPARSE, 0, 0, 0, 0, &ignored, 0 );
+                LPVOID baseAddress = DEBUG ? (LPVOID)GIGABYTES((u64)2048) : 0;
 
-                replayBuffer->memoryMap = CreateFileMapping( replayBuffer->fileHandle,
-                                                             0, PAGE_READWRITE,
-                                                             (platformState.gameMemorySize >> 32),
-                                                             platformState.gameMemorySize & 0xFFFFFFFF,
-                                                             0 );
+                GameMemory gameMemory = {};
+                gameMemory.permanentStorageSize = MEGABYTES(64);
+                gameMemory.transientStorageSize = GIGABYTES((u64)1);
+                gameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
+                gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
+                gameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 
-                replayBuffer->memoryBlock = MapViewOfFile( replayBuffer->memoryMap,
-                                                           FILE_MAP_ALL_ACCESS,
-                                                           0, 0, platformState.gameMemorySize );
-                if( !replayBuffer->memoryBlock )
+                u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
+                // TODO Use MEM_LARGE_PAGES and call AdjustTokenPrivileges when not in XP
+                gameMemory.permanentStorage = VirtualAlloc( baseAddress, totalSize,
+                                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+                gameMemory.transientStorage = (u8 *)gameMemory.permanentStorage
+                    + gameMemory.permanentStorageSize;
+
+                platformState.gameMemoryBlock = gameMemory.permanentStorage;
+                platformState.gameMemorySize = totalSize;
+
+                for( int replayIndex = 0; replayIndex < ARRAYCOUNT(platformState.replayBuffers); ++replayIndex )
                 {
-                    // TODO Diagnostic
+                    Win32ReplayBuffer *replayBuffer = &platformState.replayBuffers[replayIndex];
+
+                    // Since we use an index value of 0 as an off flag, slot filenames start at 1
+                    Win32GetInputFilePath( &platformState, replayIndex + 1, false,
+                                           replayBuffer->filename,
+                                           ARRAYCOUNT(replayBuffer->filename) );
+                    replayBuffer->fileHandle = CreateFile( replayBuffer->filename,
+                                                           GENERIC_READ|GENERIC_WRITE, 0, 0,
+                                                           CREATE_ALWAYS, 0, 0 );
+                    DWORD ignored;
+                    DeviceIoControl( platformState.recordingHandle, FSCTL_SET_SPARSE, 0, 0, 0, 0, &ignored, 0 );
+
+                    replayBuffer->memoryMap = CreateFileMapping( replayBuffer->fileHandle,
+                                                                 0, PAGE_READWRITE,
+                                                                 (platformState.gameMemorySize >> 32),
+                                                                 platformState.gameMemorySize & 0xFFFFFFFF,
+                                                                 0 );
+
+                    replayBuffer->memoryBlock = MapViewOfFile( replayBuffer->memoryMap,
+                                                               FILE_MAP_ALL_ACCESS,
+                                                               0, 0, platformState.gameMemorySize );
+                    if( !replayBuffer->memoryBlock )
+                    {
+                        // TODO Diagnostic
+                    }
                 }
-            }
 
-            if( gameMemory.permanentStorage && gameMemory.transientStorage && soundSamples )
-            {
-                GameInput input[2] = {};
-                GameInput *newInput = &input[0];
-                GameInput *oldInput = &input[1];
-
-                r32 targetElapsedPerFrameSecs = 1.0f / VIDEO_TARGET_FRAMERATE;
-                // Assume our target for the first frame
-                r32 lastDeltaTimeSecs = targetElapsedPerFrameSecs;
-
-                globalRunning = true;
-
-                ASSERT( globalAudioClient->Start() == S_OK );
-
-                LARGE_INTEGER lastCounter = Win32GetWallClock();
-                s64 lastCycleCounter = __rdtsc();
-
-                Win32GameCode game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
-    
-                u32 runningFrameCounter = 0;
-                while( globalRunning )
+                if( gameMemory.permanentStorage && gameMemory.transientStorage && soundSamples )
                 {
-                    newInput->secondsElapsed = lastDeltaTimeSecs;
+                    GameInput input[2] = {};
+                    GameInput *newInput = &input[0];
+                    GameInput *oldInput = &input[1];
 
-                    FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
-                    if( CompareFileTime( &dllWriteTime, &game.lastDLLWriteTime ) != 0 )
+                    r32 targetElapsedPerFrameSecs = 1.0f / VIDEO_TARGET_FRAMERATE;
+                    // Assume our target for the first frame
+                    r32 lastDeltaTimeSecs = targetElapsedPerFrameSecs;
+
+                    globalRunning = true;
+
+                    ASSERT( globalAudioClient->Start() == S_OK );
+
+                    LARGE_INTEGER lastCounter = Win32GetWallClock();
+                    s64 lastCycleCounter = __rdtsc();
+
+                    Win32GameCode game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
+
+                    u32 runningFrameCounter = 0;
+                    while( globalRunning )
                     {
-                        Win32UnloadGameCode( &game );
-                        game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
-                    }
+                        newInput->secondsElapsed = lastDeltaTimeSecs;
 
-                    // Process input
-                    GameControllerInput *newKeyboardController = Win32ResetKeyboardController( oldInput, newInput );
-                    Win32ProcessPendingMessages( &platformState, newKeyboardController );
+                        FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
+                        if( CompareFileTime( &dllWriteTime, &game.lastDLLWriteTime ) != 0 )
+                        {
+                            Win32UnloadGameCode( &game );
+                            game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
+                        }
 
-                    Win32ProcessXInputControllers( oldInput, newInput );
+                        // Process input
+                        GameControllerInput *newKeyboardController = Win32ResetKeyboardController( oldInput, newInput );
+                        Win32ProcessPendingMessages( &platformState, newKeyboardController );
 
-                    POINT mouseP;
-                    GetCursorPos( &mouseP );
-                    ScreenToClient( window, &mouseP );
-                    newInput->mouseX = mouseP.x;
-                    newInput->mouseY = mouseP.y;
-                    Win32ProcessKeyboardMessage( &newInput->mouseButtons[0], GetKeyState( VK_LBUTTON ) & (1 << 15) );
-                    Win32ProcessKeyboardMessage( &newInput->mouseButtons[1], GetKeyState( VK_MBUTTON ) & (1 << 15) );
-                    Win32ProcessKeyboardMessage( &newInput->mouseButtons[2], GetKeyState( VK_RBUTTON ) & (1 << 15) );
-                    Win32ProcessKeyboardMessage( &newInput->mouseButtons[3], GetKeyState( VK_XBUTTON1 ) & (1 << 15) );
-                    Win32ProcessKeyboardMessage( &newInput->mouseButtons[4], GetKeyState( VK_XBUTTON2 ) & (1 << 15) );
+                        Win32ProcessXInputControllers( oldInput, newInput );
 
-                    if( platformState.inputRecordingIndex )
-                    {
-                        Win32RecordInput( &platformState, newInput );
-                    }
-                    if( platformState.inputPlaybackIndex )
-                    {
-                        Win32PlayBackInput( &platformState, newInput );
-                    }
+                        POINT mouseP;
+                        GetCursorPos( &mouseP );
+                        ScreenToClient( window, &mouseP );
+                        newInput->mouseX = mouseP.x;
+                        newInput->mouseY = mouseP.y;
+                        Win32ProcessKeyboardMessage( &newInput->mouseButtons[0], GetKeyState( VK_LBUTTON ) & (1 << 15) );
+                        Win32ProcessKeyboardMessage( &newInput->mouseButtons[1], GetKeyState( VK_MBUTTON ) & (1 << 15) );
+                        Win32ProcessKeyboardMessage( &newInput->mouseButtons[2], GetKeyState( VK_RBUTTON ) & (1 << 15) );
+                        Win32ProcessKeyboardMessage( &newInput->mouseButtons[3], GetKeyState( VK_XBUTTON1 ) & (1 << 15) );
+                        Win32ProcessKeyboardMessage( &newInput->mouseButtons[4], GetKeyState( VK_XBUTTON2 ) & (1 << 15) );
 
-                    u32 framesToWrite = 0;
-                    u32 audioPaddingFrames;
-                    if( SUCCEEDED(globalAudioClient->GetCurrentPadding( &audioPaddingFrames )) )
-                    {
-                        // TODO Try priming the buffer with something like half a frame's worth of silence
+                        if( platformState.inputRecordingIndex )
+                        {
+                            Win32RecordInput( &platformState, newInput );
+                        }
+                        if( platformState.inputPlaybackIndex )
+                        {
+                            Win32PlayBackInput( &platformState, newInput );
+                        }
 
-                        framesToWrite = audioOutput.bufferSizeFrames - audioPaddingFrames;
-                    }
+                        u32 framesToWrite = 0;
+                        u32 audioPaddingFrames;
+                        if( SUCCEEDED(globalAudioClient->GetCurrentPadding( &audioPaddingFrames )) )
+                        {
+                            // TODO Try priming the buffer with something like half a frame's worth of silence
 
-                    // Prepare audio & video buffers
-                    GameOffscreenBuffer videoBuffer = {};
-                    videoBuffer.memory = globalBackBuffer.memory;
-                    videoBuffer.width = globalBackBuffer.width;
-                    videoBuffer.height = globalBackBuffer.height;
-                    videoBuffer.bytesPerPixel = globalBackBuffer.bytesPerPixel;
+                            framesToWrite = audioOutput.bufferSizeFrames - audioPaddingFrames;
+                        }
 
-                    GameAudioBuffer audioBuffer = {};
-                    audioBuffer.samplesPerSecond = audioOutput.samplingRate;
-                    audioBuffer.channelCount = AUDIO_CHANNELS;
-                    audioBuffer.frameCount = framesToWrite;
-                    audioBuffer.samples = soundSamples;
+                        // Prepare audio & video buffers
+                        GameOffscreenBuffer videoBuffer = {};
+                        videoBuffer.memory = globalBackBuffer.memory;
+                        videoBuffer.width = globalBackBuffer.width;
+                        videoBuffer.height = globalBackBuffer.height;
+                        videoBuffer.bytesPerPixel = globalBackBuffer.bytesPerPixel;
 
-                    // Ask the game to render one frame
-                    game.UpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer,
+                        GameAudioBuffer audioBuffer = {};
+                        audioBuffer.samplesPerSecond = audioOutput.samplingRate;
+                        audioBuffer.channelCount = AUDIO_CHANNELS;
+                        audioBuffer.frameCount = framesToWrite;
+                        audioBuffer.samples = soundSamples;
+
+                        // Ask the game to render one frame
+                        game.UpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer,
                                               false );
 
-                    // Blit audio buffer to output
-                    Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
+                        // Blit audio buffer to output
+                        Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
 
-                    GameInput *temp = newInput;
-                    newInput = oldInput;
-                    oldInput = temp;
+                        GameInput *temp = newInput;
+                        newInput = oldInput;
+                        oldInput = temp;
 
-                    s64 endCycleCounter = __rdtsc();
-                    u64 cyclesElapsed = endCycleCounter - lastCycleCounter;
-                    u32 kCyclesElapsed = (u32)(cyclesElapsed / 1000);
+                        s64 endCycleCounter = __rdtsc();
+                        u64 cyclesElapsed = endCycleCounter - lastCycleCounter;
+                        u32 kCyclesElapsed = (u32)(cyclesElapsed / 1000);
 
-                    LARGE_INTEGER endCounter = Win32GetWallClock();
-                    r32 frameElapsedSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
+                        LARGE_INTEGER endCounter = Win32GetWallClock();
+                        r32 frameElapsedSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
 
 #if 0
-                    // Artificially increase wait time from 0 to 20ms.
-                    int r = rand() % 20;
-                    targetElapsedPerFrameSecs = (1.0f / VIDEO_TARGET_FRAMERATE) + ((r32)r / 1000.0f);
+                        // Artificially increase wait time from 0 to 20ms.
+                        int r = rand() % 20;
+                        targetElapsedPerFrameSecs = (1.0f / VIDEO_TARGET_FRAMERATE) + ((r32)r / 1000.0f);
 #endif
-                    // Wait till the target frame time
-                    r32 elapsedSecs = frameElapsedSecs;
-                    if( elapsedSecs < targetElapsedPerFrameSecs )
-                    {
-                        if( sleepIsGranular )
+                        // Wait till the target frame time
+                        r32 elapsedSecs = frameElapsedSecs;
+                        if( elapsedSecs < targetElapsedPerFrameSecs )
                         {
-                            DWORD sleepMs = (DWORD)(1000.0f * (targetElapsedPerFrameSecs - frameElapsedSecs));
-                            if( sleepMs > 0 )
+                            if( sleepIsGranular )
                             {
-                                Sleep( sleepMs );
+                                DWORD sleepMs = (DWORD)(1000.0f * (targetElapsedPerFrameSecs - frameElapsedSecs));
+                                if( sleepMs > 0 )
+                                {
+                                    Sleep( sleepMs );
+                                }
+                            }
+                            while( elapsedSecs < targetElapsedPerFrameSecs )
+                            {
+                                elapsedSecs = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
                             }
                         }
-                        while( elapsedSecs < targetElapsedPerFrameSecs )
+                        else
                         {
-                            elapsedSecs = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
+                            // TODO Log missed frame rate
                         }
-                    }
-                    else
-                    {
-                        // TODO Log missed frame rate
-                    }
 
-                    endCounter = Win32GetWallClock();
-                    lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
-                    lastCounter = endCounter;
+                        endCounter = Win32GetWallClock();
+                        lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
+                        lastCounter = endCounter;
 
-                    // Blit video to output
-                    HDC deviceContext = GetDC( window );
-                    Win32WindowDimension dim = Win32GetWindowDimension( window );
-                    Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
-                    ReleaseDC( window, deviceContext );
+                        // Blit video to output
+                        Win32WindowDimension dim = Win32GetWindowDimension( window );
+                        Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
 
-                    lastCycleCounter = endCycleCounter;
-                    ++runningFrameCounter;
+                        lastCycleCounter = endCycleCounter;
+                        ++runningFrameCounter;
 #if 0
-                    {
-                        r32 fps = 1.0f / lastDeltaTimeSecs;
-                        char buffer[256];
-                        sprintf_s( buffer, ARRAYCOUNT( buffer ), "ms: %.02f - FPS: %.02f (%d Kcycles) - audio padding: %d\n",
-                                   1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed, audioPaddingFrames );
-                        OutputDebugString( buffer );
-                    }
+                        {
+                            r32 fps = 1.0f / lastDeltaTimeSecs;
+                            char buffer[256];
+                            sprintf_s( buffer, ARRAYCOUNT( buffer ), "ms: %.02f - FPS: %.02f (%d Kcycles) - audio padding: %d\n",
+                                       1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed, audioPaddingFrames );
+                            OutputDebugString( buffer );
+                        }
 #endif
+                    }
+                }
+                else
+                {
+                    // TODO Log "Couldn't allocate memory"
                 }
             }
             else
             {
-                // TODO Log "Couldn't allocate memory"
+                // TODO Log "OpenGL initialization failed"
+                OutputDebugString( "BOOOOO" );
             }
         }
         else
