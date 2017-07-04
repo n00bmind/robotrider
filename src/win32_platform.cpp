@@ -991,13 +991,18 @@ Win32InitOpenGL( HDC dc )
                             {
                                 if( SetPixelFormat( dc, pixelFormat, &pfd ) )
                                 {
+                                    int flags = 0; // WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
+#ifdef DEBUG
+                                    flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
+#endif
+
                                     const int contextAttributes[] =
                                     {
                                         WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
                                         WGL_CONTEXT_MINOR_VERSION_ARB, 3,
-#ifdef DEBUG
-                                        WGL_CONTEXT_DEBUG_BIT_ARB, GL_TRUE,
-#endif
+                                        WGL_CONTEXT_FLAGS_ARB, flags,
+                                        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+                                        0
                                     };
 
                                     PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB
@@ -1006,8 +1011,9 @@ Win32InitOpenGL( HDC dc )
                                     if( wglCreateContextAttribsARB )
                                     {
                                         // Destroy dummy context
-                                        wglMakeCurrent( dc, NULL );
-                                        wglDeleteContext( renderingContext );
+                                        BOOL res;
+                                        res = wglMakeCurrent( dc, NULL );
+                                        res = wglDeleteContext( renderingContext );
 
                                         renderingContext = wglCreateContextAttribsARB( dc, 0, contextAttributes );
 
@@ -1017,6 +1023,8 @@ Win32InitOpenGL( HDC dc )
                                         }
                                         else
                                         {
+                                            int error = glGetError();
+                                            int bla = 5;
                                             // TODO
                                         }
                                     }
