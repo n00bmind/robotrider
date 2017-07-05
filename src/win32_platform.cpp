@@ -366,6 +366,7 @@ Win32AllocateBackBuffer( Win32OffscreenBuffer *buffer, int width, int height )
 internal void
 Win32DisplayInWindow( Win32OffscreenBuffer *buffer, HDC deviceContext, int windowWidth, int windowHeight )
 {
+#if 0
     StretchDIBits( deviceContext,
                    0, 0, buffer->width, buffer->height,
                    0, 0, buffer->width, buffer->height,
@@ -373,6 +374,12 @@ Win32DisplayInWindow( Win32OffscreenBuffer *buffer, HDC deviceContext, int windo
                    &buffer->bitmapInfo,
                    DIB_RGB_COLORS,
                    SRCCOPY );
+#else
+    glViewport( 0, 0, windowWidth, windowHeight );
+    glClearColor( 1.0f, 0.0f, 1.0f, 0.0f );
+    glClear( GL_COLOR_BUFFER_BIT );
+    SwapBuffers( deviceContext );
+#endif
 }
 
 
@@ -991,7 +998,7 @@ Win32InitOpenGL( HDC dc )
                             {
                                 if( SetPixelFormat( dc, pixelFormat, &pfd ) )
                                 {
-                                    int flags = 0; // WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
+                                    int flags = 0; // TODO WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
 #ifdef DEBUG
                                     flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
 #endif
@@ -1019,7 +1026,14 @@ Win32InitOpenGL( HDC dc )
 
                                         if( renderingContext )
                                         {
-                                            result = true;
+                                            if( wglMakeCurrent( dc, renderingContext ) )
+                                            {
+                                                result = true;
+                                            }
+                                            else
+                                            {
+                                                // TODO 
+                                            }
                                         }
                                         else
                                         {
