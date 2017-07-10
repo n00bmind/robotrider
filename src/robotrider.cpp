@@ -2,7 +2,7 @@
 
 
 internal void
-RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset, b32 debugBeep )
+DEBUGRenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset, b32 debugBeep )
 {
     int width = buffer->width;
     int height = buffer->height;
@@ -23,7 +23,7 @@ RenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset, b32 
 }
 
 internal void
-RenderPlayer( GameOffscreenBuffer *buffer, int playerX, int playerY )
+DEBUGRenderPlayer( GameOffscreenBuffer *buffer, int playerX, int playerY )
 {
     int top = playerY;
     int bottom = playerY + 10;
@@ -43,7 +43,7 @@ RenderPlayer( GameOffscreenBuffer *buffer, int playerX, int playerY )
 }
 
 internal void
-GameOutputAudio( GameState *gameState, GameAudioBuffer *buffer, int toneHz, b32 debugBeep )
+DEBUGOutputSineWave( GameState *gameState, GameAudioBuffer *buffer, int toneHz, b32 debugBeep )
 {
     u32 toneAmp = 6000;
     u32 wavePeriod = buffer->samplesPerSecond / toneHz;
@@ -85,6 +85,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 
     GameControllerInput *input0 = GetController( input, 0 );
+#if 0
     if( input0->isAnalog )
     {
         gameState->blueOffset += (int)(4.f * input0->leftStick.avgX);
@@ -110,12 +111,16 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         gameState->playerY += 10;
     }
 
-    GameOutputAudio( gameState, audioBuffer, gameState->toneHz, debugBeep );
-    RenderWeirdGradient( videoBuffer, gameState->blueOffset, gameState->greenOffset, debugBeep );
-    RenderPlayer( videoBuffer, gameState->playerX, gameState->playerY );
+    DEBUGOutputSineWave( gameState, audioBuffer, gameState->toneHz, debugBeep );
+    DEBUGRenderWeirdGradient( videoBuffer, gameState->blueOffset, gameState->greenOffset, debugBeep );
+    DEBUGRenderPlayer( videoBuffer, gameState->playerX, gameState->playerY );
 
-    //if( input->mouseButtons[0].endedDown )
-    //{
-        //RenderPlayer( videoBuffer, input->mouseX, input->mouseY );
-    //}
+    if( input->mouseButtons[0].endedDown )
+    {
+        DEBUGRenderPlayer( videoBuffer, input->mouseX, input->mouseY );
+    }
+#endif
+
+    renderCommands->width = 800;
+    renderCommands->height = 600;
 }
