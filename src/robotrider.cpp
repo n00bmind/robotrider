@@ -51,7 +51,7 @@ GameOutputAudio( GameState *gameState, GameAudioBuffer *buffer, int toneHz, b32 
     s16 *sampleOut = buffer->samples;
     for( u32 sampleIndex = 0; sampleIndex < buffer->frameCount; ++sampleIndex )
     {
-#if 0
+#if 1
         r32 sineValue = sinf( gameState->tSine );
         s16 sampleValue = (s16)(sineValue * toneAmp);
 #else

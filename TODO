@@ -2,6 +2,8 @@
     :: robotrider ::
     ::::::::::::::::
 
+FIX
+
 AUDIO
 - Win32: switch WASAPI to callback mode to reduce buffer size and improve latency.
   This implies creating a separate dedicated thread that just blits audio to the output.

@@ -50,7 +50,6 @@ inline u32 SafeTruncU64( u64 value )
 //
 // Services that the platform layer provides to the game
 //
-#if DEBUG
 
 struct DEBUGReadFileResult
 {
@@ -66,7 +65,6 @@ typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(DebugPlatformFreeFileMemoryFunc);
 #define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name( char*filename, u32 memorySize, void *memory )
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
 
-#endif
 
 
 //

@@ -21,6 +21,7 @@
 #define AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY 0x08000000
 #endif
 
+#include "glext.h"
 #include "wglext.h"
 #include "win32_platform.h"
 
@@ -916,12 +917,67 @@ Win32GetExeFilename( Win32State *state )
     }
 }
 
+// TODO Move these to the renderer layer
+struct OpenGLInfo
+{
+    b32 modernContext;
+
+    const char *vendor;
+    const char *renderer;
+    const char *version;
+    const char *SLversion;
+    char *extensions[512];
+};
+
+internal OpenGLInfo
+OpenGLGetInfo( b32 modernContext )
+{
+    OpenGLInfo result = {};
+    result.modernContext = modernContext;
+    result.vendor = (const char *)glGetString( GL_VENDOR );
+    result.renderer = (const char *)glGetString( GL_RENDERER );
+    result.version = (const char *)glGetString( GL_VERSION );
+
+    if( modernContext )
+    {
+        result.SLversion = (const char *)glGetString( GL_SHADING_LANGUAGE_VERSION );
+
+        GLint n, i;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+        // FIXME Not safe
+        ASSERT( n < ARRAYCOUNT(result.extensions) );
+
+        // TODO Create a list of function pointers that the renderer requires and make the platform set them up
+        // before calling anything in the renderer layer
+        PFNGLGETSTRINGIPROC glGetStringi = (PFNGLGETSTRINGIPROC)wglGetProcAddress( "glGetStringi" );
+        for( i = 0; i < n; i++ )
+        {
+            result.extensions[i] = (char *)glGetStringi( GL_EXTENSIONS, i );
+        }
+    }
+    else
+    {
+        char *extensionsString = (char *)glGetString( GL_EXTENSIONS );
+        u32 extensionIndex = 0;
+
+        char *nextToken = NULL;
+        char *str = strtok_s( extensionsString, " ", &nextToken );
+        while( str != NULL )
+        {
+            result.extensions[extensionIndex++] = str;
+            // FIXME Not safe
+            ASSERT( extensionIndex < ARRAYCOUNT(result.extensions) );
+
+            str = strtok_s( NULL, " ", &nextToken );
+        }
+    }
+
+    return result;
+}
 
 internal b32
 Win32InitOpenGL( HDC dc )
 {
-    b32 result = false;
-
     PIXELFORMATDESCRIPTOR pfd =
     {
         sizeof(PIXELFORMATDESCRIPTOR),
@@ -943,147 +999,86 @@ Win32InitOpenGL( HDC dc )
     };
 
     int formatIndex = ChoosePixelFormat( dc, &pfd );
-
-    if( formatIndex )
-    {
-        if( SetPixelFormat( dc, formatIndex, &pfd ) )
-        {
-            HGLRC renderingContext = wglCreateContext( dc );
-
-            if( renderingContext )
-            {
-                if( wglMakeCurrent( dc, renderingContext ) )
-                {
-                    PFNWGLGETEXTENSIONSSTRINGARBPROC wglGetExtensionsStringARB
-                        = (PFNWGLGETEXTENSIONSSTRINGARBPROC)wglGetProcAddress( "wglGetExtensionsStringARB" );
-
-                    if( wglGetExtensionsStringARB )
-                    {
-                        // Parse available extensions
-                        char *extensionsString = (char *)wglGetExtensionsStringARB( dc );
-
-                        char *extensionsArray[1024];
-                        u32 extensionIndex = 0;
-
-                        char *nextToken = NULL;
-                        char *str = strtok_s( extensionsString, " ", &nextToken );
-                        while( str != NULL )
-                        {
-                            extensionsArray[extensionIndex++] = str;
-                            ASSERT( extensionIndex < ARRAYCOUNT(extensionsArray) );
-
-                            str = strtok_s( NULL, " ", &nextToken );
-                        }
-
-                        //if( Win32FindExtensionString( "WGL_ARB_pixel_format" ) )
-                        {
-                            PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB
-                                = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress( "wglChoosePixelFormatARB" );
-
-                            const int pixelFormatAttributes[] =
-                            {
-                                WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
-                                WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
-                                WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
-                                WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
-                                WGL_COLOR_BITS_ARB, 32,
-                                WGL_DEPTH_BITS_ARB, 24,
-                                WGL_STENCIL_BITS_ARB, 8,
-                                0,        //End
-                            };
-
-                            int pixelFormat;
-                            UINT numFormats;
-                            if( wglChoosePixelFormatARB( dc, pixelFormatAttributes, NULL, 1, &pixelFormat, &numFormats ) )
-                            {
-                                if( SetPixelFormat( dc, pixelFormat, &pfd ) )
-                                {
-                                    int flags = 0; // TODO WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
-#ifdef DEBUG
-                                    flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
-#endif
-
-                                    const int contextAttributes[] =
-                                    {
-                                        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-                                        WGL_CONTEXT_MINOR_VERSION_ARB, 3,
-                                        WGL_CONTEXT_FLAGS_ARB, flags,
-                                        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-                                        0
-                                    };
-
-                                    PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB
-                                        = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress( "wglCreateContextAttribsARB" );
-
-                                    if( wglCreateContextAttribsARB )
-                                    {
-                                        // Destroy dummy context
-                                        BOOL res;
-                                        res = wglMakeCurrent( dc, NULL );
-                                        res = wglDeleteContext( renderingContext );
-
-                                        renderingContext = wglCreateContextAttribsARB( dc, 0, contextAttributes );
-
-                                        if( renderingContext )
-                                        {
-                                            if( wglMakeCurrent( dc, renderingContext ) )
-                                            {
-                                                result = true;
-                                            }
-                                            else
-                                            {
-                                                // TODO 
-                                            }
-                                        }
-                                        else
-                                        {
-                                            int error = glGetError();
-                                            int bla = 5;
-                                            // TODO
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // TODO
-                                    }
-                                }
-                                else
-                                {
-                                    // TODO Diagnostic
-                                }
-                            }
-                            else
-                            {
-                                // TODO Diagnostic
-                            }
-                        }
-                        //else
-                        {
-                            // TODO Diagnostic
-                        }
-                    }
-                    else
-                    {
-                        // TODO Diagnostic
-                    }
-                }
-            }
-            else
-            {
-                // TODO Diagnostic
-            }
-        }
-        else
-        {
-            // TODO Diagnostic
-        }
-    }
-    else
+    if( !formatIndex )
     {
         // TODO Diagnostic
+        return false;
     }
 
-    return result;
+    if( !SetPixelFormat( dc, formatIndex, &pfd ) )
+    {
+        // TODO Diagnostic
+        return false;
+    }
+
+    HGLRC legacyContext = wglCreateContext( dc );
+    if( !legacyContext )
+    {
+        int error = glGetError();
+        // TODO Diagnostic
+        return false;
+    }
+
+    if( !wglMakeCurrent( dc, legacyContext ) )
+    {
+        int error = glGetError();
+        // TODO Diagnostic
+        return false;
+    }
+
+    int flags = 0; // TODO WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
+#if DEBUG
+    flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
+#endif
+
+    const int contextAttributes[] =
+    {
+        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+        WGL_CONTEXT_FLAGS_ARB, flags,
+        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        0
+    };
+
+    PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB
+        = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress( "wglCreateContextAttribsARB" );
+    if( !wglCreateContextAttribsARB )
+    {
+        // TODO Diagnostic
+        return false;
+    }
+
+    HGLRC renderingContext = wglCreateContextAttribsARB( dc, 0, contextAttributes );
+    if( !renderingContext )
+    {
+        int error = glGetError();
+        // TODO Diagnostic
+        return false;
+    }
+
+    // Destroy dummy context
+    BOOL res;
+    res = wglMakeCurrent( dc, NULL );
+    res = wglDeleteContext( legacyContext );
+
+    if( !wglMakeCurrent( dc, renderingContext ) )
+    {
+        // TODO Diagnostic
+        return false;
+    }
+
+    OpenGLInfo info = OpenGLGetInfo( true );
+
+    // VSync
+    PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT =
+        (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress( "wglSwapIntervalEXT" );
+
+    if( wglSwapIntervalEXT )
+    {
+        wglSwapIntervalEXT( 1 );
+    }
+
+    return true;
 }
 
 
@@ -1158,7 +1153,10 @@ WinMain( HINSTANCE hInstance,
                 s16 *soundSamples = (s16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
-                LPVOID baseAddress = DEBUG ? (LPVOID)GIGABYTES((u64)2048) : 0;
+                LPVOID baseAddress = 0;
+#if DEBUG
+                baseAddress = (LPVOID)GIGABYTES((u64)2048);
+#endif
 
                 GameMemory gameMemory = {};
                 gameMemory.permanentStorageSize = MEGABYTES(64);
@@ -1218,7 +1216,8 @@ WinMain( HINSTANCE hInstance,
 
                     globalRunning = true;
 
-                    ASSERT( globalAudioClient->Start() == S_OK );
+                    HRESULT audioStarted = globalAudioClient->Start();
+                    ASSERT( audioStarted == S_OK );
 
                     LARGE_INTEGER lastCounter = Win32GetWallClock();
                     s64 lastCycleCounter = __rdtsc();
@@ -1300,14 +1299,15 @@ WinMain( HINSTANCE hInstance,
                         u64 cyclesElapsed = endCycleCounter - lastCycleCounter;
                         u32 kCyclesElapsed = (u32)(cyclesElapsed / 1000);
 
-                        LARGE_INTEGER endCounter = Win32GetWallClock();
-                        r32 frameElapsedSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
-
 #if 0
                         // Artificially increase wait time from 0 to 20ms.
                         int r = rand() % 20;
                         targetElapsedPerFrameSecs = (1.0f / VIDEO_TARGET_FRAMERATE) + ((r32)r / 1000.0f);
 #endif
+#if 0
+                        LARGE_INTEGER endCounter = Win32GetWallClock();
+                        r32 frameElapsedSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
+
                         // Wait till the target frame time
                         r32 elapsedSecs = frameElapsedSecs;
                         if( elapsedSecs < targetElapsedPerFrameSecs )
@@ -1329,18 +1329,18 @@ WinMain( HINSTANCE hInstance,
                         {
                             // TODO Log missed frame rate
                         }
-
-                        endCounter = Win32GetWallClock();
-                        lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
-                        lastCounter = endCounter;
-
+#endif
                         // Blit video to output
                         Win32WindowDimension dim = Win32GetWindowDimension( window );
                         Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
 
+                        LARGE_INTEGER endCounter = Win32GetWallClock();
+                        lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
+                        lastCounter = endCounter;
+
                         lastCycleCounter = endCycleCounter;
                         ++runningFrameCounter;
-#if 0
+#if 1
                         {
                             r32 fps = 1.0f / lastDeltaTimeSecs;
                             char buffer[256];
