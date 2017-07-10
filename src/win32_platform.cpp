@@ -1,12 +1,16 @@
 #include "robotrider.h"
 
 #include <windows.h>
+#include <gl/gl.h>
+#include "glext.h"
+#include "wglext.h"
+#include "opengl_renderer.cpp"
+
 #include <xinput.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <audiosessiontypes.h>
 #include <stdio.h>
-#include <gl/gl.h>
 
 
 #define VIDEO_TARGET_FRAMERATE 60
@@ -21,12 +25,9 @@
 #define AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY 0x08000000
 #endif
 
-#include "glext.h"
-#include "wglext.h"
 #include "win32_platform.h"
 
 global bool globalRunning;
-global Win32OffscreenBuffer globalBackBuffer;
 global IAudioClient* globalAudioClient;
 global IAudioRenderClient* globalAudioRenderClient;
 global s64 globalPerfCounterFrequency;
@@ -365,8 +366,21 @@ Win32AllocateBackBuffer( Win32OffscreenBuffer *buffer, int width, int height )
 }
 
 internal void
-Win32DisplayInWindow( Win32OffscreenBuffer *buffer, HDC deviceContext, int windowWidth, int windowHeight )
+Win32DisplayInWindow( GameRenderCommands *commands, HDC deviceContext, int windowWidth, int windowHeight )
 {
+    Renderer renderer = Renderer::OpenGL;
+
+    switch( renderer )
+    {
+        case Renderer::OpenGL:
+        {
+            OpenGLRenderToOutput( commands );
+            SwapBuffers( deviceContext );
+        } break;
+
+        INVALID_DEFAULT_CASE;
+    }
+
 #if 0
     StretchDIBits( deviceContext,
                    0, 0, buffer->width, buffer->height,
@@ -375,11 +389,6 @@ Win32DisplayInWindow( Win32OffscreenBuffer *buffer, HDC deviceContext, int windo
                    &buffer->bitmapInfo,
                    DIB_RGB_COLORS,
                    SRCCOPY );
-#else
-    glViewport( 0, 0, windowWidth, windowHeight );
-    glClearColor( 1.0f, 0.0f, 1.0f, 0.0f );
-    glClear( GL_COLOR_BUFFER_BIT );
-    SwapBuffers( deviceContext );
 #endif
 }
 
@@ -839,20 +848,6 @@ Win32WindowProc( HWND hwnd,
         {
         } break;
 
-        case WM_PAINT:
-        {
-            PAINTSTRUCT paint;
-            HDC deviceContext = BeginPaint( hwnd, &paint );
-            int x = paint.rcPaint.left;
-            int y = paint.rcPaint.top;
-            int width = paint.rcPaint.right - paint.rcPaint.left;
-            int height = paint.rcPaint.bottom - paint.rcPaint.top;
-            
-            Win32WindowDimension dim = Win32GetWindowDimension( hwnd );
-            Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
-            EndPaint( hwnd, &paint );
-        } break;
-
         case WM_SYSKEYDOWN:
         case WM_SYSKEYUP:
         case WM_KEYDOWN:
@@ -1101,7 +1096,6 @@ WinMain( HINSTANCE hInstance,
 
     // Init subsystems
     Win32InitXInput();
-    Win32AllocateBackBuffer( &globalBackBuffer, 1280, 720 );
     // TODO Test what a safe value for buffer size/latency is with several audio cards
     // (stress test by artificially lowering the framerate)
     Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS, AUDIO_LATENCY_SAMPLES );
@@ -1150,9 +1144,6 @@ WinMain( HINSTANCE hInstance,
             HDC deviceContext = GetDC( window );
             if( Win32InitOpenGL( deviceContext ) )
             {
-                s16 *soundSamples = (s16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
-                                                         MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-
                 LPVOID baseAddress = 0;
 #if DEBUG
                 baseAddress = (LPVOID)GIGABYTES((u64)2048);
@@ -1174,6 +1165,12 @@ WinMain( HINSTANCE hInstance,
 
                 platformState.gameMemoryBlock = gameMemory.permanentStorage;
                 platformState.gameMemorySize = totalSize;
+
+                GameRenderCommands renderCommands;
+                // TODO 
+
+                s16 *soundSamples = (s16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
+                                                         MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
                 for( int replayIndex = 0; replayIndex < ARRAYCOUNT(platformState.replayBuffers); ++replayIndex )
                 {
@@ -1272,12 +1269,6 @@ WinMain( HINSTANCE hInstance,
                         }
 
                         // Prepare audio & video buffers
-                        GameOffscreenBuffer videoBuffer = {};
-                        videoBuffer.memory = globalBackBuffer.memory;
-                        videoBuffer.width = globalBackBuffer.width;
-                        videoBuffer.height = globalBackBuffer.height;
-                        videoBuffer.bytesPerPixel = globalBackBuffer.bytesPerPixel;
-
                         GameAudioBuffer audioBuffer = {};
                         audioBuffer.samplesPerSecond = audioOutput.samplingRate;
                         audioBuffer.channelCount = AUDIO_CHANNELS;
@@ -1285,8 +1276,7 @@ WinMain( HINSTANCE hInstance,
                         audioBuffer.samples = soundSamples;
 
                         // Ask the game to render one frame
-                        game.UpdateAndRender( &gameMemory, newInput, &videoBuffer, &audioBuffer,
-                                              false );
+                        game.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
 
                         // Blit audio buffer to output
                         Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
@@ -1337,6 +1327,10 @@ WinMain( HINSTANCE hInstance,
                         LARGE_INTEGER endCounter = Win32GetWallClock();
                         lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
                         lastCounter = endCounter;
+
+                        // Blit video to output
+                        Win32WindowDimension dim = Win32GetWindowDimension( window );
+                        Win32DisplayInWindow( &renderCommands, deviceContext, dim.width, dim.height );
 
                         lastCycleCounter = endCycleCounter;
                         ++runningFrameCounter;

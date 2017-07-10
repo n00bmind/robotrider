@@ -14,6 +14,16 @@
 #define ASSERT(expression)
 #endif
 
+#if DEBUG
+#define NOT_IMPLEMENTED ASSERT(!"NotImplemented")
+#else
+#define NOT_IMPLEMENTED NotImplemented!!!
+#endif
+
+#define INVALID_CODE_PATH ASSERT("!InvalidCodePath")
+#define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH; } break
+
+
 #define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
 #define STR(s) _STR(s)
 #define _STR(s) #s
@@ -40,16 +50,18 @@ typedef double r64;
 #include "math.h"
 
 
-inline u32 SafeTruncU64( u64 value )
+enum class Renderer
 {
-    ASSERT( value <= 0xFFFFFFFF );
-    u32 result = (u32)value;
-    return result;
-}
+    OpenGL,
+    // TODO OpenGLES,
+    // Software?
+};
+
 
 //
 // Services that the platform layer provides to the game
 //
+
 
 struct DEBUGReadFileResult
 {
@@ -70,12 +82,22 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
 //
 // Game entry points & data types for the platform layer
 //
+
 struct GameOffscreenBuffer
 {
     void *memory;
     int width;
     int height;
     int bytesPerPixel;
+};
+
+struct GameRenderCommands
+{
+    u16 width;
+    u16 height;
+
+    // TODO 
+    void *renderEntries;
 };
 
 struct GameAudioBuffer
@@ -85,7 +107,7 @@ struct GameAudioBuffer
     u32 frameCount;         // Audio frames to output
     u16 channelCount;       // Channels per frame
     // TODO Convert this to a format that is independent of final bitdepth (32bit-float?)
-    // (some audio mixers even support this natively, it seems)
+    // (even off-the-shelf audio mixers support this natively, it seems)
     s16 *samples;
 };
 
@@ -173,10 +195,11 @@ struct GameMemory
     DebugPlatformWriteEntireFileFunc *DEBUGPlatformWriteEntireFile;
 };
 
+
 #ifndef GAME_UPDATE_AND_RENDER
 #define GAME_UPDATE_AND_RENDER(name) \
     void name( GameMemory *memory, GameInput *input, \
-               GameOffscreenBuffer *videoBuffer, GameAudioBuffer *audioBuffer, b32 debugBeep )
+               GameRenderCommands *renderCommands, GameAudioBuffer *audioBuffer )
 #endif
 typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
 GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
