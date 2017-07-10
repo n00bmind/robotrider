@@ -912,63 +912,6 @@ Win32GetExeFilename( Win32State *state )
     }
 }
 
-// TODO Move these to the renderer layer
-struct OpenGLInfo
-{
-    b32 modernContext;
-
-    const char *vendor;
-    const char *renderer;
-    const char *version;
-    const char *SLversion;
-    char *extensions[512];
-};
-
-internal OpenGLInfo
-OpenGLGetInfo( b32 modernContext )
-{
-    OpenGLInfo result = {};
-    result.modernContext = modernContext;
-    result.vendor = (const char *)glGetString( GL_VENDOR );
-    result.renderer = (const char *)glGetString( GL_RENDERER );
-    result.version = (const char *)glGetString( GL_VERSION );
-
-    if( modernContext )
-    {
-        result.SLversion = (const char *)glGetString( GL_SHADING_LANGUAGE_VERSION );
-
-        GLint n, i;
-        glGetIntegerv(GL_NUM_EXTENSIONS, &n);
-        // FIXME Not safe
-        ASSERT( n < ARRAYCOUNT(result.extensions) );
-
-        // TODO Create a list of function pointers that the renderer requires and make the platform set them up
-        // before calling anything in the renderer layer
-        PFNGLGETSTRINGIPROC glGetStringi = (PFNGLGETSTRINGIPROC)wglGetProcAddress( "glGetStringi" );
-        for( i = 0; i < n; i++ )
-        {
-            result.extensions[i] = (char *)glGetStringi( GL_EXTENSIONS, i );
-        }
-    }
-    else
-    {
-        char *extensionsString = (char *)glGetString( GL_EXTENSIONS );
-        u32 extensionIndex = 0;
-
-        char *nextToken = NULL;
-        char *str = strtok_s( extensionsString, " ", &nextToken );
-        while( str != NULL )
-        {
-            result.extensions[extensionIndex++] = str;
-            // FIXME Not safe
-            ASSERT( extensionIndex < ARRAYCOUNT(result.extensions) );
-
-            str = strtok_s( NULL, " ", &nextToken );
-        }
-    }
-
-    return result;
-}
 
 internal b32
 Win32InitOpenGL( HDC dc )
@@ -1061,6 +1004,12 @@ Win32InitOpenGL( HDC dc )
         // TODO Diagnostic
         return false;
     }
+
+    // Success
+    // Setup pointers to cross platform extension functions
+    // TODO Consider a macro or a platform utility function if this gets cansino
+    glGetStringi = (PFNGLGETSTRINGIPROC)wglGetProcAddress( "glGetStringi" );
+
 
     OpenGLInfo info = OpenGLGetInfo( true );
 
@@ -1322,15 +1271,11 @@ WinMain( HINSTANCE hInstance,
 #endif
                         // Blit video to output
                         Win32WindowDimension dim = Win32GetWindowDimension( window );
-                        Win32DisplayInWindow( &globalBackBuffer, deviceContext, dim.width, dim.height );
+                        Win32DisplayInWindow( &renderCommands, deviceContext, dim.width, dim.height );
 
                         LARGE_INTEGER endCounter = Win32GetWallClock();
                         lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
                         lastCounter = endCounter;
-
-                        // Blit video to output
-                        Win32WindowDimension dim = Win32GetWindowDimension( window );
-                        Win32DisplayInWindow( &renderCommands, deviceContext, dim.width, dim.height );
 
                         lastCycleCounter = endCycleCounter;
                         ++runningFrameCounter;
