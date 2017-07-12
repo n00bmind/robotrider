@@ -1,21 +1,4 @@
 
-// Pointers to extension functions setup natively by the platform
-// TODO Is this really cross-platform?
-PFNGLGETSTRINGIPROC glGetStringi;
-
-
-struct OpenGLInfo
-{
-    b32 modernContext;
-
-    const char *vendor;
-    const char *renderer;
-    const char *version;
-    const char *SLversion;
-    char *extensions[512];
-};
-
-
 internal OpenGLInfo
 OpenGLGetInfo( b32 modernContext )
 {

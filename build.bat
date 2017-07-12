@@ -20,6 +20,6 @@ set CFGFLAGS=%DEBUGFLAGS%
 if not exist %RRBIN% mkdir %RRBIN%
 pushd %RRBIN%
 del *.pdb >NUL 2>NUL
-cl %COMMONFLAGS% %DISABLEFLAGS% %CFGFLAGS% ..\%RRSRC%\robotrider.cpp -Fmrobotrider.map -LD /link %LINKERFLAGS% /PDB:rr_%random%.pdb /EXPORT:GameUpdateAndRender
+cl %COMMONFLAGS% %DISABLEFLAGS% %CFGFLAGS% ..\%RRSRC%\robotrider.cpp -Fmrobotrider.map -LD /link %LINKERFLAGS% /PDB:rr_%random%.pdb
 cl %COMMONFLAGS% %DISABLEFLAGS% %CFGFLAGS% ..\%RRSRC%\win32_platform.cpp -Fmwin32_platform.map /link %LINKERFLAGS% -subsystem:windows,5.2 %LIBS%
 popd

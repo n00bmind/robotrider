@@ -4,6 +4,7 @@
 #include <gl/gl.h>
 #include "glext.h"
 #include "wglext.h"
+#include "opengl_renderer.h"
 #include "opengl_renderer.cpp"
 
 #include <xinput.h>
@@ -1121,6 +1122,7 @@ WinMain( HINSTANCE hInstance,
                 s16 *soundSamples = (s16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
+#if DEBUG
                 for( int replayIndex = 0; replayIndex < ARRAYCOUNT(platformState.replayBuffers); ++replayIndex )
                 {
                     Win32ReplayBuffer *replayBuffer = &platformState.replayBuffers[replayIndex];
@@ -1149,6 +1151,7 @@ WinMain( HINSTANCE hInstance,
                         // TODO Diagnostic
                     }
                 }
+#endif
 
                 if( gameMemory.permanentStorage && gameMemory.transientStorage && soundSamples )
                 {

@@ -64,7 +64,7 @@ DEBUGOutputSineWave( GameState *gameState, GameAudioBuffer *buffer, int toneHz, 
     }
 }
 
-extern "C"
+LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
