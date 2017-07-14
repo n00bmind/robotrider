@@ -28,6 +28,7 @@
 
 #include "win32_platform.h"
 
+PlatformAPI platform;
 global bool globalRunning;
 global IAudioClient* globalAudioClient;
 global IAudioRenderClient* globalAudioRenderClient;
@@ -115,6 +116,19 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
     }
 
     return result;
+}
+
+
+PLATFORM_LOG(PlatformLog)
+{
+    char buffer[1024];
+
+    va_list args;
+    va_start( args, fmt );
+    vsprintf_s( buffer, ARRAYCOUNT(buffer), fmt, args );
+    va_end( args );
+
+    OutputDebugString( buffer );
 }
 
 
@@ -1008,8 +1022,28 @@ Win32InitOpenGL( HDC dc )
 
     // Success
     // Setup pointers to cross platform extension functions
-    // TODO Consider a macro or a platform utility function if this gets cansino
-    glGetStringi = (PFNGLGETSTRINGIPROC)wglGetProcAddress( "glGetStringi" );
+#define BINDGLPROC( name, type ) name = (type)wglGetProcAddress( #name )
+    BINDGLPROC( glGetStringi, PFNGLGETSTRINGIPROC );
+    BINDGLPROC( glGenBuffers, PFNGLGENBUFFERSPROC );
+    BINDGLPROC( glBindBuffer, PFNGLBINDBUFFERPROC );
+    BINDGLPROC( glBufferData, PFNGLBUFFERDATAPROC );
+    BINDGLPROC( glCreateShader, PFNGLCREATESHADERPROC );
+    BINDGLPROC( glShaderSource, PFNGLSHADERSOURCEPROC );
+    BINDGLPROC( glCompileShader, PFNGLCOMPILESHADERPROC );
+    BINDGLPROC( glGetShaderiv, PFNGLGETSHADERIVPROC );
+    BINDGLPROC( glGetShaderInfoLog, PFNGLGETSHADERINFOLOGPROC );
+    BINDGLPROC( glCreateProgram, PFNGLCREATEPROGRAMPROC );
+    BINDGLPROC( glAttachShader, PFNGLATTACHSHADERPROC );
+    BINDGLPROC( glLinkProgram, PFNGLLINKPROGRAMPROC );
+    BINDGLPROC( glGetProgramiv, PFNGLGETPROGRAMIVPROC );
+    BINDGLPROC( glGetProgramInfoLog, PFNGLGETPROGRAMINFOLOGPROC );
+    BINDGLPROC( glDeleteShader, PFNGLDELETESHADERPROC );
+    BINDGLPROC( glGenVertexArrays, PFNGLGENVERTEXARRAYSPROC );
+    BINDGLPROC( glBindVertexArray, PFNGLBINDVERTEXARRAYPROC );
+    BINDGLPROC( glVertexAttribPointer, PFNGLVERTEXATTRIBPOINTERPROC );
+    BINDGLPROC( glEnableVertexAttribArray, PFNGLENABLEVERTEXATTRIBARRAYPROC );
+    BINDGLPROC( glUseProgram, PFNGLUSEPROGRAMPROC );
+#undef BINDGLPROC
 
 
     OpenGLInfo info = OpenGLGetInfo( true );
@@ -1102,9 +1136,12 @@ WinMain( HINSTANCE hInstance,
                 GameMemory gameMemory = {};
                 gameMemory.permanentStorageSize = MEGABYTES(64);
                 gameMemory.transientStorageSize = GIGABYTES((u64)1);
-                gameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
-                gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
-                gameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
+                gameMemory.platformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
+                gameMemory.platformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
+                gameMemory.platformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
+                gameMemory.platformAPI.Log = PlatformLog;
+                
+                platform = gameMemory.platformAPI;
 
                 u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
                 // TODO Use MEM_LARGE_PAGES and call AdjustTokenPrivileges when not in XP
@@ -1116,7 +1153,10 @@ WinMain( HINSTANCE hInstance,
                 platformState.gameMemoryBlock = gameMemory.permanentStorage;
                 platformState.gameMemorySize = totalSize;
 
-                GameRenderCommands renderCommands;
+                Win32WindowDimension dim = Win32GetWindowDimension( window );
+                GameRenderCommands renderCommands = {};
+                renderCommands.width = (u16)dim.width;
+                renderCommands.height = (u16)dim.height;
                 // TODO 
 
                 s16 *soundSamples = (s16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
@@ -1273,7 +1313,6 @@ WinMain( HINSTANCE hInstance,
                         }
 #endif
                         // Blit video to output
-                        Win32WindowDimension dim = Win32GetWindowDimension( window );
                         Win32DisplayInWindow( &renderCommands, deviceContext, dim.width, dim.height );
 
                         LARGE_INTEGER endCounter = Win32GetWallClock();

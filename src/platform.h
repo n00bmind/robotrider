@@ -31,6 +31,7 @@
 #define internal static
 #define local_persistent static
 
+
 #if DEBUG
 #define ASSERT(expression) if( !(expression) ) { *(int *)0 = 0; }
 #else
@@ -46,6 +47,8 @@
 #define INVALID_CODE_PATH ASSERT("!InvalidCodePath")
 #define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH; } break
 
+// TODO Add support for different log levels (like in Android) and categories/filters
+#define LOG platform.Log
 
 #define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
 #define STR(s) _STR(s)
@@ -69,6 +72,48 @@ typedef int64_t s64;
 typedef s32 b32;
 typedef float r32;
 typedef double r64;
+
+
+enum class Renderer
+{
+    OpenGL,
+    // TODO OpenGLES,
+    // Software?
+};
+
+
+//
+// Services that the platform layer provides to the game
+//
+
+
+struct DEBUGReadFileResult
+{
+    u32 contentSize;
+    void *contents;
+};
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGReadFileResult name( char *filename )
+typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(DebugPlatformReadEntireFileFunc);
+
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name( void *memory )
+typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(DebugPlatformFreeFileMemoryFunc);
+
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name( char *filename, u32 memorySize, void *memory )
+typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
+
+#define PLATFORM_LOG(name) void name( const char *fmt, ... )
+typedef PLATFORM_LOG(PlatformLogFunc);
+
+
+struct PlatformAPI
+{
+    DebugPlatformReadEntireFileFunc *DEBUGReadEntireFile;
+    DebugPlatformFreeFileMemoryFunc *DEBUGFreeFileMemory;
+    DebugPlatformWriteEntireFileFunc *DEBUGWriteEntireFile;
+
+    PlatformLogFunc *Log;
+};
+extern PlatformAPI platform;
 
 
 #endif /* __PLATFORM_H__ */

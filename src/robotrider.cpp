@@ -64,9 +64,14 @@ DEBUGOutputSineWave( GameState *gameState, GameAudioBuffer *buffer, int toneHz, 
     }
 }
 
+
+PlatformAPI platform;
+
 LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
+    platform = memory->platformAPI;
+
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
 
     // Init storage for the game state
@@ -120,7 +125,4 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         DEBUGRenderPlayer( videoBuffer, input->mouseX, input->mouseY );
     }
 #endif
-
-    renderCommands->width = 800;
-    renderCommands->height = 600;
 }

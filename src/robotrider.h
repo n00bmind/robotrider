@@ -8,34 +8,6 @@
 #include "math.h"
 
 
-enum class Renderer
-{
-    OpenGL,
-    // TODO OpenGLES,
-    // Software?
-};
-
-
-//
-// Services that the platform layer provides to the game
-//
-
-
-struct DEBUGReadFileResult
-{
-    u32 contentSize;
-    void *contents;
-};
-#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGReadFileResult name( char *filename )
-typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(DebugPlatformReadEntireFileFunc);
-
-#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name( void *memory )
-typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(DebugPlatformFreeFileMemoryFunc);
-
-#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name( char*filename, u32 memorySize, void *memory )
-typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
-
-
 
 //
 // Game entry points & data types for the platform layer
@@ -51,6 +23,8 @@ struct GameOffscreenBuffer
 
 struct GameRenderCommands
 {
+    b32 initialized;
+
     u16 width;
     u16 height;
 
@@ -148,9 +122,7 @@ struct GameMemory
     u64 transientStorageSize;
     void *transientStorage;     // NOTE Required to be cleared to zero at startup
 
-    DebugPlatformReadEntireFileFunc *DEBUGPlatformReadEntireFile;
-    DebugPlatformFreeFileMemoryFunc *DEBUGPlatformFreeFileMemory;
-    DebugPlatformWriteEntireFileFunc *DEBUGPlatformWriteEntireFile;
+    PlatformAPI platformAPI;
 };
 
 
