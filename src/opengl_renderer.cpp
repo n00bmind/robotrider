@@ -1,4 +1,10 @@
 
+GL_DEBUG_CALLBACK(OpenGLDebugCallback)
+{
+    const GLchar *errorMsg = message;
+    ASSERT( !"OpenGL error" );
+}
+
 internal OpenGLInfo
 OpenGLGetInfo( b32 modernContext )
 {
@@ -42,17 +48,55 @@ OpenGLGetInfo( b32 modernContext )
     return result;
 }
 
+internal OpenGLInfo
+OpenGLInit( bool modernContext )
+{
+    OpenGLInfo info = OpenGLGetInfo( modernContext );
+
+    if( glDebugMessageCallbackARB )
+    {
+        glEnable( GL_DEBUG_OUTPUT_SYNCHRONOUS );
+        glDebugMessageCallbackARB( OpenGLDebugCallback, 0 );
+    }
+
+    ASSERT_GL_STATE;
+    return info;
+}
+
+internal m4
+CreateProjection( r32 aspectRatio )
+{
+    r32 n = 0.1f;
+    r32 f = 100.0f;
+    r32 d = f - n;
+    r32 a = aspectRatio;
+    // TODO 
+    r32 fovy = 45;
+
+    m4 result =
+    {{
+        { 2*n/a,      0,           0,            0 },
+        {     0,    2*n,           0,            0 },
+        {     0,      0,    -(f+n)/d,     -2*f*n/d },
+        {     0,      0,          -1,            0 } 
+    }};
+
+    return result;
+}
+
 internal void
 OpenGLRenderToOutput( GameRenderCommands *commands )
 {
     // TODO Store this in a 'global' OpenGL config
     local_persistent GLuint shaderProgram;
-    // TODO Store this next to the input vertex data
-    local_persistent GLuint VAO;
+    local_persistent FlyingDude dude;
+    local_persistent CubeThing cubes[1];
 
     glViewport( 0, 0, commands->width, commands->height );
     glClearColor( 0.95f, 0.95f, 0.95f, 1.0f );
     glClear( GL_COLOR_BUFFER_BIT );
+
+    m4 projM = CreateProjection( (r32)commands->width / commands->height );
 
     if( !commands->initialized )
     {
@@ -60,7 +104,7 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
 
         // Compile shaders
         const char *vertexShaderSource =
-#include "shaders/null_vs.glsl"
+#include "shaders/default.vs.glsl"
             ;
 
         GLuint vertexShader = glCreateShader( GL_VERTEX_SHADER );
@@ -74,11 +118,11 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
         {
             glGetShaderInfoLog( vertexShader, 512, NULL, infoLog );
             LOG( "ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
-            return;
+            INVALID_CODE_PATH
         }
 
         const char *fragmentShaderSource =
-#include "shaders/black_fs.glsl"
+#include "shaders/black.fs.glsl"
             ;
 
         GLuint fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
@@ -90,7 +134,7 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
         {
             glGetShaderInfoLog( fragmentShader, 512, NULL, infoLog );
             LOG( "ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
-            return;
+            INVALID_CODE_PATH
         }
 
         shaderProgram = glCreateProgram();
@@ -103,35 +147,77 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
         {
             glGetProgramInfoLog( shaderProgram, 512, NULL, infoLog );
             LOG( "ERROR :: Shader program linkage failed!\n%s\n", infoLog );
-            return;
+            INVALID_CODE_PATH
         }
 
         glDeleteShader( vertexShader );
         glDeleteShader( fragmentShader );
+    glUseProgram( shaderProgram );
+        GLint projId = glGetUniformLocation( shaderProgram, "projM" );
+        glUniformMatrix4fv( projId, 1, GL_TRUE, projM.e[0] );
 
         // Bind Vertex Array Object with all the needed configuration
-        float vertices[] =
+        dude =
         {
-            -0.5f,  -0.5f,  0.0f,
-            0.5f,  -0.5f,  0.0f,
-            0.0f,   0.5f,  0.0f
+            {
+                { -0.5f,  -0.5f,  -1.0f },
+                {  0.5f,  -0.5f,  -1.0f },
+                {  0.0f,   0.5f,  -1.0f },
+            },
+            0
         };
 
-        glGenVertexArrays( 1, &VAO );
-        GLuint vertexBuffer;
-        glGenBuffers( 1, &vertexBuffer );
+        {
+            glGenVertexArrays( 1, &dude.vao );
+            GLuint vertexBuffer;
+            glGenBuffers( 1, &vertexBuffer );
 
-        glBindVertexArray( VAO );
-        glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
-        glBufferData( GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW );
+            glBindVertexArray( dude.vao );
+            glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
+            glBufferData( GL_ARRAY_BUFFER, sizeof(dude.vertices), dude.vertices, GL_STATIC_DRAW );
 
-        glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
-        glEnableVertexAttribArray( 0 );
+            glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
+            glEnableVertexAttribArray( 0 );
+        }
+
+        for( int i = 0; i < ARRAYCOUNT(cubes); ++i )
+        {
+            CubeThing &cube = cubes[i];
+            cube =
+            {
+                {
+                    { -0.5f,    -0.5f,   -0.5f },
+                    { -0.5f,    -0.5f,    0.5f },
+                    {  0.5f,    -0.5f,   -0.5f },
+                    {  0.5f,    -0.5f,    0.5f },
+                },
+                0
+            };
+
+            glGenVertexArrays( 1, &cube.vao );
+            GLuint vertexBuffer;
+            glGenBuffers( 1, &vertexBuffer );
+
+            glBindVertexArray( cube.vao );
+            glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
+            glBufferData( GL_ARRAY_BUFFER, sizeof(cube.vertices), cube.vertices, GL_STATIC_DRAW );
+
+            glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
+            glEnableVertexAttribArray( 0 );
+        }
+
+        ASSERT_GL_STATE;
     }
 
     glUseProgram( shaderProgram );
-    glBindVertexArray( VAO );
     glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-    glLineWidth( 3 );
+    //glLineWidth( 3 );
+    glBindVertexArray( dude.vao );
     glDrawArrays( GL_TRIANGLES, 0, 3 );
+    for( int i = 0; i < ARRAYCOUNT(cubes); ++i )
+    {
+        glBindVertexArray( cubes[i].vao );
+        glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
+    }
+
 }

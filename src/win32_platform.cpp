@@ -4,6 +4,9 @@
 #include <gl/gl.h>
 #include "glext.h"
 #include "wglext.h"
+#define GL_DEBUG_CALLBACK(name) \
+    void WINAPI name( GLenum source, GLenum type, GLuint id, GLenum severity, \
+                      GLsizei length, const GLchar *message, const void *userParam )
 #include "opengl_renderer.h"
 #include "opengl_renderer.cpp"
 
@@ -979,7 +982,7 @@ Win32InitOpenGL( HDC dc )
         return false;
     }
 
-    int flags = 0; // TODO WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
+    int flags = WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
 #if DEBUG
     flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
 #endif
@@ -1043,10 +1046,14 @@ Win32InitOpenGL( HDC dc )
     BINDGLPROC( glVertexAttribPointer, PFNGLVERTEXATTRIBPOINTERPROC );
     BINDGLPROC( glEnableVertexAttribArray, PFNGLENABLEVERTEXATTRIBARRAYPROC );
     BINDGLPROC( glUseProgram, PFNGLUSEPROGRAMPROC );
+    BINDGLPROC( glGetUniformLocation, PFNGLGETUNIFORMLOCATIONPROC );
+    BINDGLPROC( glUniformMatrix4fv, PFNGLUNIFORMMATRIX4FVPROC );
+    BINDGLPROC( glDebugMessageCallbackARB, PFNGLDEBUGMESSAGECALLBACKARBPROC );
 #undef BINDGLPROC
 
 
-    OpenGLInfo info = OpenGLGetInfo( true );
+    OpenGLInfo info = OpenGLInit( true );
+
 
     // VSync
     PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT =

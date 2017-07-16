@@ -1,6 +1,7 @@
 #ifndef __MATH_H__
 #define __MATH_H__ 
 
+#include "math_types.h"
 #define PI32 3.141592653589f
 
 

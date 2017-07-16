@@ -16,6 +16,7 @@ AUDIO
   https://github.com/pauldotknopf/WindowsSDK7-Samples/blob/master/multimedia/audio/RenderExclusiveEventDriven/WASAPIRenderer.cpp
 
 VIDEO
+- Hot code reloading for shaders! (a la ShaderToy)
 - Force a stable framerate synced to a multiple of the monitor's refresh rate using wglSwapInterval (https://hero.handmade.network/episode/code/day241)
 - Aspect ratio independece using black bars as needed
 
