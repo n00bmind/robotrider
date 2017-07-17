@@ -117,4 +117,18 @@ M4Identity()
     return result;
 }
 
+inline m4
+M4Translation( v3 p )
+{
+    m4 result =
+    {{
+         { 1,   0,  0,  p.x },
+         { 0,   1,  0,  p.y },
+         { 0,   0,  1,  p.z },
+         { 0,   0,  0,  1 }
+    }};
+
+    return result;
+}
+
 #endif /* __MATH_TYPES_H__ */

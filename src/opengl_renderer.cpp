@@ -113,13 +113,13 @@ OpenGLInit( bool modernContext )
 }
 
 internal m4
-CreateProjection( r32 aspectRatio, r32 fovXDeg )
+OpenGLCreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
 {
     r32 n = 0.1f;
     r32 f = 100.0f;
     r32 d = f - n;
     r32 a = aspectRatio;
-    r32 fovy = Radians( fovXDeg / a );
+    r32 fovy = Radians( fovYDeg );
     r32 ctf = 1 / tan( fovy / 2 );
 
     m4 result =
@@ -139,13 +139,13 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
     // TODO Store this in a 'global' OpenGL config
     local_persistent GLuint shaderProgram;
     local_persistent FlyingDude dude;
-    local_persistent CubeThing cubes[1];
+    local_persistent CubeThing cubes[256];
 
     glViewport( 0, 0, commands->width, commands->height );
     glClearColor( 0.95f, 0.95f, 0.95f, 1.0f );
     glClear( GL_COLOR_BUFFER_BIT );
 
-    m4 projM = CreateProjection( (r32)commands->width / commands->height, 220 );
+    m4 projM = OpenGLCreatePerspectiveMatrix( (r32)commands->width / commands->height, 120 );
 
     if( !commands->initialized )
     {
@@ -201,7 +201,7 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
 
         glDeleteShader( vertexShader );
         glDeleteShader( fragmentShader );
-    glUseProgram( shaderProgram );
+        glUseProgram( shaderProgram );
         GLint projId = glGetUniformLocation( shaderProgram, "projM" );
         glUniformMatrix4fv( projId, 1, GL_TRUE, projM.e[0] );
 
@@ -209,9 +209,9 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
         dude =
         {
             {
-                { -0.5f,  -0.5f,  -1.0f },
-                {  0.5f,  -0.5f,  -1.0f },
-                {  0.0f,   0.5f,  -1.0f },
+                { -0.5f,  -0.5f,  -10.0f },
+                {  0.5f,  -0.5f,  -10.0f },
+                {  0.0f,   0.5f,  -10.0f },
             },
             0
         };
@@ -231,20 +231,24 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
 
         for( int i = 0; i < ARRAYCOUNT(cubes); ++i )
         {
+            r32 transX = ((i % 16) - 8) * 2.0f;
+            r32 transZ = -(i / 16) * 2.0f;
+
             CubeThing &cube = cubes[i];
             cube =
             {
                 {
-                    { -0.5f,    -0.5f,   -0.5f },
-                    { -0.5f,    -0.5f,    0.5f },
-                    {  0.5f,    -0.5f,   -0.5f },
-                    {  0.5f,    -0.5f,    0.5f },
+                    { -0.5f,    0.0f,   -0.5f },
+                    { -0.5f,    0.0f,    0.5f },
+                    {  0.5f,    0.0f,   -0.5f },
+                    {  0.5f,    0.0f,    0.5f },
                 },
                 {
                     0, 1, 2,
                     2, 1, 3
                 },
-                0
+                0,
+                { transX, -2.0f, transZ },
             };
 
             glGenVertexArrays( 1, &cube.vao );
@@ -269,10 +273,20 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
     glUseProgram( shaderProgram );
     glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     //glLineWidth( 3 );
+
+    m4 modelM = M4Identity();
+    GLint modelId = glGetUniformLocation( shaderProgram, "modelM" );
+    glUniformMatrix4fv( modelId, 1, GL_TRUE, modelM.e[0] );
+
     glBindVertexArray( dude.vao );
     glDrawArrays( GL_TRIANGLES, 0, 3 );
+
     for( int i = 0; i < ARRAYCOUNT(cubes); ++i )
     {
+        modelM = M4Translation( cubes[i].P );
+        GLint modelId = glGetUniformLocation( shaderProgram, "modelM" );
+        glUniformMatrix4fv( modelId, 1, GL_TRUE, modelM.e[0] );
+
         glBindVertexArray( cubes[i].vao );
         glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
     }

@@ -52,6 +52,9 @@ struct CubeThing
     v3 vertices[4];
     GLuint indices[6];
     GLuint vao;
+
+    v3 P;
+    //m4 transformM;
 };
 
 #endif /* __OPENGL_RENDERER_H__ */
