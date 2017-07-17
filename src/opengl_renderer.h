@@ -50,6 +50,7 @@ struct FlyingDude
 struct CubeThing
 {
     v3 vertices[4];
+    GLuint indices[6];
     GLuint vao;
 };
 

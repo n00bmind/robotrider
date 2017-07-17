@@ -1,8 +1,55 @@
 
 GL_DEBUG_CALLBACK(OpenGLDebugCallback)
 {
-    const GLchar *errorMsg = message;
-    ASSERT( !"OpenGL error" );
+    const char *sourceStr;
+    switch( source )
+    {
+        case GL_DEBUG_SOURCE_API:	            sourceStr = "DEBUG_SOURCE_API";	            break;
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM:	    sourceStr = "DEBUG_SOURCE_WINDOW_SYSTEM";	break;
+        case GL_DEBUG_SOURCE_SHADER_COMPILER:	sourceStr = "DEBUG_SOURCE_SHADER_COMPILER";	break;
+        case GL_DEBUG_SOURCE_THIRD_PARTY:	    sourceStr = "DEBUG_SOURCE_THIRD_PARTY";	    break;
+        case GL_DEBUG_SOURCE_APPLICATION:	    sourceStr = "DEBUG_SOURCE_APPLICATION";	    break;
+        case GL_DEBUG_SOURCE_OTHER:	            sourceStr = "DEBUG_SOURCE_OTHER";	        break;
+        default:	                            sourceStr = "UNKNOWN";	                    break;
+    }
+
+    const char *typeStr;
+    switch( type )
+    {
+        case GL_DEBUG_TYPE_ERROR:               typeStr = "DEBUG_TYPE_ERROR";	            break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: typeStr = "DEBUG_TYPE_DEPRECATED_BEHAVIOR";	break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  typeStr = "DEBUG_TYPE_UNDEFINED_BEHAVIOR";	break;
+        case GL_DEBUG_TYPE_PORTABILITY:         typeStr = "DEBUG_TYPE_PORTABILITY";	        break;
+        case GL_DEBUG_TYPE_PERFORMANCE:         typeStr = "DEBUG_TYPE_PERFORMANCE";	        break;
+        case GL_DEBUG_TYPE_MARKER:              typeStr = "DEBUG_TYPE_MARKER";	            break;
+        case GL_DEBUG_TYPE_PUSH_GROUP:          typeStr = "DEBUG_TYPE_PUSH_GROUP";	        break;
+        case GL_DEBUG_TYPE_POP_GROUP:           typeStr = "DEBUG_TYPE_POP_GROUP";	        break;
+        case GL_DEBUG_TYPE_OTHER:               typeStr = "DEBUG_TYPE_OTHER";	            break;
+        default:	                            typeStr = "UNKNOWN";	                    break;
+    }
+
+    const char *severityStr;
+    switch( severity )
+    {
+        case GL_DEBUG_SEVERITY_HIGH:	        severityStr = "DEBUG_SEVERITY_HIGH";	        break;
+        case GL_DEBUG_SEVERITY_MEDIUM:	        severityStr = "DEBUG_SEVERITY_MEDIUM";	        break;
+        case GL_DEBUG_SEVERITY_LOW:	            severityStr = "DEBUG_SEVERITY_LOW";	            break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION:	severityStr = "DEBUG_SEVERITY_NOTIFICATION";	break;
+        default:	                            severityStr = "UNKNOWN";	                    break;
+    }
+
+    LOG( "OpenGL debug message:\n"
+         "source\t\t:: %s\n"
+         "type\t\t:: %s\n"
+         "id\t\t\t:: %#X\n"
+         "severity\t:: %s\n"
+         "message\t\t:: %s\n",
+         sourceStr, typeStr, id, severityStr, message );
+
+    if( severity != GL_DEBUG_SEVERITY_NOTIFICATION )
+    {
+        ASSERT( !"OpenGL error" );
+    }
 }
 
 internal OpenGLInfo
@@ -53,30 +100,32 @@ OpenGLInit( bool modernContext )
 {
     OpenGLInfo info = OpenGLGetInfo( modernContext );
 
+#if DEBUG
     if( glDebugMessageCallbackARB )
     {
         glEnable( GL_DEBUG_OUTPUT_SYNCHRONOUS );
         glDebugMessageCallbackARB( OpenGLDebugCallback, 0 );
     }
+#endif
 
     ASSERT_GL_STATE;
     return info;
 }
 
 internal m4
-CreateProjection( r32 aspectRatio )
+CreateProjection( r32 aspectRatio, r32 fovXDeg )
 {
     r32 n = 0.1f;
     r32 f = 100.0f;
     r32 d = f - n;
     r32 a = aspectRatio;
-    // TODO 
-    r32 fovy = 45;
+    r32 fovy = Radians( fovXDeg / a );
+    r32 ctf = 1 / tan( fovy / 2 );
 
     m4 result =
     {{
-        { 2*n/a,      0,           0,            0 },
-        {     0,    2*n,           0,            0 },
+        { ctf/a,      0,           0,            0 },
+        {     0,    ctf,           0,            0 },
         {     0,      0,    -(f+n)/d,     -2*f*n/d },
         {     0,      0,          -1,            0 } 
     }};
@@ -96,7 +145,7 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
     glClearColor( 0.95f, 0.95f, 0.95f, 1.0f );
     glClear( GL_COLOR_BUFFER_BIT );
 
-    m4 projM = CreateProjection( (r32)commands->width / commands->height );
+    m4 projM = CreateProjection( (r32)commands->width / commands->height, 220 );
 
     if( !commands->initialized )
     {
@@ -191,16 +240,24 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
                     {  0.5f,    -0.5f,   -0.5f },
                     {  0.5f,    -0.5f,    0.5f },
                 },
+                {
+                    0, 1, 2,
+                    2, 1, 3
+                },
                 0
             };
 
             glGenVertexArrays( 1, &cube.vao );
             GLuint vertexBuffer;
             glGenBuffers( 1, &vertexBuffer );
+            GLuint ebo;
+            glGenBuffers( 1, &ebo );
 
             glBindVertexArray( cube.vao );
             glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
             glBufferData( GL_ARRAY_BUFFER, sizeof(cube.vertices), cube.vertices, GL_STATIC_DRAW );
+            glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, ebo );
+            glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(cube.indices), cube.indices, GL_STATIC_DRAW );
 
             glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
             glEnableVertexAttribArray( 0 );
@@ -217,7 +274,6 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
     for( int i = 0; i < ARRAYCOUNT(cubes); ++i )
     {
         glBindVertexArray( cubes[i].vao );
-        glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
+        glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
     }
-
 }
