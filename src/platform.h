@@ -73,6 +73,8 @@ typedef s32 b32;
 typedef float r32;
 typedef double r64;
 
+typedef size_t mem_idx;
+
 
 enum class Renderer
 {

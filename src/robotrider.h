@@ -141,12 +141,39 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
 // Other stuff
 //
 
+struct MemoryArena
+{
+    u8 *base;
+    mem_idx size;
+    mem_idx used;
+};
+
+struct FlyingDude
+{
+    v3 vertices[3];
+    u32 indices[3];
+    u32 VAO;
+};
+
+struct CubeThing
+{
+    v3 vertices[4];
+    u32 indices[6];
+    u32 VAO;
+
+    v3 P;
+    //m4 transformM;
+};
+
+struct World
+{
+    CubeThing *cubes;
+};
+
 struct GameState
 {
-    int blueOffset;
-    int greenOffset;
-    int toneHz;
-    r32 tSine;
+    MemoryArena worldArena;
+    World *world;
 
     u32 playerX;
     u32 playerY;

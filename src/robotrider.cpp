@@ -1,6 +1,6 @@
 #include "robotrider.h"
 
-
+#if 0
 internal void
 DEBUGRenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset, b32 debugBeep )
 {
@@ -63,9 +63,31 @@ DEBUGOutputSineWave( GameState *gameState, GameAudioBuffer *buffer, int toneHz, 
         gameState->tSine += 2.f * PI32 * 1.0f / wavePeriod;
     }
 }
-
+#endif
 
 PlatformAPI platform;
+
+internal void
+InitializeArena( MemoryArena *arena, u8 *base, mem_idx size )
+{
+    arena->base = base;
+    arena->size = size;
+    arena->used = 0;
+}
+
+#define PUSH_STRUCT(arena, type) (type *)_PushSize( arena, sizeof(type) )
+#define PUSH_ARRAY(arena, count, type) (type *)_PushSize( arena, (count)*sizeof(type) )
+
+internal void *
+_PushSize( MemoryArena *arena, mem_idx size )
+{
+    ASSERT( arena->used + size <= arena->size );
+    // TODO Clear to zero option
+
+    void *result = arena->base + arena->used;
+    arena->used += size;
+    return result;
+}
 
 LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
@@ -78,10 +100,18 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     GameState *gameState = (GameState *)memory->permanentStorage;
     if( !memory->isInitialized )
     {
+#if 0
         gameState->blueOffset = 0;
         gameState->greenOffset = 0;
         gameState->toneHz = 256;
         gameState->tSine = 0.0f;
+#endif
+        InitializeArena( &gameState->worldArena,
+                         (u8 *)memory->permanentStorage + sizeof(GameState),
+                         memory->permanentStorageSize - sizeof(GameState) );
+        gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
+        gameState->world->cubes = PUSH_ARRAY( &gameState->worldArena, 16*16, CubeThing );
+        // TODO Initialize vertex data and OpenGL state here
 
         gameState->playerX = 100;
         gameState->playerY = 100;
