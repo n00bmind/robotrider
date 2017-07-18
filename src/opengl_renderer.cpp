@@ -108,6 +108,12 @@ OpenGLInit( bool modernContext )
     }
 #endif
 
+    // TODO According to Muratori, changing VAOs is inefficient and not really used anymore
+    // but they sti _must_ be used when in the Core profile, so..
+    GLuint dummyVAO;
+    glGenVertexArrays( 1, &dummyVAO );
+    glBindVertexArray( dummyVAO );
+
     ASSERT_GL_STATE;
     return info;
 }
@@ -120,7 +126,7 @@ OpenGLCreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
     r32 d = f - n;
     r32 a = aspectRatio;
     r32 fovy = Radians( fovYDeg );
-    r32 ctf = 1 / tan( fovy / 2 );
+    r32 ctf = 1 / (r32)tan( fovy / 2 );
 
     m4 result =
     {{
@@ -213,21 +219,17 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
                 {  0.5f,  -0.5f,  -10.0f },
                 {  0.0f,   0.5f,  -10.0f },
             },
-            0
+            { 0, 1, 2 },
         };
 
-        {
-            glGenVertexArrays( 1, &dude.vao );
-            GLuint vertexBuffer;
-            glGenBuffers( 1, &vertexBuffer );
-
-            glBindVertexArray( dude.vao );
-            glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
-            glBufferData( GL_ARRAY_BUFFER, sizeof(dude.vertices), dude.vertices, GL_STATIC_DRAW );
-
-            glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
-            glEnableVertexAttribArray( 0 );
-        }
+        glGenBuffers( 1, &dude.vertexBuffer );
+        glGenBuffers( 1, &dude.ebo );
+        glBindBuffer( GL_ARRAY_BUFFER, dude.vertexBuffer );
+        glBufferData( GL_ARRAY_BUFFER, sizeof(dude.vertices), dude.vertices, GL_STATIC_DRAW );
+        glEnableVertexAttribArray( 0 );
+        glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
+        glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, dude.ebo );
+        glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(dude.indices), dude.indices, GL_STATIC_DRAW );
 
         for( int i = 0; i < ARRAYCOUNT(cubes); ++i )
         {
@@ -248,23 +250,19 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
                     2, 1, 3
                 },
                 0,
+                0,
                 { transX, -2.0f, transZ },
             };
 
-            glGenVertexArrays( 1, &cube.vao );
-            GLuint vertexBuffer;
-            glGenBuffers( 1, &vertexBuffer );
-            GLuint ebo;
-            glGenBuffers( 1, &ebo );
+            glGenBuffers( 1, &cube.vertexBuffer );
+            glGenBuffers( 1, &cube.ebo );
 
-            glBindVertexArray( cube.vao );
-            glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
+            glBindBuffer( GL_ARRAY_BUFFER, cube.vertexBuffer );
             glBufferData( GL_ARRAY_BUFFER, sizeof(cube.vertices), cube.vertices, GL_STATIC_DRAW );
-            glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, ebo );
-            glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(cube.indices), cube.indices, GL_STATIC_DRAW );
-
-            glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
             glEnableVertexAttribArray( 0 );
+            glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
+            glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, cube.ebo );
+            glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(cube.indices), cube.indices, GL_STATIC_DRAW );
         }
 
         ASSERT_GL_STATE;
@@ -278,16 +276,20 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
     GLint modelId = glGetUniformLocation( shaderProgram, "modelM" );
     glUniformMatrix4fv( modelId, 1, GL_TRUE, modelM.e[0] );
 
-    glBindVertexArray( dude.vao );
-    glDrawArrays( GL_TRIANGLES, 0, 3 );
+    glBindBuffer( GL_ARRAY_BUFFER, dude.vertexBuffer );
+    glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
+    glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, dude.ebo );
+    glDrawElements( GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0 );
 
     for( int i = 0; i < ARRAYCOUNT(cubes); ++i )
     {
         modelM = M4Translation( cubes[i].P );
-        GLint modelId = glGetUniformLocation( shaderProgram, "modelM" );
+        modelId = glGetUniformLocation( shaderProgram, "modelM" );
         glUniformMatrix4fv( modelId, 1, GL_TRUE, modelM.e[0] );
 
-        glBindVertexArray( cubes[i].vao );
+        glBindBuffer( GL_ARRAY_BUFFER, cubes[i].vertexBuffer );
+        glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
+        glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, cubes[i].ebo );
         glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
     }
 }

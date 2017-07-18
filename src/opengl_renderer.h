@@ -44,14 +44,17 @@ struct OpenGLInfo
 struct FlyingDude
 {
     v3 vertices[3];
-    GLuint vao;
+    GLuint indices[3];
+    GLuint vertexBuffer;
+    GLuint ebo;
 };
 
 struct CubeThing
 {
     v3 vertices[4];
     GLuint indices[6];
-    GLuint vao;
+    GLuint vertexBuffer;
+    GLuint ebo;
 
     v3 P;
     //m4 transformM;
