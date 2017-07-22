@@ -8,6 +8,24 @@
 #include "math.h"
 
 
+//
+// Renderer layer stuff
+//
+
+struct RenderGroup
+{
+    v3 *vertices;
+    u32 vertexCount;
+    u32 *indices;
+    u32 indexCount;
+
+    v3 P;
+    //m4 transformM;
+
+    u32 VAO;
+};
+
+
 
 //
 // Game entry points & data types for the platform layer
@@ -29,7 +47,8 @@ struct GameRenderCommands
     u16 height;
 
     // TODO 
-    void *renderEntries;
+    RenderGroup renderEntries[1024];
+    u32 renderEntriesCount;
 };
 
 struct GameAudioBuffer
@@ -40,7 +59,7 @@ struct GameAudioBuffer
     u16 channelCount;       // Channels per frame
     // TODO Convert this to a format that is independent of final bitdepth (32bit-float?)
     // (even off-the-shelf audio mixers support this natively, it seems)
-    s16 *samples;
+    i16 *samples;
 };
 
 struct GameStickState
@@ -101,7 +120,7 @@ struct GameInput
     GameControllerInput _controllers[5];
 
     GameButtonState mouseButtons[5];
-    s32 mouseX, mouseY, mouseZ;
+    i32 mouseX, mouseY, mouseZ;
 };
 
 inline GameControllerInput *
@@ -152,22 +171,23 @@ struct FlyingDude
 {
     v3 vertices[3];
     u32 indices[3];
-    u32 VAO;
+
+    v3 P;
 };
 
 struct CubeThing
 {
     v3 vertices[4];
     u32 indices[6];
-    u32 VAO;
 
     v3 P;
-    //m4 transformM;
 };
 
 struct World
 {
+    FlyingDude *dude;
     CubeThing *cubes;
+    u32 cubeCount;
 };
 
 struct GameState

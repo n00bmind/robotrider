@@ -1,4 +1,6 @@
 #include "robotrider.h"
+#include "renderer.cpp"
+
 
 #if 0
 internal void
@@ -109,9 +111,49 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         InitializeArena( &gameState->worldArena,
                          (u8 *)memory->permanentStorage + sizeof(GameState),
                          memory->permanentStorageSize - sizeof(GameState) );
+
         gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
-        gameState->world->cubes = PUSH_ARRAY( &gameState->worldArena, 16*16, CubeThing );
-        // TODO Initialize vertex data and OpenGL state here
+
+        World *world = gameState->world;
+        world->dude = PUSH_STRUCT( &gameState->worldArena, FlyingDude );
+        *world->dude =
+        {
+            {
+                { -0.5f,  -0.5f,  0.0f },
+                {  0.5f,  -0.5f,  0.0f },
+                {  0.0f,   0.5f,  0.0f },
+            },
+            { 0, 1, 2 },
+            { 0.0f, 3.0f, -5.f }
+        };
+        PushFlyingDude( renderCommands, world->dude );
+
+        world->cubeCount = 16*16;
+        world->cubes = PUSH_ARRAY( &gameState->worldArena, world->cubeCount, CubeThing );
+
+        for( u32 i = 0; i < world->cubeCount; ++i )
+        {
+            r32 transX = (((i32)i % 16) - 8) * 2.0f;
+            r32 transZ = -((i32)i / 16) * 2.0f;
+
+            CubeThing &cube = world->cubes[i];
+            cube =
+            {
+                {
+                    { -0.5f,    0.0f,   -0.5f },
+                    { -0.5f,    0.0f,    0.5f },
+                    {  0.5f,    0.0f,   -0.5f },
+                    {  0.5f,    0.0f,    0.5f },
+                },
+                {
+                    0, 1, 2,
+                    2, 1, 3
+                },
+                { transX, -2.0f, transZ },
+            };
+
+            PushCubeThing( renderCommands, &cube );
+        }
 
         gameState->playerX = 100;
         gameState->playerY = 100;

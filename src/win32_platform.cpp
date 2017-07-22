@@ -35,7 +35,7 @@ PlatformAPI platform;
 global bool globalRunning;
 global IAudioClient* globalAudioClient;
 global IAudioRenderClient* globalAudioRenderClient;
-global s64 globalPerfCounterFrequency;
+global i64 globalPerfCounterFrequency;
 
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
@@ -330,8 +330,8 @@ Win32BlitAudioBuffer( GameAudioBuffer *sourceBuffer, u32 framesToWrite, Win32Aud
     HRESULT hr = globalAudioRenderClient->GetBuffer( framesToWrite, &audioData );
     if( hr == S_OK )
     {
-        s16* sourceSample = sourceBuffer->samples;
-        s16* destSample = (s16*)audioData;
+        i16* sourceSample = sourceBuffer->samples;
+        i16* destSample = (i16*)audioData;
         for( u32 frameIndex = 0; frameIndex < framesToWrite; ++frameIndex )
         {
             *destSample++ = *sourceSample++;
@@ -1166,7 +1166,7 @@ WinMain( HINSTANCE hInstance,
                 renderCommands.height = (u16)dim.height;
                 // TODO 
 
-                s16 *soundSamples = (s16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
+                i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
 #if DEBUG
@@ -1216,7 +1216,7 @@ WinMain( HINSTANCE hInstance,
                     ASSERT( audioStarted == S_OK );
 
                     LARGE_INTEGER lastCounter = Win32GetWallClock();
-                    s64 lastCycleCounter = __rdtsc();
+                    i64 lastCycleCounter = __rdtsc();
 
                     Win32GameCode game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
 
@@ -1284,7 +1284,7 @@ WinMain( HINSTANCE hInstance,
                         newInput = oldInput;
                         oldInput = temp;
 
-                        s64 endCycleCounter = __rdtsc();
+                        i64 endCycleCounter = __rdtsc();
                         u64 cyclesElapsed = endCycleCounter - lastCycleCounter;
                         u32 kCyclesElapsed = (u32)(cyclesElapsed / 1000);
 

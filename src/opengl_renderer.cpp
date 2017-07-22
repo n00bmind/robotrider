@@ -146,8 +146,6 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
 {
     // TODO Store this in a 'global' OpenGL config
     local_persistent GLuint shaderProgram;
-    local_persistent FlyingDude dude;
-    local_persistent CubeThing cubes[256];
 
     glViewport( 0, 0, commands->width, commands->height );
     glClearColor( 0.95f, 0.95f, 0.95f, 1.0f );
@@ -214,69 +212,24 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
         glUniformMatrix4fv( projId, 1, GL_TRUE, projM.e[0] );
 
         // Bind Vertex Array Object with all the needed configuration
-        dude =
+        for( u32 i = 0; i < commands->renderEntriesCount; ++i )
         {
-            {
-                { -0.5f,  -0.5f,  -10.0f },
-                {  0.5f,  -0.5f,  -10.0f },
-                {  0.0f,   0.5f,  -10.0f },
-            },
-            { 0, 1, 2 },
-        };
+            RenderGroup &entry = commands->renderEntries[i];
 
-        {
             u32 vertexBuffer;
             u32 elementBuffer;
-            glGenVertexArrays( 1, &dude.VAO );
-            glBindVertexArray( dude.VAO );
+            glGenVertexArrays( 1, &entry.VAO );
+            glBindVertexArray( entry.VAO );
 
             glGenBuffers( 1, &vertexBuffer );
             glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
-            glBufferData( GL_ARRAY_BUFFER, sizeof(dude.vertices), dude.vertices, GL_STATIC_DRAW );
+            glBufferData( GL_ARRAY_BUFFER, entry.vertexCount*sizeof(v3), entry.vertices, GL_STATIC_DRAW );
             glEnableVertexAttribArray( 0 );
             glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
 
             glGenBuffers( 1, &elementBuffer );
             glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, elementBuffer );
-            glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(dude.indices), dude.indices, GL_STATIC_DRAW );
-        }
-
-        for( int i = 0; i < ARRAYCOUNT(cubes); ++i )
-        {
-            r32 transX = ((i % 16) - 8) * 2.0f;
-            r32 transZ = -(i / 16) * 2.0f;
-
-            CubeThing &cube = cubes[i];
-            cube =
-            {
-                {
-                    { -0.5f,    0.0f,   -0.5f },
-                    { -0.5f,    0.0f,    0.5f },
-                    {  0.5f,    0.0f,   -0.5f },
-                    {  0.5f,    0.0f,    0.5f },
-                },
-                {
-                    0, 1, 2,
-                    2, 1, 3
-                },
-                0,
-                { transX, -2.0f, transZ },
-            };
-
-            u32 vertexBuffer;
-            u32 elementBuffer;
-            glGenVertexArrays( 1, &cube.VAO );
-            glBindVertexArray( cube.VAO );
-
-            glGenBuffers( 1, &vertexBuffer );
-            glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
-            glBufferData( GL_ARRAY_BUFFER, sizeof(cube.vertices), cube.vertices, GL_STATIC_DRAW );
-            glEnableVertexAttribArray( 0 );
-            glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
-
-            glGenBuffers( 1, &elementBuffer );
-            glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, elementBuffer );
-            glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(cube.indices), cube.indices, GL_STATIC_DRAW );
+            glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry.indexCount*sizeof(u32), entry.indices, GL_STATIC_DRAW );
         }
 
         ASSERT_GL_STATE;
@@ -286,21 +239,17 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
     //glLineWidth( 3 );
 
     glUseProgram( shaderProgram );
-    // TODO Pass the premultiplied transform instead (probably as attribute too!)
-    m4 modelM = M4Identity();
-    GLint modelId = glGetUniformLocation( shaderProgram, "modelM" );
-    glUniformMatrix4fv( modelId, 1, GL_TRUE, modelM.e[0] );
 
-    glBindVertexArray( dude.VAO );
-    glDrawElements( GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0 );
-
-    for( int i = 0; i < ARRAYCOUNT(cubes); ++i )
+    for( u32 i = 0; i < commands->renderEntriesCount; ++i )
     {
-        modelM = M4Translation( cubes[i].P );
-        modelId = glGetUniformLocation( shaderProgram, "modelM" );
+        RenderGroup &entry = commands->renderEntries[i];
+
+        // TODO Pass the premultiplied transform instead (probably as attribute too!)
+        m4 modelM = M4Translation( entry.P );
+        GLint modelId = glGetUniformLocation( shaderProgram, "modelM" );
         glUniformMatrix4fv( modelId, 1, GL_TRUE, modelM.e[0] );
 
-        glBindVertexArray( cubes[i].VAO );
+        glBindVertexArray( entry.VAO );
         glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
     }
 }
