@@ -56,7 +56,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
         LARGE_INTEGER fileSize;
         if( GetFileSizeEx( fileHandle, &fileSize ) )
         {
-            u32 fileSize32 = SafeTruncU64( fileSize.QuadPart );
+            u32 fileSize32 = SafeTruncToU32( fileSize.QuadPart );
             result.contents = VirtualAlloc( 0, fileSize32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
             if( result.contents )
@@ -731,7 +731,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameControllerInput *key
             case WM_KEYDOWN:
             case WM_KEYUP:
             {
-                u32 vkCode = SafeTruncU64( message.wParam );
+                u32 vkCode = SafeTruncToU32( message.wParam );
                 bool wasDown = ((message.lParam & (1 << 30)) != 0);
                 bool isDown =  ((message.lParam & (1 << 31)) == 0);
                 if( isDown != wasDown )

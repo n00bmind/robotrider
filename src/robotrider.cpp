@@ -119,12 +119,18 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         *world->dude =
         {
             {
-                { -0.5f,  -0.5f,  0.0f },
                 {  0.5f,  -0.5f,  0.0f },
+                { -0.5f,  -0.5f,  0.0f },
                 {  0.0f,   0.5f,  0.0f },
+                {  0.0f,  -0.5f,  0.5f },
             },
-            { 0, 1, 2 },
-            { 0.0f, 3.0f, -5.f }
+            {
+                0, 1, 2,
+                2, 1, 3,
+                2, 3, 0,
+                3, 1, 0,
+            },
+            { 0.0f, 0.0f, 1.f }
         };
         PushFlyingDude( renderCommands, world->dude );
 
@@ -134,22 +140,22 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         for( u32 i = 0; i < world->cubeCount; ++i )
         {
             r32 transX = (((i32)i % 16) - 8) * 2.0f;
-            r32 transZ = -((i32)i / 16) * 2.0f;
+            r32 transY = ((i32)i / 16) * 2.0f;
 
             CubeThing &cube = world->cubes[i];
             cube =
             {
                 {
-                    { -0.5f,    0.0f,   -0.5f },
-                    { -0.5f,    0.0f,    0.5f },
-                    {  0.5f,    0.0f,   -0.5f },
-                    {  0.5f,    0.0f,    0.5f },
+                    { -0.5f,    -0.5f,      0.0f },
+                    { -0.5f,     0.5f,      0.0f },
+                    {  0.5f,    -0.5f,      0.0f },
+                    {  0.5f,     0.5f,      0.0f },
                 },
                 {
                     0, 1, 2,
                     2, 1, 3
                 },
-                { transX, -2.0f, transZ },
+                { transX, transY, -1.0f },
             };
 
             PushCubeThing( renderCommands, &cube );

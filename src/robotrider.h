@@ -46,7 +46,7 @@ struct GameRenderCommands
     u16 width;
     u16 height;
 
-    // TODO 
+    // TODO This must be dynamic (transient)
     RenderGroup renderEntries[1024];
     u32 renderEntriesCount;
 };
@@ -169,8 +169,8 @@ struct MemoryArena
 
 struct FlyingDude
 {
-    v3 vertices[3];
-    u32 indices[3];
+    v3 vertices[4];
+    u32 indices[12];
 
     v3 P;
 };

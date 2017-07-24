@@ -4,9 +4,9 @@ PushFlyingDude( GameRenderCommands *commands, FlyingDude *dude )
 {
     RenderGroup &entry = commands->renderEntries[commands->renderEntriesCount++]; 
     entry.vertices = dude->vertices;
-    entry.vertexCount = 3;
+    entry.vertexCount = 4;
     entry.indices = dude->indices;
-    entry.indexCount = 3;
+    entry.indexCount = 12;
     entry.P = dude->P;
 }
 

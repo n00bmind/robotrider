@@ -3,12 +3,11 @@ R"|(
 #version 330 core
 layout (location = 0) in vec3 vertP;
 // TODO Should be an attribute at some point
-uniform mat4 modelM;
-uniform mat4 projM;
+uniform mat4 transformM;
 
 void main()
 {
-    gl_Position = projM * modelM * vec4(vertP, 1.0);
+    gl_Position = transformM * vec4(vertP, 1.0);
 }
 
 )|"

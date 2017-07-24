@@ -151,8 +151,6 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
     glClearColor( 0.95f, 0.95f, 0.95f, 1.0f );
     glClear( GL_COLOR_BUFFER_BIT );
 
-    m4 projM = OpenGLCreatePerspectiveMatrix( (r32)commands->width / commands->height, 120 );
-
     if( !commands->initialized )
     {
         commands->initialized = true;
@@ -207,9 +205,6 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
 
         glDeleteShader( vertexShader );
         glDeleteShader( fragmentShader );
-        glUseProgram( shaderProgram );
-        GLint projId = glGetUniformLocation( shaderProgram, "projM" );
-        glUniformMatrix4fv( projId, 1, GL_TRUE, projM.e[0] );
 
         // Bind Vertex Array Object with all the needed configuration
         for( u32 i = 0; i < commands->renderEntriesCount; ++i )
@@ -235,6 +230,11 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
         ASSERT_GL_STATE;
     }
 
+    m4 projM = OpenGLCreatePerspectiveMatrix( (r32)commands->width / commands->height, 120 );
+    m4 viewM = CameraTransform( V3( 1, 0, 0 ), V3( 0, 0, 1), V3( 0, -1, 0), V3( 0, -2, 2 ) );
+    v3 dudePosTest = V3( 0, 0, 1 );
+    v3 testRes = viewM * dudePosTest;
+
     glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     //glLineWidth( 3 );
 
@@ -244,10 +244,11 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
     {
         RenderGroup &entry = commands->renderEntries[i];
 
-        // TODO Pass the premultiplied transform instead (probably as attribute too!)
-        m4 modelM = M4Translation( entry.P );
-        GLint modelId = glGetUniformLocation( shaderProgram, "modelM" );
-        glUniformMatrix4fv( modelId, 1, GL_TRUE, modelM.e[0] );
+        // TODO Pass somehow as an attribute once all this is in a giant buffer
+        m4 modelM = Translation( entry.P );
+        m4 transformM = projM * viewM * modelM;
+        GLint transformId = glGetUniformLocation( shaderProgram, "transformM" );
+        glUniformMatrix4fv( transformId, 1, GL_TRUE, transformM.e[0] );
 
         glBindVertexArray( entry.VAO );
         glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
