@@ -32,6 +32,7 @@
 #include "win32_platform.h"
 
 PlatformAPI platform;
+OpenGLState openGLState;
 global bool globalRunning;
 global IAudioClient* globalAudioClient;
 global IAudioRenderClient* globalAudioRenderClient;
@@ -384,7 +385,7 @@ Win32AllocateBackBuffer( Win32OffscreenBuffer *buffer, int width, int height )
 }
 
 internal void
-Win32DisplayInWindow( GameRenderCommands *commands, HDC deviceContext, int windowWidth, int windowHeight )
+Win32DisplayInWindow( GameRenderCommands &commands, HDC deviceContext, int windowWidth, int windowHeight )
 {
     Renderer renderer = Renderer::OpenGL;
 
@@ -392,7 +393,7 @@ Win32DisplayInWindow( GameRenderCommands *commands, HDC deviceContext, int windo
     {
         case Renderer::OpenGL:
         {
-            OpenGLRenderToOutput( commands );
+            OpenGLRenderToOutput( openGLState, commands );
             SwapBuffers( deviceContext );
         } break;
 
@@ -1160,12 +1161,6 @@ WinMain( HINSTANCE hInstance,
                 platformState.gameMemoryBlock = gameMemory.permanentStorage;
                 platformState.gameMemorySize = totalSize;
 
-                Win32WindowDimension dim = Win32GetWindowDimension( window );
-                GameRenderCommands renderCommands = {};
-                renderCommands.width = (u16)dim.width;
-                renderCommands.height = (u16)dim.height;
-                // TODO 
-
                 i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
@@ -1274,8 +1269,13 @@ WinMain( HINSTANCE hInstance,
                         audioBuffer.frameCount = framesToWrite;
                         audioBuffer.samples = soundSamples;
 
+                        Win32WindowDimension windowDim = Win32GetWindowDimension( window );
+                        GameRenderCommands renderCommands = {};
+                        renderCommands.width = (u16)windowDim.width;
+                        renderCommands.height = (u16)windowDim.height;
+
                         // Ask the game to render one frame
-                        game.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
+                        game.UpdateAndRender( &gameMemory, newInput, renderCommands, &audioBuffer );
 
                         // Blit audio buffer to output
                         Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
@@ -1320,7 +1320,7 @@ WinMain( HINSTANCE hInstance,
                         }
 #endif
                         // Blit video to output
-                        Win32DisplayInWindow( &renderCommands, deviceContext, dim.width, dim.height );
+                        Win32DisplayInWindow( renderCommands, deviceContext, windowDim.width, windowDim.height );
 
                         LARGE_INTEGER endCounter = Win32GetWallClock();
                         lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );

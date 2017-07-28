@@ -142,18 +142,18 @@ OpenGLCreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
 }
 
 internal void
-OpenGLRenderToOutput( GameRenderCommands *commands )
+OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
 {
     // TODO Store this in a 'global' OpenGL config
     local_persistent GLuint shaderProgram;
 
-    glViewport( 0, 0, commands->width, commands->height );
+    glViewport( 0, 0, commands.width, commands.height );
     glClearColor( 0.95f, 0.95f, 0.95f, 1.0f );
     glClear( GL_COLOR_BUFFER_BIT );
 
-    if( !commands->initialized )
+    if( !openGL.initialized )
     {
-        commands->initialized = true;
+        openGL.initialized = true;
 
         // Compile shaders
         const char *vertexShaderSource =
@@ -205,12 +205,23 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
 
         glDeleteShader( vertexShader );
         glDeleteShader( fragmentShader );
+    }
 
-        // Bind Vertex Array Object with all the needed configuration
-        for( u32 i = 0; i < commands->renderEntriesCount; ++i )
+    m4 projM = OpenGLCreatePerspectiveMatrix( (r32)commands.width / commands.height, 120 );
+    projM = projM * commands.cameraM;
+
+    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    //glLineWidth( 3 );
+
+    glUseProgram( shaderProgram );
+
+    for( u32 i = 0; i < commands.renderEntriesCount; ++i )
+    {
+        RenderGroup &entry = *commands.renderEntries[i];
+
+        if( !entry.readyForRender )
         {
-            RenderGroup &entry = commands->renderEntries[i];
-
+            // Bind Vertex Array Object with all the needed configuration
             u32 vertexBuffer;
             u32 elementBuffer;
             glGenVertexArrays( 1, &entry.VAO );
@@ -225,28 +236,13 @@ OpenGLRenderToOutput( GameRenderCommands *commands )
             glGenBuffers( 1, &elementBuffer );
             glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, elementBuffer );
             glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry.indexCount*sizeof(u32), entry.indices, GL_STATIC_DRAW );
+
+            ASSERT_GL_STATE;
+            entry.readyForRender = true;
         }
 
-        ASSERT_GL_STATE;
-    }
-
-    m4 projM = OpenGLCreatePerspectiveMatrix( (r32)commands->width / commands->height, 120 );
-    m4 viewM = CameraTransform( V3( 1, 0, 0 ), V3( 0, 0, 1), V3( 0, -1, 0), V3( 0, -2, 2 ) );
-    v3 dudePosTest = V3( 0, 0, 1 );
-    v3 testRes = viewM * dudePosTest;
-
-    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-    //glLineWidth( 3 );
-
-    glUseProgram( shaderProgram );
-
-    for( u32 i = 0; i < commands->renderEntriesCount; ++i )
-    {
-        RenderGroup &entry = commands->renderEntries[i];
-
         // TODO Pass somehow as an attribute once all this is in a giant buffer
-        m4 modelM = Translation( entry.P );
-        m4 transformM = projM * viewM * modelM;
+        m4 transformM = projM * (*entry.mTransform);
         GLint transformId = glGetUniformLocation( shaderProgram, "transformM" );
         glUniformMatrix4fv( transformId, 1, GL_TRUE, transformM.e[0] );
 

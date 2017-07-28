@@ -102,22 +102,18 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     GameState *gameState = (GameState *)memory->permanentStorage;
     if( !memory->isInitialized )
     {
-#if 0
-        gameState->blueOffset = 0;
-        gameState->greenOffset = 0;
-        gameState->toneHz = 256;
-        gameState->tSine = 0.0f;
-#endif
         InitializeArena( &gameState->worldArena,
                          (u8 *)memory->permanentStorage + sizeof(GameState),
                          memory->permanentStorageSize - sizeof(GameState) );
 
         gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
+        World *worldInit = gameState->world;
 
-        World *world = gameState->world;
-        world->dude = PUSH_STRUCT( &gameState->worldArena, FlyingDude );
-        *world->dude =
+        worldInit->dude = PUSH_STRUCT( &gameState->worldArena, FlyingDude );
+        FlyingDude &dude = *worldInit->dude;
+        dude =
         {
+            {},
             {
                 {  0.5f,  -0.5f,  0.0f },
                 { -0.5f,  -0.5f,  0.0f },
@@ -130,21 +126,22 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 2, 3, 0,
                 3, 1, 0,
             },
-            { 0.0f, 0.0f, 1.f }
         };
-        PushFlyingDude( renderCommands, world->dude );
+        dude.mTransform = Translation( { 0.0f, 0.0f, 1.f } );
+        dude.renderGroup = CreateRenderGroup( dude );
 
-        world->cubeCount = 16*16;
-        world->cubes = PUSH_ARRAY( &gameState->worldArena, world->cubeCount, CubeThing );
+        worldInit->cubeCount = 16*16;
+        worldInit->cubes = PUSH_ARRAY( &gameState->worldArena, worldInit->cubeCount, CubeThing );
 
-        for( u32 i = 0; i < world->cubeCount; ++i )
+        for( u32 i = 0; i < worldInit->cubeCount; ++i )
         {
             r32 transX = (((i32)i % 16) - 8) * 2.0f;
             r32 transY = ((i32)i / 16) * 2.0f;
 
-            CubeThing &cube = world->cubes[i];
+            CubeThing &cube = worldInit->cubes[i];
             cube =
             {
+                {},
                 {
                     { -0.5f,    -0.5f,      0.0f },
                     { -0.5f,     0.5f,      0.0f },
@@ -155,52 +152,46 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     0, 1, 2,
                     2, 1, 3
                 },
-                { transX, transY, -1.0f },
             };
-
-            PushCubeThing( renderCommands, &cube );
+            cube.mTransform = Translation( { transX, transY, -1.0f } );
+            cube.renderGroup = CreateRenderGroup( cube );
         }
-
-        gameState->playerX = 100;
-        gameState->playerY = 100;
 
         memory->isInitialized = true;
     }
 
+    World *world = gameState->world;
     GameControllerInput *input0 = GetController( input, 0 );
-#if 0
-    if( input0->isAnalog )
-    {
-        gameState->blueOffset += (int)(4.f * input0->leftStick.avgX);
-        gameState->toneHz = 256 + (int)(128.f * input0->leftStick.avgY);
-    }
-    else
-    {
-        if( input0->dLeft.endedDown )
-        {
-            gameState->blueOffset -= 1;
-        }
-        if( input0->dRight.endedDown )
-        {
-            gameState->blueOffset += 1;
-        }
-    }
 
-    gameState->playerX += (int)(4.0f * input0->leftStick.avgX);
-    gameState->playerY -= (int)(4.0f * input0->leftStick.avgY);
+    FlyingDude &dude = *world->dude;
+    v3 pPlayer = {};
 
-    if( input0->aButton.endedDown )
+    if( input0->dLeft.endedDown )
     {
-        gameState->playerY += 10;
+        pPlayer.x -= .1f;
+    }
+    if( input0->dRight.endedDown )
+    {
+        pPlayer.x += .1f;
+    }
+    if( input0->dUp.endedDown )
+    {
+        pPlayer.y += .1f;
+    }
+    if( input0->dDown.endedDown )
+    {
+        pPlayer.y -= .1f;
     }
 
-    DEBUGOutputSineWave( gameState, audioBuffer, gameState->toneHz, debugBeep );
-    DEBUGRenderWeirdGradient( videoBuffer, gameState->blueOffset, gameState->greenOffset, debugBeep );
-    DEBUGRenderPlayer( videoBuffer, gameState->playerX, gameState->playerY );
+    Translate( dude.mTransform, pPlayer );
+    PushRenderGroup( renderCommands, &dude.renderGroup );
 
-    if( input->mouseButtons[0].endedDown )
+    // Create a chasing camera
+    renderCommands.cameraM = CameraTransform( V3( 1, 0, 0 ), V3( 0, 0, 1), V3( 0, -1, 0), V3( 0, -2, 2 ) );
+
+    for( u32 i = 0; i < world->cubeCount; ++i )
     {
-        DEBUGRenderPlayer( videoBuffer, input->mouseX, input->mouseY );
+        CubeThing &cube = world->cubes[i];
+        PushRenderGroup( renderCommands, &cube.renderGroup );
     }
-#endif
 }

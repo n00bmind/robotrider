@@ -59,7 +59,7 @@ V3( r32 x, r32 y, r32 z )
 }
 
 inline v3
-operator -( v3 v )
+operator -( const v3 &v )
 {
     v3 result = { -v.x, -v.y, -v.z };
     return result;
@@ -118,7 +118,7 @@ union v4
 };
 
 inline v4
-V4( v3 v, r32 w )
+V4( const v3 &v, r32 w )
 {
     v4 result = { v.x, v.y, v.z, w };
     return result;
@@ -147,7 +147,7 @@ Identity()
 }
 
 inline m4
-Translation( v3 p )
+Translation( const v3 &p )
 {
     m4 result =
     {{
@@ -157,6 +157,13 @@ Translation( v3 p )
          { 0,   0,  0,  1 }
     }};
 
+    return result;
+}
+
+inline v3
+GetTranslation( const m4 &m )
+{
+    v3 result = { m.e[0][3], m.e[1][3], m.e[2][3] };
     return result;
 }
 
@@ -212,7 +219,7 @@ ZRotation( r32 angleRads )
 }
 
 inline m4
-Rows( v3 x, v3 y, v3 z )
+Rows( const v3 &x, const v3 &y, const v3 &z )
 {
     m4 result =
     {{
@@ -226,7 +233,7 @@ Rows( v3 x, v3 y, v3 z )
 }
 
 inline m4
-Columns( v3 x, v3 y, v3 z )
+Columns( const v3 &x, const v3 &y, const v3 &z )
 {
     m4 result =
     {{
@@ -240,7 +247,7 @@ Columns( v3 x, v3 y, v3 z )
 }
 
 inline m4
-Translate( m4 m, v3 v )
+Translate( m4 &m, const v3 &v )
 {
     m.e[0][3] += v.x;
     m.e[1][3] += v.y;
@@ -250,7 +257,7 @@ Translate( m4 m, v3 v )
 }
 
 internal v4
-Transform( m4 m, v4 v )
+Transform( const m4 &m, const v4 &v )
 {
     v4 r;
     r.x = v.x*m.e[0][0] + v.y*m.e[0][1] + v.z*m.e[0][2] + v.w*m.e[0][3];
@@ -262,21 +269,21 @@ Transform( m4 m, v4 v )
 }
 
 inline v3
-operator*( m4 m, v3 v )
+operator*( const m4 &m, const v3 &v )
 {
     v3 r = Transform( m, V4( v, 1.0f ) ).xyz;
     return r;
 }
 
 inline v4
-operator*( m4 m, v4 v )
+operator*( const m4 &m, const v4 &v )
 {
     v4 r = Transform( m, v );
     return r;
 }
 
 inline m4
-CameraTransform( v3 x, v3 y, v3 z, v3 p )
+CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
 {
     m4 r = Rows( x, y, z );
     r = Translate( r, -(r*p) );
@@ -285,7 +292,7 @@ CameraTransform( v3 x, v3 y, v3 z, v3 p )
 }
 
 inline m4
-operator*( m4 m1, m4 m2 )
+operator*( const m4 &m1, const m4 &m2 )
 {
     m4 result = {};
     

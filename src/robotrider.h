@@ -12,6 +12,22 @@
 // Renderer layer stuff
 //
 
+struct OpenGLInfo
+{
+    b32 modernContext;
+
+    const char *vendor;
+    const char *renderer;
+    const char *version;
+    const char *SLversion;
+    char *extensions[512];
+};
+
+struct OpenGLState
+{
+    b32 initialized;
+};
+
 struct RenderGroup
 {
     v3 *vertices;
@@ -19,10 +35,10 @@ struct RenderGroup
     u32 *indices;
     u32 indexCount;
 
-    v3 P;
-    //m4 transformM;
+    m4 *mTransform;
 
     u32 VAO;
+    b32 readyForRender;
 };
 
 
@@ -41,14 +57,14 @@ struct GameOffscreenBuffer
 
 struct GameRenderCommands
 {
-    b32 initialized;
-
     u16 width;
     u16 height;
 
     // TODO This must be dynamic (transient)
-    RenderGroup renderEntries[1024];
+    RenderGroup *renderEntries[1024];
     u32 renderEntriesCount;
+    // TODO Unify all this under a general Command struct
+    m4 cameraM;
 };
 
 struct GameAudioBuffer
@@ -148,7 +164,7 @@ struct GameMemory
 #ifndef GAME_UPDATE_AND_RENDER
 #define GAME_UPDATE_AND_RENDER(name) \
     void name( GameMemory *memory, GameInput *input, \
-               GameRenderCommands *renderCommands, GameAudioBuffer *audioBuffer )
+               GameRenderCommands &renderCommands, GameAudioBuffer *audioBuffer )
 #endif
 typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
 GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
@@ -169,18 +185,22 @@ struct MemoryArena
 
 struct FlyingDude
 {
+    RenderGroup renderGroup;
+
     v3 vertices[4];
     u32 indices[12];
 
-    v3 P;
+    m4 mTransform;
 };
 
 struct CubeThing
 {
+    RenderGroup renderGroup;
+
     v3 vertices[4];
     u32 indices[6];
 
-    v3 P;
+    m4 mTransform;
 };
 
 struct World

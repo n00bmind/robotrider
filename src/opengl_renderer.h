@@ -30,16 +30,5 @@ PFNGLUNIFORMMATRIX4FVPROC	            glUniformMatrix4fv;
 PFNGLDEBUGMESSAGECALLBACKARBPROC	    glDebugMessageCallbackARB;
 
 
-struct OpenGLInfo
-{
-    b32 modernContext;
-
-    const char *vendor;
-    const char *renderer;
-    const char *version;
-    const char *SLversion;
-    char *extensions[512];
-};
-
 
 #endif /* __OPENGL_RENDERER_H__ */

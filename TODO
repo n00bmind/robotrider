@@ -2,7 +2,9 @@
     :: robotrider ::
     ::::::::::::::::
 
-FIX
+KNOWN ISSUES
+- There's a fantastic megaglitch in the framerate every second or so!
+
 
 AUDIO
 - Win32: switch WASAPI to callback mode to reduce buffer size and improve latency.
@@ -17,10 +19,12 @@ AUDIO
 
 VIDEO
 - Hot code reloading for shaders! (a la ShaderToy)
-- Force a stable framerate synced to a multiple of the monitor's refresh rate using wglSwapInterval (https://hero.handmade.network/episode/code/day241)
+- Detect actual monitor refresh rate just in case we need to adjust wglSwapInterval
 - Aspect ratio independece using black bars as needed
 
 DEBUGGING
 - Really dump game state to disk (asynchronously)
 - Add a command line switch & ingame command to load a recorded input block from disk
+- Simple static analysis:
+  - Detect usage of 'internal' functions outside of the file where they're defined
 
