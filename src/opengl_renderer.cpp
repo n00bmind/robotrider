@@ -207,8 +207,8 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
         glDeleteShader( fragmentShader );
     }
 
-    m4 projM = OpenGLCreatePerspectiveMatrix( (r32)commands.width / commands.height, 120 );
-    projM = projM * commands.cameraM;
+    m4 mProj = OpenGLCreatePerspectiveMatrix( (r32)commands.width / commands.height, 120 );
+    mProj = mProj * commands.mCamera;
 
     glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     //glLineWidth( 3 );
@@ -242,9 +242,9 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
         }
 
         // TODO Pass somehow as an attribute once all this is in a giant buffer
-        m4 transformM = projM * (*entry.mTransform);
-        GLint transformId = glGetUniformLocation( shaderProgram, "transformM" );
-        glUniformMatrix4fv( transformId, 1, GL_TRUE, transformM.e[0] );
+        m4 mTransform = mProj * (*entry.mTransform);
+        GLint transformId = glGetUniformLocation( shaderProgram, "mTransform" );
+        glUniformMatrix4fv( transformId, 1, GL_TRUE, mTransform.e[0] );
 
         glBindVertexArray( entry.VAO );
         glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );

@@ -64,7 +64,7 @@ struct GameRenderCommands
     RenderGroup *renderEntries[1024];
     u32 renderEntriesCount;
     // TODO Unify all this under a general Command struct
-    m4 cameraM;
+    m4 mCamera;
 };
 
 struct GameAudioBuffer

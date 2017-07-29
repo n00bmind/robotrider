@@ -160,34 +160,42 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         memory->isInitialized = true;
     }
 
+    float dt = input->secondsElapsed;
     World *world = gameState->world;
     GameControllerInput *input0 = GetController( input, 0 );
 
     FlyingDude &dude = *world->dude;
-    v3 pPlayer = {};
+    v3 pPlayer = GetTranslation( dude.mTransform );
 
     if( input0->dLeft.endedDown )
     {
-        pPlayer.x -= .1f;
+        pPlayer.x -= 3.f * dt;
     }
     if( input0->dRight.endedDown )
     {
-        pPlayer.x += .1f;
+        pPlayer.x += 3.f * dt;
     }
     if( input0->dUp.endedDown )
     {
-        pPlayer.y += .1f;
+        pPlayer.y += 3.f * dt;
     }
     if( input0->dDown.endedDown )
     {
-        pPlayer.y -= .1f;
+        pPlayer.y -= 3.f * dt;
     }
 
-    Translate( dude.mTransform, pPlayer );
+    SetTranslation( dude.mTransform, pPlayer );
     PushRenderGroup( renderCommands, &dude.renderGroup );
 
     // Create a chasing camera
-    renderCommands.cameraM = CameraTransform( V3( 1, 0, 0 ), V3( 0, 0, 1), V3( 0, -1, 0), V3( 0, -2, 2 ) );
+    // TODO Use a PID controller
+    v3 pCam = pPlayer + V3( 0, -2, 0 );
+    v3 pLookAt = pPlayer;
+    v3 vUp = { 0, 0, 1 }; //GetColumn( dude.mTransform, 2 ).xyz;
+    renderCommands.mCamera = CameraLookAt( pCam, pLookAt, vUp );
+
+    //m4 testResult = CameraTransform( { 1, 0, 0 }, { 0, 0, 1 }, { 0, -1, 0 }, { 0, -2, 1 } );
+    //renderCommands.mCamera = testResult;
 
     for( u32 i = 0; i < world->cubeCount; ++i )
     {

@@ -65,6 +65,39 @@ operator -( const v3 &v )
     return result;
 }
 
+inline v3
+operator +( const v3 &v1, const v3 &v2 )
+{
+    v3 result = { v1.x + v2.x, v1.y + v2.y, v1.z + v2.z };
+    return result;
+}
+
+inline v3
+operator -( const v3 &v1, const v3 &v2 )
+{
+    v3 result = { v1.x - v2.x, v1.y - v2.y, v1.z - v2.z };
+    return result;
+}
+
+inline v3
+Cross( const v3 &a, const v3 &b )
+{
+    v3 result =
+    {
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x
+    };
+    return result;
+}
+
+inline v3
+Normalized( const v3 &v )
+{
+    r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
+    v3 result = { v.x * invL, v.y * invL, v.z * invL };
+    return result;
+}
 
 // Vector 4
 
@@ -167,6 +200,24 @@ GetTranslation( const m4 &m )
     return result;
 }
 
+inline void
+SetTranslation( m4 &m, const v3 &p )
+{
+    m.e[0][3] = p.x;
+    m.e[1][3] = p.y;
+    m.e[2][3] = p.z;
+}
+
+inline m4
+Translate( m4 &m, const v3 &v )
+{
+    m.e[0][3] += v.x;
+    m.e[1][3] += v.y;
+    m.e[2][3] += v.z;
+
+    return m;
+}
+
 inline m4
 XRotation( r32 angleRads )
 {
@@ -232,6 +283,14 @@ Rows( const v3 &x, const v3 &y, const v3 &z )
     return result;
 }
 
+inline v4
+GetRow( const m4 &m, u32 row )
+{
+    ASSERT( row >= 0 && row < 4 );
+    v4 result = { m.e[row][0], m.e[row][1], m.e[row][2], m.e[row][3] };
+    return result;
+}
+
 inline m4
 Columns( const v3 &x, const v3 &y, const v3 &z )
 {
@@ -246,14 +305,12 @@ Columns( const v3 &x, const v3 &y, const v3 &z )
     return result;
 }
 
-inline m4
-Translate( m4 &m, const v3 &v )
+inline v4
+GetColumn( const m4 &m, u32 col )
 {
-    m.e[0][3] += v.x;
-    m.e[1][3] += v.y;
-    m.e[2][3] += v.z;
-
-    return m;
+    ASSERT( col >= 0 && col < 4 );
+    v4 result = { m.e[0][col], m.e[1][col], m.e[2][col], m.e[3][col] };
+    return result;
 }
 
 internal v4
@@ -283,15 +340,6 @@ operator*( const m4 &m, const v4 &v )
 }
 
 inline m4
-CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
-{
-    m4 r = Rows( x, y, z );
-    r = Translate( r, -(r*p) );
-
-    return r;
-}
-
-inline m4
 operator*( const m4 &m1, const m4 &m2 )
 {
     m4 result = {};
@@ -310,6 +358,28 @@ operator*( const m4 &m1, const m4 &m2 )
     return result;
 }
 
+internal m4
+CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
+{
+    m4 r = Rows( x, y, z );
+    r = Translate( r, -(r*p) );
+
+    return r;
+}
+
+internal m4
+CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
+{
+    v3 vUpN = Normalized( vUp );
+    v3 vZ = Normalized( pSrc - pTgt );
+    v3 vX = Cross( vUpN, vZ );
+    v3 vY = Cross( vZ, vX );
+
+    m4 r = Rows( vX, vY, vZ );
+    r = Translate( r, -(r*pSrc) );
+
+    return r;
+}
 
 // Quaternions
 

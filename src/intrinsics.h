@@ -20,18 +20,24 @@ Ceil( r64 value )
 }
 
 inline r32
-Sin(r32 angleRads)
+Sin( r32 angleRads )
 {
     r32 result = sinf( angleRads );
     return result;
 }
 
 inline r32
-Cos(r32 angleRads)
+Cos( r32 angleRads )
 {
     r32 result = cosf( angleRads );
     return result;
 }
 
+inline r32
+Sqrt( r32 value )
+{
+    r32 result = sqrtf( value );
+    return result;
+}
 
 #endif /* __INTRINSICS_H__ */

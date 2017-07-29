@@ -2,7 +2,7 @@
 internal RenderGroup
 CreateRenderGroup( FlyingDude &dude )
 {
-    RenderGroup entry;
+    RenderGroup entry = {};
     entry.vertices = dude.vertices;
     entry.vertexCount = 4;
     entry.indices = dude.indices;
@@ -15,7 +15,7 @@ CreateRenderGroup( FlyingDude &dude )
 internal RenderGroup
 CreateRenderGroup( CubeThing &cube )
 {
-    RenderGroup entry;
+    RenderGroup entry = {};
     entry.vertices = cube.vertices;
     entry.vertexCount = 4;
     entry.indices = cube.indices;
