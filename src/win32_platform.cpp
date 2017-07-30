@@ -412,38 +412,56 @@ Win32DisplayInWindow( GameRenderCommands &commands, HDC deviceContext, int windo
 }
 
 
-internal GameControllerInput*
-Win32ResetKeyboardController( GameInput* oldInput, GameInput* newInput )
+internal void
+Win32RegisterRawMouseInput( HWND window )
 {
-    GameControllerInput *oldKeyboardController = GetController( oldInput, 0 );
-    GameControllerInput *newKeyboardController = GetController( newInput, 0 );
+#ifndef HID_USAGE_PAGE_GENERIC
+#define HID_USAGE_PAGE_GENERIC         ((USHORT) 0x01)
+#endif
+#ifndef HID_USAGE_GENERIC_MOUSE
+#define HID_USAGE_GENERIC_MOUSE        ((USHORT) 0x02)
+#endif
 
-    *newKeyboardController = {};
-    newKeyboardController->isConnected = true;
+    RAWINPUTDEVICE rid[1];
+    rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC; 
+    rid[0].usUsage = HID_USAGE_GENERIC_MOUSE; 
+    rid[0].dwFlags = 0;
+    rid[0].hwndTarget = NULL;
+    RegisterRawInputDevices( rid, 1, sizeof(rid[0]) );
+}
 
-    newKeyboardController->leftStick = oldKeyboardController->leftStick;
-    newKeyboardController->rightStick = oldKeyboardController->rightStick;
+internal GameControllerInput*
+Win32ResetKeyMouseController( GameInput* oldInput, GameInput* newInput )
+{
+    GameControllerInput *oldKeyMouseController = GetController( oldInput, 0 );
+    GameControllerInput *newKeyMouseController = GetController( newInput, 0 );
+
+    *newKeyMouseController = {};
+    newKeyMouseController->isConnected = true;
+
+    newKeyMouseController->leftStick = oldKeyMouseController->leftStick;
+    //newKeyMouseController->rightStick = oldKeyMouseController->rightStick;
 
     for( int buttonIndex = 0;
-         buttonIndex < ARRAYCOUNT( newKeyboardController->buttons );
+         buttonIndex < ARRAYCOUNT( newKeyMouseController->buttons );
          ++buttonIndex )
     {
-        newKeyboardController->buttons[buttonIndex].endedDown =
-            oldKeyboardController->buttons[buttonIndex].endedDown;
+        newKeyMouseController->buttons[buttonIndex].endedDown =
+            oldKeyMouseController->buttons[buttonIndex].endedDown;
     }
 
-    return newKeyboardController;
+    return newKeyMouseController;
 }
 
 internal void
-Win32ResetKeyboardController( GameControllerInput *keyboardController )
+Win32ResetController( GameControllerInput *controller )
 {
-    *keyboardController = {};
-    keyboardController->isConnected = true;
+    *controller = {};
+    controller->isConnected = true;
 }
 
 internal void
-Win32ProcessKeyboardMessage( GameButtonState *newState, b32 isDown )
+Win32SetButtonState( GameButtonState *newState, b32 isDown )
 {
     if( newState->endedDown != isDown )
     {
@@ -714,8 +732,24 @@ Win32PlayBackInput( Win32State *platformState, GameInput *newInput )
 }
 
 
+inline LARGE_INTEGER
+Win32GetWallClock()
+{
+    LARGE_INTEGER result;
+    QueryPerformanceCounter( &result );
+    return result;
+}
+
+inline r32
+Win32GetSecondsElapsed( LARGE_INTEGER start, LARGE_INTEGER end )
+{
+    r32 result = (r32)(end.QuadPart - start.QuadPart) / (r32)globalPerfCounterFrequency;
+    return result;
+}
+
+
 internal void
-Win32ProcessPendingMessages( Win32State *platformState, GameControllerInput *keyboardController )
+Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameControllerInput *keyMouseController )
 {
     MSG message;
     while( PeekMessage( &message, 0, 0, 0, PM_REMOVE ) )
@@ -739,32 +773,32 @@ Win32ProcessPendingMessages( Win32State *platformState, GameControllerInput *key
                 {
                     if( vkCode == 'W' )
                     {
-                        Win32ProcessKeyboardMessage( &keyboardController->dUp, isDown );
+                        Win32SetButtonState( &keyMouseController->dUp, isDown );
                         // Simulate fake stick
-                        keyboardController->leftStick.avgY += isDown ? 0.5f : -0.5f;
+                        keyMouseController->leftStick.avgY += isDown ? 0.5f : -0.5f;
                     }
                     else if( vkCode == 'A' )
                     {
-                        Win32ProcessKeyboardMessage( &keyboardController->dLeft, isDown );
-                        keyboardController->leftStick.avgX += isDown ? -0.5f : 0.5f;
+                        Win32SetButtonState( &keyMouseController->dLeft, isDown );
+                        keyMouseController->leftStick.avgX += isDown ? -0.5f : 0.5f;
                     }
                     else if( vkCode == 'S' )
                     {
-                        Win32ProcessKeyboardMessage( &keyboardController->dDown, isDown );
-                        keyboardController->leftStick.avgY += isDown ? -0.5f : 0.5f;
+                        Win32SetButtonState( &keyMouseController->dDown, isDown );
+                        keyMouseController->leftStick.avgY += isDown ? -0.5f : 0.5f;
                     }
                     else if( vkCode == 'D' )
                     {
-                        Win32ProcessKeyboardMessage( &keyboardController->dRight, isDown );
-                        keyboardController->leftStick.avgX += isDown ? 0.5f : -0.5f;
+                        Win32SetButtonState( &keyMouseController->dRight, isDown );
+                        keyMouseController->leftStick.avgX += isDown ? 0.5f : -0.5f;
                     }
                     else if( vkCode == 'Q' )
                     {
-                        Win32ProcessKeyboardMessage( &keyboardController->leftShoulder, isDown );
+                        Win32SetButtonState( &keyMouseController->leftShoulder, isDown );
                     }
                     else if( vkCode == 'E' )
                     {
-                        Win32ProcessKeyboardMessage( &keyboardController->rightShoulder, isDown );
+                        Win32SetButtonState( &keyMouseController->rightShoulder, isDown );
                     }
                     else if( vkCode == VK_UP )
                     {
@@ -783,7 +817,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameControllerInput *key
                     }
                     else if( vkCode == VK_RETURN )
                     {
-                        Win32ProcessKeyboardMessage( &keyboardController->aButton, isDown );
+                        Win32SetButtonState( &keyMouseController->aButton, isDown );
                     }
                     else if( vkCode == VK_ESCAPE )
                     {
@@ -793,7 +827,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameControllerInput *key
                             if( platformState->inputPlaybackIndex )
                             {
                                 Win32EndInputPlayback( platformState );
-                                Win32ResetKeyboardController( keyboardController );
+                                Win32ResetController( keyMouseController );
                             }
                             else
 #endif
@@ -830,6 +864,102 @@ Win32ProcessPendingMessages( Win32State *platformState, GameControllerInput *key
                 {
                     globalRunning = false;
                 }
+            } break;
+
+            //case WM_CHAR:
+            //{
+                //// TODO Enter text somewhere
+            //} break;
+
+#define GET_SIGNED_LO(dw) ((int)(short)LOWORD(dw))
+#define GET_SIGNED_HI(dw) ((int)(short)HIWORD(dw))
+
+            case WM_MOUSEMOVE:
+            {
+                input->mouseX = GET_SIGNED_LO( message.lParam );
+                input->mouseY = GET_SIGNED_HI( message.lParam );
+                Win32SetButtonState( &input->mouseButtons[0], message.wParam & MK_LBUTTON );
+                Win32SetButtonState( &input->mouseButtons[1], message.wParam & MK_MBUTTON );
+                Win32SetButtonState( &input->mouseButtons[2], message.wParam & MK_RBUTTON );
+                Win32SetButtonState( &input->mouseButtons[3], message.wParam & MK_XBUTTON1 );
+                Win32SetButtonState( &input->mouseButtons[4], message.wParam & MK_XBUTTON2 );
+            } break;
+
+            case WM_MOUSEWHEEL:
+            {
+                POINT pt;
+                pt.x = GET_SIGNED_LO( message.lParam );
+                pt.y = GET_SIGNED_HI( message.lParam );
+                ScreenToClient( platformState->mainWindow, &pt );
+                input->mouseX = pt.x;
+                input->mouseY = pt.y;
+                input->mouseZ = GET_WHEEL_DELTA_WPARAM( message.wParam );
+                Win32SetButtonState( &input->mouseButtons[0], message.wParam & MK_LBUTTON );
+                Win32SetButtonState( &input->mouseButtons[1], message.wParam & MK_MBUTTON );
+                Win32SetButtonState( &input->mouseButtons[2], message.wParam & MK_RBUTTON );
+                Win32SetButtonState( &input->mouseButtons[3], message.wParam & MK_XBUTTON1 );
+                Win32SetButtonState( &input->mouseButtons[4], message.wParam & MK_XBUTTON2 );
+            } break;
+
+            case WM_INPUT: 
+            {
+                UINT dwSize = 256;
+                static BYTE lpb[256];
+                UINT res = GetRawInputData( (HRAWINPUT)message.lParam, RID_INPUT, 
+                                 lpb, &dwSize, sizeof(RAWINPUTHEADER) );
+                ASSERT( res != (UINT)-1 );
+                RAWINPUT* raw = (RAWINPUT*)lpb;
+
+                if (raw->header.dwType == RIM_TYPEMOUSE) 
+                {
+                    if( raw->data.mouse.usFlags == MOUSE_MOVE_RELATIVE )
+                    {
+                        int xPosRelative = raw->data.mouse.lLastX;
+                        int yPosRelative = raw->data.mouse.lLastY;
+                        keyMouseController->rightStick.avgX += xPosRelative;
+                        keyMouseController->rightStick.avgY += yPosRelative;
+                    }
+
+                    b32 bUp, bDown;
+                    USHORT buttonFlags = raw->data.mouse.usButtonFlags;
+
+                    bUp = buttonFlags & RI_MOUSE_LEFT_BUTTON_UP;
+                    bDown = buttonFlags & RI_MOUSE_LEFT_BUTTON_DOWN;
+                    if( bUp || bDown )
+                    {
+                        Win32SetButtonState( &input->mouseButtons[0], bDown );
+                    }
+                    bUp = buttonFlags & RI_MOUSE_MIDDLE_BUTTON_UP;
+                    bDown = buttonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN;
+                    if( bUp || bDown )
+                    {
+                        Win32SetButtonState( &input->mouseButtons[1], bDown );
+                    }
+                    bUp = buttonFlags & RI_MOUSE_RIGHT_BUTTON_UP;
+                    bDown = buttonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN;
+                    if( bUp || bDown )
+                    {
+                        Win32SetButtonState( &input->mouseButtons[2], bDown );
+                    }
+                    bUp = buttonFlags & RI_MOUSE_BUTTON_4_UP;
+                    bDown = buttonFlags & RI_MOUSE_BUTTON_4_DOWN;
+                    if( bUp || bDown )
+                    {
+                        Win32SetButtonState( &input->mouseButtons[3], bDown  );
+                    }
+                    bUp = buttonFlags & RI_MOUSE_BUTTON_5_UP;
+                    bDown = buttonFlags & RI_MOUSE_BUTTON_5_DOWN;
+                    if( bUp || bDown )
+                    {
+                        Win32SetButtonState( &input->mouseButtons[4], bDown  );
+                    }
+
+                    if( buttonFlags & RI_MOUSE_WHEEL )
+                    {
+                        int zPosRelative = raw->data.mouse.usButtonData;
+                        //keyMouseController->rightStick.avgZ += zPosRelative;
+                    }
+                } 
             } break;
 
             default:
@@ -893,22 +1023,6 @@ Win32WindowProc( HWND hwnd,
         } break;
     }
     
-    return result;
-}
-
-
-inline LARGE_INTEGER
-Win32GetWallClock()
-{
-    LARGE_INTEGER result;
-    QueryPerformanceCounter( &result );
-    return result;
-}
-
-inline r32
-Win32GetSecondsElapsed( LARGE_INTEGER start, LARGE_INTEGER end )
-{
-    r32 result = (r32)(end.QuadPart - start.QuadPart) / (r32)globalPerfCounterFrequency;
     return result;
 }
 
@@ -1133,6 +1247,9 @@ WinMain( HINSTANCE hInstance,
                                             
         if( window )
         {
+            platformState.mainWindow = window;
+            Win32RegisterRawMouseInput( window );
+
             HDC deviceContext = GetDC( window );
             if( Win32InitOpenGL( deviceContext ) )
             {
@@ -1228,21 +1345,9 @@ WinMain( HINSTANCE hInstance,
                         }
 
                         // Process input
-                        GameControllerInput *newKeyboardController = Win32ResetKeyboardController( oldInput, newInput );
-                        Win32ProcessPendingMessages( &platformState, newKeyboardController );
-
+                        GameControllerInput *newKeyMouseController = Win32ResetKeyMouseController( oldInput, newInput );
+                        Win32ProcessPendingMessages( &platformState, newInput, newKeyMouseController );
                         Win32ProcessXInputControllers( oldInput, newInput );
-
-                        POINT mouseP;
-                        GetCursorPos( &mouseP );
-                        ScreenToClient( window, &mouseP );
-                        newInput->mouseX = mouseP.x;
-                        newInput->mouseY = mouseP.y;
-                        Win32ProcessKeyboardMessage( &newInput->mouseButtons[0], GetKeyState( VK_LBUTTON ) & (1 << 15) );
-                        Win32ProcessKeyboardMessage( &newInput->mouseButtons[1], GetKeyState( VK_MBUTTON ) & (1 << 15) );
-                        Win32ProcessKeyboardMessage( &newInput->mouseButtons[2], GetKeyState( VK_RBUTTON ) & (1 << 15) );
-                        Win32ProcessKeyboardMessage( &newInput->mouseButtons[3], GetKeyState( VK_XBUTTON1 ) & (1 << 15) );
-                        Win32ProcessKeyboardMessage( &newInput->mouseButtons[4], GetKeyState( VK_XBUTTON2 ) & (1 << 15) );
 
                         if( platformState.inputRecordingIndex )
                         {

@@ -2,8 +2,10 @@
     :: robotrider ::
     ::::::::::::::::
 
+
 KNOWN ISSUES
-- There's a fantastic megaglitch in the framerate every second or so!
+- There's a fantastic megaglitch in the framerate every second or so! (actually the framerate is all over the place quite often)
+- Hot code reloading seems broken
 
 
 AUDIO
@@ -21,6 +23,9 @@ VIDEO
 - Hot code reloading for shaders! (a la ShaderToy)
 - Detect actual monitor refresh rate just in case we need to adjust wglSwapInterval
 - Aspect ratio independece using black bars as needed
+
+INPUT
+- Find a way to calibrate different relative movement amounts from the different input methods
 
 DEBUGGING
 - Really dump game state to disk (asynchronously)

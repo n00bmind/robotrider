@@ -135,8 +135,9 @@ struct GameInput
 
     GameControllerInput _controllers[5];
 
-    GameButtonState mouseButtons[5];
+    // This is normal desktop mouse data (with standard system balllistics applied)
     i32 mouseX, mouseY, mouseZ;
+    GameButtonState mouseButtons[5];
 };
 
 inline GameControllerInput *
@@ -187,10 +188,12 @@ struct FlyingDude
 {
     RenderGroup renderGroup;
 
-    v3 vertices[4];
-    u32 indices[12];
+    v3 vertices[3];
+    u32 indices[3];
 
     m4 mTransform;
+    r32 pitch;
+    r32 yaw;
 };
 
 struct CubeThing

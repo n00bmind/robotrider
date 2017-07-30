@@ -47,6 +47,8 @@ struct Win32ReplayBuffer
 #define MAX_REPLAY_BUFFERS 3
 struct Win32State
 {
+    HWND mainWindow;
+
     void *gameMemoryBlock;
     u64 gameMemorySize;
     Win32ReplayBuffer replayBuffers[MAX_REPLAY_BUFFERS];

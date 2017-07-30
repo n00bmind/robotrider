@@ -4,9 +4,9 @@ CreateRenderGroup( FlyingDude &dude )
 {
     RenderGroup entry = {};
     entry.vertices = dude.vertices;
-    entry.vertexCount = 4;
+    entry.vertexCount = ARRAYCOUNT( dude.vertices );
     entry.indices = dude.indices;
-    entry.indexCount = 12;
+    entry.indexCount = ARRAYCOUNT( dude.indices );
     entry.mTransform = &dude.mTransform;
 
     return entry;
@@ -17,9 +17,9 @@ CreateRenderGroup( CubeThing &cube )
 {
     RenderGroup entry = {};
     entry.vertices = cube.vertices;
-    entry.vertexCount = 4;
+    entry.vertexCount = ARRAYCOUNT( cube.vertices );
     entry.indices = cube.indices;
-    entry.indexCount = 6;
+    entry.indexCount = ARRAYCOUNT( cube.indices );
     entry.mTransform = &cube.mTransform;
 
     return entry;

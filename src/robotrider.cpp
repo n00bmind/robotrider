@@ -115,19 +115,19 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             {},
             {
-                {  0.5f,  -0.5f,  0.0f },
-                { -0.5f,  -0.5f,  0.0f },
-                {  0.0f,   0.5f,  0.0f },
-                {  0.0f,  -0.5f,  0.5f },
+                {  0.5f,   -0.5f,  0.0f, },
+                { -0.5f,   -0.5f,  0.0f, },
+                {  0.0f,    1.0f,  0.0f, },
+                //{  0.0f,     0.5f	 0.5f, },
             },
             {
                 0, 1, 2,
-                2, 1, 3,
-                2, 3, 0,
-                3, 1, 0,
+                //2, 1, 3,
+                //2, 3, 0,
+                //3, 1, 0,
             },
         };
-        dude.mTransform = Translation( { 0.0f, 0.0f, 1.f } );
+        dude.mTransform = Identity();
         dude.renderGroup = CreateRenderGroup( dude );
 
         worldInit->cubeCount = 16*16;
@@ -166,36 +166,44 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     FlyingDude &dude = *world->dude;
     v3 pPlayer = GetTranslation( dude.mTransform );
+    m4 mPlayerRot = GetRotation( dude.mTransform );
 
+    v3 vPlayerDelta = {};
     if( input0->dLeft.endedDown )
     {
-        pPlayer.x -= 3.f * dt;
+        vPlayerDelta.x -= 3.f * dt;
     }
     if( input0->dRight.endedDown )
     {
-        pPlayer.x += 3.f * dt;
+        vPlayerDelta.x += 3.f * dt;
     }
     if( input0->dUp.endedDown )
     {
-        pPlayer.y += 3.f * dt;
+        vPlayerDelta.y += 3.f * dt;
     }
     if( input0->dDown.endedDown )
     {
-        pPlayer.y -= 3.f * dt;
+        vPlayerDelta.y -= 3.f * dt;
     }
 
-    SetTranslation( dude.mTransform, pPlayer );
+    if( input0->rightStick.avgX )
+    {
+        dude.pitch += input0->rightStick.avgY / 15.f * dt;
+        dude.yaw += -input0->rightStick.avgX / 15.f * dt; 
+        mPlayerRot = ZRotation( dude.yaw ) * XRotation( dude.pitch );
+    }
+
+    pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
+    dude.mTransform = RotPos( mPlayerRot, pPlayer );
     PushRenderGroup( renderCommands, &dude.renderGroup );
 
     // Create a chasing camera
     // TODO Use a PID controller
-    v3 pCam = pPlayer + V3( 0, -2, 0 );
-    v3 pLookAt = pPlayer;
-    v3 vUp = { 0, 0, 1 }; //GetColumn( dude.mTransform, 2 ).xyz;
+    v3 pCam = dude.mTransform * V3( 0, -2, 1 );
+    v3 pLookAt = dude.mTransform * V3( 0, 1, 0 );
+    v3 vUp = GetColumn( dude.mTransform, 2 ).xyz; //{ 0, 0, 1 }; 
     renderCommands.mCamera = CameraLookAt( pCam, pLookAt, vUp );
 
-    //m4 testResult = CameraTransform( { 1, 0, 0 }, { 0, 0, 1 }, { 0, -1, 0 }, { 0, -2, 1 } );
-    //renderCommands.mCamera = testResult;
 
     for( u32 i = 0; i < world->cubeCount; ++i )
     {

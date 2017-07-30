@@ -270,6 +270,20 @@ ZRotation( r32 angleRads )
 }
 
 inline m4
+GetRotation( const m4 &m )
+{
+    m4 result =
+    {{
+         { m.e[0][0], m.e[0][1], m.e[0][2], 0 },
+         { m.e[1][0], m.e[1][1], m.e[1][2], 0 },
+         { m.e[2][0], m.e[2][1], m.e[2][2], 0 },
+         {         0,         0,         0, 1 }
+    }};
+
+    return result;
+}
+
+inline m4
 Rows( const v3 &x, const v3 &y, const v3 &z )
 {
     m4 result =
@@ -379,6 +393,20 @@ CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
     r = Translate( r, -(r*pSrc) );
 
     return r;
+}
+
+inline m4
+RotPos( const m4 &m, const v3 &p )
+{
+    m4 result =
+    {{
+         { m.e[0][0], m.e[0][1], m.e[0][2], p.x },
+         { m.e[1][0], m.e[1][1], m.e[1][2], p.y },
+         { m.e[2][0], m.e[2][1], m.e[2][2], p.z },
+         {         0,         0,         0,   1 }
+    }};
+
+    return result;
 }
 
 // Quaternions
