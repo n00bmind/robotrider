@@ -37,6 +37,8 @@ global bool globalRunning;
 global IAudioClient* globalAudioClient;
 global IAudioRenderClient* globalAudioRenderClient;
 global i64 globalPerfCounterFrequency;
+global HCURSOR DEBUGglobalCursor;
+global bool DEBUGglobalShowCursor;
 
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
@@ -819,25 +821,32 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
                     {
                         Win32SetButtonState( &keyMouseController->aButton, isDown );
                     }
+#if DEBUG
                     else if( vkCode == VK_ESCAPE )
                     {
                         if( isDown )
                         {
-#if DEBUG
                             if( platformState->inputPlaybackIndex )
                             {
                                 Win32EndInputPlayback( platformState );
                                 Win32ResetController( keyMouseController );
                             }
                             else
-#endif
                             {
+                                // TODO Change this to two consecutive presses
                                 globalRunning = false;
                             }
                         }
                     }
-
-#if DEBUG
+                    // TODO This may only work in the spanish keyboard?
+                    else if( vkCode == VK_OEM_5 )
+                    {
+                        if( isDown )
+                        {
+                            DEBUGglobalShowCursor = !DEBUGglobalShowCursor;
+                            SetCursor( DEBUGglobalShowCursor ? DEBUGglobalCursor : 0 );
+                        }
+                    }
                     else if( vkCode == '1' )
                     {
                         if( isDown )
@@ -995,6 +1004,11 @@ Win32WindowProc( HWND hwnd,
 
         case WM_SIZE:
         {
+        } break;
+
+        case WM_SETCURSOR:
+        {
+            SetCursor( DEBUGglobalShowCursor ? DEBUGglobalCursor : 0 );
         } break;
 
         case WM_SYSKEYDOWN:
@@ -1183,6 +1197,24 @@ Win32InitOpenGL( HDC dc )
 }
 
 
+internal void
+Win32SetFullscreenWindow( HWND window )
+{
+    MONITORINFO mi = { sizeof(mi) };
+
+    DWORD dwStyle = GetWindowLong( window, GWL_STYLE );
+    if( GetMonitorInfo( MonitorFromWindow( window, MONITOR_DEFAULTTOPRIMARY ), &mi ) )
+    {
+        SetWindowLong( window, GWL_STYLE, dwStyle & ~WS_OVERLAPPEDWINDOW );
+        SetWindowPos( window, HWND_TOP,
+                      mi.rcMonitor.left, mi.rcMonitor.top,
+                      mi.rcMonitor.right - mi.rcMonitor.left,
+                      mi.rcMonitor.bottom - mi.rcMonitor.top,
+                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED );
+    }
+}
+
+
 int CALLBACK
 WinMain( HINSTANCE hInstance,
          HINSTANCE hPrevInstance,
@@ -1190,7 +1222,6 @@ WinMain( HINSTANCE hInstance,
          int nCmdShow )
 {
     Win32State platformState = {};
-
     Win32GetExeFilename( &platformState );
 
     char *sourceDLLName = "robotrider.dll";
@@ -1247,6 +1278,9 @@ WinMain( HINSTANCE hInstance,
                                             
         if( window )
         {
+            Win32SetFullscreenWindow( window );
+            DEBUGglobalCursor = LoadCursor( 0, IDC_CROSS );
+
             platformState.mainWindow = window;
             Win32RegisterRawMouseInput( window );
 
