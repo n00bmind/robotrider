@@ -34,6 +34,7 @@
 PlatformAPI platform;
 OpenGLState openGLState;
 global bool globalRunning;
+global u32 globalMonitorRefreshHz;
 global IAudioClient* globalAudioClient;
 global IAudioRenderClient* globalAudioRenderClient;
 global i64 globalPerfCounterFrequency;
@@ -519,6 +520,7 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
         GameControllerInput *newController = GetController( newInput, controllerIndex );
 
         XINPUT_STATE controllerState;
+        // FIXME This call stalls for a few hundred thousand cycles when the controller is not present
         if( XInputGetState( controllerIndex, &controllerState ) == ERROR_SUCCESS )
         {
             // Plugged in
@@ -1061,7 +1063,7 @@ Win32GetExeFilename( Win32State *state )
 
 
 internal b32
-Win32InitOpenGL( HDC dc )
+Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
 {
     PIXELFORMATDESCRIPTOR pfd =
     {
@@ -1190,7 +1192,7 @@ Win32InitOpenGL( HDC dc )
 
     if( wglSwapIntervalEXT )
     {
-        wglSwapIntervalEXT( 1 );
+        wglSwapIntervalEXT( frameVSyncSkipCount );
     }
 
     return true;
@@ -1221,6 +1223,17 @@ WinMain( HINSTANCE hInstance,
          LPSTR lpCmdLine,
          int nCmdShow )
 {
+
+    GameMemory gameMemory = {};
+    gameMemory.permanentStorageSize = MEGABYTES(64);
+    gameMemory.transientStorageSize = GIGABYTES((u64)1);
+    gameMemory.platformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
+    gameMemory.platformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
+    gameMemory.platformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
+    gameMemory.platformAPI.Log = PlatformLog;
+
+    platform = gameMemory.platformAPI;
+
     Win32State platformState = {};
     Win32GetExeFilename( &platformState );
 
@@ -1236,12 +1249,6 @@ WinMain( HINSTANCE hInstance,
     // TODO Test what a safe value for buffer size/latency is with several audio cards
     // (stress test by artificially lowering the framerate)
     Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS, AUDIO_LATENCY_SAMPLES );
-
-    // Determine system latency
-    REFERENCE_TIME latency;
-    globalAudioClient->GetStreamLatency( &latency );
-    audioOutput.systemLatencyFrames = (u16)Ceil( (u64)latency * audioOutput.samplingRate / 10000000.0 );
-    u32 audioLatencyFrames = audioOutput.samplingRate / VIDEO_TARGET_FRAMERATE;
 
     LARGE_INTEGER perfCounterFreqMeasure;
     QueryPerformanceFrequency( &perfCounterFreqMeasure );
@@ -1278,30 +1285,42 @@ WinMain( HINSTANCE hInstance,
                                             
         if( window )
         {
+            HDC deviceContext = GetDC( window );
+
+            // Get monitor refresh rate
+            globalMonitorRefreshHz = VIDEO_TARGET_FRAMERATE;
+            int refreshRate = GetDeviceCaps( deviceContext, VREFRESH );
+            if( refreshRate > 1 )
+            {
+                globalMonitorRefreshHz = refreshRate;
+                LOG( "Monitor refresh rate: %d Hz\n", globalMonitorRefreshHz );
+            }
+            else
+            {
+                LOG( "WNG: Failed to query monitor refresh rate. Using %d Hz\n", VIDEO_TARGET_FRAMERATE );
+            }
+            u32 frameVSyncSkipCount = Round( (r32)globalMonitorRefreshHz / VIDEO_TARGET_FRAMERATE );
+            u32 videoTargetFramerateHz = globalMonitorRefreshHz / frameVSyncSkipCount;
+
+            // Determine system latency
+            REFERENCE_TIME latency;
+            globalAudioClient->GetStreamLatency( &latency );
+            audioOutput.systemLatencyFrames = (u16)Ceil( (u64)latency * audioOutput.samplingRate / 10000000.0 );
+            u32 audioLatencyFrames = audioOutput.samplingRate / videoTargetFramerateHz;
+
             Win32SetFullscreenWindow( window );
             DEBUGglobalCursor = LoadCursor( 0, IDC_CROSS );
 
             platformState.mainWindow = window;
             Win32RegisterRawMouseInput( window );
 
-            HDC deviceContext = GetDC( window );
-            if( Win32InitOpenGL( deviceContext ) )
+            if( Win32InitOpenGL( deviceContext, frameVSyncSkipCount ) )
             {
                 LPVOID baseAddress = 0;
 #if DEBUG
                 baseAddress = (LPVOID)GIGABYTES((u64)2048);
 #endif
-
-                GameMemory gameMemory = {};
-                gameMemory.permanentStorageSize = MEGABYTES(64);
-                gameMemory.transientStorageSize = GIGABYTES((u64)1);
-                gameMemory.platformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
-                gameMemory.platformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
-                gameMemory.platformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
-                gameMemory.platformAPI.Log = PlatformLog;
-                
-                platform = gameMemory.platformAPI;
-
+                // Allocate game memory pools
                 u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
                 // TODO Use MEM_LARGE_PAGES and call AdjustTokenPrivileges when not in XP
                 gameMemory.permanentStorage = VirtualAlloc( baseAddress, totalSize,
@@ -1352,7 +1371,7 @@ WinMain( HINSTANCE hInstance,
                     GameInput *newInput = &input[0];
                     GameInput *oldInput = &input[1];
 
-                    r32 targetElapsedPerFrameSecs = 1.0f / VIDEO_TARGET_FRAMERATE;
+                    r32 targetElapsedPerFrameSecs = 1.0f / videoTargetFramerateHz;
                     // Assume our target for the first frame
                     r32 lastDeltaTimeSecs = targetElapsedPerFrameSecs;
 
@@ -1430,7 +1449,7 @@ WinMain( HINSTANCE hInstance,
 #if 0
                         // Artificially increase wait time from 0 to 20ms.
                         int r = rand() % 20;
-                        targetElapsedPerFrameSecs = (1.0f / VIDEO_TARGET_FRAMERATE) + ((r32)r / 1000.0f);
+                        targetElapsedPerFrameSecs = (1.0f / videoTargetFramerateHz) + ((r32)r / 1000.0f);
 #endif
 #if 0
                         LARGE_INTEGER endCounter = Win32GetWallClock();
@@ -1470,10 +1489,8 @@ WinMain( HINSTANCE hInstance,
 #if 1
                         {
                             r32 fps = 1.0f / lastDeltaTimeSecs;
-                            char buffer[256];
-                            sprintf_s( buffer, ARRAYCOUNT( buffer ), "ms: %.02f - FPS: %.02f (%d Kcycles) - audio padding: %d\n",
-                                       1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed, audioPaddingFrames );
-                            OutputDebugString( buffer );
+                            LOG( "ms: %.02f - FPS: %.02f (%d Kcycles) - audio padding: %d\n",
+                                 1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed, audioPaddingFrames );
                         }
 #endif
                     }
@@ -1485,8 +1502,7 @@ WinMain( HINSTANCE hInstance,
             }
             else
             {
-                // TODO Log "OpenGL initialization failed"
-                OutputDebugString( "BOOOOO" );
+                LOG( "OpenGL initialization failed" );
             }
         }
         else

@@ -210,7 +210,7 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
     m4 mProj = OpenGLCreatePerspectiveMatrix( (r32)commands.width / commands.height, 50 );
     mProj = mProj * commands.mCamera;
 
-    //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     //glLineWidth( 3 );
 
     glUseProgram( shaderProgram );

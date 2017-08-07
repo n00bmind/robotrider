@@ -19,10 +19,14 @@ AUDIO
   https://msdn.microsoft.com/en-us/library/windows/desktop/dd370844(v=vs.85).aspx
   https://github.com/pauldotknopf/WindowsSDK7-Samples/blob/master/multimedia/audio/RenderExclusiveEventDriven/WASAPIRenderer.cpp
 
-VIDEO
+GRAPHICS
 - Hot code reloading for shaders! (a la ShaderToy)
-- Detect actual monitor refresh rate just in case we need to adjust wglSwapInterval
-- Aspect ratio independece using black bars as needed
+- Aspect ratio independece using black bars as needed (also, allow the game to vary output resolution at will)
+- Edge detection shader
+  From reddit: "If you have a deferred renderer and it can write triangle IDs to a texture, then you can render a wireframe
+  by just doing a simple edge detect on the triangle ID texture. Google for "edge detection" and/or "Sobel filter" for details.
+  The nice things about this are that (a) you get hidden surface removal for free; and (b) it's a fixed cost to render, no matter how much geometry you have."
+  (http://williamchyr.com/2014/03/development-update-edge-detection/)
 
 INPUT
 - Find a way to calibrate different relative movement amounts from the different input methods
@@ -32,4 +36,5 @@ DEBUGGING
 - Add a command line switch & ingame command to load a recorded input block from disk
 - Simple static analysis:
   - Detect usage of 'internal' functions outside of the file where they're defined
-
+- Logging system, with categories & levels, threadsafe, dumped to disk & console
+- Text console, at least for status messages, maybe support command entry

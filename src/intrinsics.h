@@ -13,9 +13,30 @@ SafeTruncToU32( u64 value )
 }
 
 inline u32
+Ceil( r32 value )
+{
+    u32 result = (u32)(value + 0.5f);
+    return result;
+}
+
+inline u32
 Ceil( r64 value )
 {
     u32 result = (u32)(value + 0.5);
+    return result;
+}
+
+inline u32
+Round( r32 value )
+{
+    u32 result = (u32)roundf( value );
+    return result;
+}
+
+inline u32
+Round( r64 value )
+{
+    u32 result = (u32)round( value );
     return result;
 }
 
