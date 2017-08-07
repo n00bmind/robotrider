@@ -5,6 +5,7 @@
 #include <math.h>
 
 #include "platform.h"
+#include "memory.h"
 #include "math.h"
 
 
@@ -60,8 +61,8 @@ struct GameRenderCommands
     u16 width;
     u16 height;
 
-    // TODO This must be dynamic (transient)
-    RenderGroup *renderEntries[1024];
+    // TODO This must be dynamic (transient?)
+    RenderGroup *renderEntries[2048];
     u32 renderEntriesCount;
     // TODO Unify all this under a general Command struct
     m4 mCamera;
@@ -177,13 +178,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
 // Other stuff
 //
 
-struct MemoryArena
-{
-    u8 *base;
-    mem_idx size;
-    mem_idx used;
-};
-
 struct FlyingDude
 {
     RenderGroup renderGroup;
@@ -209,19 +203,23 @@ struct CubeThing
 struct World
 {
     FlyingDude *dude;
-    CubeThing *cubes;
-    u32 cubeCount;
 };
 
 struct GameState
 {
     MemoryArena worldArena;
-    World *world;
 
-    u32 playerX;
-    u32 playerY;
+    World *world;
 };
 
+struct TransientState
+{
+    b32 isInitialized;
+    MemoryArena transientArena;
+
+    CubeThing *cubes;
+    u32 cubeCount;
+};
 
 
 #endif /* __ROBOTRIDER_H__ */

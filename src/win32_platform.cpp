@@ -982,6 +982,39 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
     }
 }
 
+
+internal void
+Win32SetFullscreenWindow( HWND window )
+{
+    MONITORINFO mi = { sizeof(mi) };
+
+    DWORD dwStyle = GetWindowLong( window, GWL_STYLE );
+    if( GetMonitorInfo( MonitorFromWindow( window, MONITOR_DEFAULTTOPRIMARY ), &mi ) )
+    {
+        SetWindowLong( window, GWL_STYLE, dwStyle & ~WS_OVERLAPPEDWINDOW );
+        SetWindowPos( window, HWND_TOP,
+                      mi.rcMonitor.left, mi.rcMonitor.top,
+                      mi.rcMonitor.right - mi.rcMonitor.left,
+                      mi.rcMonitor.bottom - mi.rcMonitor.top,
+                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED );
+    }
+}
+
+internal void
+Win32HideWindow( HWND window )
+{
+    WINDOWPLACEMENT wp;
+    wp.length = sizeof(WINDOWPLACEMENT);
+    wp.flags = 0;
+    wp.showCmd = SW_HIDE;
+    wp.ptMinPosition = {0};
+    wp.ptMaxPosition = {0};
+    wp.rcNormalPosition = {0};
+
+    SetWindowPlacement( window, &wp );
+}
+
+
 LRESULT CALLBACK
 Win32WindowProc( HWND hwnd,
                  UINT  uMsg,
@@ -996,12 +1029,18 @@ Win32WindowProc( HWND hwnd,
         {
             if( wParam == TRUE )
             {
-                SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 255, LWA_ALPHA );
+                //SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 255, LWA_ALPHA );
             }
             else
             {
-                SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 128, LWA_ALPHA );
+                //SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 128, LWA_ALPHA );
+                Win32HideWindow( hwnd );
             }
+        } break;
+
+        case WM_KILLFOCUS:
+        {
+            Win32HideWindow( hwnd );
         } break;
 
         case WM_SIZE:
@@ -1199,23 +1238,6 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
 }
 
 
-internal void
-Win32SetFullscreenWindow( HWND window )
-{
-    MONITORINFO mi = { sizeof(mi) };
-
-    DWORD dwStyle = GetWindowLong( window, GWL_STYLE );
-    if( GetMonitorInfo( MonitorFromWindow( window, MONITOR_DEFAULTTOPRIMARY ), &mi ) )
-    {
-        SetWindowLong( window, GWL_STYLE, dwStyle & ~WS_OVERLAPPEDWINDOW );
-        SetWindowPos( window, HWND_TOP,
-                      mi.rcMonitor.left, mi.rcMonitor.top,
-                      mi.rcMonitor.right - mi.rcMonitor.left,
-                      mi.rcMonitor.bottom - mi.rcMonitor.top,
-                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED );
-    }
-}
-
 
 int CALLBACK
 WinMain( HINSTANCE hInstance,
@@ -1308,7 +1330,9 @@ WinMain( HINSTANCE hInstance,
             audioOutput.systemLatencyFrames = (u16)Ceil( (u64)latency * audioOutput.samplingRate / 10000000.0 );
             u32 audioLatencyFrames = audioOutput.samplingRate / videoTargetFramerateHz;
 
+#if !DEBUG
             Win32SetFullscreenWindow( window );
+#endif
             DEBUGglobalCursor = LoadCursor( 0, IDC_CROSS );
 
             platformState.mainWindow = window;

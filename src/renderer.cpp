@@ -28,5 +28,6 @@ CreateRenderGroup( CubeThing &cube )
 internal void
 PushRenderGroup( GameRenderCommands &commands, RenderGroup *entry )
 {
+    ASSERT( commands.renderEntriesCount < ARRAYCOUNT(commands.renderEntries) );
     commands.renderEntries[commands.renderEntriesCount++] = entry;
 }
