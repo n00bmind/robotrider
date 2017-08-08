@@ -2,6 +2,25 @@
 #define __MATH_TYPES_H__ 
 
 
+// Vector 2 integer
+
+union v2i
+{
+    struct
+    {
+        i32 x, y;
+    };
+    i32 e[2];
+};
+
+inline bool
+AreEqual( const v2i &a, const v2i &b )
+{
+    return a.x == b.x && a.y == b.y;
+}
+
+// Vector 2
+
 union v2
 {
     struct
@@ -15,7 +34,33 @@ union v2
     r32 e[2];
 };
 
+inline v2
+V2( const v2i &v )
+{
+    v2 result = { (r32)v.x, (r32)v.y };
+    return result;
+}
 
+inline v2
+operator -( const v2 &a, const v2 &b )
+{
+    v2 result = { a.x - b.x, a.y - b.y };
+    return result;
+}
+
+inline r32
+LengthSq( const v2 &v )
+{
+    r32 result = v.x * v.x + v.y * v.y;
+    return result;
+}
+
+inline v2i
+Round( const v2 &v )
+{
+    v2i result = { (i32)v.x, (i32)v.y };
+    return result;
+}
 
 // Vector 3
 
@@ -59,6 +104,13 @@ V3( r32 x, r32 y, r32 z )
 }
 
 inline v3
+V3( const v2 &v, r32 z )
+{
+    v3 result = { v.x, v.y, z };
+    return result;
+}
+
+inline v3
 operator -( const v3 &v )
 {
     v3 result = { -v.x, -v.y, -v.z };
@@ -66,16 +118,16 @@ operator -( const v3 &v )
 }
 
 inline v3
-operator +( const v3 &v1, const v3 &v2 )
+operator +( const v3 &a, const v3 &b )
 {
-    v3 result = { v1.x + v2.x, v1.y + v2.y, v1.z + v2.z };
+    v3 result = { a.x + b.x, a.y + b.y, a.z + b.z };
     return result;
 }
 
 inline v3
-operator -( const v3 &v1, const v3 &v2 )
+operator -( const v3 &a, const v3 &b )
 {
-    v3 result = { v1.x - v2.x, v1.y - v2.y, v1.z - v2.z };
+    v3 result = { a.x - b.x, a.y - b.y, a.z - b.z };
     return result;
 }
 

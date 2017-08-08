@@ -753,9 +753,58 @@ Win32GetSecondsElapsed( LARGE_INTEGER start, LARGE_INTEGER end )
 
 
 internal void
+Win32ToggleFullscreen( HWND window )
+{
+    local_persistent WINDOWPLACEMENT windowPos = {sizeof(windowPos)};
+
+    // http://blogs.msdn.com/b/oldnewthing/archive/2010/04/12/9994016.aspx
+
+    DWORD style = GetWindowLong( window, GWL_STYLE );
+    if( style & WS_OVERLAPPEDWINDOW )
+    {
+        MONITORINFO monitorInfo = {sizeof(monitorInfo)};
+        if( GetWindowPlacement( window, &windowPos )
+            && GetMonitorInfo( MonitorFromWindow( window, MONITOR_DEFAULTTOPRIMARY ), &monitorInfo ) )
+        {
+            SetWindowLong( window, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW );
+            SetWindowPos( window, HWND_TOP,
+                          monitorInfo.rcMonitor.left, monitorInfo.rcMonitor.top,
+                          monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left,
+                          monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
+                          SWP_NOOWNERZORDER | SWP_FRAMECHANGED );
+        }
+    }
+    else
+    {
+        SetWindowLong( window, GWL_STYLE, style | WS_OVERLAPPEDWINDOW );
+        SetWindowPlacement( window, &windowPos );
+        SetWindowPos( window, 0, 0, 0, 0, 0,
+                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED );
+    }
+}
+
+internal void
+Win32HideWindow( HWND window )
+{
+    WINDOWPLACEMENT wp;
+    wp.length = sizeof(WINDOWPLACEMENT);
+    wp.flags = 0;
+    wp.showCmd = SW_HIDE;
+    wp.ptMinPosition = {0};
+    wp.ptMaxPosition = {0};
+    wp.rcNormalPosition = {0};
+
+    SetWindowPlacement( window, &wp );
+}
+
+
+internal void
 Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameControllerInput *keyMouseController )
 {
     MSG message;
+    b32 altKeyDown = false;
+
     while( PeekMessage( &message, 0, 0, 0, PM_REMOVE ) )
     {
         if( message.message == WM_QUIT)
@@ -767,6 +816,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
         {
             case WM_SYSKEYDOWN:
             case WM_SYSKEYUP:
+                altKeyDown = ((message.lParam & (1<<29)) != 0);
             case WM_KEYDOWN:
             case WM_KEYUP:
             {
@@ -823,57 +873,54 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
                     {
                         Win32SetButtonState( &keyMouseController->aButton, isDown );
                     }
+                }
+
+                if( isDown )
+                {
+                    if( vkCode == VK_F4 && altKeyDown )
+                    {
+                        globalRunning = false;
+                    }
 #if DEBUG
+                    else if( vkCode == VK_RETURN && altKeyDown )
+                    {
+                        Win32ToggleFullscreen( platformState->mainWindow );
+                    }
                     else if( vkCode == VK_ESCAPE )
                     {
-                        if( isDown )
+                        if( platformState->inputPlaybackIndex )
                         {
-                            if( platformState->inputPlaybackIndex )
-                            {
-                                Win32EndInputPlayback( platformState );
-                                Win32ResetController( keyMouseController );
-                            }
-                            else
-                            {
-                                // TODO Change this to two consecutive presses
-                                globalRunning = false;
-                            }
+                            Win32EndInputPlayback( platformState );
+                            Win32ResetController( keyMouseController );
+                        }
+                        else
+                        {
+                            // TODO Change this to two consecutive presses
+                            globalRunning = false;
                         }
                     }
                     // TODO This may only work in the spanish keyboard?
                     else if( vkCode == VK_OEM_5 )
                     {
-                        if( isDown )
-                        {
-                            DEBUGglobalShowCursor = !DEBUGglobalShowCursor;
-                            SetCursor( DEBUGglobalShowCursor ? DEBUGglobalCursor : 0 );
-                        }
+                        DEBUGglobalShowCursor = !DEBUGglobalShowCursor;
+                        SetCursor( DEBUGglobalShowCursor ? DEBUGglobalCursor : 0 );
                     }
                     else if( vkCode == '1' )
                     {
-                        if( isDown )
+                        if( platformState->inputPlaybackIndex == 0 )
                         {
-                            if( platformState->inputPlaybackIndex == 0 )
+                            if( platformState->inputRecordingIndex == 0 )
                             {
-                                if( platformState->inputRecordingIndex == 0 )
-                                {
-                                    Win32BeginInputRecording( platformState, 1 );
-                                }
-                                else if( platformState->inputRecordingIndex == 1 )
-                                {
-                                    Win32EndInputRecording( platformState );
-                                    Win32BeginInputPlayback( platformState, 1 );
-                                }
+                                Win32BeginInputRecording( platformState, 1 );
+                            }
+                            else if( platformState->inputRecordingIndex == 1 )
+                            {
+                                Win32EndInputRecording( platformState );
+                                Win32BeginInputPlayback( platformState, 1 );
                             }
                         }
                     }
 #endif
-                }
-
-                b32 altKeyWasDown = ((message.lParam & (1<<29)) != 0);
-                if( vkCode == VK_F4 && altKeyWasDown )
-                {
-                    globalRunning = false;
                 }
             } break;
 
@@ -980,38 +1027,6 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
             } break;
         }
     }
-}
-
-
-internal void
-Win32SetFullscreenWindow( HWND window )
-{
-    MONITORINFO mi = { sizeof(mi) };
-
-    DWORD dwStyle = GetWindowLong( window, GWL_STYLE );
-    if( GetMonitorInfo( MonitorFromWindow( window, MONITOR_DEFAULTTOPRIMARY ), &mi ) )
-    {
-        SetWindowLong( window, GWL_STYLE, dwStyle & ~WS_OVERLAPPEDWINDOW );
-        SetWindowPos( window, HWND_TOP,
-                      mi.rcMonitor.left, mi.rcMonitor.top,
-                      mi.rcMonitor.right - mi.rcMonitor.left,
-                      mi.rcMonitor.bottom - mi.rcMonitor.top,
-                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED );
-    }
-}
-
-internal void
-Win32HideWindow( HWND window )
-{
-    WINDOWPLACEMENT wp;
-    wp.length = sizeof(WINDOWPLACEMENT);
-    wp.flags = 0;
-    wp.showCmd = SW_HIDE;
-    wp.ptMinPosition = {0};
-    wp.ptMaxPosition = {0};
-    wp.rcNormalPosition = {0};
-
-    SetWindowPlacement( window, &wp );
 }
 
 
@@ -1331,7 +1346,7 @@ WinMain( HINSTANCE hInstance,
             u32 audioLatencyFrames = audioOutput.samplingRate / videoTargetFramerateHz;
 
 #if !DEBUG
-            Win32SetFullscreenWindow( window );
+            Win32ToggleFullscreen( window );
 #endif
             DEBUGglobalCursor = LoadCursor( 0, IDC_CROSS );
 
@@ -1412,6 +1427,7 @@ WinMain( HINSTANCE hInstance,
                     u32 runningFrameCounter = 0;
                     while( globalRunning )
                     {
+                        newInput->executableReloaded = false;
                         newInput->secondsElapsed = lastDeltaTimeSecs;
 
                         FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
@@ -1419,6 +1435,7 @@ WinMain( HINSTANCE hInstance,
                         {
                             Win32UnloadGameCode( &game );
                             game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
+                            newInput->executableReloaded = true;
                         }
 
                         // Process input

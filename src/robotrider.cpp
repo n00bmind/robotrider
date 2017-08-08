@@ -40,7 +40,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             },
         };
         dude.mTransform = Identity();
-        dude.renderGroup = CreateRenderGroup( dude );
+        InitRenderGroup( renderCommands, dude );
 
         memory->isInitialized = true;
     }
@@ -79,7 +79,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             r32 transY = ((i32)i / 32) * 2.0f;
 
             cube.mTransform = Translation( { transX, transY, -1.0f } );
-            cube.renderGroup = CreateRenderGroup( cube );
+            InitRenderGroup( renderCommands, cube );
         }
 
         tranState->isInitialized = true;
@@ -120,7 +120,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
     dude.mTransform = RotPos( mPlayerRot, pPlayer );
-    PushRenderGroup( renderCommands, &dude.renderGroup );
+    PushRenderGroup( renderCommands, dude );
 
     // Create a chasing camera
     // TODO Use a PID controller
@@ -129,10 +129,45 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v3 vUp = GetColumn( dude.mTransform, 2 ).xyz; //{ 0, 0, 1 }; 
     renderCommands.mCamera = CameraLookAt( pCam, pLookAt, vUp );
 
-    for( u32 i = 0; i < tranState->cubeCount; ++i )
+    // Monitor distance from player
+    // NOTE This is totally inneficient and unnecesary!
+    for( i32 y = (i32)pPlayer.y - 32; y < (i32)pPlayer.y + 32; y += 2 )
     {
-        CubeThing &cube = tranState->cubes[i];
-        PushRenderGroup( renderCommands, &cube.renderGroup );
+        for( i32 x = (i32)pPlayer.x - 32; x < (i32)pPlayer.x + 32; x += 2 )
+        {
+            v2i pXY = { x, y };
+
+            CubeThing *furthestCube = 0;
+            r32 furthestLengthSq = 0.f;
+            for( u32 i = 0; i < tranState->cubeCount; ++i )
+            {
+                CubeThing *cube = tranState->cubes + i;
+                v3 pCube = GetTranslation( cube->mTransform );
+
+                if( AreEqual( Round( pCube.xy ), pXY ) )
+                {
+                    PushRenderGroup( renderCommands, *cube );
+                    furthestCube = 0;
+                    break;
+                }
+                else
+                {
+                    v2 pRel = pPlayer.xy - pCube.xy;
+                    r32 lengthSq = LengthSq( pRel );
+                    if( lengthSq > furthestLengthSq )
+                    {
+                        furthestLengthSq = lengthSq;
+                        furthestCube = cube;
+                    }
+                }
+            }
+
+            if( furthestCube )
+            {
+                SetTranslation( furthestCube->mTransform, V3( V2( pXY ), 0 ) );
+                PushRenderGroup( renderCommands, *furthestCube );
+            }
+        }
     }
 
     CheckArena( &gameState->worldArena );

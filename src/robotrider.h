@@ -132,6 +132,7 @@ struct GameControllerInput
 
 struct GameInput
 {
+    b32 executableReloaded;
     r32 secondsElapsed;
 
     GameControllerInput _controllers[5];
