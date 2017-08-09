@@ -14,15 +14,28 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     GameState *gameState = (GameState *)memory->permanentStorage;
     if( !memory->isInitialized )
     {
-        InitializeArena( &gameState->worldArena,
+        InitializeArena( &gameState->gameArena,
                          (u8 *)memory->permanentStorage + sizeof(GameState),
                          memory->permanentStorageSize - sizeof(GameState) );
 
-        gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
-        World *worldInit = gameState->world;
+        memory->isInitialized = true;
+    }
 
-        worldInit->dude = PUSH_STRUCT( &gameState->worldArena, FlyingDude );
-        FlyingDude &dude = *worldInit->dude;
+    // Init storage for the transient state
+    ASSERT( sizeof(TransientState) <= memory->transientStorageSize );
+    TransientState *tranState = (TransientState *)memory->transientStorage;
+    if( input->executableReloaded )
+    {
+        tranState->isInitialized = false;
+    }
+    if( !tranState->isInitialized )
+    {
+        InitializeArena( &tranState->transientArena,
+                         (u8 *)memory->transientStorage + sizeof(TransientState),
+                         memory->transientStorageSize - sizeof(TransientState));
+
+        tranState->dude = PUSH_STRUCT( &gameState->gameArena, FlyingDude );
+        FlyingDude &dude = *tranState->dude;
         dude =
         {
             {},
@@ -41,18 +54,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         };
         dude.mTransform = Identity();
         InitRenderGroup( renderCommands, dude );
-
-        memory->isInitialized = true;
-    }
-
-    // Init storage for the transient state
-    ASSERT( sizeof(TransientState) <= memory->transientStorageSize );
-    TransientState *tranState = (TransientState *)memory->transientStorage;
-    if( !tranState->isInitialized )
-    {
-        InitializeArena( &tranState->transientArena,
-                         (u8 *)memory->transientStorage + sizeof(TransientState),
-                         memory->transientStorageSize - sizeof(TransientState));
 
         tranState->cubeCount = 32*32;
         tranState->cubes = PUSH_ARRAY( &tranState->transientArena, tranState->cubeCount, CubeThing );
@@ -86,12 +87,11 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 
     float dt = input->secondsElapsed;
-    World *world = gameState->world;
     GameControllerInput *input0 = GetController( input, 0 );
 
-    FlyingDude &dude = *world->dude;
-    v3 pPlayer = GetTranslation( dude.mTransform );
-    m4 mPlayerRot = GetRotation( dude.mTransform );
+    FlyingDude &dude = *tranState->dude;
+    v3 pPlayer = gameState->pPlayer; //GetTranslation( dude.mTransform );
+    //m4 mPlayerRot = GetRotation( dude.mTransform );
 
     v3 vPlayerDelta = {};
     if( input0->dLeft.endedDown )
@@ -111,16 +111,18 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         vPlayerDelta.y -= 3.f * dt;
     }
 
-    if( input0->rightStick.avgX )
+    if( input0->rightStick.avgX || input0->rightStick.avgY )
     {
-        dude.pitch += input0->rightStick.avgY / 15.f * dt;
-        dude.yaw += -input0->rightStick.avgX / 15.f * dt; 
-        mPlayerRot = ZRotation( dude.yaw ) * XRotation( dude.pitch );
+        gameState->playerPitch += input0->rightStick.avgY / 15.f * dt;
+        gameState->playerYaw += -input0->rightStick.avgX / 15.f * dt; 
     }
 
+    m4 mPlayerRot = ZRotation( gameState->playerYaw ) * XRotation( gameState->playerPitch );
     pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
     dude.mTransform = RotPos( mPlayerRot, pPlayer );
     PushRenderGroup( renderCommands, dude );
+
+    gameState->pPlayer = pPlayer;
 
     // Create a chasing camera
     // TODO Use a PID controller
@@ -128,7 +130,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v3 pLookAt = dude.mTransform * V3( 0, 1, 0 );
     v3 vUp = GetColumn( dude.mTransform, 2 ).xyz; //{ 0, 0, 1 }; 
     renderCommands.mCamera = CameraLookAt( pCam, pLookAt, vUp );
-
+/*
     // Monitor distance from player
     // NOTE This is totally inneficient and unnecesary!
     for( i32 y = (i32)pPlayer.y - 32; y < (i32)pPlayer.y + 32; y += 2 )
@@ -169,8 +171,15 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
         }
     }
+*/
 
-    CheckArena( &gameState->worldArena );
+    for( u32 i = 0; i < tranState->cubeCount; ++i )
+    {
+        CubeThing *cube = tranState->cubes + i;
+        PushRenderGroup( renderCommands, *cube );
+    }
+
+    CheckArena( &gameState->gameArena );
     CheckArena( &tranState->transientArena );
 }
 

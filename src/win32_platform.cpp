@@ -39,7 +39,7 @@ global IAudioClient* globalAudioClient;
 global IAudioRenderClient* globalAudioRenderClient;
 global i64 globalPerfCounterFrequency;
 global HCURSOR DEBUGglobalCursor;
-global bool DEBUGglobalShowCursor;
+global bool DEBUGglobalDebugging;
 
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
@@ -902,8 +902,20 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
                     // TODO This may only work in the spanish keyboard?
                     else if( vkCode == VK_OEM_5 )
                     {
-                        DEBUGglobalShowCursor = !DEBUGglobalShowCursor;
-                        SetCursor( DEBUGglobalShowCursor ? DEBUGglobalCursor : 0 );
+                        DEBUGglobalDebugging = !DEBUGglobalDebugging;
+                        SetCursor( DEBUGglobalDebugging ? DEBUGglobalCursor : 0 );
+
+                        LONG_PTR curStyle = GetWindowLongPtr( platformState->mainWindow,
+                                                              GWL_EXSTYLE );
+                        LONG_PTR newStyle = DEBUGglobalDebugging
+                            ? (curStyle | WS_EX_LAYERED)
+                            : (curStyle & ~WS_EX_LAYERED);
+
+                        SetWindowLongPtr( platformState->mainWindow, GWL_EXSTYLE,
+                                          newStyle );
+                        SetWindowPos( platformState->mainWindow, DEBUGglobalDebugging
+                                      ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                                      SWP_NOMOVE | SWP_NOSIZE );
                     }
                     else if( vkCode == '1' )
                     {
@@ -1044,18 +1056,12 @@ Win32WindowProc( HWND hwnd,
         {
             if( wParam == TRUE )
             {
-                //SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 255, LWA_ALPHA );
+                SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 255, LWA_ALPHA );
             }
             else
             {
-                //SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 128, LWA_ALPHA );
-                Win32HideWindow( hwnd );
+                SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 80, LWA_ALPHA );
             }
-        } break;
-
-        case WM_KILLFOCUS:
-        {
-            Win32HideWindow( hwnd );
         } break;
 
         case WM_SIZE:
@@ -1064,7 +1070,7 @@ Win32WindowProc( HWND hwnd,
 
         case WM_SETCURSOR:
         {
-            SetCursor( DEBUGglobalShowCursor ? DEBUGglobalCursor : 0 );
+            SetCursor( DEBUGglobalDebugging ? DEBUGglobalCursor : 0 );
         } break;
 
         case WM_SYSKEYDOWN:
@@ -1307,7 +1313,7 @@ WinMain( HINSTANCE hInstance,
 
     if( RegisterClass( &windowClass ) )
     {
-        HWND window = CreateWindowEx( 0, //WS_EX_TOPMOST|WS_EX_LAYERED,
+        HWND window = CreateWindowEx( 0, 
                                       windowClass.lpszClassName,
                                       "RobotRider",
                                       WS_OVERLAPPEDWINDOW|WS_VISIBLE,

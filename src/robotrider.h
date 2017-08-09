@@ -187,8 +187,6 @@ struct FlyingDude
     u32 indices[3];
 
     m4 mTransform;
-    r32 pitch;
-    r32 yaw;
 };
 
 struct CubeThing
@@ -201,22 +199,21 @@ struct CubeThing
     m4 mTransform;
 };
 
-struct World
-{
-    FlyingDude *dude;
-};
-
 struct GameState
 {
-    MemoryArena worldArena;
+    MemoryArena gameArena;
 
-    World *world;
+    v3 pPlayer;
+    r32 playerPitch;
+    r32 playerYaw;
 };
 
 struct TransientState
 {
     b32 isInitialized;
     MemoryArena transientArena;
+
+    FlyingDude *dude;
 
     CubeThing *cubes;
     u32 cubeCount;
