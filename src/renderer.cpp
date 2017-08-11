@@ -1,65 +1,57 @@
 
-internal void
-InitRenderGroup( GameRenderCommands &commands, FlyingDude &dude )
+internal RenderBuffer *
+AllocateRenderBuffer( MemoryArena *arena, u32 maxSize )
 {
-    RenderGroup &entry = dude.renderGroup;
-    entry = {};
-    entry.vertices = dude.vertices;
-    entry.vertexCount = ARRAYCOUNT( dude.vertices );
-    entry.indices = dude.indices;
-    entry.indexCount = ARRAYCOUNT( dude.indices );
-    entry.mTransform = &dude.mTransform;
+    RenderBuffer *result = PUSH_STRUCT( arena, RenderBuffer );
+    result->base = (u8 *)PUSH_SIZE( arena, maxSize );
+    result->size = 0;
+    result->maxSize = maxSize;
+
+    return result;
 }
 
-internal void
-InitRenderGroup( GameRenderCommands &commands, CubeThing &cube )
+internal void *
+_PushRenderElement( GameRenderCommands &commands, u32 size )
 {
-    RenderGroup &entry = cube.renderGroup;
-    entry = {};
-    entry.vertices = cube.vertices;
-    entry.vertexCount = ARRAYCOUNT( cube.vertices );
-    entry.indices = cube.indices;
-    entry.indexCount = ARRAYCOUNT( cube.indices );
-    entry.mTransform = &cube.mTransform;
-}
+    void *result = 0;
+    RenderBuffer *buffer = commands.renderBuffer;
 
-internal void
-_PushRenderGroup( GameRenderCommands &commands, RenderGroup *entry )
-{
-    ASSERT( commands.renderEntriesCount < ARRAYCOUNT(commands.renderEntries) );
-    commands.renderEntries[commands.renderEntriesCount++] = entry;
+    if( buffer->size + size < buffer->maxSize )
+    {
+        result = buffer->base + buffer->size;
+        buffer->size += size;
+        memset( result, 0, size );
+    }
+    else
+    {
+        // We don't just do an assert so we're fail tolerant in release builds
+        INVALID_CODE_PATH
+    }
+
+    return result;
 }
 
 internal void
 PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude, bool rebuildGeometry = false )
 {
-    RenderGroup &entry = dude.renderGroup;
-    if( rebuildGeometry )
-    {
-        entry = {};
-        entry.vertices = dude.vertices;
-        entry.vertexCount = ARRAYCOUNT( dude.vertices );
-        entry.indices = dude.indices;
-        entry.indexCount = ARRAYCOUNT( dude.indices );
-    }
-    entry.mTransform = &dude.mTransform;
+    RenderGroup *entry = (RenderGroup *)_PushRenderElement( commands, sizeof(RenderGroup) );
 
-    _PushRenderGroup( commands, &entry );
+    entry->vertices = dude.vertices;
+    entry->vertexCount = ARRAYCOUNT( dude.vertices );
+    entry->indices = dude.indices;
+    entry->indexCount = ARRAYCOUNT( dude.indices );
+    entry->mTransform = &dude.mTransform;
+    entry->renderHandle = &dude.renderHandle;
 }
 
 internal void
 PushRenderGroup( GameRenderCommands &commands, CubeThing &cube, bool rebuildGeometry = false )
 {
-    RenderGroup &entry = cube.renderGroup;
-    if( rebuildGeometry )
-    {
-        entry = {};
-        entry.vertices = cube.vertices;
-        entry.vertexCount = ARRAYCOUNT( cube.vertices );
-        entry.indices = cube.indices;
-        entry.indexCount = ARRAYCOUNT( cube.indices );
-    }
-    entry.mTransform = &cube.mTransform;
+    RenderGroup *entry = (RenderGroup *)_PushRenderElement( commands, sizeof(RenderGroup) );
 
-    _PushRenderGroup( commands, &entry );
+    entry->vertexCount = ARRAYCOUNT( cube.vertices );
+    entry->indices = cube.indices;
+    entry->indexCount = ARRAYCOUNT( cube.indices );
+    entry->mTransform = &cube.mTransform;
+    entry->renderHandle = &cube.renderHandle;
 }

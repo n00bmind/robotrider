@@ -58,7 +58,7 @@ CheckArena( MemoryArena *arena )
 
 #define PUSH_STRUCT(arena, type) (type *)_PushSize( arena, sizeof(type) )
 #define PUSH_ARRAY(arena, count, type) (type *)_PushSize( arena, (count)*sizeof(type) )
-
+#define PUSH_SIZE(arena, size) _PushSize( arena, size )
 inline void *
 _PushSize( MemoryArena *arena, mem_idx size )
 {

@@ -215,17 +215,20 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
 
     glUseProgram( shaderProgram );
 
-    for( u32 i = 0; i < commands.renderEntriesCount; ++i )
+    RenderBuffer *buffer = commands.renderBuffer;
+    for( u32 baseAddress = 0; baseAddress < buffer->size; /**/ )
     {
-        RenderGroup &entry = *commands.renderEntries[i];
+        RenderGroup &entry = *(RenderGroup *)(buffer->base + baseAddress);
+        baseAddress += sizeof(RenderGroup);
 
         if( !entry.readyForRender )
         {
             // Bind Vertex Array Object with all the needed configuration
             u32 vertexBuffer;
             u32 elementBuffer;
-            glGenVertexArrays( 1, &entry.VAO );
-            glBindVertexArray( entry.VAO );
+            
+            glGenVertexArrays( 1, entry.renderHandle );
+            glBindVertexArray( *entry.renderHandle );
 
             glGenBuffers( 1, &vertexBuffer );
             glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
@@ -238,7 +241,6 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
             glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry.indexCount*sizeof(u32), entry.indices, GL_STATIC_DRAW );
 
             ASSERT_GL_STATE;
-            entry.readyForRender = true;
         }
 
         // TODO Pass somehow as an attribute once all this is in a giant buffer
@@ -246,7 +248,7 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
         GLint transformId = glGetUniformLocation( shaderProgram, "mTransform" );
         glUniformMatrix4fv( transformId, 1, GL_TRUE, mTransform.e[0] );
 
-        glBindVertexArray( entry.VAO );
+        glBindVertexArray( *entry.renderHandle );
         glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
     }
 }

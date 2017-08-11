@@ -38,7 +38,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         FlyingDude &dude = *tranState->dude;
         dude =
         {
-            {},
             {
                 {  0.5f,   -0.5f,  0.0f, },
                 { -0.5f,   -0.5f,  0.0f, },
@@ -53,7 +52,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             },
         };
         dude.mTransform = Identity();
-        InitRenderGroup( renderCommands, dude );
 
         tranState->cubeCount = 32*32;
         tranState->cubes = PUSH_ARRAY( &tranState->transientArena, tranState->cubeCount, CubeThing );
@@ -63,7 +61,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             CubeThing &cube = tranState->cubes[i];
             cube =
             {
-                {},
                 {
                     { -0.5f,    -0.5f,      0.0f },
                     { -0.5f,     0.5f,      0.0f },
@@ -80,18 +77,23 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             r32 transY = ((i32)i / 32) * 2.0f;
 
             cube.mTransform = Translation( { transX, transY, -1.0f } );
-            InitRenderGroup( renderCommands, cube );
         }
+
+        // TODO Decide a proper size for this
+        // TODO Should the platform pre-allocate this?
+        tranState->renderBuffer = AllocateRenderBuffer( &tranState->transientArena, MEGABYTES( 4 ) );
 
         tranState->isInitialized = true;
     }
+
+    renderCommands.renderBuffer = tranState->renderBuffer;
+    TemporaryMemory renderMemory = BeginTemporaryMemory( &tranState->transientArena );
 
     float dt = input->secondsElapsed;
     GameControllerInput *input0 = GetController( input, 0 );
 
     FlyingDude &dude = *tranState->dude;
     v3 pPlayer = gameState->pPlayer; //GetTranslation( dude.mTransform );
-    //m4 mPlayerRot = GetRotation( dude.mTransform );
 
     v3 vPlayerDelta = {};
     if( input0->dLeft.endedDown )
@@ -178,6 +180,8 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         CubeThing *cube = tranState->cubes + i;
         PushRenderGroup( renderCommands, *cube );
     }
+
+    EndTemporaryMemory( renderMemory );
 
     CheckArena( &gameState->gameArena );
     CheckArena( &tranState->transientArena );

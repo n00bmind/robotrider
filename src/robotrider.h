@@ -1,6 +1,7 @@
 #ifndef __ROBOTRIDER_H__
 #define __ROBOTRIDER_H__ 
 
+#include <string.h>
 #include <stdint.h>
 #include <math.h>
 
@@ -37,9 +38,15 @@ struct RenderGroup
     u32 indexCount;
 
     m4 *mTransform;
-
-    u32 VAO;
+    u32 *renderHandle;
     b32 readyForRender;
+};
+
+struct RenderBuffer
+{
+    u8 *base;
+    u32 size;
+    u32 maxSize;
 };
 
 
@@ -61,11 +68,9 @@ struct GameRenderCommands
     u16 width;
     u16 height;
 
-    // TODO This must be dynamic (transient?)
-    RenderGroup *renderEntries[2048];
-    u32 renderEntriesCount;
-    // TODO Unify all this under a general Command struct
     m4 mCamera;
+
+    RenderBuffer *renderBuffer;
 };
 
 struct GameAudioBuffer
@@ -181,22 +186,20 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
 
 struct FlyingDude
 {
-    RenderGroup renderGroup;
-
     v3 vertices[3];
     u32 indices[3];
 
     m4 mTransform;
+    u32 renderHandle;
 };
 
 struct CubeThing
 {
-    RenderGroup renderGroup;
-
     v3 vertices[4];
     u32 indices[6];
 
     m4 mTransform;
+    u32 renderHandle;
 };
 
 struct GameState
@@ -212,6 +215,8 @@ struct TransientState
 {
     b32 isInitialized;
     MemoryArena transientArena;
+
+    RenderBuffer *renderBuffer;
 
     FlyingDude *dude;
 
