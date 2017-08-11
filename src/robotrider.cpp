@@ -79,14 +79,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             cube.mTransform = Translation( { transX, transY, -1.0f } );
         }
 
-        // TODO Decide a proper size for this
-        // TODO Should the platform pre-allocate this?
-        tranState->renderBuffer = AllocateRenderBuffer( &tranState->transientArena, MEGABYTES( 4 ) );
-
         tranState->isInitialized = true;
     }
 
-    renderCommands.renderBuffer = tranState->renderBuffer;
     TemporaryMemory renderMemory = BeginTemporaryMemory( &tranState->transientArena );
 
     float dt = input->secondsElapsed;

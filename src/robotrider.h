@@ -38,6 +38,7 @@ struct RenderGroup
     u32 indexCount;
 
     m4 *mTransform;
+    u32 VAO;
     u32 *renderHandle;
     b32 readyForRender;
 };
@@ -70,8 +71,20 @@ struct GameRenderCommands
 
     m4 mCamera;
 
-    RenderBuffer *renderBuffer;
+    RenderBuffer renderBuffer;
 };
+inline GameRenderCommands
+InitializeRenderCommands( void *renderBuffer, u32 maxRenderBufferSize )
+{
+    GameRenderCommands result;
+
+    result.mCamera = Identity();
+    result.renderBuffer.base = (u8 *)renderBuffer;
+    result.renderBuffer.size = 0;
+    result.renderBuffer.maxSize = maxRenderBufferSize;
+
+    return result;
+}
 
 struct GameAudioBuffer
 {

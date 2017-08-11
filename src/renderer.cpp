@@ -1,25 +1,14 @@
 
-internal RenderBuffer *
-AllocateRenderBuffer( MemoryArena *arena, u32 maxSize )
-{
-    RenderBuffer *result = PUSH_STRUCT( arena, RenderBuffer );
-    result->base = (u8 *)PUSH_SIZE( arena, maxSize );
-    result->size = 0;
-    result->maxSize = maxSize;
-
-    return result;
-}
-
 internal void *
 _PushRenderElement( GameRenderCommands &commands, u32 size )
 {
     void *result = 0;
-    RenderBuffer *buffer = commands.renderBuffer;
+    RenderBuffer &buffer = commands.renderBuffer;
 
-    if( buffer->size + size < buffer->maxSize )
+    if( buffer.size + size < buffer.maxSize )
     {
-        result = buffer->base + buffer->size;
-        buffer->size += size;
+        result = buffer.base + buffer.size;
+        buffer.size += size;
         memset( result, 0, size );
     }
     else
@@ -32,26 +21,29 @@ _PushRenderElement( GameRenderCommands &commands, u32 size )
 }
 
 internal void
-PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude, bool rebuildGeometry = false )
+PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude, bool rebuildGeometry = true )
 {
     RenderGroup *entry = (RenderGroup *)_PushRenderElement( commands, sizeof(RenderGroup) );
-
-    entry->vertices = dude.vertices;
-    entry->vertexCount = ARRAYCOUNT( dude.vertices );
-    entry->indices = dude.indices;
-    entry->indexCount = ARRAYCOUNT( dude.indices );
+    if( rebuildGeometry )
+    {
+        entry->vertices = dude.vertices;
+        entry->vertexCount = ARRAYCOUNT( dude.vertices );
+        entry->indices = dude.indices;
+        entry->indexCount = ARRAYCOUNT( dude.indices );
+    }
     entry->mTransform = &dude.mTransform;
-    entry->renderHandle = &dude.renderHandle;
 }
 
 internal void
-PushRenderGroup( GameRenderCommands &commands, CubeThing &cube, bool rebuildGeometry = false )
+PushRenderGroup( GameRenderCommands &commands, CubeThing &cube, bool rebuildGeometry = true )
 {
     RenderGroup *entry = (RenderGroup *)_PushRenderElement( commands, sizeof(RenderGroup) );
-
-    entry->vertexCount = ARRAYCOUNT( cube.vertices );
-    entry->indices = cube.indices;
-    entry->indexCount = ARRAYCOUNT( cube.indices );
+    if( rebuildGeometry )
+    {
+        entry->vertices = cube.vertices;
+        entry->vertexCount = ARRAYCOUNT( cube.vertices );
+        entry->indices = cube.indices;
+        entry->indexCount = ARRAYCOUNT( cube.indices );
+    }
     entry->mTransform = &cube.mTransform;
-    entry->renderHandle = &cube.renderHandle;
 }

@@ -1376,6 +1376,13 @@ WinMain( HINSTANCE hInstance,
                 platformState.gameMemoryBlock = gameMemory.permanentStorage;
                 platformState.gameMemorySize = totalSize;
 
+                // TODO Decide a proper size for this
+                u32 renderBufferSize = MEGABYTES( 4 );
+                void *renderBuffer = VirtualAlloc( 0, renderBufferSize,
+                                                   MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+                GameRenderCommands renderCommands = InitializeRenderCommands( renderBuffer,
+                                                                              renderBufferSize );
+
                 i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
@@ -1475,7 +1482,6 @@ WinMain( HINSTANCE hInstance,
                         audioBuffer.samples = soundSamples;
 
                         Win32WindowDimension windowDim = Win32GetWindowDimension( window );
-                        GameRenderCommands renderCommands = {};
                         renderCommands.width = (u16)windowDim.width;
                         renderCommands.height = (u16)windowDim.height;
 
