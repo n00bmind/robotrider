@@ -3,6 +3,22 @@
 
 #define ASSERT_GL_STATE ASSERT( glGetError() == GL_NO_ERROR);
 
+struct OpenGLInfo
+{
+    b32 modernContext;
+
+    const char *vendor;
+    const char *renderer;
+    const char *version;
+    const char *SLversion;
+    char *extensions[512];
+};
+
+struct OpenGLState
+{
+    GLuint shaderProgram;
+};
+
 // Pointers to extension functions setup natively by the platform
 // TODO Is this really cross-platform?
 PFNGLGETSTRINGIPROC	                    glGetStringi;

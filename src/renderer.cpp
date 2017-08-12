@@ -1,15 +1,17 @@
 
-internal void *
-_PushRenderElement( GameRenderCommands &commands, u32 size )
+#define PUSH_RENDER_ELEMENT(commands, type) (type *)_PushRenderElement( commands, sizeof(type), RenderEntryType::type )
+internal RenderEntry *
+_PushRenderElement( GameRenderCommands &commands, u32 size, RenderEntryType type )
 {
-    void *result = 0;
+    RenderEntry *result = 0;
     RenderBuffer &buffer = commands.renderBuffer;
 
     if( buffer.size + size < buffer.maxSize )
     {
-        result = buffer.base + buffer.size;
-        buffer.size += size;
+        result = (RenderEntry *)(buffer.base + buffer.size);
         memset( result, 0, size );
+        result->type = type;
+        buffer.size += size;
     }
     else
     {
@@ -21,29 +23,39 @@ _PushRenderElement( GameRenderCommands &commands, u32 size )
 }
 
 internal void
-PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude, bool rebuildGeometry = true )
+PushClear( GameRenderCommands &commands, v4 color )
 {
-    RenderGroup *entry = (RenderGroup *)_PushRenderElement( commands, sizeof(RenderGroup) );
-    if( rebuildGeometry )
+    RenderEntryClear *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryClear );
+    if( entry )
+    {
+        entry->color = color;
+    }
+}
+
+internal void
+PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude )
+{
+    RenderEntryGroup *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryGroup );
+    if( entry )
     {
         entry->vertices = dude.vertices;
         entry->vertexCount = ARRAYCOUNT( dude.vertices );
         entry->indices = dude.indices;
         entry->indexCount = ARRAYCOUNT( dude.indices );
+        entry->mTransform = &dude.mTransform;
     }
-    entry->mTransform = &dude.mTransform;
 }
 
 internal void
-PushRenderGroup( GameRenderCommands &commands, CubeThing &cube, bool rebuildGeometry = true )
+PushRenderGroup( GameRenderCommands &commands, CubeThing &cube )
 {
-    RenderGroup *entry = (RenderGroup *)_PushRenderElement( commands, sizeof(RenderGroup) );
-    if( rebuildGeometry )
+    RenderEntryGroup *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryGroup );
+    if( entry )
     {
         entry->vertices = cube.vertices;
         entry->vertexCount = ARRAYCOUNT( cube.vertices );
         entry->indices = cube.indices;
         entry->indexCount = ARRAYCOUNT( cube.indices );
+        entry->mTransform = &cube.mTransform;
     }
-    entry->mTransform = &cube.mTransform;
 }

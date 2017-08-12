@@ -87,6 +87,8 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     float dt = input->secondsElapsed;
     GameControllerInput *input0 = GetController( input, 0 );
 
+    PushClear( renderCommands, { 0.95f, 0.95f, 0.95f, 1.0f } );
+
     FlyingDude &dude = *tranState->dude;
     v3 pPlayer = gameState->pPlayer; //GetTranslation( dude.mTransform );
 

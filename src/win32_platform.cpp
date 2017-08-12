@@ -1243,7 +1243,7 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
 #undef BINDGLPROC
 
 
-    OpenGLInfo info = OpenGLInit( true );
+    OpenGLInfo info = OpenGLInit( openGLState, true );
 
 
     // VSync
@@ -1484,6 +1484,8 @@ WinMain( HINSTANCE hInstance,
                         Win32WindowDimension windowDim = Win32GetWindowDimension( window );
                         renderCommands.width = (u16)windowDim.width;
                         renderCommands.height = (u16)windowDim.height;
+                        // Reuse the render buffer
+                        renderCommands.renderBuffer.size = 0;
 
                         // Ask the game to render one frame
                         game.UpdateAndRender( &gameMemory, newInput, renderCommands, &audioBuffer );

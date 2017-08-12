@@ -96,7 +96,7 @@ OpenGLGetInfo( b32 modernContext )
 }
 
 internal OpenGLInfo
-OpenGLInit( bool modernContext )
+OpenGLInit( OpenGLState &openGL, bool modernContext )
 {
     OpenGLInfo info = OpenGLGetInfo( modernContext );
 
@@ -108,13 +108,66 @@ OpenGLInit( bool modernContext )
     }
 #endif
 
-#if 0
-    // According to Muratori, changing VAOs is inefficient and not really used anymore
-    // but they still _must_ be used when in the Core profile, so..
+#if 1
+    // According to Muratori, changing VAOs is inefficient and not really used anymore (?)
+    // (gotta ask him about that claim..)
     GLuint dummyVAO;
     glGenVertexArrays( 1, &dummyVAO );
     glBindVertexArray( dummyVAO );
 #endif
+
+
+    // Compile shaders
+    const char *vertexShaderSource =
+#include "shaders/default.vs.glsl"
+        ;
+
+    GLuint vertexShader = glCreateShader( GL_VERTEX_SHADER );
+    glShaderSource( vertexShader, 1, &vertexShaderSource, NULL );
+    glCompileShader( vertexShader );
+
+    int  success;
+    char infoLog[512];
+    glGetShaderiv( vertexShader, GL_COMPILE_STATUS, &success );
+    if( !success )
+    {
+        glGetShaderInfoLog( vertexShader, 512, NULL, infoLog );
+        LOG( "ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
+        INVALID_CODE_PATH
+    }
+
+    const char *fragmentShaderSource =
+#include "shaders/black.fs.glsl"
+        ;
+
+    GLuint fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
+    glShaderSource( fragmentShader, 1, &fragmentShaderSource, NULL );
+    glCompileShader( fragmentShader );
+
+    glGetShaderiv( fragmentShader, GL_COMPILE_STATUS, &success );
+    if( !success )
+    {
+        glGetShaderInfoLog( fragmentShader, 512, NULL, infoLog );
+        LOG( "ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
+        INVALID_CODE_PATH
+    }
+
+    openGL.shaderProgram = glCreateProgram();
+    glAttachShader( openGL.shaderProgram, vertexShader );
+    glAttachShader( openGL.shaderProgram, fragmentShader );
+    glLinkProgram( openGL.shaderProgram );
+
+    glGetProgramiv( openGL.shaderProgram, GL_LINK_STATUS, &success );
+    if( !success )
+    {
+        glGetProgramInfoLog( openGL.shaderProgram, 512, NULL, infoLog );
+        LOG( "ERROR :: Shader program linkage failed!\n%s\n", infoLog );
+        INVALID_CODE_PATH
+    }
+
+    glDeleteShader( vertexShader );
+    glDeleteShader( fragmentShader );
+
 
     ASSERT_GL_STATE;
     return info;
@@ -144,68 +197,7 @@ OpenGLCreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
 internal void
 OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
 {
-    // TODO Store this in a 'global' OpenGL config
-    local_persistent GLuint shaderProgram;
-
     glViewport( 0, 0, commands.width, commands.height );
-    glClearColor( 0.95f, 0.95f, 0.95f, 1.0f );
-    glClear( GL_COLOR_BUFFER_BIT );
-
-    if( !openGL.initialized )
-    {
-        openGL.initialized = true;
-
-        // Compile shaders
-        const char *vertexShaderSource =
-#include "shaders/default.vs.glsl"
-            ;
-
-        GLuint vertexShader = glCreateShader( GL_VERTEX_SHADER );
-        glShaderSource( vertexShader, 1, &vertexShaderSource, NULL );
-        glCompileShader( vertexShader );
-
-        int  success;
-        char infoLog[512];
-        glGetShaderiv( vertexShader, GL_COMPILE_STATUS, &success );
-        if( !success )
-        {
-            glGetShaderInfoLog( vertexShader, 512, NULL, infoLog );
-            LOG( "ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
-            INVALID_CODE_PATH
-        }
-
-        const char *fragmentShaderSource =
-#include "shaders/black.fs.glsl"
-            ;
-
-        GLuint fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
-        glShaderSource( fragmentShader, 1, &fragmentShaderSource, NULL );
-        glCompileShader( fragmentShader );
-
-        glGetShaderiv( fragmentShader, GL_COMPILE_STATUS, &success );
-        if( !success )
-        {
-            glGetShaderInfoLog( fragmentShader, 512, NULL, infoLog );
-            LOG( "ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
-            INVALID_CODE_PATH
-        }
-
-        shaderProgram = glCreateProgram();
-        glAttachShader( shaderProgram, vertexShader );
-        glAttachShader( shaderProgram, fragmentShader );
-        glLinkProgram( shaderProgram );
-
-        glGetProgramiv( shaderProgram, GL_LINK_STATUS, &success );
-        if( !success )
-        {
-            glGetProgramInfoLog( shaderProgram, 512, NULL, infoLog );
-            LOG( "ERROR :: Shader program linkage failed!\n%s\n", infoLog );
-            INVALID_CODE_PATH
-        }
-
-        glDeleteShader( vertexShader );
-        glDeleteShader( fragmentShader );
-    }
 
     m4 mProj = OpenGLCreatePerspectiveMatrix( (r32)commands.width / commands.height, 50 );
     mProj = mProj * commands.mCamera;
@@ -213,42 +205,56 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
     glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     //glLineWidth( 3 );
 
-    glUseProgram( shaderProgram );
-
     RenderBuffer &buffer = commands.renderBuffer;
     for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
     {
-        RenderGroup &entry = *(RenderGroup *)(buffer.base + baseAddress);
-        baseAddress += sizeof(RenderGroup);
+        RenderEntry *entryHeader = (RenderEntry *)(buffer.base + baseAddress);
 
-        if( !entry.readyForRender )
+        switch( entryHeader->type )
         {
-            // Bind Vertex Array Object with all the needed configuration
-            u32 vertexBuffer;
-            u32 elementBuffer;
-            glGenVertexArrays( 1, &entry.VAO );
-            glBindVertexArray( entry.VAO );
+            case RenderEntryType::RenderEntryClear:
+            {
+                RenderEntryClear *entry = (RenderEntryClear *)entryHeader;
 
-            glGenBuffers( 1, &vertexBuffer );
-            glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
-            glBufferData( GL_ARRAY_BUFFER, entry.vertexCount*sizeof(v3), entry.vertices, GL_STATIC_DRAW );
-            glEnableVertexAttribArray( 0 );
-            glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
+                glClearColor( entry->color.r, entry->color.g, entry->color.b, entry->color.a ); 
+                glClear( GL_COLOR_BUFFER_BIT );
 
-            glGenBuffers( 1, &elementBuffer );
-            glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, elementBuffer );
-            glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry.indexCount*sizeof(u32), entry.indices, GL_STATIC_DRAW );
+                baseAddress += sizeof(*entry);
+            } break;
 
-            ASSERT_GL_STATE;
-            entry.readyForRender = true;
+            case RenderEntryType::RenderEntryGroup:
+            {
+                RenderEntryGroup *entry = (RenderEntryGroup *)entryHeader;
+
+                glUseProgram( openGL.shaderProgram );
+
+                // Bind Vertex Array Object with all the needed configuration
+                u32 vertexBuffer;
+                u32 elementBuffer;
+
+                glGenBuffers( 1, &vertexBuffer );
+                glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
+                glBufferData( GL_ARRAY_BUFFER, entry->vertexCount*sizeof(v3), entry->vertices, GL_STATIC_DRAW );
+                glEnableVertexAttribArray( 0 );
+                glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
+
+                glGenBuffers( 1, &elementBuffer );
+                glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, elementBuffer );
+                glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry->indexCount*sizeof(u32), entry->indices, GL_STATIC_DRAW );
+
+                // TODO Premultiply all vertices by the object transform and pass only camera/projection
+                m4 mTransform = mProj * (*entry->mTransform);
+                GLint transformId = glGetUniformLocation( openGL.shaderProgram, "mTransform" );
+                glUniformMatrix4fv( transformId, 1, GL_TRUE, mTransform.e[0] );
+
+                glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
+
+                baseAddress += sizeof(*entry);
+            } break;
+
+            INVALID_DEFAULT_CASE
         }
 
-        // TODO Pass somehow as an attribute once all this is in a giant buffer
-        m4 mTransform = mProj * (*entry.mTransform);
-        GLint transformId = glGetUniformLocation( shaderProgram, "mTransform" );
-        glUniformMatrix4fv( transformId, 1, GL_TRUE, mTransform.e[0] );
-
-        glBindVertexArray( entry.VAO );
-        glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
+        ASSERT_GL_STATE;
     }
 }

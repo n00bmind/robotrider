@@ -8,48 +8,7 @@
 #include "platform.h"
 #include "memory.h"
 #include "math.h"
-
-
-//
-// Renderer layer stuff
-//
-
-struct OpenGLInfo
-{
-    b32 modernContext;
-
-    const char *vendor;
-    const char *renderer;
-    const char *version;
-    const char *SLversion;
-    char *extensions[512];
-};
-
-struct OpenGLState
-{
-    b32 initialized;
-};
-
-struct RenderGroup
-{
-    v3 *vertices;
-    u32 vertexCount;
-    u32 *indices;
-    u32 indexCount;
-
-    m4 *mTransform;
-    u32 VAO;
-    u32 *renderHandle;
-    b32 readyForRender;
-};
-
-struct RenderBuffer
-{
-    u8 *base;
-    u32 size;
-    u32 maxSize;
-};
-
+#include "renderer.h"
 
 
 //

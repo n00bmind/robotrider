@@ -45,7 +45,7 @@
 #endif
 
 #define INVALID_CODE_PATH ASSERT("!InvalidCodePath")
-#define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH; } break
+#define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH; } break;
 
 // TODO Add support for different log levels (like in Android) and categories/filters
 #define LOG platform.Log
