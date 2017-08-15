@@ -1378,10 +1378,17 @@ WinMain( HINSTANCE hInstance,
 
                 // TODO Decide a proper size for this
                 u32 renderBufferSize = MEGABYTES( 4 );
-                void *renderBuffer = VirtualAlloc( 0, renderBufferSize,
-                                                   MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-                GameRenderCommands renderCommands = InitializeRenderCommands( renderBuffer,
-                                                                              renderBufferSize );
+                u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize,
+                                                       MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+                u32 vertexBufferSize = 1024*1024;
+                TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferSize * sizeof(TexturedVertex),
+                                                                               MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+                u32 indexBufferSize = vertexBufferSize;
+                u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferSize * sizeof(u32),
+                                                        MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+                GameRenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
+                                                                        vertexBuffer, vertexBufferSize,
+                                                                        indexBuffer, indexBufferSize );
 
                 i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
@@ -1481,11 +1488,10 @@ WinMain( HINSTANCE hInstance,
                         audioBuffer.frameCount = framesToWrite;
                         audioBuffer.samples = soundSamples;
 
+                        ResetRenderCommands( renderCommands );
                         Win32WindowDimension windowDim = Win32GetWindowDimension( window );
                         renderCommands.width = (u16)windowDim.width;
                         renderCommands.height = (u16)windowDim.height;
-                        // Reuse the render buffer
-                        renderCommands.renderBuffer.size = 0;
 
                         // Ask the game to render one frame
                         game.UpdateAndRender( &gameMemory, newInput, renderCommands, &audioBuffer );

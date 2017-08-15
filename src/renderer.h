@@ -4,6 +4,7 @@
 enum class RenderEntryType
 {
     RenderEntryClear,
+    RenderEntryTexturedTri,
     RenderEntryGroup,
 };
 
@@ -18,6 +19,21 @@ struct RenderEntryClear
     v4 color;
 };
 
+struct TexturedVertex
+{
+    v3 p;
+    u32 color;
+    v2 uv;
+};
+
+struct RenderEntryTexturedTri
+{
+    u32 vertexArrayOffset;
+    u32 indexArrayOffset;
+    // Material **materialArray;
+    u32 triCount;
+};
+
 struct RenderEntryGroup
 {
     RenderEntry header;
@@ -29,9 +45,24 @@ struct RenderEntryGroup
     m4 *mTransform;
 };
 
+
 struct RenderBuffer
 {
     u8 *base;
+    u32 size;
+    u32 maxSize;
+};
+
+struct VertexBuffer
+{
+    TexturedVertex *base;
+    u32 size;
+    u32 maxSize;
+};
+
+struct IndexBuffer
+{
+    u32 *base;
     u32 size;
     u32 maxSize;
 };

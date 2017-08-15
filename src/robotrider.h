@@ -31,18 +31,37 @@ struct GameRenderCommands
     m4 mCamera;
 
     RenderBuffer renderBuffer;
+    VertexBuffer vertexBuffer;
+    IndexBuffer indexBuffer;
 };
+
 inline GameRenderCommands
-InitializeRenderCommands( void *renderBuffer, u32 maxRenderBufferSize )
+InitRenderCommands( u8 *renderBuffer, u32 renderBufferSize,
+                          TexturedVertex *vertexBuffer, u32 vertexBufferSize,
+                          u32 *indexBuffer, u32 indexBufferSize )
 {
     GameRenderCommands result;
 
     result.mCamera = Identity();
-    result.renderBuffer.base = (u8 *)renderBuffer;
+    result.renderBuffer.base = renderBuffer;
     result.renderBuffer.size = 0;
-    result.renderBuffer.maxSize = maxRenderBufferSize;
+    result.renderBuffer.maxSize = renderBufferSize;
+    result.vertexBuffer.base = vertexBuffer;
+    result.vertexBuffer.size = 0;
+    result.vertexBuffer.maxSize = vertexBufferSize;
+    result.indexBuffer.base = indexBuffer;
+    result.indexBuffer.size = 0;
+    result.indexBuffer.maxSize = indexBufferSize;
 
     return result;
+}
+
+inline void
+ResetRenderCommands( GameRenderCommands &commands )
+{
+    commands.renderBuffer.size = 0;
+    commands.vertexBuffer.size = 0;
+    commands.indexBuffer.size = 0;
 }
 
 struct GameAudioBuffer

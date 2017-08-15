@@ -252,6 +252,36 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
                 baseAddress += sizeof(*entry);
             } break;
 
+            case RenderEntryType::RenderEntryTexturedTri:
+            {
+                u32 vertexBuffer, elementBuffer;
+                RenderEntryTexturedTri *entry = (RenderEntryTexturedTri *)entryHeader;
+
+                glUseProgram( openGL.shaderProgram );
+                // TODO Premultiply all vertices by the object transform and pass only camera/projection
+                GLint transformId = glGetUniformLocation( openGL.shaderProgram, "mTransform" );
+                glUniformMatrix4fv( transformId, 1, GL_TRUE, mProj.e[0] );
+
+                TexturedVertex *vertPtr = commands.vertexBuffer.base + entry->vertexArrayOffset;
+                // Material *matPtr = entry->materialArray;
+
+                //glGenBuffers( 1, &vertexBuffer );
+                //glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
+                //glBufferData( GL_ARRAY_BUFFER, entry->vertexCount*sizeof(v3), entry->vertices, GL_STATIC_DRAW );
+                //glEnableVertexAttribArray( 0 );
+                //glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
+
+                //glGenBuffers( 1, &elementBuffer );
+                //glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, elementBuffer );
+                //glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry->indexCount*sizeof(u32), entry->indices, GL_STATIC_DRAW );
+
+                glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
+
+                glUseProgram( 0 );
+
+                baseAddress += sizeof(*entry);
+            } break;
+
             INVALID_DEFAULT_CASE
         }
 

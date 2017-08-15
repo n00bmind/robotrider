@@ -35,14 +35,45 @@ PushClear( GameRenderCommands &commands, v4 color )
 internal void
 PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude )
 {
-    RenderEntryGroup *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryGroup );
+    //RenderEntryGroup *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryGroup );
+    //if( entry )
+    //{
+        //entry->vertices = dude.vertices;
+        //entry->vertexCount = ARRAYCOUNT( dude.vertices );
+        //entry->indices = dude.indices;
+        //entry->indexCount = ARRAYCOUNT( dude.indices );
+        //entry->mTransform = &dude.mTransform;
+    //}
+
+    RenderEntryTexturedTri *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryTexturedTri );
     if( entry )
     {
-        entry->vertices = dude.vertices;
-        entry->vertexCount = ARRAYCOUNT( dude.vertices );
-        entry->indices = dude.indices;
-        entry->indexCount = ARRAYCOUNT( dude.indices );
-        entry->mTransform = &dude.mTransform;
+        u32 vertexCount = ARRAYCOUNT( dude.vertices );
+        u32 indexCount = ARRAYCOUNT( dude.indices );
+
+        entry->vertexArrayOffset = commands.vertexBuffer.size;
+        entry->indexArrayOffset = commands.indexBuffer.size;
+        // Material **materialArray;
+        entry->triCount = indexCount / 3;
+
+        ASSERT( commands.vertexBuffer.size + vertexCount <= commands.vertexBuffer.maxSize );
+        TexturedVertex *vert = commands.vertexBuffer.base + commands.vertexBuffer.size;
+        for( u32 i = 0; i < vertexCount; ++i )
+        {
+            vert[i].p = dude.vertices[i];
+            // TODO Test this!
+            vert[i].color = RGBAPack( 255 * V4( 1, 1, 1, 1 ) );
+            vert[i].uv = { 0, 0 };
+        }
+        commands.vertexBuffer.size += vertexCount;
+
+        ASSERT( commands.indexBuffer.size + indexCount <= commands.indexBuffer.maxSize );
+        u32 *index = commands.indexBuffer.base + commands.indexBuffer.size;
+        for( u32 i = 0; i < indexCount; ++i )
+        {
+            index[i] = dude.indices[i];
+        }
+        commands.indexBuffer.size += indexCount;
     }
 }
 

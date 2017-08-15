@@ -13,4 +13,13 @@ Radians( r32 degrees )
     return result;
 }
 
+inline u32
+RGBAPack( v4 unpacked )
+{
+    u32 result = ((Round(unpacked.a) << 24)
+                | (Round(unpacked.b) << 16)
+                | (Round(unpacked.g) << 8)
+                | (Round(unpacked.r) << 0));
+    return result;
+}
 #endif /* __MATH_H__ */

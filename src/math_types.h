@@ -203,12 +203,25 @@ union v4
 };
 
 inline v4
+V4( r32 x, r32 y, r32 z, r32 w )
+{
+    v4 result = { x, y, z, w };
+    return result;
+}
+
+inline v4
 V4( const v3 &v, r32 w )
 {
     v4 result = { v.x, v.y, v.z, w };
     return result;
 }
 
+inline v4
+operator *( r32 f, const v4 &v )
+{
+    v4 result = { f * v.x, f * v.y, f * v.z, f * v.w };
+    return result;
+}
 
 // Matrix 4x4
 
