@@ -17,6 +17,10 @@ struct OpenGLInfo
 struct OpenGLState
 {
     GLuint shaderProgram;
+    GLint transformUniformId;
+    GLint pAttribIndex;
+    GLint uvAttribIndex;
+    GLint cAttribIndex;
 };
 
 // Pointers to extension functions setup natively by the platform
@@ -44,7 +48,8 @@ PFNGLUSEPROGRAMPROC	                    glUseProgram;
 PFNGLGETUNIFORMLOCATIONPROC	            glGetUniformLocation;
 PFNGLUNIFORMMATRIX4FVPROC	            glUniformMatrix4fv;
 PFNGLDEBUGMESSAGECALLBACKARBPROC	    glDebugMessageCallbackARB;
-
+PFNGLGETATTRIBLOCATIONPROC	            glGetAttribLocation;
+PFNGLDISABLEVERTEXATTRIBARRAYPROC       glDisableVertexAttribArray;
 
 
 #endif /* __OPENGL_RENDERER_H__ */

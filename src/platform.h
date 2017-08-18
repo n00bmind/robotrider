@@ -51,6 +51,7 @@
 #define LOG platform.Log
 
 #define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
+#define OFFSETOF(type, member) (mem_idx)&(((type *)0)->member)
 #define STR(s) _STR(s)
 #define _STR(s) #s
 

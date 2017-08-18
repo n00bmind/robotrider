@@ -19,6 +19,9 @@ _PushRenderElement( GameRenderCommands &commands, u32 size, RenderEntryType type
         INVALID_CODE_PATH
     }
 
+    // Reset currentTris so a new bundle is started
+    commands.currentTris = 0;
+
     return result;
 }
 
@@ -30,6 +33,23 @@ PushClear( GameRenderCommands &commands, v4 color )
     {
         entry->color = color;
     }
+}
+
+internal RenderEntryTexturedTris *
+GetOrCreateCurrentTris( GameRenderCommands &commands )
+{
+    // FIXME Artificially break the current bundle when we get to an estimated "optimum size"
+    // (I read somewhere that was 1 to 4 megs?)
+    if( !commands.currentTris )
+    {
+        commands.currentTris = PUSH_RENDER_ELEMENT( commands, RenderEntryTexturedTris );
+        commands.currentTris->triCount = 0;
+        commands.currentTris->vertexBufferOffset = commands.vertexBuffer.size;
+        commands.currentTris->indexBufferOffset = commands.indexBuffer.size;
+    }
+
+    RenderEntryTexturedTris *result = commands.currentTris;
+    return result;
 }
 
 internal void
@@ -45,22 +65,22 @@ PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude )
         //entry->mTransform = &dude.mTransform;
     //}
 
-    RenderEntryTexturedTri *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryTexturedTri );
+    RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {
         u32 vertexCount = ARRAYCOUNT( dude.vertices );
         u32 indexCount = ARRAYCOUNT( dude.indices );
 
-        entry->vertexArrayOffset = commands.vertexBuffer.size;
-        entry->indexArrayOffset = commands.indexBuffer.size;
-        // Material **materialArray;
-        entry->triCount = indexCount / 3;
+        entry->triCount += indexCount / 3;
 
         ASSERT( commands.vertexBuffer.size + vertexCount <= commands.vertexBuffer.maxSize );
         TexturedVertex *vert = commands.vertexBuffer.base + commands.vertexBuffer.size;
         for( u32 i = 0; i < vertexCount; ++i )
         {
-            vert[i].p = dude.vertices[i];
+            // Transform to world coordinates so this can all be rendered in chunks
+            // TODO Test me!
+            // FIXME Matrix multiplication should probably be SIMD'd
+            vert[i].p = dude.mTransform * dude.vertices[i];
             // TODO Test this!
             vert[i].color = RGBAPack( 255 * V4( 1, 1, 1, 1 ) );
             vert[i].uv = { 0, 0 };

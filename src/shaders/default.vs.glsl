@@ -1,13 +1,15 @@
 R"|(
 
 #version 330 core
-layout (location = 0) in vec3 pVertex;
-// TODO Should be an attribute at some point
+in vec3 pIn;
+in vec2 uvIn;
+in vec4 cIn;
+
 uniform mat4 mTransform;
 
 void main()
 {
-    gl_Position = mTransform * vec4(pVertex, 1.0);
+    gl_Position = mTransform * vec4(pIn, 1.0);
 }
 
 )|"

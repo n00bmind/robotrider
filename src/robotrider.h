@@ -33,6 +33,8 @@ struct GameRenderCommands
     RenderBuffer renderBuffer;
     VertexBuffer vertexBuffer;
     IndexBuffer indexBuffer;
+
+    RenderEntryTexturedTris *currentTris;
 };
 
 inline GameRenderCommands

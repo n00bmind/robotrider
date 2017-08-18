@@ -4,7 +4,7 @@
 enum class RenderEntryType
 {
     RenderEntryClear,
-    RenderEntryTexturedTri,
+    RenderEntryTexturedTris,
     RenderEntryGroup,
 };
 
@@ -26,10 +26,10 @@ struct TexturedVertex
     v2 uv;
 };
 
-struct RenderEntryTexturedTri
+struct RenderEntryTexturedTris
 {
-    u32 vertexArrayOffset;
-    u32 indexArrayOffset;
+    u32 vertexBufferOffset;
+    u32 indexBufferOffset;
     // Material **materialArray;
     u32 triCount;
 };

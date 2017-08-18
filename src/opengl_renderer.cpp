@@ -168,6 +168,10 @@ OpenGLInit( OpenGLState &openGL, bool modernContext )
     glDeleteShader( vertexShader );
     glDeleteShader( fragmentShader );
 
+    openGL.transformUniformId = glGetUniformLocation( openGL.shaderProgram, "mTransform" );
+    openGL.pAttribIndex = glGetAttribLocation( openGL.shaderProgram, "pIn" );
+    openGL.uvAttribIndex = glGetAttribLocation( openGL.shaderProgram, "uvIn" );
+    openGL.cAttribIndex = glGetAttribLocation( openGL.shaderProgram, "cIn" );
 
     ASSERT_GL_STATE;
     return info;
@@ -252,30 +256,36 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
                 baseAddress += sizeof(*entry);
             } break;
 
-            case RenderEntryType::RenderEntryTexturedTri:
+            case RenderEntryType::RenderEntryTexturedTris:
             {
                 u32 vertexBuffer, elementBuffer;
-                RenderEntryTexturedTri *entry = (RenderEntryTexturedTri *)entryHeader;
+                RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
                 glUseProgram( openGL.shaderProgram );
-                // TODO Premultiply all vertices by the object transform and pass only camera/projection
-                GLint transformId = glGetUniformLocation( openGL.shaderProgram, "mTransform" );
+                GLint transformId = openGL.transformUniformId;
                 glUniformMatrix4fv( transformId, 1, GL_TRUE, mProj.e[0] );
 
-                TexturedVertex *vertPtr = commands.vertexBuffer.base + entry->vertexArrayOffset;
                 // Material *matPtr = entry->materialArray;
 
-                //glGenBuffers( 1, &vertexBuffer );
-                //glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
-                //glBufferData( GL_ARRAY_BUFFER, entry->vertexCount*sizeof(v3), entry->vertices, GL_STATIC_DRAW );
-                //glEnableVertexAttribArray( 0 );
-                //glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
+                GLuint pAttribIndex = openGL.pAttribIndex;
+                GLuint uvAttribIndex = openGL.uvAttribIndex;
+                GLuint cAttribIndex = openGL.cAttribIndex;
 
-                //glGenBuffers( 1, &elementBuffer );
-                //glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, elementBuffer );
-                //glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry->indexCount*sizeof(u32), entry->indices, GL_STATIC_DRAW );
+                glEnableVertexAttribArray( pAttribIndex );
+                glEnableVertexAttribArray( uvAttribIndex );
+                glEnableVertexAttribArray( cAttribIndex );
 
-                glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
+                u8 *vertexBase = (u8 *)(commands.vertexBuffer.base + entry->vertexBufferOffset);
+                glVertexAttribPointer( pAttribIndex, 3, GL_FLOAT, false, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, p) );
+                glVertexAttribPointer( uvAttribIndex, 2, GL_FLOAT, false, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, uv) );
+                glVertexAttribPointer( cAttribIndex, 4, GL_UNSIGNED_BYTE, true, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, color)  );
+                
+                void *indexBase = (void *)(commands.indexBuffer.base + entry->indexBufferOffset);
+                glDrawElements( GL_TRIANGLES, entry->triCount * 3, GL_UNSIGNED_INT, indexBase );
+
+                glDisableVertexAttribArray( pAttribIndex );
+                glDisableVertexAttribArray( uvAttribIndex );
+                glDisableVertexAttribArray( cAttribIndex );
 
                 glUseProgram( 0 );
 
