@@ -1,6 +1,13 @@
 #ifndef __RENDERER_H__
 #define __RENDERER_H__ 
 
+enum class Renderer
+{
+    OpenGL,
+    // TODO OpenGLES,
+    // Software?
+};
+
 enum class RenderEntryType
 {
     RenderEntryClear,
@@ -16,6 +23,7 @@ struct RenderEntry
 struct RenderEntryClear
 {
     RenderEntry header;
+
     v4 color;
 };
 
@@ -28,6 +36,8 @@ struct TexturedVertex
 
 struct RenderEntryTexturedTris
 {
+    RenderEntry header;
+
     u32 vertexBufferOffset;
     u32 indexBufferOffset;
     // Material **materialArray;
@@ -37,6 +47,7 @@ struct RenderEntryTexturedTris
 struct RenderEntryGroup
 {
     RenderEntry header;
+
     v3 *vertices;
     u32 vertexCount;
     u32 *indices;

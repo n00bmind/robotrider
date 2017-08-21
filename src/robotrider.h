@@ -39,8 +39,8 @@ struct GameRenderCommands
 
 inline GameRenderCommands
 InitRenderCommands( u8 *renderBuffer, u32 renderBufferSize,
-                          TexturedVertex *vertexBuffer, u32 vertexBufferSize,
-                          u32 *indexBuffer, u32 indexBufferSize )
+                    TexturedVertex *vertexBuffer, u32 vertexBufferSize,
+                    u32 *indexBuffer, u32 indexBufferSize )
 {
     GameRenderCommands result;
 

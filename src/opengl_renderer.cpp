@@ -272,20 +272,20 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
                 GLuint cAttribIndex = openGL.cAttribIndex;
 
                 glEnableVertexAttribArray( pAttribIndex );
-                glEnableVertexAttribArray( uvAttribIndex );
-                glEnableVertexAttribArray( cAttribIndex );
+                //glEnableVertexAttribArray( uvAttribIndex );
+                //glEnableVertexAttribArray( cAttribIndex );
 
                 u8 *vertexBase = (u8 *)(commands.vertexBuffer.base + entry->vertexBufferOffset);
                 glVertexAttribPointer( pAttribIndex, 3, GL_FLOAT, false, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, p) );
-                glVertexAttribPointer( uvAttribIndex, 2, GL_FLOAT, false, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, uv) );
-                glVertexAttribPointer( cAttribIndex, 4, GL_UNSIGNED_BYTE, true, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, color)  );
+                //glVertexAttribPointer( uvAttribIndex, 2, GL_FLOAT, false, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, uv) );
+                //glVertexAttribPointer( cAttribIndex, 4, GL_UNSIGNED_BYTE, true, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, color)  );
                 
                 void *indexBase = (void *)(commands.indexBuffer.base + entry->indexBufferOffset);
                 glDrawElements( GL_TRIANGLES, entry->triCount * 3, GL_UNSIGNED_INT, indexBase );
 
                 glDisableVertexAttribArray( pAttribIndex );
-                glDisableVertexAttribArray( uvAttribIndex );
-                glDisableVertexAttribArray( cAttribIndex );
+                //glDisableVertexAttribArray( uvAttribIndex );
+                //glDisableVertexAttribArray( cAttribIndex );
 
                 glUseProgram( 0 );
 

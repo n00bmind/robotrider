@@ -44,7 +44,7 @@
 #define NOT_IMPLEMENTED NotImplemented!!!
 #endif
 
-#define INVALID_CODE_PATH ASSERT("!InvalidCodePath")
+#define INVALID_CODE_PATH ASSERT(!"InvalidCodePath")
 #define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH; } break;
 
 // TODO Add support for different log levels (like in Android) and categories/filters
@@ -76,13 +76,6 @@ typedef double r64;
 
 typedef size_t mem_idx;
 
-
-enum class Renderer
-{
-    OpenGL,
-    // TODO OpenGLES,
-    // Software?
-};
 
 
 //
