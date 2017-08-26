@@ -119,7 +119,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     m4 mPlayerRot = ZRotation( gameState->playerYaw ) * XRotation( gameState->playerPitch );
     pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
     dude.mTransform = RotPos( mPlayerRot, pPlayer );
-    PushRenderGroup( renderCommands, dude );
+    //PushRenderGroup( renderCommands, dude );
 
     gameState->pPlayer = pPlayer;
 
@@ -175,7 +175,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     for( u32 i = 0; i < tranState->cubeCount; ++i )
     {
         CubeThing *cube = tranState->cubes + i;
-        //PushRenderGroup( renderCommands, *cube );
+        PushRenderGroup( renderCommands, *cube );
     }
 
     EndTemporaryMemory( renderMemory );

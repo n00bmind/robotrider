@@ -16,7 +16,10 @@ struct OpenGLInfo
 
 struct OpenGLState
 {
+    GLuint vertexBuffer;
+    GLuint indexBuffer;
     GLuint shaderProgram;
+
     GLint transformUniformId;
     GLint pAttribIndex;
     GLint uvAttribIndex;

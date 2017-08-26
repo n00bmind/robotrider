@@ -116,6 +116,10 @@ OpenGLInit( OpenGLState &openGL, bool modernContext )
     glBindVertexArray( dummyVAO );
 #endif
 
+    glGenBuffers( 1, &openGL.vertexBuffer );
+    glBindBuffer( GL_ARRAY_BUFFER, openGL.vertexBuffer );
+    glGenBuffers( 1, &openGL.indexBuffer );
+    glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, openGL.indexBuffer );
 
     // Compile shaders
     const char *vertexShaderSource =
@@ -258,7 +262,6 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
 
             case RenderEntryType::RenderEntryTexturedTris:
             {
-                u32 vertexBuffer, elementBuffer;
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
                 glUseProgram( openGL.shaderProgram );
@@ -275,13 +278,23 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
                 //glEnableVertexAttribArray( uvAttribIndex );
                 //glEnableVertexAttribArray( cAttribIndex );
 
-                u8 *vertexBase = (u8 *)(commands.vertexBuffer.base + entry->vertexBufferOffset);
-                glVertexAttribPointer( pAttribIndex, 3, GL_FLOAT, false, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, p) );
-                //glVertexAttribPointer( uvAttribIndex, 2, GL_FLOAT, false, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, uv) );
-                //glVertexAttribPointer( cAttribIndex, 4, GL_UNSIGNED_BYTE, true, sizeof(TexturedVertex), vertexBase + OFFSETOF(TexturedVertex, color)  );
-                
-                void *indexBase = (void *)(commands.indexBuffer.base + entry->indexBufferOffset);
-                glDrawElements( GL_TRIANGLES, entry->triCount * 3, GL_UNSIGNED_INT, indexBase );
+                // TODO This call should be done just once per frame at the very beginning..
+                glBufferData( GL_ARRAY_BUFFER,
+                              commands.vertexBuffer.size * sizeof(TexturedVertex),
+                              commands.vertexBuffer.base,
+                              GL_STREAM_DRAW );
+
+                glVertexAttribPointer( pAttribIndex, 3, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, p) );
+                //glVertexAttribPointer( uvAttribIndex, 2, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, uv) );
+                //glVertexAttribPointer( cAttribIndex, 4, GL_UNSIGNED_BYTE, true, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color)  );
+
+                // TODO This call should be done just once per frame at the very beginning..
+                glBufferData( GL_ELEMENT_ARRAY_BUFFER,
+                              commands.indexBuffer.size * sizeof(u32),
+                              commands.indexBuffer.base,
+                              GL_STREAM_DRAW );
+
+                glDrawElements( GL_TRIANGLES, 3 * entry->triCount, GL_UNSIGNED_INT, (void *)(u64)entry->indexBufferOffset );
 
                 glDisableVertexAttribArray( pAttribIndex );
                 //glDisableVertexAttribArray( uvAttribIndex );

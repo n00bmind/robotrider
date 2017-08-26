@@ -55,16 +55,6 @@ GetOrCreateCurrentTris( GameRenderCommands &commands )
 internal void
 PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude )
 {
-    //RenderEntryGroup *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryGroup );
-    //if( entry )
-    //{
-        //entry->vertices = dude.vertices;
-        //entry->vertexCount = ARRAYCOUNT( dude.vertices );
-        //entry->indices = dude.indices;
-        //entry->indexCount = ARRAYCOUNT( dude.indices );
-        //entry->mTransform = &dude.mTransform;
-    //}
-
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {
@@ -77,9 +67,9 @@ PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude )
         TexturedVertex *vert = commands.vertexBuffer.base + commands.vertexBuffer.size;
         for( u32 i = 0; i < vertexCount; ++i )
         {
-            // Transform to world coordinates so this can all be rendered in chunks
+            // Transform to world coordinates so this can all be rendered in big chunks
             // TODO Test me!
-            // FIXME Matrix multiplication should probably be SIMD'd
+            // TODO Matrix multiplication should probably be SIMD'd
             vert[i].p = dude.mTransform * dude.vertices[i];
             // TODO Test this!
             vert[i].color = RGBAPack( 255 * V4( 1, 1, 1, 1 ) );
@@ -100,13 +90,43 @@ PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude )
 internal void
 PushRenderGroup( GameRenderCommands &commands, CubeThing &cube )
 {
-    RenderEntryGroup *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryGroup );
+    //RenderEntryGroup *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryGroup );
+    //if( entry )
+    //{
+        //entry->vertices = cube.vertices;
+        //entry->vertexCount = ARRAYCOUNT( cube.vertices );
+        //entry->indices = cube.indices;
+        //entry->indexCount = ARRAYCOUNT( cube.indices );
+        //entry->mTransform = &cube.mTransform;
+    //}
+    RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {
-        entry->vertices = cube.vertices;
-        entry->vertexCount = ARRAYCOUNT( cube.vertices );
-        entry->indices = cube.indices;
-        entry->indexCount = ARRAYCOUNT( cube.indices );
-        entry->mTransform = &cube.mTransform;
+        u32 vertexCount = ARRAYCOUNT( cube.vertices );
+        u32 indexCount = ARRAYCOUNT( cube.indices );
+
+        entry->triCount += indexCount / 3;
+
+        ASSERT( commands.vertexBuffer.size + vertexCount <= commands.vertexBuffer.maxSize );
+        TexturedVertex *vert = commands.vertexBuffer.base + commands.vertexBuffer.size;
+        for( u32 i = 0; i < vertexCount; ++i )
+        {
+            // Transform to world coordinates so this can all be rendered in big chunks
+            // TODO Test me!
+            // TODO Matrix multiplication should probably be SIMD'd
+            vert[i].p = /*cube.mTransform */ cube.vertices[i];
+            // TODO Test this!
+            vert[i].color = RGBAPack( 255 * V4( 1, 1, 1, 1 ) );
+            vert[i].uv = { 0, 0 };
+        }
+        commands.vertexBuffer.size += vertexCount;
+
+        ASSERT( commands.indexBuffer.size + indexCount <= commands.indexBuffer.maxSize );
+        u32 *index = commands.indexBuffer.base + commands.indexBuffer.size;
+        for( u32 i = 0; i < indexCount; ++i )
+        {
+            index[i] = cube.indices[i];
+        }
+        commands.indexBuffer.size += indexCount;
     }
 }
