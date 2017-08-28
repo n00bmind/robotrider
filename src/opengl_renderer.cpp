@@ -207,10 +207,10 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
 {
     glViewport( 0, 0, commands.width, commands.height );
 
-    m4 mProj = OpenGLCreatePerspectiveMatrix( (r32)commands.width / commands.height, 50 );
-    mProj = mProj * commands.mCamera;
+    m4 mProjView = OpenGLCreatePerspectiveMatrix( (r32)commands.width / commands.height, 50 );
+    mProjView = mProjView * commands.mCamera;
 
-    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     //glLineWidth( 3 );
 
     RenderBuffer &buffer = commands.renderBuffer;
@@ -251,7 +251,7 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry->indexCount*sizeof(u32), entry->indices, GL_STATIC_DRAW );
 
                 // TODO Premultiply all vertices by the object transform and pass only camera/projection
-                m4 mTransform = mProj * (*entry->mTransform);
+                m4 mTransform = mProjView * (*entry->mTransform);
                 GLint transformId = glGetUniformLocation( openGL.shaderProgram, "mTransform" );
                 glUniformMatrix4fv( transformId, 1, GL_TRUE, mTransform.e[0] );
 
@@ -266,7 +266,7 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
 
                 glUseProgram( openGL.shaderProgram );
                 GLint transformId = openGL.transformUniformId;
-                glUniformMatrix4fv( transformId, 1, GL_TRUE, mProj.e[0] );
+                glUniformMatrix4fv( transformId, 1, GL_TRUE, mProjView.e[0] );
 
                 // Material *matPtr = entry->materialArray;
 
@@ -274,15 +274,15 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
                 GLuint uvAttribIndex = openGL.uvAttribIndex;
                 GLuint cAttribIndex = openGL.cAttribIndex;
 
+                // TODO This call should be done just once per frame at the very beginning..
+                glBufferData( GL_ARRAY_BUFFER,
+                              commands.vertexBuffer.count * sizeof(TexturedVertex),
+                              commands.vertexBuffer.base,
+                              GL_STREAM_DRAW );
+
                 glEnableVertexAttribArray( pAttribIndex );
                 //glEnableVertexAttribArray( uvAttribIndex );
                 //glEnableVertexAttribArray( cAttribIndex );
-
-                // TODO This call should be done just once per frame at the very beginning..
-                glBufferData( GL_ARRAY_BUFFER,
-                              commands.vertexBuffer.size * sizeof(TexturedVertex),
-                              commands.vertexBuffer.base,
-                              GL_STREAM_DRAW );
 
                 glVertexAttribPointer( pAttribIndex, 3, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, p) );
                 //glVertexAttribPointer( uvAttribIndex, 2, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, uv) );
@@ -290,7 +290,7 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
 
                 // TODO This call should be done just once per frame at the very beginning..
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER,
-                              commands.indexBuffer.size * sizeof(u32),
+                              commands.indexBuffer.count * sizeof(u32),
                               commands.indexBuffer.base,
                               GL_STREAM_DRAW );
 

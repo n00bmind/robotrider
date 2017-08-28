@@ -67,15 +67,15 @@ struct RenderBuffer
 struct VertexBuffer
 {
     TexturedVertex *base;
-    u32 size;
-    u32 maxSize;
+    u32 count;
+    u32 maxCount;
 };
 
 struct IndexBuffer
 {
     u32 *base;
-    u32 size;
-    u32 maxSize;
+    u32 count;
+    u32 maxCount;
 };
 
 #endif /* __RENDERER_H__ */

@@ -44,8 +44,8 @@ GetOrCreateCurrentTris( GameRenderCommands &commands )
     {
         commands.currentTris = PUSH_RENDER_ELEMENT( commands, RenderEntryTexturedTris );
         commands.currentTris->triCount = 0;
-        commands.currentTris->vertexBufferOffset = commands.vertexBuffer.size;
-        commands.currentTris->indexBufferOffset = commands.indexBuffer.size;
+        commands.currentTris->vertexBufferOffset = commands.vertexBuffer.count;
+        commands.currentTris->indexBufferOffset = commands.indexBuffer.count;
     }
 
     RenderEntryTexturedTris *result = commands.currentTris;
@@ -63,8 +63,8 @@ PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude )
 
         entry->triCount += indexCount / 3;
 
-        ASSERT( commands.vertexBuffer.size + vertexCount <= commands.vertexBuffer.maxSize );
-        TexturedVertex *vert = commands.vertexBuffer.base + commands.vertexBuffer.size;
+        ASSERT( commands.vertexBuffer.count + vertexCount <= commands.vertexBuffer.maxCount );
+        TexturedVertex *vert = commands.vertexBuffer.base + commands.vertexBuffer.count;
         for( u32 i = 0; i < vertexCount; ++i )
         {
             // Transform to world coordinates so this can all be rendered in big chunks
@@ -75,15 +75,15 @@ PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude )
             vert[i].color = RGBAPack( 255 * V4( 1, 1, 1, 1 ) );
             vert[i].uv = { 0, 0 };
         }
-        commands.vertexBuffer.size += vertexCount;
+        commands.vertexBuffer.count += vertexCount;
 
-        ASSERT( commands.indexBuffer.size + indexCount <= commands.indexBuffer.maxSize );
-        u32 *index = commands.indexBuffer.base + commands.indexBuffer.size;
+        ASSERT( commands.indexBuffer.count + indexCount <= commands.indexBuffer.maxCount );
+        u32 *index = commands.indexBuffer.base + commands.indexBuffer.count;
         for( u32 i = 0; i < indexCount; ++i )
         {
             index[i] = dude.indices[i];
         }
-        commands.indexBuffer.size += indexCount;
+        commands.indexBuffer.count += indexCount;
     }
 }
 
@@ -107,26 +107,26 @@ PushRenderGroup( GameRenderCommands &commands, CubeThing &cube )
 
         entry->triCount += indexCount / 3;
 
-        ASSERT( commands.vertexBuffer.size + vertexCount <= commands.vertexBuffer.maxSize );
-        TexturedVertex *vert = commands.vertexBuffer.base + commands.vertexBuffer.size;
+        ASSERT( commands.vertexBuffer.count + vertexCount <= commands.vertexBuffer.maxCount );
+        TexturedVertex *vert = commands.vertexBuffer.base + commands.vertexBuffer.count;
         for( u32 i = 0; i < vertexCount; ++i )
         {
             // Transform to world coordinates so this can all be rendered in big chunks
             // TODO Test me!
             // TODO Matrix multiplication should probably be SIMD'd
-            vert[i].p = /*cube.mTransform */ cube.vertices[i];
+            vert[i].p = cube.mTransform * cube.vertices[i];
             // TODO Test this!
             vert[i].color = RGBAPack( 255 * V4( 1, 1, 1, 1 ) );
             vert[i].uv = { 0, 0 };
         }
-        commands.vertexBuffer.size += vertexCount;
+        commands.vertexBuffer.count += vertexCount;
 
-        ASSERT( commands.indexBuffer.size + indexCount <= commands.indexBuffer.maxSize );
-        u32 *index = commands.indexBuffer.base + commands.indexBuffer.size;
+        ASSERT( commands.indexBuffer.count + indexCount <= commands.indexBuffer.maxCount );
+        u32 *index = commands.indexBuffer.base + commands.indexBuffer.count;
         for( u32 i = 0; i < indexCount; ++i )
         {
             index[i] = cube.indices[i];
         }
-        commands.indexBuffer.size += indexCount;
+        commands.indexBuffer.count += indexCount;
     }
 }

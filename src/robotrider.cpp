@@ -76,7 +76,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             r32 transX = (((i32)i % 32) - 16) * 2.0f;
             r32 transY = ((i32)i / 32) * 2.0f;
 
-            cube.mTransform = Translation( { transX, transY, -1.0f } );
+            cube.mTransform = Translation( { transX, transY, -10.0f } );
         }
 
         tranState->isInitialized = true;
@@ -128,7 +128,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v3 pCam = dude.mTransform * V3( 0, -2, 1 );
     v3 pLookAt = dude.mTransform * V3( 0, 1, 0 );
     v3 vUp = GetColumn( dude.mTransform, 2 ).xyz; //{ 0, 0, 1 }; 
-    renderCommands.mCamera = CameraLookAt( pCam, pLookAt, vUp );
+    //renderCommands.mCamera = CameraLookAt( pCam, pLookAt, vUp );
+    renderCommands.mCamera = Identity();
+
 /*
     // Monitor distance from player
     // NOTE This is totally inneficient and unnecesary!
