@@ -210,7 +210,7 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
     m4 mProjView = OpenGLCreatePerspectiveMatrix( (r32)commands.width / commands.height, 50 );
     mProjView = mProjView * commands.mCamera;
 
-    //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
     //glLineWidth( 3 );
 
     RenderBuffer &buffer = commands.renderBuffer;
@@ -250,7 +250,6 @@ OpenGLRenderToOutput( OpenGLState &openGL, GameRenderCommands &commands )
                 glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, elementBuffer );
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry->indexCount*sizeof(u32), entry->indices, GL_STATIC_DRAW );
 
-                // TODO Premultiply all vertices by the object transform and pass only camera/projection
                 m4 mTransform = mProjView * (*entry->mTransform);
                 GLint transformId = glGetUniformLocation( openGL.shaderProgram, "mTransform" );
                 glUniformMatrix4fv( transformId, 1, GL_TRUE, mTransform.e[0] );

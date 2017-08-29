@@ -68,37 +68,29 @@ PushRenderGroup( GameRenderCommands &commands, FlyingDude &dude )
         for( u32 i = 0; i < vertexCount; ++i )
         {
             // Transform to world coordinates so this can all be rendered in big chunks
-            // TODO Test me!
             // TODO Matrix multiplication should probably be SIMD'd
             vert[i].p = dude.mTransform * dude.vertices[i];
             // TODO Test this!
             vert[i].color = RGBAPack( 255 * V4( 1, 1, 1, 1 ) );
             vert[i].uv = { 0, 0 };
         }
+        int indexOffset = commands.vertexBuffer.count;
         commands.vertexBuffer.count += vertexCount;
 
         ASSERT( commands.indexBuffer.count + indexCount <= commands.indexBuffer.maxCount );
         u32 *index = commands.indexBuffer.base + commands.indexBuffer.count;
         for( u32 i = 0; i < indexCount; ++i )
         {
-            index[i] = dude.indices[i];
+            index[i] = indexOffset + dude.indices[i];
         }
         commands.indexBuffer.count += indexCount;
     }
+
 }
 
 internal void
 PushRenderGroup( GameRenderCommands &commands, CubeThing &cube )
 {
-    //RenderEntryGroup *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryGroup );
-    //if( entry )
-    //{
-        //entry->vertices = cube.vertices;
-        //entry->vertexCount = ARRAYCOUNT( cube.vertices );
-        //entry->indices = cube.indices;
-        //entry->indexCount = ARRAYCOUNT( cube.indices );
-        //entry->mTransform = &cube.mTransform;
-    //}
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {
@@ -112,20 +104,20 @@ PushRenderGroup( GameRenderCommands &commands, CubeThing &cube )
         for( u32 i = 0; i < vertexCount; ++i )
         {
             // Transform to world coordinates so this can all be rendered in big chunks
-            // TODO Test me!
             // TODO Matrix multiplication should probably be SIMD'd
             vert[i].p = cube.mTransform * cube.vertices[i];
             // TODO Test this!
             vert[i].color = RGBAPack( 255 * V4( 1, 1, 1, 1 ) );
             vert[i].uv = { 0, 0 };
         }
+        int indexOffset = commands.vertexBuffer.count;
         commands.vertexBuffer.count += vertexCount;
 
         ASSERT( commands.indexBuffer.count + indexCount <= commands.indexBuffer.maxCount );
         u32 *index = commands.indexBuffer.base + commands.indexBuffer.count;
         for( u32 i = 0; i < indexCount; ++i )
         {
-            index[i] = cube.indices[i];
+            index[i] = indexOffset + cube.indices[i];
         }
         commands.indexBuffer.count += indexCount;
     }

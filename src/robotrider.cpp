@@ -53,7 +53,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         };
         dude.mTransform = Identity();
 
-        tranState->cubeCount = 32*32;
+        int rowSize = 31;
+        int rowHalf = rowSize >> 1;
+        tranState->cubeCount = rowSize * rowSize;
         tranState->cubes = PUSH_ARRAY( &tranState->transientArena, tranState->cubeCount, CubeThing );
 
         for( u32 i = 0; i < tranState->cubeCount; ++i )
@@ -73,10 +75,10 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 },
             };
 
-            r32 transX = (((i32)i % 32) - 16) * 2.0f;
-            r32 transY = ((i32)i / 32) * 2.0f;
+            r32 transX = (((i32)i % rowSize) - rowHalf) * 2.0f;
+            r32 transY = ((i32)i / rowSize) * 2.0f;
 
-            cube.mTransform = Translation( { transX, transY, -10.0f } );
+            cube.mTransform = Translation( { transX, transY, -1.0f } );
         }
 
         tranState->isInitialized = true;
@@ -90,7 +92,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     PushClear( renderCommands, { 0.95f, 0.95f, 0.95f, 1.0f } );
 
     FlyingDude &dude = *tranState->dude;
-    v3 pPlayer = gameState->pPlayer; //GetTranslation( dude.mTransform );
+    v3 pPlayer = gameState->pPlayer;
 
     v3 vPlayerDelta = {};
     if( input0->dLeft.endedDown )
@@ -119,7 +121,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     m4 mPlayerRot = ZRotation( gameState->playerYaw ) * XRotation( gameState->playerPitch );
     pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
     dude.mTransform = RotPos( mPlayerRot, pPlayer );
-    //PushRenderGroup( renderCommands, dude );
+    PushRenderGroup( renderCommands, dude );
 
     gameState->pPlayer = pPlayer;
 
@@ -127,52 +129,8 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // TODO Use a PID controller
     v3 pCam = dude.mTransform * V3( 0, -2, 1 );
     v3 pLookAt = dude.mTransform * V3( 0, 1, 0 );
-    v3 vUp = GetColumn( dude.mTransform, 2 ).xyz; //{ 0, 0, 1 }; 
-    //renderCommands.mCamera = CameraLookAt( pCam, pLookAt, vUp );
-    renderCommands.mCamera = Identity();
-
-/*
-    // Monitor distance from player
-    // NOTE This is totally inneficient and unnecesary!
-    for( i32 y = (i32)pPlayer.y - 32; y < (i32)pPlayer.y + 32; y += 2 )
-    {
-        for( i32 x = (i32)pPlayer.x - 32; x < (i32)pPlayer.x + 32; x += 2 )
-        {
-            v2i pXY = { x, y };
-
-            CubeThing *furthestCube = 0;
-            r32 furthestLengthSq = 0.f;
-            for( u32 i = 0; i < tranState->cubeCount; ++i )
-            {
-                CubeThing *cube = tranState->cubes + i;
-                v3 pCube = GetTranslation( cube->mTransform );
-
-                if( AreEqual( Round( pCube.xy ), pXY ) )
-                {
-                    PushRenderGroup( renderCommands, *cube );
-                    furthestCube = 0;
-                    break;
-                }
-                else
-                {
-                    v2 pRel = pPlayer.xy - pCube.xy;
-                    r32 lengthSq = LengthSq( pRel );
-                    if( lengthSq > furthestLengthSq )
-                    {
-                        furthestLengthSq = lengthSq;
-                        furthestCube = cube;
-                    }
-                }
-            }
-
-            if( furthestCube )
-            {
-                SetTranslation( furthestCube->mTransform, V3( V2( pXY ), 0 ) );
-                PushRenderGroup( renderCommands, *furthestCube );
-            }
-        }
-    }
-*/
+    v3 vUp = GetColumn( dude.mTransform, 2 ).xyz;
+    renderCommands.mCamera = CameraLookAt( pCam, pLookAt, vUp );
 
     for( u32 i = 0; i < tranState->cubeCount; ++i )
     {
