@@ -14,6 +14,21 @@ struct OpenGLInfo
     char *extensions[512];
 };
 
+struct OpenGLImGuiState
+{
+    GLuint program;
+    GLuint vertShader;
+    GLuint fragShader;
+
+    GLint texUniformId;
+    GLint projUniformId;
+    GLint pAttribId;
+    GLint uvAttribId;
+    GLint cAttribId;
+
+    GLuint fontTexture;
+};
+
 struct OpenGLState
 {
     GLuint vertexBuffer;
@@ -21,9 +36,11 @@ struct OpenGLState
     GLuint shaderProgram;
 
     GLint transformUniformId;
-    GLint pAttribIndex;
-    GLint uvAttribIndex;
-    GLint cAttribIndex;
+    GLint pAttribId;
+    GLint uvAttribId;
+    GLint cAttribId;
+
+    OpenGLImGuiState imGui;
 };
 
 // Pointers to extension functions setup natively by the platform
@@ -53,6 +70,9 @@ PFNGLUNIFORMMATRIX4FVPROC	            glUniformMatrix4fv;
 PFNGLDEBUGMESSAGECALLBACKARBPROC	    glDebugMessageCallbackARB;
 PFNGLGETATTRIBLOCATIONPROC	            glGetAttribLocation;
 PFNGLDISABLEVERTEXATTRIBARRAYPROC       glDisableVertexAttribArray;
+PFNGLACTIVETEXTUREPROC	                glActiveTexture;
+PFNGLBLENDEQUATIONPROC	                glBlendEquation;
+PFNGLUNIFORM1IPROC	                    glUniform1i;
 
 
 #endif /* __OPENGL_RENDERER_H__ */

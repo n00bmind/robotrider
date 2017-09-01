@@ -27,15 +27,15 @@
 // Common definitions
 //
 
-#define global static
 #define internal static
 #define local_persistent static
 
 
 #if DEBUG
-#define ASSERT(expression) if( !(expression) ) { *(int *)0 = 0; }
+#define HALT() ( (*(int *)0 = 0) != 0 )
+#define ASSERT(expr) ((void)( !(expr) && (_assert_handler( #expr, __FILE__, __LINE__ ), 1) && HALT()))
 #else
-#define ASSERT(expression)
+#define ASSERT(expr) ((void)0)
 #endif
 
 #if DEBUG
@@ -44,14 +44,14 @@
 #define NOT_IMPLEMENTED NotImplemented!!!
 #endif
 
-#define INVALID_CODE_PATH ASSERT(!"InvalidCodePath")
+#define INVALID_CODE_PATH ASSERT(!"InvalidCodePath");
 #define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH; } break;
 
 // TODO Add support for different log levels (like in Android) and categories/filters
 #define LOG platform.Log
 
 #define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
-#define OFFSETOF(type, member) (mem_idx)&(((type *)0)->member)
+#define OFFSETOF(type, member) ((mem_idx)&(((type *)0)->member))
 #define STR(s) _STR(s)
 #define _STR(s) #s
 
@@ -110,6 +110,15 @@ struct PlatformAPI
     PlatformLogFunc *Log;
 };
 extern PlatformAPI platform;
+
+
+typedef void (*AssertHandler)( const char *, const char *, int );
+
+void DefaultAssertHandler( const char *expr, const char *file, int line )
+{
+    LOG( "ASSERTION FAILED! :: '%s'\n", expr );
+}
+AssertHandler _assert_handler = DefaultAssertHandler;
 
 
 #endif /* __PLATFORM_H__ */

@@ -1,12 +1,15 @@
 #include "robotrider.h"
-
 #include <windows.h>
+
 #include <gl/gl.h>
 #include "glext.h"
 #include "wglext.h"
 #define GL_DEBUG_CALLBACK(name) \
     void WINAPI name( GLenum source, GLenum type, GLuint id, GLenum severity, \
                       GLsizei length, const GLchar *message, const void *userParam )
+#include "imgui/imgui.cpp"
+#include "imgui/imgui_draw.cpp"
+#include "imgui/imgui_demo.cpp"
 #include "opengl_renderer.h"
 #include "opengl_renderer.cpp"
 
@@ -32,14 +35,14 @@
 #include "win32_platform.h"
 
 PlatformAPI platform;
-OpenGLState openGLState;
-global bool globalRunning;
-global u32 globalMonitorRefreshHz;
-global IAudioClient* globalAudioClient;
-global IAudioRenderClient* globalAudioRenderClient;
-global i64 globalPerfCounterFrequency;
-global HCURSOR DEBUGglobalCursor;
-global bool DEBUGglobalDebugging;
+internal OpenGLState openGLState;
+internal bool globalRunning;
+internal u32 globalMonitorRefreshHz;
+internal IAudioClient* globalAudioClient;
+internal IAudioRenderClient* globalAudioRenderClient;
+internal i64 globalPerfCounterFrequency;
+internal HCURSOR DEBUGglobalCursor;
+internal bool DEBUGglobalDebugging;
 
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
@@ -197,7 +200,7 @@ XINPUT_GET_STATE(XInputGetStateStub)
 {
     return ERROR_DEVICE_NOT_CONNECTED;
 }
-global XInputGetStateFunc *XInputGetState_ = XInputGetStateStub;
+internal XInputGetStateFunc *XInputGetState_ = XInputGetStateStub;
 #define XInputGetState XInputGetState_
 
 #define XINPUT_SET_STATE(name) DWORD WINAPI name( DWORD dwUserIndex, XINPUT_VIBRATION* pVibration )
@@ -206,7 +209,7 @@ XINPUT_SET_STATE(XInputSetStateStub)
 {
     return ERROR_DEVICE_NOT_CONNECTED;
 }
-global XInputSetStateFunc *XInputSetState_ = XInputSetStateStub;
+internal XInputSetStateFunc *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
 internal void
@@ -397,6 +400,7 @@ Win32DisplayInWindow( GameRenderCommands &commands, HDC deviceContext, int windo
         case Renderer::OpenGL:
         {
             OpenGLRenderToOutput( openGLState, commands );
+            ImGui::Render();
             SwapBuffers( deviceContext );
         } break;
 
@@ -1243,6 +1247,9 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
     BINDGLPROC( glDebugMessageCallbackARB, PFNGLDEBUGMESSAGECALLBACKARBPROC );
     BINDGLPROC( glGetAttribLocation, PFNGLGETATTRIBLOCATIONPROC );
     BINDGLPROC( glDisableVertexAttribArray, PFNGLDISABLEVERTEXATTRIBARRAYPROC );
+    BINDGLPROC( glActiveTexture, PFNGLACTIVETEXTUREPROC );
+    BINDGLPROC( glBlendEquation, PFNGLBLENDEQUATIONPROC );
+    BINDGLPROC( glUniform1i, PFNGLUNIFORM1IPROC );
 #undef BINDGLPROC
 
 
@@ -1367,7 +1374,10 @@ WinMain( HINSTANCE hInstance,
                 LPVOID baseAddress = 0;
 #if DEBUG
                 baseAddress = (LPVOID)GIGABYTES((u64)2048);
+
+                OpenGLInitImGui( openGLState );
 #endif
+
                 // Allocate game memory pools
                 u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
                 // TODO Use MEM_LARGE_PAGES and call AdjustTokenPrivileges when not in XP
@@ -1447,6 +1457,7 @@ WinMain( HINSTANCE hInstance,
 
                     Win32GameCode game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
 
+                    // Main loop
                     u32 runningFrameCounter = 0;
                     while( globalRunning )
                     {
@@ -1461,10 +1472,29 @@ WinMain( HINSTANCE hInstance,
                             newInput->executableReloaded = true;
                         }
 
+                        Win32WindowDimension windowDim = Win32GetWindowDimension( window );
+                        renderCommands.width = (u16)windowDim.width;
+                        renderCommands.height = (u16)windowDim.height;
+
                         // Process input
                         GameControllerInput *newKeyMouseController = Win32ResetKeyMouseController( oldInput, newInput );
                         Win32ProcessPendingMessages( &platformState, newInput, newKeyMouseController );
                         Win32ProcessXInputControllers( oldInput, newInput );
+
+#if DEBUG
+                        // Setup ImGui frame
+                        ImGuiIO &io = ImGui::GetIO();
+                        io.DeltaTime = lastDeltaTimeSecs;
+                        io.DisplaySize.x = (r32)windowDim.width;
+                        io.DisplaySize.y = (r32)windowDim.height;
+                        io.MousePos = ImVec2( (float)newInput->mouseX, (float)newInput->mouseY );
+                        io.MouseWheel = (float)newInput->mouseZ;
+                        io.MouseDown[0] = !!newInput->mouseButtons[0].endedDown;
+                        io.MouseDown[1] = !!newInput->mouseButtons[1].endedDown;
+                        io.MouseDown[2] = !!newInput->mouseButtons[2].endedDown;
+                        io.MouseDown[3] = !!newInput->mouseButtons[3].endedDown;
+                        io.MouseDown[4] = !!newInput->mouseButtons[4].endedDown;
+                        ImGui::NewFrame();
 
                         if( platformState.inputRecordingIndex )
                         {
@@ -1474,33 +1504,31 @@ WinMain( HINSTANCE hInstance,
                         {
                             Win32PlayBackInput( &platformState, newInput );
                         }
+#endif
 
-                        u32 framesToWrite = 0;
+                        u32 audioFramesToWrite = 0;
                         u32 audioPaddingFrames;
                         if( SUCCEEDED(globalAudioClient->GetCurrentPadding( &audioPaddingFrames )) )
                         {
                             // TODO Try priming the buffer with something like half a frame's worth of silence
 
-                            framesToWrite = audioOutput.bufferSizeFrames - audioPaddingFrames;
+                            audioFramesToWrite = audioOutput.bufferSizeFrames - audioPaddingFrames;
                         }
 
                         // Prepare audio & video buffers
                         GameAudioBuffer audioBuffer = {};
                         audioBuffer.samplesPerSecond = audioOutput.samplingRate;
                         audioBuffer.channelCount = AUDIO_CHANNELS;
-                        audioBuffer.frameCount = framesToWrite;
+                        audioBuffer.frameCount = audioFramesToWrite;
                         audioBuffer.samples = soundSamples;
 
                         ResetRenderCommands( renderCommands );
-                        Win32WindowDimension windowDim = Win32GetWindowDimension( window );
-                        renderCommands.width = (u16)windowDim.width;
-                        renderCommands.height = (u16)windowDim.height;
 
                         // Ask the game to render one frame
                         game.UpdateAndRender( &gameMemory, newInput, renderCommands, &audioBuffer );
 
                         // Blit audio buffer to output
-                        Win32BlitAudioBuffer( &audioBuffer, framesToWrite, &audioOutput );
+                        Win32BlitAudioBuffer( &audioBuffer, audioFramesToWrite, &audioOutput );
 
                         GameInput *temp = newInput;
                         newInput = oldInput;
@@ -1541,6 +1569,8 @@ WinMain( HINSTANCE hInstance,
                             // TODO Log missed frame rate
                         }
 #endif
+                        ImGui::ShowTestWindow();
+
                         // Blit video to output
                         Win32DisplayInWindow( renderCommands, deviceContext, windowDim.width, windowDim.height );
 
