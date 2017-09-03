@@ -2,12 +2,12 @@
 #include "renderer.cpp"
 
 
-PlatformAPI platform;
+PlatformAPI globalPlatform;
 
 LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
-    platform = memory->platformAPI;
+    globalPlatform = memory->platformAPI;
 
     // Init storage for the game state
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );

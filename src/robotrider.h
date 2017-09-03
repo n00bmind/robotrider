@@ -91,6 +91,7 @@ struct GameStickState
 
 struct GameButtonState
 {
+    // TODO Is this one really necessary? Review how we're using it, if at all
     int halfTransitionCount;
     b32 endedDown;
 };

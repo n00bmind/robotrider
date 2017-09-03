@@ -34,8 +34,8 @@
 
 #include "win32_platform.h"
 
-PlatformAPI platform;
-internal OpenGLState openGLState;
+PlatformAPI globalPlatform;
+internal OpenGLState globalOpenGLState;
 internal bool globalRunning;
 internal u32 globalMonitorRefreshHz;
 internal IAudioClient* globalAudioClient;
@@ -399,7 +399,7 @@ Win32DisplayInWindow( GameRenderCommands &commands, HDC deviceContext, int windo
     {
         case Renderer::OpenGL:
         {
-            OpenGLRenderToOutput( openGLState, commands );
+            OpenGLRenderToOutput( globalOpenGLState, commands );
             ImGui::Render();
             SwapBuffers( deviceContext );
         } break;
@@ -637,6 +637,22 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
         }
     }
 
+}
+
+internal void
+Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput, float elapsedSeconds )
+{
+    GameInput *temp = newInput;
+    newInput = oldInput;
+    oldInput = temp;
+
+    newInput->executableReloaded = false;
+    newInput->mouseX = oldInput->mouseX;
+    newInput->mouseY = oldInput->mouseY;
+    newInput->mouseZ = oldInput->mouseZ;
+    for( int i = 0; i < ARRAYCOUNT(newInput->mouseButtons); ++i )
+        newInput->mouseButtons[i] = oldInput->mouseButtons[i];
+    newInput->secondsElapsed = elapsedSeconds;
 }
 
 
@@ -1253,7 +1269,7 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
 #undef BINDGLPROC
 
 
-    OpenGLInfo info = OpenGLInit( openGLState, true );
+    OpenGLInfo info = OpenGLInit( globalOpenGLState, true );
 
 
     // VSync
@@ -1276,16 +1292,15 @@ WinMain( HINSTANCE hInstance,
          LPSTR lpCmdLine,
          int nCmdShow )
 {
+    globalPlatform.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
+    globalPlatform.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
+    globalPlatform.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
+    globalPlatform.Log = PlatformLog;
 
     GameMemory gameMemory = {};
     gameMemory.permanentStorageSize = MEGABYTES(64);
     gameMemory.transientStorageSize = GIGABYTES((u64)1);
-    gameMemory.platformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
-    gameMemory.platformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
-    gameMemory.platformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
-    gameMemory.platformAPI.Log = PlatformLog;
-
-    platform = gameMemory.platformAPI;
+    gameMemory.platformAPI = globalPlatform;
 
     Win32State platformState = {};
     Win32GetExeFilename( &platformState );
@@ -1375,7 +1390,7 @@ WinMain( HINSTANCE hInstance,
 #if DEBUG
                 baseAddress = (LPVOID)GIGABYTES((u64)2048);
 
-                OpenGLInitImGui( openGLState );
+                OpenGLInitImGui( globalOpenGLState );
 #endif
 
                 // Allocate game memory pools
@@ -1461,8 +1476,7 @@ WinMain( HINSTANCE hInstance,
                     u32 runningFrameCounter = 0;
                     while( globalRunning )
                     {
-                        newInput->executableReloaded = false;
-                        newInput->secondsElapsed = lastDeltaTimeSecs;
+                        Win32PrepareInputData( oldInput, newInput, lastDeltaTimeSecs );
 
                         FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
                         if( CompareFileTime( &dllWriteTime, &game.lastDLLWriteTime ) != 0 )
@@ -1482,6 +1496,12 @@ WinMain( HINSTANCE hInstance,
                         Win32ProcessXInputControllers( oldInput, newInput );
 
 #if DEBUG
+                        if( DEBUGglobalDebugging )
+                        {
+                            // Discard all input to the key&mouse controller
+                            Win32ResetKeyMouseController( oldInput, newInput );
+                        }
+
                         // Setup ImGui frame
                         ImGuiIO &io = ImGui::GetIO();
                         io.DeltaTime = lastDeltaTimeSecs;
@@ -1529,10 +1549,6 @@ WinMain( HINSTANCE hInstance,
 
                         // Blit audio buffer to output
                         Win32BlitAudioBuffer( &audioBuffer, audioFramesToWrite, &audioOutput );
-
-                        GameInput *temp = newInput;
-                        newInput = oldInput;
-                        oldInput = temp;
 
                         i64 endCycleCounter = __rdtsc();
                         u64 cyclesElapsed = endCycleCounter - lastCycleCounter;

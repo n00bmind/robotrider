@@ -48,7 +48,7 @@
 #define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH; } break;
 
 // TODO Add support for different log levels (like in Android) and categories/filters
-#define LOG platform.Log
+#define LOG globalPlatform.Log
 
 #define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
 #define OFFSETOF(type, member) ((mem_idx)&(((type *)0)->member))
@@ -109,7 +109,7 @@ struct PlatformAPI
 
     PlatformLogFunc *Log;
 };
-extern PlatformAPI platform;
+extern PlatformAPI globalPlatform;
 
 
 typedef void (*AssertHandler)( const char *, const char *, int );
