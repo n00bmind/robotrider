@@ -21,5 +21,5 @@ if not exist %RRBIN% mkdir %RRBIN%
 pushd %RRBIN%
 del *.pdb >NUL 2>NUL
 cl %COMMONFLAGS% %CFGFLAGS% ..\%RRSRC%\robotrider.cpp -Fmrobotrider.map -LD /link %LINKERFLAGS% /PDB:rr_%random%.pdb
-cl %COMMONFLAGS% %CFGFLAGS% ..\%RRSRC%\win32_platform.cpp -Fmwin32_platform.map /link %LINKERFLAGS% -subsystem:windows,5.2 %LIBS%
+cl %COMMONFLAGS% %CFGFLAGS% ..\%RRSRC%\win32_platform.cpp -Fmwin32_platform.map -Ferr.exe /link %LINKERFLAGS% -subsystem:windows,5.2 %LIBS%
 popd

@@ -41,8 +41,11 @@ internal u32 globalMonitorRefreshHz;
 internal IAudioClient* globalAudioClient;
 internal IAudioRenderClient* globalAudioRenderClient;
 internal i64 globalPerfCounterFrequency;
+#if DEBUG
 internal HCURSOR DEBUGglobalCursor;
 internal bool DEBUGglobalDebugging;
+internal bool DEBUGglobalEditing;
+#endif
 
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
@@ -138,7 +141,7 @@ PLATFORM_LOG(PlatformLog)
     vsprintf_s( buffer, ARRAYCOUNT(buffer), fmt, args );
     va_end( args );
 
-    OutputDebugString( buffer );
+    printf( "%s\n", buffer );
 }
 
 
@@ -818,6 +821,25 @@ Win32HideWindow( HWND window )
     SetWindowPlacement( window, &wp );
 }
 
+void
+Win32ToggleGlobalDebugging( HWND window )
+{
+    DEBUGglobalDebugging = !DEBUGglobalDebugging;
+    SetCursor( DEBUGglobalDebugging ? DEBUGglobalCursor : 0 );
+
+    LONG_PTR curStyle = GetWindowLongPtr( window,
+                                          GWL_EXSTYLE );
+    LONG_PTR newStyle = DEBUGglobalDebugging
+        ? (curStyle | WS_EX_LAYERED)
+        : (curStyle & ~WS_EX_LAYERED);
+
+    SetWindowLongPtr( window, GWL_EXSTYLE,
+                      newStyle );
+    SetWindowPos( window, DEBUGglobalDebugging
+                  ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                  SWP_NOMOVE | SWP_NOSIZE );
+}
+
 
 internal void
 Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameControllerInput *keyMouseController )
@@ -913,29 +935,23 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
                             Win32EndInputPlayback( platformState );
                             Win32ResetController( keyMouseController );
                         }
+                        else if( DEBUGglobalDebugging )
+                        {
+                            DEBUGglobalEditing = false;
+                            Win32ToggleGlobalDebugging( platformState->mainWindow );
+                        }
                         else
                         {
-                            // TODO Change this to two consecutive presses
                             globalRunning = false;
                         }
                     }
                     // TODO This may only work in the spanish keyboard?
                     else if( vkCode == VK_OEM_5 )
                     {
-                        DEBUGglobalDebugging = !DEBUGglobalDebugging;
-                        SetCursor( DEBUGglobalDebugging ? DEBUGglobalCursor : 0 );
-
-                        LONG_PTR curStyle = GetWindowLongPtr( platformState->mainWindow,
-                                                              GWL_EXSTYLE );
-                        LONG_PTR newStyle = DEBUGglobalDebugging
-                            ? (curStyle | WS_EX_LAYERED)
-                            : (curStyle & ~WS_EX_LAYERED);
-
-                        SetWindowLongPtr( platformState->mainWindow, GWL_EXSTYLE,
-                                          newStyle );
-                        SetWindowPos( platformState->mainWindow, DEBUGglobalDebugging
-                                      ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
-                                      SWP_NOMOVE | SWP_NOSIZE );
+                        if( DEBUGglobalDebugging )
+                            DEBUGglobalEditing = true;
+                        else
+                            Win32ToggleGlobalDebugging( platformState->mainWindow );
                     }
                     else if( vkCode == '1' )
                     {
@@ -958,7 +974,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
 
             //case WM_CHAR:
             //{
-                //// TODO Enter text somewhere
+                //// TODO Enter text somewhere (ImGUI)
             //} break;
 
 #define GET_SIGNED_LO(dw) ((int)(short)LOWORD(dw))
@@ -1060,7 +1076,6 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
         }
     }
 }
-
 
 LRESULT CALLBACK
 Win32WindowProc( HWND hwnd,
@@ -1516,6 +1531,9 @@ WinMain( HINSTANCE hInstance,
                         io.MouseDown[4] = !!newInput->mouseButtons[4].endedDown;
                         ImGui::NewFrame();
 
+                        if( DEBUGglobalDebugging )
+                            ImGui::ShowTestWindow();
+
                         if( platformState.inputRecordingIndex )
                         {
                             Win32RecordInput( &platformState, newInput );
@@ -1585,7 +1603,6 @@ WinMain( HINSTANCE hInstance,
                             // TODO Log missed frame rate
                         }
 #endif
-                        ImGui::ShowTestWindow();
 
                         // Blit video to output
                         Win32DisplayInWindow( renderCommands, deviceContext, windowDim.width, windowDim.height );
