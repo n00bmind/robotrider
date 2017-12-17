@@ -1,15 +1,15 @@
 #include "robotrider.h"
 #include <windows.h>
 
+#include "imgui/imgui_draw.cpp"
+#include "imgui/imgui.cpp"
+
 #include <gl/gl.h>
 #include "glext.h"
 #include "wglext.h"
 #define GL_DEBUG_CALLBACK(name) \
     void WINAPI name( GLenum source, GLenum type, GLuint id, GLenum severity, \
                       GLsizei length, const GLchar *message, const void *userParam )
-#include "imgui/imgui.cpp"
-#include "imgui/imgui_draw.cpp"
-#include "imgui/imgui_demo.cpp"
 #include "opengl_renderer.h"
 #include "opengl_renderer.cpp"
 
@@ -43,8 +43,6 @@ internal IAudioRenderClient* globalAudioRenderClient;
 internal i64 globalPerfCounterFrequency;
 #if DEBUG
 internal HCURSOR DEBUGglobalCursor;
-internal bool DEBUGglobalDebugging;
-internal bool DEBUGglobalEditing;
 #endif
 
 
@@ -160,7 +158,7 @@ Win32GetLastWriteTime( char *filename )
 }
 
 internal Win32GameCode
-Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath )
+Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameState *gameState )
 {
     Win32GameCode result = {};
     result.lastDLLWriteTime = Win32GetLastWriteTime( sourceDLLPath );
@@ -169,15 +167,16 @@ Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath )
     result.gameCodeDLL = LoadLibrary( tempDLLPath );
     if( result.gameCodeDLL )
     {
+        result.SetupAfterReload = (GameSetupAfterReloadFunc *)GetProcAddress( result.gameCodeDLL, "GameSetupAfterReload" );
         result.UpdateAndRender = (GameUpdateAndRenderFunc *)GetProcAddress( result.gameCodeDLL, "GameUpdateAndRender" );
 
-        result.isValid = result.UpdateAndRender != 0;
+        result.isValid = result.SetupAfterReload != 0 && result.UpdateAndRender != 0;
     }
 
-    if( !result.isValid )
-    {
+    if( result.isValid )
+        result.SetupAfterReload( gameState );
+    else
         result.UpdateAndRender = GameUpdateAndRenderStub;
-    }
 
     return result;
 }
@@ -822,27 +821,28 @@ Win32HideWindow( HWND window )
 }
 
 void
-Win32ToggleGlobalDebugging( HWND window )
+Win32ToggleGlobalDebugging( GameState *gameState, HWND window )
 {
-    DEBUGglobalDebugging = !DEBUGglobalDebugging;
-    SetCursor( DEBUGglobalDebugging ? DEBUGglobalCursor : 0 );
+    gameState->DEBUGglobalDebugging = !gameState->DEBUGglobalDebugging;
+    SetCursor( gameState->DEBUGglobalDebugging ? DEBUGglobalCursor : 0 );
 
     LONG_PTR curStyle = GetWindowLongPtr( window,
                                           GWL_EXSTYLE );
-    LONG_PTR newStyle = DEBUGglobalDebugging
+    LONG_PTR newStyle = gameState->DEBUGglobalDebugging
         ? (curStyle | WS_EX_LAYERED)
         : (curStyle & ~WS_EX_LAYERED);
 
     SetWindowLongPtr( window, GWL_EXSTYLE,
                       newStyle );
-    SetWindowPos( window, DEBUGglobalDebugging
+    SetWindowPos( window, gameState->DEBUGglobalDebugging
                   ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
                   SWP_NOMOVE | SWP_NOSIZE );
 }
 
 
 internal void
-Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameControllerInput *keyMouseController )
+Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
+                             GameInput *input, GameControllerInput *keyMouseController )
 {
     MSG message;
     b32 altKeyDown = false;
@@ -935,10 +935,10 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
                             Win32EndInputPlayback( platformState );
                             Win32ResetController( keyMouseController );
                         }
-                        else if( DEBUGglobalDebugging )
+                        else if( gameState->DEBUGglobalDebugging )
                         {
-                            DEBUGglobalEditing = false;
-                            Win32ToggleGlobalDebugging( platformState->mainWindow );
+                            gameState->DEBUGglobalEditing = false;
+                            Win32ToggleGlobalDebugging( gameState, platformState->mainWindow );
                         }
                         else
                         {
@@ -948,10 +948,10 @@ Win32ProcessPendingMessages( Win32State *platformState, GameInput *input, GameCo
                     // TODO This may only work in the spanish keyboard?
                     else if( vkCode == VK_OEM_5 )
                     {
-                        if( DEBUGglobalDebugging )
-                            DEBUGglobalEditing = true;
+                        if( gameState->DEBUGglobalDebugging )
+                            gameState->DEBUGglobalEditing = true;
                         else
-                            Win32ToggleGlobalDebugging( platformState->mainWindow );
+                            Win32ToggleGlobalDebugging( gameState, platformState->mainWindow );
                     }
                     else if( vkCode == '1' )
                     {
@@ -1105,7 +1105,7 @@ Win32WindowProc( HWND hwnd,
 
         case WM_SETCURSOR:
         {
-            SetCursor( DEBUGglobalDebugging ? DEBUGglobalCursor : 0 );
+            SetCursor( DEBUGglobalCursor );
         } break;
 
         case WM_SYSKEYDOWN:
@@ -1404,8 +1404,6 @@ WinMain( HINSTANCE hInstance,
                 LPVOID baseAddress = 0;
 #if DEBUG
                 baseAddress = (LPVOID)GIGABYTES((u64)2048);
-
-                OpenGLInitImGui( globalOpenGLState );
 #endif
 
                 // Allocate game memory pools
@@ -1418,6 +1416,8 @@ WinMain( HINSTANCE hInstance,
 
                 platformState.gameMemoryBlock = gameMemory.permanentStorage;
                 platformState.gameMemorySize = totalSize;
+
+                GameState *gameState = (GameState *)gameMemory.permanentStorage;
 
                 // TODO Decide a proper size for this
                 u32 renderBufferSize = MEGABYTES( 4 );
@@ -1467,6 +1467,8 @@ WinMain( HINSTANCE hInstance,
                 }
 #endif
 
+                gameState->imGuiContext = OpenGLInitImGui( globalOpenGLState );
+
                 if( gameMemory.permanentStorage && gameMemory.transientStorage && soundSamples )
                 {
                     GameInput input[2] = {};
@@ -1485,7 +1487,7 @@ WinMain( HINSTANCE hInstance,
                     LARGE_INTEGER lastCounter = Win32GetWallClock();
                     i64 lastCycleCounter = __rdtsc();
 
-                    Win32GameCode game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
+                    Win32GameCode game = Win32LoadGameCode( sourceDLLPath, tempDLLPath, gameState );
 
                     // Main loop
                     u32 runningFrameCounter = 0;
@@ -1497,7 +1499,7 @@ WinMain( HINSTANCE hInstance,
                         if( CompareFileTime( &dllWriteTime, &game.lastDLLWriteTime ) != 0 )
                         {
                             Win32UnloadGameCode( &game );
-                            game = Win32LoadGameCode( sourceDLLPath, tempDLLPath );
+                            game = Win32LoadGameCode( sourceDLLPath, tempDLLPath, gameState );
                             newInput->executableReloaded = true;
                         }
 
@@ -1507,15 +1509,25 @@ WinMain( HINSTANCE hInstance,
 
                         // Process input
                         GameControllerInput *newKeyMouseController = Win32ResetKeyMouseController( oldInput, newInput );
-                        Win32ProcessPendingMessages( &platformState, newInput, newKeyMouseController );
+                        Win32ProcessPendingMessages( &platformState, gameState, newInput, newKeyMouseController );
                         Win32ProcessXInputControllers( oldInput, newInput );
 
 #if DEBUG
-                        if( DEBUGglobalDebugging )
+                        if( gameState->DEBUGglobalDebugging )
                         {
                             // Discard all input to the key&mouse controller
                             Win32ResetKeyMouseController( oldInput, newInput );
                         }
+
+                        if( platformState.inputRecordingIndex )
+                        {
+                            Win32RecordInput( &platformState, newInput );
+                        }
+                        if( platformState.inputPlaybackIndex )
+                        {
+                            Win32PlayBackInput( &platformState, newInput );
+                        }
+#endif
 
                         // Setup ImGui frame
                         ImGuiIO &io = ImGui::GetIO();
@@ -1530,19 +1542,6 @@ WinMain( HINSTANCE hInstance,
                         io.MouseDown[3] = !!newInput->mouseButtons[3].endedDown;
                         io.MouseDown[4] = !!newInput->mouseButtons[4].endedDown;
                         ImGui::NewFrame();
-
-                        if( DEBUGglobalDebugging )
-                            ImGui::ShowTestWindow();
-
-                        if( platformState.inputRecordingIndex )
-                        {
-                            Win32RecordInput( &platformState, newInput );
-                        }
-                        if( platformState.inputPlaybackIndex )
-                        {
-                            Win32PlayBackInput( &platformState, newInput );
-                        }
-#endif
 
                         u32 audioFramesToWrite = 0;
                         u32 audioPaddingFrames;

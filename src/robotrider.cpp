@@ -1,17 +1,31 @@
 #include "robotrider.h"
 #include "renderer.cpp"
-
+#include "gui.cpp"
 
 PlatformAPI globalPlatform;
+
+
+LIB_EXPORT
+GAME_SETUP_AFTER_RELOAD(GameSetupAfterReload)
+{
+    // Re-set platform's ImGui context
+    ImGui::SetCurrentContext( gameState->imGuiContext );
+}
 
 LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     globalPlatform = memory->platformAPI;
 
-    // Init storage for the game state
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
     GameState *gameState = (GameState *)memory->permanentStorage;
+
+#if DEBUG
+    if( gameState->DEBUGglobalDebugging )
+        ImGui::ShowTestWindow();
+#endif
+
+    // Init game arena
     if( !memory->isInitialized )
     {
         InitializeArena( &gameState->gameArena,
@@ -21,7 +35,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         memory->isInitialized = true;
     }
 
-    // Init storage for the transient state
+    // Init transient arena
     ASSERT( sizeof(TransientState) <= memory->transientStorageSize );
     TransientState *tranState = (TransientState *)memory->transientStorage;
     if( input->executableReloaded )

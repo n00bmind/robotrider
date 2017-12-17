@@ -371,9 +371,17 @@ inline void SetupImGuiStyle( bool bStyleDark_, float alpha_  )
     }
 }
 
-internal void
+internal ImGuiContext *
 OpenGLInitImGui( OpenGLState &gl )
 {
+    LOG( "Initializing ImGui version %s", ImGui::GetVersion() );
+
+    // We're gonna create our own ImGui context instead of relying on the default one,
+    // FIXME We also should create an arena for all ImGui and pass a custom allocator/free here (and not use new!)
+    ImGuiContext *context = ImGui::CreateContext( NULL, NULL );
+    ImGui::SetCurrentContext( context );
+    ImGui::GetIO().Fonts = new ImFontAtlas();
+
     const GLchar *vertShader =
         "#version 330\n"
         "uniform mat4 ProjMtx;\n"
@@ -494,6 +502,8 @@ OpenGLInitImGui( OpenGLState &gl )
     style.Colors[ImGuiCol_ModalWindowDarkening]  = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
     */
     SetupImGuiStyle( true, 0.98f );
+
+    return context;
 }
 
 internal void

@@ -31,6 +31,7 @@ struct Win32GameCode
     HMODULE gameCodeDLL;
     FILETIME lastDLLWriteTime;
 
+    GameSetupAfterReloadFunc *SetupAfterReload;
     GameUpdateAndRenderFunc *UpdateAndRender;
 
     b32 isValid;

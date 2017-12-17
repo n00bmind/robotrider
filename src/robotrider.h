@@ -10,7 +10,6 @@
 #include "math.h"
 #include "renderer.h"
 
-
 //
 // Game entry points & data types for the platform layer
 //
@@ -163,6 +162,29 @@ struct GameMemory
     PlatformAPI platformAPI;
 };
 
+struct ImGuiContext;
+
+struct GameState
+{
+    MemoryArena gameArena;
+    ImGuiContext* imGuiContext;
+
+#if DEBUG
+    bool DEBUGglobalDebugging;
+    bool DEBUGglobalEditing;
+#endif
+
+    v3 pPlayer;
+    r32 playerPitch;
+    r32 playerYaw;
+};
+
+
+#ifndef GAME_SETUP_AFTER_RELOAD
+#define GAME_SETUP_AFTER_RELOAD(name) \
+    void name( GameState *gameState )
+#endif
+typedef GAME_SETUP_AFTER_RELOAD(GameSetupAfterReloadFunc);
 
 #ifndef GAME_UPDATE_AND_RENDER
 #define GAME_UPDATE_AND_RENDER(name) \
@@ -195,15 +217,6 @@ struct CubeThing
 
     m4 mTransform;
     u32 renderHandle;
-};
-
-struct GameState
-{
-    MemoryArena gameArena;
-
-    v3 pPlayer;
-    r32 playerPitch;
-    r32 playerYaw;
 };
 
 struct TransientState
