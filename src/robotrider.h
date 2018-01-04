@@ -132,7 +132,7 @@ struct GameControllerInput
 struct GameInput
 {
     b32 executableReloaded;
-    r32 secondsElapsed;
+    r32 frameElapsedSeconds;
 
     GameControllerInput _controllers[5];
 
@@ -162,12 +162,37 @@ struct GameMemory
     PlatformAPI platformAPI;
 };
 
+enum class ConsoleEntryType
+{
+    LogOutput,
+    History,
+    CommandOutput,
+};
+
+struct ConsoleEntry
+{
+    // FIXME This is absurd and we should allocate this as needed in the gameArena
+    char text[1024];
+    ConsoleEntryType type;
+};
+
+struct GameConsole
+{
+    ConsoleEntry entries[4096];
+    char inputBuffer[1024];
+
+    bool scrollToBottom;
+};
+
+
 struct ImGuiContext;
 
 struct GameState
 {
     MemoryArena gameArena;
     ImGuiContext* imGuiContext;
+
+    GameConsole gameConsole;
 
 #if DEBUG
     bool DEBUGglobalDebugging;

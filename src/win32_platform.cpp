@@ -654,7 +654,7 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput, float elapsed
     newInput->mouseZ = oldInput->mouseZ;
     for( int i = 0; i < ARRAYCOUNT(newInput->mouseButtons); ++i )
         newInput->mouseButtons[i] = oldInput->mouseButtons[i];
-    newInput->secondsElapsed = elapsedSeconds;
+    newInput->frameElapsedSeconds = elapsedSeconds;
 }
 
 
@@ -1095,7 +1095,7 @@ Win32WindowProc( HWND hwnd,
             }
             else
             {
-                SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 80, LWA_ALPHA );
+                SetLayeredWindowAttributes( hwnd, RGB( 0, 0, 0 ), 128, LWA_ALPHA );
             }
         } break;
 
@@ -1498,6 +1498,8 @@ WinMain( HINSTANCE hInstance,
                         FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
                         if( CompareFileTime( &dllWriteTime, &game.lastDLLWriteTime ) != 0 )
                         {
+                            // FIXME Seems to be not working reliably!?
+                            LOG( "Detected updated game DLL. Reloading.." );
                             Win32UnloadGameCode( &game );
                             game = Win32LoadGameCode( sourceDLLPath, tempDLLPath, gameState );
                             newInput->executableReloaded = true;
