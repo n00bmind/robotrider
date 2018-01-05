@@ -355,6 +355,37 @@ Win32BlitAudioBuffer( GameAudioBuffer *sourceBuffer, u32 framesToWrite, Win32Aud
     }
 }
 
+internal ImGuiContext *
+Win32InitImGui( HWND window )
+{
+    ImGuiContext *result = OpenGLInitImGui( globalOpenGLState );
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.KeyMap[ImGuiKey_Tab] = VK_TAB;                       // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array that we will update during the application lifetime.
+    io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
+    io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
+    io.KeyMap[ImGuiKey_UpArrow] = VK_UP;
+    io.KeyMap[ImGuiKey_DownArrow] = VK_DOWN;
+    io.KeyMap[ImGuiKey_PageUp] = VK_PRIOR;
+    io.KeyMap[ImGuiKey_PageDown] = VK_NEXT;
+    io.KeyMap[ImGuiKey_Home] = VK_HOME;
+    io.KeyMap[ImGuiKey_End] = VK_END;
+    io.KeyMap[ImGuiKey_Delete] = VK_DELETE;
+    io.KeyMap[ImGuiKey_Backspace] = VK_BACK;
+    io.KeyMap[ImGuiKey_Enter] = VK_RETURN;
+    io.KeyMap[ImGuiKey_Escape] = VK_ESCAPE;
+    io.KeyMap[ImGuiKey_A] = 'A';
+    io.KeyMap[ImGuiKey_C] = 'C';
+    io.KeyMap[ImGuiKey_V] = 'V';
+    io.KeyMap[ImGuiKey_X] = 'X';
+    io.KeyMap[ImGuiKey_Y] = 'Y';
+    io.KeyMap[ImGuiKey_Z] = 'Z';
+
+    io.ImeWindowHandle = window;
+
+    return result;
+}
+
 
 internal Win32WindowDimension
 Win32GetWindowDimension( HWND window )
@@ -862,10 +893,19 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
             case WM_KEYDOWN:
             case WM_KEYUP:
             {
-                u32 vkCode = SafeTruncToU32( message.wParam );
+                // Allow WM_CHAR messages to be sent
+                TranslateMessage( &message );
+
                 bool wasDown = ((message.lParam & (1 << 30)) != 0);
                 bool isDown =  ((message.lParam & (1 << 31)) == 0);
-                if( isDown != wasDown )
+
+                u32 vkCode = SafeTruncToU32( message.wParam );
+                if( vkCode < 256 )
+                    imGuiIO.KeysDown[vkCode] = isDown ? 1 : 0;
+
+                // Set button states (only for up/down transitions)
+                // (don't ever send keys to game if ImGui is handling them)
+                if( isDown != wasDown && !imGuiIO.WantCaptureKeyboard )
                 {
                     if( vkCode == 'W' )
                     {
@@ -953,7 +993,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                         else
                             Win32ToggleGlobalDebugging( gameState, platformState->mainWindow );
                     }
-                    else if( vkCode == '1' )
+                    else if( vkCode == VK_F1 )
                     {
                         if( platformState->inputPlaybackIndex == 0 )
                         {
@@ -974,7 +1014,9 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
 
             case WM_CHAR:
             {
-                imGuiIO.AddInputCharacter( (u16)message.wParam );
+                u16 ch = (u16)message.wParam;
+                if( ch > 0 && ch < 0x10000 )
+                    imGuiIO.AddInputCharacter( ch );
             } break;
 
 #define GET_SIGNED_LO(dw) ((int)(short)LOWORD(dw))
@@ -1002,6 +1044,23 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                 imGuiIO.MouseWheel = input->mouseZ > 0 ? +1.0f : -1.0f;
             } break;
 
+            case WM_LBUTTONDOWN:
+            case WM_MBUTTONDOWN:
+            case WM_RBUTTONDOWN:
+            case WM_XBUTTONDOWN:
+            {
+                // These are only received when over the client area
+                SetCapture( platformState->mainWindow );
+            } break;
+
+            case WM_LBUTTONUP:
+            case WM_MBUTTONUP:
+            case WM_RBUTTONUP:
+            case WM_XBUTTONUP:
+            {
+                ReleaseCapture();
+            } break;
+
             case WM_INPUT: 
             {
                 UINT dwSize = 256;
@@ -1022,61 +1081,43 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                     }
 
                     bool bUp, bDown;
-                    bool isUpEvent = false, isDownEvent = false;
                     USHORT buttonFlags = raw->data.mouse.usButtonFlags;
 
-                    bUp = buttonFlags & RI_MOUSE_LEFT_BUTTON_UP;
-                    bDown = buttonFlags & RI_MOUSE_LEFT_BUTTON_DOWN;
-                    isUpEvent |= bUp;
-                    isDownEvent |= bDown;
+                    bUp = (buttonFlags & RI_MOUSE_LEFT_BUTTON_UP) != 0;
+                    bDown = (buttonFlags & RI_MOUSE_LEFT_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
                         Win32SetButtonState( &input->mouseButtons[0], bDown );
+                        imGuiIO.MouseDown[0] = !!input->mouseButtons[0].endedDown;
                     }
-                    bUp = buttonFlags & RI_MOUSE_MIDDLE_BUTTON_UP;
-                    bDown = buttonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN;
-                    isUpEvent |= bUp;
-                    isDownEvent |= bDown;
+                    bUp = (buttonFlags & RI_MOUSE_MIDDLE_BUTTON_UP) != 0;
+                    bDown = (buttonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
                         Win32SetButtonState( &input->mouseButtons[1], bDown );
+                        imGuiIO.MouseDown[1] = !!input->mouseButtons[1].endedDown;
                     }
-                    bUp = buttonFlags & RI_MOUSE_RIGHT_BUTTON_UP;
-                    bDown = buttonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN;
-                    isUpEvent |= bUp;
-                    isDownEvent |= bDown;
+                    bUp = (buttonFlags & RI_MOUSE_RIGHT_BUTTON_UP) != 0;
+                    bDown = (buttonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
                         Win32SetButtonState( &input->mouseButtons[2], bDown );
+                        imGuiIO.MouseDown[2] = !!input->mouseButtons[2].endedDown;
                     }
-                    bUp = buttonFlags & RI_MOUSE_BUTTON_4_UP;
-                    bDown = buttonFlags & RI_MOUSE_BUTTON_4_DOWN;
-                    isUpEvent |= bUp;
-                    isDownEvent |= bDown;
+                    bUp = (buttonFlags & RI_MOUSE_BUTTON_4_UP) != 0;
+                    bDown = (buttonFlags & RI_MOUSE_BUTTON_4_DOWN) != 0;
                     if( bUp || bDown )
                     {
                         Win32SetButtonState( &input->mouseButtons[3], bDown  );
+                        imGuiIO.MouseDown[3] = !!input->mouseButtons[3].endedDown;
                     }
-                    bUp = buttonFlags & RI_MOUSE_BUTTON_5_UP;
-                    bDown = buttonFlags & RI_MOUSE_BUTTON_5_DOWN;
-                    isUpEvent |= bUp;
-                    isDownEvent |= bDown;
+                    bUp = (buttonFlags & RI_MOUSE_BUTTON_5_UP) != 0;
+                    bDown = (buttonFlags & RI_MOUSE_BUTTON_5_DOWN) != 0;
                     if( bUp || bDown )
                     {
                         Win32SetButtonState( &input->mouseButtons[4], bDown  );
+                        imGuiIO.MouseDown[4] = !!input->mouseButtons[4].endedDown;
                     }
-
-                    if( isDownEvent && !UIAnyMouseButtonDown() )
-                        SetCapture( platformState->mainWindow );
-
-                    imGuiIO.MouseDown[0] = !!input->mouseButtons[0].endedDown;
-                    imGuiIO.MouseDown[1] = !!input->mouseButtons[1].endedDown;
-                    imGuiIO.MouseDown[2] = !!input->mouseButtons[2].endedDown;
-                    imGuiIO.MouseDown[3] = !!input->mouseButtons[3].endedDown;
-                    imGuiIO.MouseDown[4] = !!input->mouseButtons[4].endedDown;
-
-                    if( isUpEvent && !UIAnyMouseButtonDown() )
-                        ReleaseCapture();
 
                     if( buttonFlags & RI_MOUSE_WHEEL )
                     {
@@ -1117,9 +1158,9 @@ Win32WindowProc( HWND hwnd,
             }
         } break;
 
-        case WM_SIZE:
-        {
-        } break;
+        //case WM_SIZE:
+        //{
+        //} break;
 
         case WM_SETCURSOR:
         {
@@ -1144,6 +1185,11 @@ Win32WindowProc( HWND hwnd,
         {
             // TODO Handle this as an error
             globalRunning = false;
+        } break;
+
+        case WM_DESTROY:
+        {
+            PostQuitMessage( 0 );
         } break;
 
         default:
@@ -1485,7 +1531,7 @@ WinMain( HINSTANCE hInstance,
                 }
 #endif
 
-                gameState->imGuiContext = OpenGLInitImGui( globalOpenGLState );
+                gameState->imGuiContext = Win32InitImGui( window );
 
                 if( gameMemory.permanentStorage && gameMemory.transientStorage && soundSamples )
                 {
@@ -1549,12 +1595,15 @@ WinMain( HINSTANCE hInstance,
                         }
 #endif
 
-                        // Setup ImGui frame
+                        // Setup remaining stuff for the ImGui frame
                         ImGuiIO &io = ImGui::GetIO();
                         io.DeltaTime = lastDeltaTimeSecs;
                         io.DisplaySize.x = (r32)windowDim.width;
                         io.DisplaySize.y = (r32)windowDim.height;
-                        // TODO Check all io.WantXXX as needed
+                        io.KeyCtrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+                        io.KeyShift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+                        io.KeyAlt = (GetKeyState(VK_MENU) & 0x8000) != 0;
+                        io.KeySuper = false;
                         ImGui::NewFrame();
 
                         u32 audioFramesToWrite = 0;
