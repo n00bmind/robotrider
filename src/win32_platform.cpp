@@ -129,6 +129,8 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 }
 
 
+// TODO Cache all platform logs in some buffer and bulk dump them to game console when it's first available
+// Another solution could be externalizing the console entry buffer to the platform?
 PLATFORM_LOG(PlatformLog)
 {
     char buffer[1024];
@@ -1681,7 +1683,7 @@ WinMain( HINSTANCE hInstance,
 
                         lastCycleCounter = endCycleCounter;
                         ++runningFrameCounter;
-#if 1
+#if 0
                         {
                             r32 fps = 1.0f / lastDeltaTimeSecs;
                             LOG( "ms: %.02f - FPS: %.02f (%d Kcycles) - audio padding: %d\n",

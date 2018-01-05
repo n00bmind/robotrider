@@ -5,6 +5,9 @@ ConsoleAddInput( GameConsole *console, ConsoleEntryType entryType, const char *i
     strcpy( console->entries[console->nextEntryIndex].text, input );
     console->entries[console->nextEntryIndex].type = entryType;
 
+    if( console->entryCount < ARRAYCOUNT(console->entries) )
+        console->entryCount++;
+
     console->nextEntryIndex++;
     if( console->nextEntryIndex >= ARRAYCOUNT(console->entries) )
         console->nextEntryIndex = 0;
@@ -70,16 +73,31 @@ DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char
                         ImGuiWindowFlags_AlwaysVerticalScrollbar |
                         ImGuiWindowFlags_HorizontalScrollbar );
 
-    //for( int i = 0; i < ARRAYSIZE(console->entries); ++i )
-        //snprintf( console->entries[i].text, ARRAYSIZE(console->entries[i].text), "This is line %d", i );
-
     // Draw items
-    //ImGui::CalcListClipping( ARRAYSIZE(console->entries), ImGui::GetTextLineHeightWithSpacing(), &firstItem, &lastItem );
-    int entryIndex = console->nextEntryIndex;
-    for( int i = 0; i < ARRAYSIZE(console->entries); ++i )
+    // TODO This should be optimized to only draw items which are currently visible instead of the whole contents
+    // This function can probably help (although not too sure how it works)
+    //ImGui::CalcListClipping( ARRAYCOUNT(console->entries), ImGui::GetTextLineHeightWithSpacing(), &firstItemIndex, &visibleItemCount );
+
+    u32 visibleItemCount = (u32)(ImGui::GetContentRegionAvail().y / ImGui::GetTextLineHeightWithSpacing());
+    // Calc how many items to draw (always draw at least the visible number of items)
+    u32 itemCount = console->entryCount;
+    if( itemCount < visibleItemCount )
+        itemCount = visibleItemCount;
+    // Find out what's the first line to draw (discard previous values since it's always reported as 0)
+    i32 firstItemIndex = console->nextEntryIndex - itemCount;
+    if( firstItemIndex < 0 )
+        firstItemIndex += ARRAYCOUNT(console->entries);
+
+    u32 entryIndex = (u32)firstItemIndex;
+    for( u32 i = 0; i < itemCount; ++i )
     {
-        if( console->entries[entryIndex].type != ConsoleEntryType::Empty )
-            ImGui::TextColored( UInormalTextColor, console->entries[entryIndex].text );
+        auto& entry = console->entries[entryIndex];
+        const char *text = (entry.type == ConsoleEntryType::Empty) ? "\n" : entry.text;
+
+        ImGui::PushStyleColor( ImGuiCol_Text, UInormalTextColor );
+        ImGui::TextUnformatted( text, text + strlen( text ) );
+        ImGui::PopStyleColor();        
+        
         entryIndex++;
         if( entryIndex >= ARRAYSIZE(console->entries) )
             entryIndex = 0;

@@ -182,6 +182,7 @@ struct GameConsole
     ConsoleEntry entries[4096];
     char inputBuffer[1024];
 
+    u32 entryCount;
     u32 nextEntryIndex;
     bool scrollToBottom;
 };
