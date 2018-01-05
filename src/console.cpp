@@ -60,8 +60,6 @@ DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char
     firstItem = 0; lastItem = ARRAYSIZE(console->entries);
     for( int l = firstItem; l < lastItem; ++l )
         ImGui::TextColored( UInormalTextColor, console->entries[l].text );
-    // TODO Disable when dragging scrollbar
-    console->scrollToBottom = true;
 
     if( console->scrollToBottom )
         ImGui::SetScrollHere();
@@ -76,6 +74,7 @@ DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char
                           ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory,
                           &ConsoleInputCallback, console ) )
     {
+        console->scrollToBottom = true;
         ConsoleExec( console->inputBuffer );
     }
 

@@ -1,8 +1,7 @@
 #include "robotrider.h"
 #include <windows.h>
 
-#include "imgui/imgui_draw.cpp"
-#include "imgui/imgui.cpp"
+#include "ui.cpp"
 
 #include <gl/gl.h>
 #include "glext.h"
@@ -104,7 +103,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 
 DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
-    b32 result = false;
+    bool result = false;
 
     HANDLE fileHandle = CreateFile( filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0 );
     if( fileHandle != INVALID_HANDLE_VALUE )
@@ -470,7 +469,7 @@ Win32ResetController( GameControllerInput *controller )
 }
 
 internal void
-Win32SetButtonState( GameButtonState *newState, b32 isDown )
+Win32SetButtonState( GameButtonState *newState, bool isDown )
 {
     if( newState->endedDown != isDown )
     {
@@ -659,7 +658,7 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput, float elapsed
 
 
 internal void
-Win32GetInputFilePath( Win32State *platformState, u32 slotIndex, b32 isInputStream,
+Win32GetInputFilePath( Win32State *platformState, u32 slotIndex, bool isInputStream,
                        char* dest, u32 destCount )
 {
     sprintf_s( dest, destCount, "%s%s%d%s%s", platformState->exeFilePath,
@@ -845,17 +844,18 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                              GameInput *input, GameControllerInput *keyMouseController )
 {
     MSG message;
-    b32 altKeyDown = false;
+    bool altKeyDown = false;
 
     while( PeekMessage( &message, 0, 0, 0, PM_REMOVE ) )
     {
-        if( message.message == WM_QUIT)
-        {
-            globalRunning = false;
-        }
+        auto& imGuiIO = ImGui::GetIO();
 
         switch( message.message )
         {
+            case WM_QUIT:
+                globalRunning = false;
+                break;
+
             case WM_SYSKEYDOWN:
             case WM_SYSKEYUP:
                 altKeyDown = ((message.lParam & (1<<29)) != 0);
@@ -972,10 +972,10 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                 }
             } break;
 
-            //case WM_CHAR:
-            //{
-                //// TODO Enter text somewhere (ImGUI)
-            //} break;
+            case WM_CHAR:
+            {
+                imGuiIO.AddInputCharacter( (u16)message.wParam );
+            } break;
 
 #define GET_SIGNED_LO(dw) ((int)(short)LOWORD(dw))
 #define GET_SIGNED_HI(dw) ((int)(short)HIWORD(dw))
@@ -984,11 +984,9 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
             {
                 input->mouseX = GET_SIGNED_LO( message.lParam );
                 input->mouseY = GET_SIGNED_HI( message.lParam );
-                Win32SetButtonState( &input->mouseButtons[0], message.wParam & MK_LBUTTON );
-                Win32SetButtonState( &input->mouseButtons[1], message.wParam & MK_MBUTTON );
-                Win32SetButtonState( &input->mouseButtons[2], message.wParam & MK_RBUTTON );
-                Win32SetButtonState( &input->mouseButtons[3], message.wParam & MK_XBUTTON1 );
-                Win32SetButtonState( &input->mouseButtons[4], message.wParam & MK_XBUTTON2 );
+                
+                imGuiIO.MousePos.x = (float)input->mouseX;
+                imGuiIO.MousePos.y = (float)input->mouseY;
             } break;
 
             case WM_MOUSEWHEEL:
@@ -1000,11 +998,8 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                 input->mouseX = pt.x;
                 input->mouseY = pt.y;
                 input->mouseZ = GET_WHEEL_DELTA_WPARAM( message.wParam );
-                Win32SetButtonState( &input->mouseButtons[0], message.wParam & MK_LBUTTON );
-                Win32SetButtonState( &input->mouseButtons[1], message.wParam & MK_MBUTTON );
-                Win32SetButtonState( &input->mouseButtons[2], message.wParam & MK_RBUTTON );
-                Win32SetButtonState( &input->mouseButtons[3], message.wParam & MK_XBUTTON1 );
-                Win32SetButtonState( &input->mouseButtons[4], message.wParam & MK_XBUTTON2 );
+
+                imGuiIO.MouseWheel = input->mouseZ > 0 ? +1.0f : -1.0f;
             } break;
 
             case WM_INPUT: 
@@ -1026,39 +1021,62 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                         keyMouseController->rightStick.avgY += yPosRelative;
                     }
 
-                    b32 bUp, bDown;
+                    bool bUp, bDown;
+                    bool isUpEvent = false, isDownEvent = false;
                     USHORT buttonFlags = raw->data.mouse.usButtonFlags;
 
                     bUp = buttonFlags & RI_MOUSE_LEFT_BUTTON_UP;
                     bDown = buttonFlags & RI_MOUSE_LEFT_BUTTON_DOWN;
+                    isUpEvent |= bUp;
+                    isDownEvent |= bDown;
                     if( bUp || bDown )
                     {
                         Win32SetButtonState( &input->mouseButtons[0], bDown );
                     }
                     bUp = buttonFlags & RI_MOUSE_MIDDLE_BUTTON_UP;
                     bDown = buttonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN;
+                    isUpEvent |= bUp;
+                    isDownEvent |= bDown;
                     if( bUp || bDown )
                     {
                         Win32SetButtonState( &input->mouseButtons[1], bDown );
                     }
                     bUp = buttonFlags & RI_MOUSE_RIGHT_BUTTON_UP;
                     bDown = buttonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN;
+                    isUpEvent |= bUp;
+                    isDownEvent |= bDown;
                     if( bUp || bDown )
                     {
                         Win32SetButtonState( &input->mouseButtons[2], bDown );
                     }
                     bUp = buttonFlags & RI_MOUSE_BUTTON_4_UP;
                     bDown = buttonFlags & RI_MOUSE_BUTTON_4_DOWN;
+                    isUpEvent |= bUp;
+                    isDownEvent |= bDown;
                     if( bUp || bDown )
                     {
                         Win32SetButtonState( &input->mouseButtons[3], bDown  );
                     }
                     bUp = buttonFlags & RI_MOUSE_BUTTON_5_UP;
                     bDown = buttonFlags & RI_MOUSE_BUTTON_5_DOWN;
+                    isUpEvent |= bUp;
+                    isDownEvent |= bDown;
                     if( bUp || bDown )
                     {
                         Win32SetButtonState( &input->mouseButtons[4], bDown  );
                     }
+
+                    if( isDownEvent && !UIAnyMouseButtonDown() )
+                        SetCapture( platformState->mainWindow );
+
+                    imGuiIO.MouseDown[0] = !!input->mouseButtons[0].endedDown;
+                    imGuiIO.MouseDown[1] = !!input->mouseButtons[1].endedDown;
+                    imGuiIO.MouseDown[2] = !!input->mouseButtons[2].endedDown;
+                    imGuiIO.MouseDown[3] = !!input->mouseButtons[3].endedDown;
+                    imGuiIO.MouseDown[4] = !!input->mouseButtons[4].endedDown;
+
+                    if( isUpEvent && !UIAnyMouseButtonDown() )
+                        ReleaseCapture();
 
                     if( buttonFlags & RI_MOUSE_WHEEL )
                     {
@@ -1157,7 +1175,7 @@ Win32GetExeFilename( Win32State *state )
 }
 
 
-internal b32
+internal bool
 Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
 {
     PIXELFORMATDESCRIPTOR pfd =
@@ -1338,7 +1356,7 @@ WinMain( HINSTANCE hInstance,
     globalPerfCounterFrequency = perfCounterFreqMeasure.QuadPart;
 
     // Set Windows schduler granularity so that our frame wait sleep is more granular
-    b32 sleepIsGranular = (timeBeginPeriod( 1 ) == TIMERR_NOERROR);
+    bool sleepIsGranular = (timeBeginPeriod( 1 ) == TIMERR_NOERROR);
     if( !sleepIsGranular )
     {
         // TODO Log a bit fat warning
@@ -1536,13 +1554,7 @@ WinMain( HINSTANCE hInstance,
                         io.DeltaTime = lastDeltaTimeSecs;
                         io.DisplaySize.x = (r32)windowDim.width;
                         io.DisplaySize.y = (r32)windowDim.height;
-                        io.MousePos = ImVec2( (float)newInput->mouseX, (float)newInput->mouseY );
-                        io.MouseWheel = (float)newInput->mouseZ;
-                        io.MouseDown[0] = !!newInput->mouseButtons[0].endedDown;
-                        io.MouseDown[1] = !!newInput->mouseButtons[1].endedDown;
-                        io.MouseDown[2] = !!newInput->mouseButtons[2].endedDown;
-                        io.MouseDown[3] = !!newInput->mouseButtons[3].endedDown;
-                        io.MouseDown[4] = !!newInput->mouseButtons[4].endedDown;
+                        // TODO Check all io.WantXXX as needed
                         ImGui::NewFrame();
 
                         u32 audioFramesToWrite = 0;

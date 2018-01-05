@@ -5,7 +5,7 @@
 
 struct OpenGLInfo
 {
-    b32 modernContext;
+    bool modernContext;
 
     const char *vendor;
     const char *renderer;

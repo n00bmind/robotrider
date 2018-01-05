@@ -92,13 +92,13 @@ struct GameButtonState
 {
     // TODO Is this one really necessary? Review how we're using it, if at all
     int halfTransitionCount;
-    b32 endedDown;
+    bool endedDown;
 };
 
 struct GameControllerInput
 {
-    b32 isConnected;
-    b32 isAnalog;
+    bool isConnected;
+    bool isAnalog;
     
     GameStickState leftStick;
     GameStickState rightStick;
@@ -131,7 +131,7 @@ struct GameControllerInput
 
 struct GameInput
 {
-    b32 executableReloaded;
+    bool executableReloaded;
     r32 frameElapsedSeconds;
 
     GameControllerInput _controllers[5];
@@ -151,7 +151,7 @@ GetController( GameInput *input, int controllerIndex )
 
 struct GameMemory
 {
-    b32 isInitialized;
+    bool isInitialized;
 
     u64 permanentStorageSize;
     void *permanentStorage;     // NOTE Required to be cleared to zero at startup
@@ -246,7 +246,7 @@ struct CubeThing
 
 struct TransientState
 {
-    b32 isInitialized;
+    bool isInitialized;
     MemoryArena transientArena;
 
     RenderBuffer *renderBuffer;

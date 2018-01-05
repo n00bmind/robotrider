@@ -53,7 +53,7 @@ GL_DEBUG_CALLBACK(OpenGLDebugCallback)
 }
 
 internal OpenGLInfo
-OpenGLGetInfo( b32 modernContext )
+OpenGLGetInfo( bool modernContext )
 {
     OpenGLInfo result = {};
     result.modernContext = modernContext;

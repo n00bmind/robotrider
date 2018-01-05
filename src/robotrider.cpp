@@ -122,7 +122,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     u16 width = renderCommands.width;
     u16 height = renderCommands.height;
 
-    float fps = 1.f / input->frameElapsedSeconds;
+    float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
     char statsText[1024];
     snprintf( statsText, 1024, "FPS %.1f", fps );   // Seems to be crossplatform, so it's good enough for now
 

@@ -34,7 +34,7 @@ struct Win32GameCode
     GameSetupAfterReloadFunc *SetupAfterReload;
     GameUpdateAndRenderFunc *UpdateAndRender;
 
-    b32 isValid;
+    bool isValid;
 };
 
 struct Win32ReplayBuffer
