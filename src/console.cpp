@@ -1,7 +1,27 @@
  
 internal void
-ConsoleExec( const char *input )
+ConsoleAddInput( GameConsole *console, ConsoleEntryType entryType, const char *input )
 {
+    strcpy( console->entries[console->nextEntryIndex].text, input );
+    console->entries[console->nextEntryIndex].type = entryType;
+
+    console->nextEntryIndex++;
+    if( console->nextEntryIndex >= ARRAYCOUNT(console->entries) )
+        console->nextEntryIndex = 0;
+
+    console->scrollToBottom = true;
+}
+
+void
+ConsoleLog( GameConsole *console, const char *input )
+{
+    ConsoleAddInput( console, ConsoleEntryType::LogOutput, input );
+}
+
+void
+ConsoleExec( GameConsole *console, const char *input )
+{
+    ConsoleAddInput( console, ConsoleEntryType::History, input );
     // TODO Trim input and extract command + args
     // TODO Parse existing commands from a hot-reloadable file
 }
@@ -28,13 +48,13 @@ ConsoleInputCallback( ImGuiTextEditCallbackData *data )
     return 0;
 }
 
-internal void
+void
 DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char *statsText )
 {
     ImGui::SetNextWindowPos( ImVec2( 0.f, 0.f ), ImGuiCond_FirstUseEver );
     ImGui::SetNextWindowSize( ImVec2( windowWidth, windowHeight * 0.25f ), ImGuiCond_Appearing );
     ImGui::SetNextWindowSizeConstraints( ImVec2( -1, 100 ), ImVec2( -1, FLT_MAX ) );
-    ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.3f );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 3.f );
     ImGui::PushStyleColor( ImGuiCol_WindowBg, UItoolWindowBgColor );
     ImGui::Begin( "window_console", NULL,
                   ImGuiWindowFlags_NoTitleBar |
@@ -50,16 +70,20 @@ DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char
                         ImGuiWindowFlags_AlwaysVerticalScrollbar |
                         ImGuiWindowFlags_HorizontalScrollbar );
 
-    for( int i = 0; i < ARRAYSIZE(console->entries); ++i )
-        snprintf( console->entries[i].text, ARRAYSIZE(console->entries[i].text), "This is line %d", i );
+    //for( int i = 0; i < ARRAYSIZE(console->entries); ++i )
+        //snprintf( console->entries[i].text, ARRAYSIZE(console->entries[i].text), "This is line %d", i );
 
     // Draw items
-    int firstItem, lastItem;
     //ImGui::CalcListClipping( ARRAYSIZE(console->entries), ImGui::GetTextLineHeightWithSpacing(), &firstItem, &lastItem );
-    // TODO Draw items in a ring buffer fashion
-    firstItem = 0; lastItem = ARRAYSIZE(console->entries);
-    for( int l = firstItem; l < lastItem; ++l )
-        ImGui::TextColored( UInormalTextColor, console->entries[l].text );
+    int entryIndex = console->nextEntryIndex;
+    for( int i = 0; i < ARRAYSIZE(console->entries); ++i )
+    {
+        if( console->entries[entryIndex].type != ConsoleEntryType::Empty )
+            ImGui::TextColored( UInormalTextColor, console->entries[entryIndex].text );
+        entryIndex++;
+        if( entryIndex >= ARRAYSIZE(console->entries) )
+            entryIndex = 0;
+    }
 
     if( console->scrollToBottom )
         ImGui::SetScrollHere();
@@ -69,13 +93,11 @@ DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char
     ImGui::Separator();
 
     // Input
-    // TODO Redirect platform keys to ImGui!!
     if( ImGui::InputText( "input_console", console->inputBuffer, ARRAYSIZE(console->inputBuffer),
                           ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory,
                           &ConsoleInputCallback, console ) )
     {
-        console->scrollToBottom = true;
-        ConsoleExec( console->inputBuffer );
+        ConsoleExec( console, console->inputBuffer );
     }
 
     // Keep auto focus on the input box

@@ -135,10 +135,16 @@ PLATFORM_LOG(PlatformLog)
 
     va_list args;
     va_start( args, fmt );
-    vsprintf_s( buffer, ARRAYCOUNT(buffer), fmt, args );
+    vsnprintf( buffer, ARRAYCOUNT(buffer), fmt, args );
     va_end( args );
 
-    printf( "%s\n", buffer );
+    //printf( "%s\n", buffer );
+#if DEBUG
+    OutputDebugStringA( buffer );
+#endif
+
+    if( globalPlatform.LogCallback )
+        globalPlatform.LogCallback( buffer );
 }
 
 
@@ -157,7 +163,7 @@ Win32GetLastWriteTime( char *filename )
 }
 
 internal Win32GameCode
-Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameState *gameState )
+Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameMemory *gameMemory )
 {
     Win32GameCode result = {};
     result.lastDLLWriteTime = Win32GetLastWriteTime( sourceDLLPath );
@@ -173,7 +179,7 @@ Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameState *gameState 
     }
 
     if( result.isValid )
-        result.SetupAfterReload( gameState );
+        result.SetupAfterReload( gameMemory );
     else
         result.UpdateAndRender = GameUpdateAndRenderStub;
 
@@ -1379,7 +1385,7 @@ WinMain( HINSTANCE hInstance,
     GameMemory gameMemory = {};
     gameMemory.permanentStorageSize = MEGABYTES(64);
     gameMemory.transientStorageSize = GIGABYTES((u64)1);
-    gameMemory.platformAPI = globalPlatform;
+    gameMemory.platformAPI = &globalPlatform;
 
     Win32State platformState = {};
     Win32GetExeFilename( &platformState );
@@ -1551,7 +1557,7 @@ WinMain( HINSTANCE hInstance,
                     LARGE_INTEGER lastCounter = Win32GetWallClock();
                     i64 lastCycleCounter = __rdtsc();
 
-                    Win32GameCode game = Win32LoadGameCode( sourceDLLPath, tempDLLPath, gameState );
+                    Win32GameCode game = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );
 
                     // Main loop
                     u32 runningFrameCounter = 0;
@@ -1565,7 +1571,7 @@ WinMain( HINSTANCE hInstance,
                             // FIXME Seems to be not working reliably!?
                             LOG( "Detected updated game DLL. Reloading.." );
                             Win32UnloadGameCode( &game );
-                            game = Win32LoadGameCode( sourceDLLPath, tempDLLPath, gameState );
+                            game = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );
                             newInput->executableReloaded = true;
                         }
 

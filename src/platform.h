@@ -99,6 +99,9 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
 #define PLATFORM_LOG(name) void name( const char *fmt, ... )
 typedef PLATFORM_LOG(PlatformLogFunc);
 
+#define GAME_LOG_CALLBACK(name) void name( const char *msg )
+typedef GAME_LOG_CALLBACK(GameLogCallbackFunc);
+
 
 struct PlatformAPI
 {
@@ -107,6 +110,8 @@ struct PlatformAPI
     DebugPlatformWriteEntireFileFunc *DEBUGWriteEntireFile;
 
     PlatformLogFunc *Log;
+    // FIXME Ugh. There must be a better way !?
+    GameLogCallbackFunc *LogCallback;
 };
 extern PlatformAPI globalPlatform;
 

@@ -5,32 +5,26 @@
 
 PlatformAPI globalPlatform;
 
-
-internal void
-DEBUGDrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
+internal GameConsole *gameConsole;
+GAME_LOG_CALLBACK(GameLogCallback)
 {
-    ImVec2 statsPos( 0, 0 );
-    ImVec4 statsTextColor( .0f, .0f, .0f, 1.0f );
-    ImVec4 statsBgColor( 0.5f, 0.5f, 0.5f, 0.05f );
-
-    ImGui::SetNextWindowPos( statsPos, ImGuiCond_FirstUseEver );
-    ImGui::SetNextWindowSize( ImVec2( windowWidth, ImGui::GetTextLineHeight() ) );
-    ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.0f );
-    ImGui::PushStyleColor( ImGuiCol_WindowBg, statsBgColor );
-    ImGui::Begin( "window_stats", NULL,
-                  ImGuiWindowFlags_NoTitleBar |
-                  ImGuiWindowFlags_NoResize |
-                  ImGuiWindowFlags_NoMove |
-                  ImGuiWindowFlags_NoInputs );
-    ImGui::TextColored( statsTextColor, statsText );
-    ImGui::End();
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    ConsoleLog( gameConsole, msg );
 }
 
 LIB_EXPORT
 GAME_SETUP_AFTER_RELOAD(GameSetupAfterReload)
 {
+    ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
+    GameState *gameState = (GameState *)memory->permanentStorage;
+
+    // Copy all logs to the game's console
+    gameConsole = &gameState->gameConsole;
+    memory->platformAPI->LogCallback = GameLogCallback;
+
+    globalPlatform = *memory->platformAPI;
+    // Make sure we never use our own copy (this is focking awful)
+    globalPlatform.LogCallback = NULL;
+
     // Re-set platform's ImGui context
     ImGui::SetCurrentContext( gameState->imGuiContext );
 }
@@ -38,9 +32,6 @@ GAME_SETUP_AFTER_RELOAD(GameSetupAfterReload)
 LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
-    globalPlatform = memory->platformAPI;
-
-    ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
     GameState *gameState = (GameState *)memory->permanentStorage;
 
     // Init game arena

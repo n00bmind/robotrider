@@ -159,11 +159,12 @@ struct GameMemory
     u64 transientStorageSize;
     void *transientStorage;     // NOTE Required to be cleared to zero at startup
 
-    PlatformAPI platformAPI;
+    PlatformAPI *platformAPI;
 };
 
 enum class ConsoleEntryType
 {
+    Empty = 0,
     LogOutput,
     History,
     CommandOutput,
@@ -181,6 +182,7 @@ struct GameConsole
     ConsoleEntry entries[4096];
     char inputBuffer[1024];
 
+    u32 nextEntryIndex;
     bool scrollToBottom;
 };
 
@@ -207,7 +209,7 @@ struct GameState
 
 #ifndef GAME_SETUP_AFTER_RELOAD
 #define GAME_SETUP_AFTER_RELOAD(name) \
-    void name( GameState *gameState )
+    void name( GameMemory *memory )
 #endif
 typedef GAME_SETUP_AFTER_RELOAD(GameSetupAfterReloadFunc);
 
