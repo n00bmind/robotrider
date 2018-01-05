@@ -10,6 +10,9 @@
 #include "math.h"
 #include "renderer.h"
 
+
+#define CONSOLE_LINE_MAXLEN 1024
+
 //
 // Game entry points & data types for the platform layer
 //
@@ -173,14 +176,14 @@ enum class ConsoleEntryType
 struct ConsoleEntry
 {
     // FIXME This is absurd and we should allocate this as needed in the gameArena
-    char text[1024];
+    char text[CONSOLE_LINE_MAXLEN];
     ConsoleEntryType type;
 };
 
 struct GameConsole
 {
     ConsoleEntry entries[4096];
-    char inputBuffer[1024];
+    char inputBuffer[CONSOLE_LINE_MAXLEN];
 
     u32 entryCount;
     u32 nextEntryIndex;

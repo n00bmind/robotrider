@@ -1,8 +1,31 @@
  
-internal void
-ConsoleAddInput( GameConsole *console, ConsoleEntryType entryType, const char *input )
+#define COMMAND(name) bool name( const char *args, char *out )
+typedef COMMAND(CommandParserFunc);
+struct ConsoleCommand
 {
-    strcpy( console->entries[console->nextEntryIndex].text, input );
+    const char *name;
+    CommandParserFunc *parser;
+};
+
+internal COMMAND(CmdSub);
+
+internal ConsoleCommand knownCommands[] =
+{
+    { "sub", CmdSub },
+};
+
+
+/////
+
+
+internal void
+ConsoleAddInput( GameConsole *console, ConsoleEntryType entryType, const char *fmt, ... )
+{
+    va_list args;
+    va_start( args, fmt );
+    vsnprintf( console->entries[console->nextEntryIndex].text, CONSOLE_LINE_MAXLEN, fmt, args );
+    va_end( args );
+
     console->entries[console->nextEntryIndex].type = entryType;
 
     if( console->entryCount < ARRAYCOUNT(console->entries) )
@@ -22,11 +45,43 @@ ConsoleLog( GameConsole *console, const char *input )
 }
 
 void
-ConsoleExec( GameConsole *console, const char *input )
+ConsoleExec( GameConsole *console, char *input )
 {
     ConsoleAddInput( console, ConsoleEntryType::History, input );
-    // TODO Trim input and extract command + args
-    // TODO Parse existing commands from a hot-reloadable file
+
+    // Trim beginning of string
+    char *cmd = input;
+    while( *cmd == ' ' )
+        cmd++;
+
+    // Extract command
+    char *argString = "";
+    cmd = strchr( input, ' ' );
+    if( cmd )
+    {
+        *cmd = '\0';
+        argString = cmd + 1;
+    }
+    cmd = input;
+
+    // Search in known commands array
+    bool found = false;
+    for( int i = 0; i < ARRAYCOUNT(knownCommands); ++i )
+    {
+        if( strcmp( cmd, knownCommands[i].name ) == 0 )
+        {
+            char outputString[CONSOLE_LINE_MAXLEN];
+
+            bool result = knownCommands[i].parser( argString, outputString );
+            ConsoleAddInput( console, ConsoleEntryType::CommandOutput, outputString );
+
+            found = true;
+            break;
+        }
+    }
+
+    if( !found )
+        ConsoleAddInput( console, ConsoleEntryType::CommandOutput, "Unknown command '%s'", input );
 }
 
 internal int
@@ -116,6 +171,8 @@ DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char
                           &ConsoleInputCallback, console ) )
     {
         ConsoleExec( console, console->inputBuffer );
+        //strcpy( console->inputBuffer, "" );
+        console->inputBuffer[0] = '\0';
     }
 
     // Keep auto focus on the input box
@@ -127,3 +184,25 @@ DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char
     ImGui::PopStyleVar();
 
 }
+
+
+/////
+
+
+internal bool
+CmdSub( const char *args, char *output )
+{
+    int argA, argB;
+    int count = sscanf( args, "%d %d", &argA, &argB );
+    // Of course, this is crappy, but just an example..
+    if( count == EOF || count < 2 )
+    {
+        snprintf( output, CONSOLE_LINE_MAXLEN, "Error parsing arguments" );
+        return false;
+    }
+
+    int result = argA - argB;
+    snprintf( output, CONSOLE_LINE_MAXLEN, "%d - %d = %d", argA, argB, result );
+    return true;
+}
+
