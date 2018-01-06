@@ -1,17 +1,20 @@
-    ::::::::::::::::
-    :: robotrider ::
-    ::::::::::::::::
+:::::::::::::::::::::::::::
+:: robotrider TO-DO list ::
+:::::::::::::::::::::::::::
 
 
-KNOWN ISSUES
-- There's a fantastic megaglitch in the framerate every second or so! (actually the framerate is all over the place quite often)
+EDITOR
+- Editor mode & view (start with a simple frame around the window borders, later add some kind of cool desaturation postpro effect on top of everything)
+- Free camera
 
+WORLDGEN
+- Procedural generation of some kind of infinite pipe-like world structure
 
 AUDIO
 - Win32: switch WASAPI to callback mode to reduce buffer size and improve latency.
   This implies creating a separate dedicated thread that just blits audio to the output.
   The buffer strategy wouldn't change, the game would check how much space is available and
-  would produce the same amount of frames, and the blitter thread would simply blit said
+  would produce the appropriate amount of frames, and the blitter thread would simply blit said
   amount to the device.
   Refs:
   https://msdn.microsoft.com/en-us/library/windows/desktop/dd370875(v=vs.85).aspx
@@ -31,9 +34,11 @@ INPUT
 - Find a way to calibrate different relative movement amounts from the different input methods
 
 DEBUGGING
+- Command completion & history navigation in the console
 - Really dump game state to disk (asynchronously)
 - Add a command line switch & ingame command to load a recorded input block from disk
 - Simple static analysis:
-  - Detect usage of 'internal' functions outside of the file where they're defined
+  - Detect usage of 'internal' functions outside of the file where they're defined (in case we wanna ever have non-Unity builds)
 - Logging system, with categories & levels, threadsafe, dumped to disk & console
-- Text console, at least for status messages, maybe support command entry
+- Profiler
+
