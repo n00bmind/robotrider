@@ -61,12 +61,12 @@ InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
 }
 
 inline void
-ResetRenderCommands( GameRenderCommands &commands )
+ResetRenderCommands( GameRenderCommands *commands )
 {
-    commands.renderBuffer.size = 0;
-    commands.vertexBuffer.count = 0;
-    commands.indexBuffer.count = 0;
-    commands.currentTris = 0;
+    commands->renderBuffer.size = 0;
+    commands->vertexBuffer.count = 0;
+    commands->indexBuffer.count = 0;
+    commands->currentTris = 0;
 }
 
 struct GameAudioBuffer
@@ -78,6 +78,31 @@ struct GameAudioBuffer
     // TODO Convert this to a format that is independent of final bitdepth (32bit-float?)
     // (even off-the-shelf audio mixers support this natively, it seems)
     i16 *samples;
+};
+
+enum class ConsoleEntryType
+{
+    Empty = 0,
+    LogOutput,
+    History,
+    CommandOutput,
+};
+
+struct ConsoleEntry
+{
+    // FIXME This is absurd and we should allocate this as needed in the gameArena
+    char text[CONSOLE_LINE_MAXLEN];
+    ConsoleEntryType type;
+};
+
+struct GameConsole
+{
+    ConsoleEntry entries[4096];
+    char inputBuffer[CONSOLE_LINE_MAXLEN];
+
+    u32 entryCount;
+    u32 nextEntryIndex;
+    bool scrollToBottom;
 };
 
 struct GameStickState
@@ -139,9 +164,10 @@ struct GameInput
 
     GameControllerInput _controllers[5];
 
-    // This is normal desktop mouse data (with standard system balllistics applied)
+    // This is normal desktop mouse data (with standard system ballistics applied)
     i32 mouseX, mouseY, mouseZ;
     GameButtonState mouseButtons[5];
+    // TODO Platform-agnostic way to pass raw keypress data to the game
 };
 
 inline GameControllerInput *
@@ -163,31 +189,6 @@ struct GameMemory
     void *transientStorage;     // NOTE Required to be cleared to zero at startup
 
     PlatformAPI *platformAPI;
-};
-
-enum class ConsoleEntryType
-{
-    Empty = 0,
-    LogOutput,
-    History,
-    CommandOutput,
-};
-
-struct ConsoleEntry
-{
-    // FIXME This is absurd and we should allocate this as needed in the gameArena
-    char text[CONSOLE_LINE_MAXLEN];
-    ConsoleEntryType type;
-};
-
-struct GameConsole
-{
-    ConsoleEntry entries[4096];
-    char inputBuffer[CONSOLE_LINE_MAXLEN];
-
-    u32 entryCount;
-    u32 nextEntryIndex;
-    bool scrollToBottom;
 };
 
 
@@ -220,7 +221,7 @@ typedef GAME_SETUP_AFTER_RELOAD(GameSetupAfterReloadFunc);
 #ifndef GAME_UPDATE_AND_RENDER
 #define GAME_UPDATE_AND_RENDER(name) \
     void name( GameMemory *memory, GameInput *input, \
-               GameRenderCommands &renderCommands, GameAudioBuffer *audioBuffer )
+               GameRenderCommands *renderCommands, GameAudioBuffer *audioBuffer )
 #endif
 typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
 GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)

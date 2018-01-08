@@ -985,21 +985,25 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                         }
                         else if( gameState->DEBUGglobalDebugging )
                         {
-                            gameState->DEBUGglobalEditing = false;
                             Win32ToggleGlobalDebugging( gameState, platformState->mainWindow );
+                        }
+                        else if( gameState->DEBUGglobalEditing )
+                        {
+                            gameState->DEBUGglobalEditing = false;
                         }
                         else
                         {
                             globalRunning = false;
                         }
                     }
+
                     // TODO This may only work in the spanish keyboard?
                     else if( vkCode == VK_OEM_5 )
                     {
                         if( gameState->DEBUGglobalDebugging )
                             gameState->DEBUGglobalEditing = true;
-                        else
-                            Win32ToggleGlobalDebugging( gameState, platformState->mainWindow );
+
+                        Win32ToggleGlobalDebugging( gameState, platformState->mainWindow );
                     }
                     else if( vkCode == VK_F1 )
                     {
@@ -1630,10 +1634,10 @@ WinMain( HINSTANCE hInstance,
                         audioBuffer.frameCount = audioFramesToWrite;
                         audioBuffer.samples = soundSamples;
 
-                        ResetRenderCommands( renderCommands );
+                        ResetRenderCommands( &renderCommands );
 
                         // Ask the game to render one frame
-                        game.UpdateAndRender( &gameMemory, newInput, renderCommands, &audioBuffer );
+                        game.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
 
                         // Blit audio buffer to output
                         Win32BlitAudioBuffer( &audioBuffer, audioFramesToWrite, &audioOutput );

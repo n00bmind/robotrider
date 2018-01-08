@@ -2,6 +2,8 @@
 #include "renderer.cpp"
 #include "ui.cpp"
 #include "console.cpp"
+#include "editor.cpp"
+
 
 PlatformAPI globalPlatform;
 
@@ -49,6 +51,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     TransientState *tranState = (TransientState *)memory->transientStorage;
     if( input->executableReloaded )
     {
+        // ???
         tranState->isInitialized = false;
     }
     if( !tranState->isInitialized )
@@ -107,79 +110,87 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         tranState->isInitialized = true;
     }
 
-    TemporaryMemory renderMemory = BeginTemporaryMemory( &tranState->transientArena );
 
 #if DEBUG
-    u16 width = renderCommands.width;
-    u16 height = renderCommands.height;
-
-    float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
-    char statsText[1024];
-    snprintf( statsText, 1024, "FPS %.1f", fps );   // Seems to be crossplatform, so it's good enough for now
-
-    if( gameState->DEBUGglobalDebugging )
-    {
-        DrawConsole( &gameState->gameConsole, width, height, statsText );
-        ImGui::SetNextWindowPos( ImVec2( width - 500.f, height - 300.f ) );
-        ImGui::ShowUserGuide();
-    }
+    if( gameState->DEBUGglobalEditing )
+        UpdateAndRenderEditor( memory, renderCommands );
     else
-        DEBUGDrawStats( width, height, statsText );
+#endif
+    {
+        TemporaryMemory renderMemory = BeginTemporaryMemory( &tranState->transientArena );
+
+#if DEBUG
+        u16 width = renderCommands->width;
+        u16 height = renderCommands->height;
+
+        float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
+        char statsText[1024];
+        snprintf( statsText, 1024, "FPS %.1f", fps );   // Seems to be crossplatform, so it's good enough for now
+
+        if( gameState->DEBUGglobalDebugging )
+        {
+            DrawConsole( &gameState->gameConsole, width, height, statsText );
+            ImGui::SetNextWindowPos( ImVec2( width - 500.f, height - 300.f ) );
+            ImGui::ShowUserGuide();
+        }
+        else
+            DrawStats( width, height, statsText );
 #endif
 
-    float dt = input->frameElapsedSeconds;
-    GameControllerInput *input0 = GetController( input, 0 );
+        float dt = input->frameElapsedSeconds;
+        GameControllerInput *input0 = GetController( input, 0 );
 
-    PushClear( renderCommands, { 0.95f, 0.95f, 0.95f, 1.0f } );
+        PushClear( renderCommands, { 0.95f, 0.95f, 0.95f, 1.0f } );
 
-    FlyingDude &dude = *tranState->dude;
-    v3 pPlayer = gameState->pPlayer;
+        FlyingDude *dude = tranState->dude;
+        v3 pPlayer = gameState->pPlayer;
 
-    v3 vPlayerDelta = {};
-    if( input0->dLeft.endedDown )
-    {
-        vPlayerDelta.x -= 3.f * dt;
+        v3 vPlayerDelta = {};
+        if( input0->dLeft.endedDown )
+        {
+            vPlayerDelta.x -= 3.f * dt;
+        }
+        if( input0->dRight.endedDown )
+        {
+            vPlayerDelta.x += 3.f * dt;
+        }
+        if( input0->dUp.endedDown )
+        {
+            vPlayerDelta.y += 3.f * dt;
+        }
+        if( input0->dDown.endedDown )
+        {
+            vPlayerDelta.y -= 3.f * dt;
+        }
+
+        if( input0->rightStick.avgX || input0->rightStick.avgY )
+        {
+            gameState->playerPitch += input0->rightStick.avgY / 15.f * dt;
+            gameState->playerYaw += -input0->rightStick.avgX / 15.f * dt; 
+        }
+
+        m4 mPlayerRot = ZRotation( gameState->playerYaw ) * XRotation( gameState->playerPitch );
+        pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
+        dude->mTransform = RotPos( mPlayerRot, pPlayer );
+        PushRenderGroup( renderCommands, dude );
+
+        gameState->pPlayer = pPlayer;
+
+        // Create a chasing camera
+        // TODO Use a PID controller
+        v3 pCam = dude->mTransform * V3( 0, -2, 1 );
+        v3 pLookAt = dude->mTransform * V3( 0, 1, 0 );
+        v3 vUp = GetColumn( dude->mTransform, 2 ).xyz;
+        renderCommands->mCamera = CameraLookAt( pCam, pLookAt, vUp );
+
+        for( u32 i = 0; i < tranState->cubeCount; ++i )
+        {
+            CubeThing *cube = tranState->cubes + i;
+            PushRenderGroup( renderCommands, cube );
+        }
+
+        EndTemporaryMemory( renderMemory );
     }
-    if( input0->dRight.endedDown )
-    {
-        vPlayerDelta.x += 3.f * dt;
-    }
-    if( input0->dUp.endedDown )
-    {
-        vPlayerDelta.y += 3.f * dt;
-    }
-    if( input0->dDown.endedDown )
-    {
-        vPlayerDelta.y -= 3.f * dt;
-    }
-
-    if( input0->rightStick.avgX || input0->rightStick.avgY )
-    {
-        gameState->playerPitch += input0->rightStick.avgY / 15.f * dt;
-        gameState->playerYaw += -input0->rightStick.avgX / 15.f * dt; 
-    }
-
-    m4 mPlayerRot = ZRotation( gameState->playerYaw ) * XRotation( gameState->playerPitch );
-    pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
-    dude.mTransform = RotPos( mPlayerRot, pPlayer );
-    PushRenderGroup( renderCommands, dude );
-
-    gameState->pPlayer = pPlayer;
-
-    // Create a chasing camera
-    // TODO Use a PID controller
-    v3 pCam = dude.mTransform * V3( 0, -2, 1 );
-    v3 pLookAt = dude.mTransform * V3( 0, 1, 0 );
-    v3 vUp = GetColumn( dude.mTransform, 2 ).xyz;
-    renderCommands.mCamera = CameraLookAt( pCam, pLookAt, vUp );
-
-    for( u32 i = 0; i < tranState->cubeCount; ++i )
-    {
-        CubeThing *cube = tranState->cubes + i;
-        PushRenderGroup( renderCommands, *cube );
-    }
-
-    EndTemporaryMemory( renderMemory );
 
     CheckArena( &gameState->gameArena );
     CheckArena( &tranState->transientArena );

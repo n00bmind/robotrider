@@ -9,7 +9,7 @@ ImVec4 UInormalTextColor( 0.9f, 0.9f, 0.9f, 1.0f );
 ImVec4 UItoolWindowBgColor( 0.f, 0.f, 0.f, 0.6f );
 
 void
-DEBUGDrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
+DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
 {
     ImVec2 statsPos( 0, 0 );
     ImVec4 statsTextColor( .0f, .0f, .0f, 1.0f );
