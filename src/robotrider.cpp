@@ -2,6 +2,7 @@
 #include "renderer.cpp"
 #include "ui.cpp"
 #include "console.cpp"
+#include "world.cpp"
 #include "editor.cpp"
 
 
@@ -36,12 +37,14 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     GameState *gameState = (GameState *)memory->permanentStorage;
 
-    // Init game arena
+    // Init game arena & world state
     if( !memory->isInitialized )
     {
         InitializeArena( &gameState->gameArena,
                          (u8 *)memory->permanentStorage + sizeof(GameState),
                          memory->permanentStorageSize - sizeof(GameState) );
+
+        InitWorld( gameState );
 
         memory->isInitialized = true;
     }
@@ -51,7 +54,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     TransientState *tranState = (TransientState *)memory->transientStorage;
     if( input->executableReloaded )
     {
-        // ???
         tranState->isInitialized = false;
     }
     if( !tranState->isInitialized )
@@ -60,64 +62,16 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                          (u8 *)memory->transientStorage + sizeof(TransientState),
                          memory->transientStorageSize - sizeof(TransientState));
 
-        tranState->dude = PUSH_STRUCT( &gameState->gameArena, FlyingDude );
-        FlyingDude &dude = *tranState->dude;
-        dude =
-        {
-            {
-                {  0.5f,   -0.5f,  0.0f, },
-                { -0.5f,   -0.5f,  0.0f, },
-                {  0.0f,    1.0f,  0.0f, },
-                //{  0.0f,     0.5f	 0.5f, },
-            },
-            {
-                0, 1, 2,
-                //2, 1, 3,
-                //2, 3, 0,
-                //3, 1, 0,
-            },
-        };
-        dude.mTransform = Identity();
-
-        int rowSize = 31;
-        int rowHalf = rowSize >> 1;
-        tranState->cubeCount = rowSize * rowSize;
-        tranState->cubes = PUSH_ARRAY( &tranState->transientArena, tranState->cubeCount, CubeThing );
-
-        for( u32 i = 0; i < tranState->cubeCount; ++i )
-        {
-            CubeThing &cube = tranState->cubes[i];
-            cube =
-            {
-                {
-                    { -0.5f,    -0.5f,      0.0f },
-                    { -0.5f,     0.5f,      0.0f },
-                    {  0.5f,    -0.5f,      0.0f },
-                    {  0.5f,     0.5f,      0.0f },
-                },
-                {
-                    0, 1, 2,
-                    2, 1, 3
-                },
-            };
-
-            r32 transX = (((i32)i % rowSize) - rowHalf) * 2.0f;
-            r32 transY = ((i32)i / rowSize) * 2.0f;
-
-            cube.mTransform = Translation( { transX, transY, -1.0f } );
-        }
-
         tranState->isInitialized = true;
     }
 
-
 #if DEBUG
     if( gameState->DEBUGglobalEditing )
-        UpdateAndRenderEditor( memory, renderCommands );
+        UpdateAndRenderEditor( input, memory, renderCommands );
     else
 #endif
     {
-        TemporaryMemory renderMemory = BeginTemporaryMemory( &tranState->transientArena );
+        //TemporaryMemory renderMemory = BeginTemporaryMemory( &tranState->transientArena );
 
 #if DEBUG
         u16 width = renderCommands->width;
@@ -137,59 +91,59 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             DrawStats( width, height, statsText );
 #endif
 
-        float dt = input->frameElapsedSeconds;
-        GameControllerInput *input0 = GetController( input, 0 );
+        // Update player based on input
+        {
+            float dt = input->frameElapsedSeconds;
+            GameControllerInput *input0 = GetController( input, 0 );
+
+            FlyingDude *playerDude = gameState->playerDude;
+            v3 pPlayer = gameState->pPlayer;
+
+            v3 vPlayerDelta = {};
+            if( input0->dLeft.endedDown )
+            {
+                vPlayerDelta.x -= 3.f * dt;
+            }
+            if( input0->dRight.endedDown )
+            {
+                vPlayerDelta.x += 3.f * dt;
+            }
+            if( input0->dUp.endedDown )
+            {
+                vPlayerDelta.y += 3.f * dt;
+            }
+            if( input0->dDown.endedDown )
+            {
+                vPlayerDelta.y -= 3.f * dt;
+            }
+
+            if( input0->rightStick.avgX || input0->rightStick.avgY )
+            {
+                gameState->playerPitch += -input0->rightStick.avgY / 15.f * dt;
+                gameState->playerYaw += -input0->rightStick.avgX / 15.f * dt; 
+            }
+
+            m4 mPlayerRot = ZRotation( gameState->playerYaw ) * XRotation( gameState->playerPitch );
+            pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
+            playerDude->mTransform = RotPos( mPlayerRot, pPlayer );
+
+            gameState->pPlayer = pPlayer;
+        }
 
         PushClear( renderCommands, { 0.95f, 0.95f, 0.95f, 1.0f } );
+        UpdateAndRenderWorld( gameState, renderCommands );
 
-        FlyingDude *dude = tranState->dude;
-        v3 pPlayer = gameState->pPlayer;
-
-        v3 vPlayerDelta = {};
-        if( input0->dLeft.endedDown )
         {
-            vPlayerDelta.x -= 3.f * dt;
-        }
-        if( input0->dRight.endedDown )
-        {
-            vPlayerDelta.x += 3.f * dt;
-        }
-        if( input0->dUp.endedDown )
-        {
-            vPlayerDelta.y += 3.f * dt;
-        }
-        if( input0->dDown.endedDown )
-        {
-            vPlayerDelta.y -= 3.f * dt;
+            FlyingDude *playerDude = gameState->playerDude;
+            // Create a chasing camera
+            // TODO Use a PID controller
+            v3 pCam = playerDude->mTransform * V3( 0, -2, 1 );
+            v3 pLookAt = playerDude->mTransform * V3( 0, 1, 0 );
+            v3 vUp = GetColumn( playerDude->mTransform, 2 ).xyz;
+            renderCommands->mCamera = CameraLookAt( pCam, pLookAt, vUp );
         }
 
-        if( input0->rightStick.avgX || input0->rightStick.avgY )
-        {
-            gameState->playerPitch += input0->rightStick.avgY / 15.f * dt;
-            gameState->playerYaw += -input0->rightStick.avgX / 15.f * dt; 
-        }
-
-        m4 mPlayerRot = ZRotation( gameState->playerYaw ) * XRotation( gameState->playerPitch );
-        pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
-        dude->mTransform = RotPos( mPlayerRot, pPlayer );
-        PushRenderGroup( renderCommands, dude );
-
-        gameState->pPlayer = pPlayer;
-
-        // Create a chasing camera
-        // TODO Use a PID controller
-        v3 pCam = dude->mTransform * V3( 0, -2, 1 );
-        v3 pLookAt = dude->mTransform * V3( 0, 1, 0 );
-        v3 vUp = GetColumn( dude->mTransform, 2 ).xyz;
-        renderCommands->mCamera = CameraLookAt( pCam, pLookAt, vUp );
-
-        for( u32 i = 0; i < tranState->cubeCount; ++i )
-        {
-            CubeThing *cube = tranState->cubes + i;
-            PushRenderGroup( renderCommands, cube );
-        }
-
-        EndTemporaryMemory( renderMemory );
+        //EndTemporaryMemory( renderMemory );
     }
 
     CheckArena( &gameState->gameArena );

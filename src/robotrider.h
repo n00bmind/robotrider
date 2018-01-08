@@ -15,15 +15,17 @@
 
 //
 // Game entry points & data types for the platform layer
+// (should probably try to separate it as much as possible to minimize what tha
+// platform side needs to include)
 //
 
-struct GameOffscreenBuffer
-{
-    void *memory;
-    int width;
-    int height;
-    int bytesPerPixel;
-};
+//struct GameOffscreenBuffer
+//{
+    //void *memory;
+    //int width;
+    //int height;
+    //int bytesPerPixel;
+//};
 
 struct GameRenderCommands
 {
@@ -78,31 +80,6 @@ struct GameAudioBuffer
     // TODO Convert this to a format that is independent of final bitdepth (32bit-float?)
     // (even off-the-shelf audio mixers support this natively, it seems)
     i16 *samples;
-};
-
-enum class ConsoleEntryType
-{
-    Empty = 0,
-    LogOutput,
-    History,
-    CommandOutput,
-};
-
-struct ConsoleEntry
-{
-    // FIXME This is absurd and we should allocate this as needed in the gameArena
-    char text[CONSOLE_LINE_MAXLEN];
-    ConsoleEntryType type;
-};
-
-struct GameConsole
-{
-    ConsoleEntry entries[4096];
-    char inputBuffer[CONSOLE_LINE_MAXLEN];
-
-    u32 entryCount;
-    u32 nextEntryIndex;
-    bool scrollToBottom;
 };
 
 struct GameStickState
@@ -192,25 +169,6 @@ struct GameMemory
 };
 
 
-struct ImGuiContext;
-
-struct GameState
-{
-    MemoryArena gameArena;
-    ImGuiContext* imGuiContext;
-
-    GameConsole gameConsole;
-
-#if DEBUG
-    bool DEBUGglobalDebugging;
-    bool DEBUGglobalEditing;
-#endif
-
-    v3 pPlayer;
-    r32 playerPitch;
-    r32 playerYaw;
-};
-
 
 #ifndef GAME_SETUP_AFTER_RELOAD
 #define GAME_SETUP_AFTER_RELOAD(name) \
@@ -251,17 +209,68 @@ struct CubeThing
     u32 renderHandle;
 };
 
+enum class ConsoleEntryType
+{
+    Empty = 0,
+    LogOutput,
+    History,
+    CommandOutput,
+};
+
+struct ConsoleEntry
+{
+    // FIXME This is absurd and we should allocate this as needed in the gameArena
+    char text[CONSOLE_LINE_MAXLEN];
+    ConsoleEntryType type;
+};
+
+struct GameConsole
+{
+    ConsoleEntry entries[4096];
+    char inputBuffer[CONSOLE_LINE_MAXLEN];
+
+    u32 entryCount;
+    u32 nextEntryIndex;
+    bool scrollToBottom;
+};
+
+struct EditorState
+{
+    v3 pCamera;
+    r32 camPitch;
+    r32 camYaw;
+};
+
+struct ImGuiContext;
+
+struct GameState
+{
+    MemoryArena gameArena;
+    ImGuiContext* imGuiContext;
+
+    GameConsole gameConsole;
+
+#if DEBUG
+    bool DEBUGglobalDebugging;
+    bool DEBUGglobalEditing;
+
+    EditorState DEBUGeditorState;
+#endif
+
+    v3 pPlayer;
+    r32 playerPitch;
+    r32 playerYaw;
+
+    FlyingDude *playerDude;
+
+    CubeThing *cubes;
+    u32 cubeCount;
+};
+
 struct TransientState
 {
     bool isInitialized;
     MemoryArena transientArena;
-
-    RenderBuffer *renderBuffer;
-
-    FlyingDude *dude;
-
-    CubeThing *cubes;
-    u32 cubeCount;
 };
 
 
