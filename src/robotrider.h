@@ -138,6 +138,7 @@ struct GameInput
 {
     bool executableReloaded;
     r32 frameElapsedSeconds;
+    r32 gameElapsedSeconds;
 
     GameControllerInput _controllers[5];
 

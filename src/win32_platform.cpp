@@ -564,7 +564,7 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
         GameControllerInput *newController = GetController( newInput, controllerIndex );
 
         XINPUT_STATE controllerState;
-        // FIXME This call stalls for a few hundred thousand cycles when the controller is not present
+        // FIXME This call apparently stalls for a few hundred thousand cycles when the controller is not present
         if( XInputGetState( controllerIndex, &controllerState ) == ERROR_SUCCESS )
         {
             // Plugged in
@@ -595,6 +595,8 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 
             newController->rightStick.endY = Win32ProcessXInputStickValue( pad->sThumbRY,
                                                                            XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE );
+            // TODO Left/right triggers
+
             newController->rightStick.avgY
                 = (newController->rightStick.startY + newController->rightStick.endY) / 2;
 
@@ -680,7 +682,8 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 }
 
 internal void
-Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput, float elapsedSeconds )
+Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
+                       float elapsedSeconds, float totalSeconds )
 {
     GameInput *temp = newInput;
     newInput = oldInput;
@@ -693,6 +696,7 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput, float elapsed
     for( int i = 0; i < ARRAYCOUNT(newInput->mouseButtons); ++i )
         newInput->mouseButtons[i] = oldInput->mouseButtons[i];
     newInput->frameElapsedSeconds = elapsedSeconds;
+    newInput->gameElapsedSeconds = totalSeconds;
 }
 
 
@@ -1560,7 +1564,8 @@ WinMain( HINSTANCE hInstance,
                     HRESULT audioStarted = globalAudioClient->Start();
                     ASSERT( audioStarted == S_OK );
 
-                    LARGE_INTEGER lastCounter = Win32GetWallClock();
+                    LARGE_INTEGER firstCounter = Win32GetWallClock();
+                    LARGE_INTEGER lastCounter = firstCounter;
                     i64 lastCycleCounter = __rdtsc();
 
                     Win32GameCode game = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );
@@ -1569,7 +1574,8 @@ WinMain( HINSTANCE hInstance,
                     u32 runningFrameCounter = 0;
                     while( globalRunning )
                     {
-                        Win32PrepareInputData( oldInput, newInput, lastDeltaTimeSecs );
+                        r32 totalSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
+                        Win32PrepareInputData( oldInput, newInput, lastDeltaTimeSecs, totalSeconds );
 
                         FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
                         if( CompareFileTime( &dllWriteTime, &game.lastDLLWriteTime ) != 0 )

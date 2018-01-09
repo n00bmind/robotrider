@@ -1,6 +1,21 @@
 #ifndef __MATH_TYPES_H__
 #define __MATH_TYPES_H__ 
 
+/// We use a quite standard right-handed cartesian coordinate system in which
+///     +X goes right
+///     +Y goes up
+///     +Z goes towards the viewer
+///
+/// However, the robotrider 'world' uses a slight variation of this system in which
+/// your dude starts up sliding along over the XY plane, and so, in this scenario,
+/// Y is 'forward' and Z is 'up'.
+///
+/// When referring to Euler angles, 'pitch' is the rotation about the +X axis, 'yaw' is
+/// the rotation about the +Z ('up') axis, and 'roll' is the rotation about the +Y
+/// ('forward') axis, and they're applied in that order.
+/// Position rotation angles go in the direction determined by the right hand screw rule,
+/// as any sane person knows.
+
 // TODO IMPORTANT Write a nice test suite for this whole file
 
 
@@ -22,7 +37,7 @@ V2iZero()
 }
 
 inline bool
-AreEqual( const v2i &a, const v2i &b )
+operator ==( const v2i &a, const v2i &b )
 {
     return a.x == b.x && a.y == b.y;
 }
@@ -157,6 +172,21 @@ operator -( const v3 &a, const v3 &b )
     return result;
 }
 
+inline void
+operator +=( v3 &a, const v3 &b )
+{
+    a.x += b.x;
+    a.y += b.y;
+    a.z += b.z;
+}
+
+inline v3
+operator *( const v3 &v, r32 s )
+{
+    v3 result = { v.x * s, v.y * s, v.z * s };
+    return result;
+}
+
 inline v3
 Cross( const v3 &a, const v3 &b )
 {
@@ -174,6 +204,31 @@ Normalized( const v3 &v )
 {
     r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
     v3 result = { v.x * invL, v.y * invL, v.z * invL };
+    return result;
+}
+
+// Canonical world orientations
+// We define our game world as having the positive Z axis pointing up
+// (consequently the positive Y axis points 'forward')
+
+inline v3
+V3Right()
+{
+    v3 result = { 1.0f, 0.0f, 0.0f };
+    return result;
+}
+
+inline v3
+V3Forward()
+{
+    v3 result = { 0.0f, 1.0f, 0.0f };
+    return result;
+}
+
+inline v3
+V3Up()
+{
+    v3 result = { 0.0f, 0.0f, 1.0f };
     return result;
 }
 
@@ -432,7 +487,7 @@ Transposed( const m4 &m )
     return result;
 }
 
-internal v4
+inline v4
 Transform( const m4 &m, const v4 &v )
 {
     v4 r;
@@ -477,7 +532,7 @@ operator*( const m4 &m1, const m4 &m2 )
     return result;
 }
 
-internal m4
+inline m4
 CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
 {
     m4 r = M4Rows( x, y, z );
@@ -486,7 +541,16 @@ CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
     return r;
 }
 
-internal m4
+inline m4
+CameraTransform( const m4 &rot, const v3 &p )
+{
+    m4 r = GetRotation( rot );
+    r = Translate( r, -(r*p) );
+
+    return r;
+}
+
+inline m4
 CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 {
     v3 vUpN = Normalized( vUp );
@@ -533,5 +597,55 @@ union q
     };
     r32 e[4];
 };
+
+// TODO Test
+inline q
+Q( const m4 &m )
+{
+    q r;
+    float tr = m.e[0][0] + m.e[1][1] + m.e[2][2];
+
+    if( tr > 0.f )
+    {
+        float s = (float)(sqrt( tr + 1.0 ) * 2);     // s = 4 * qw
+        r.w = 0.25f * s;
+        r.x = (m.e[2][1] - m.e[1][2]) / s;
+        r.y = (m.e[0][2] - m.e[2][0]) / s;
+        r.z = (m.e[1][0] - m.e[0][1]) / s;
+    }
+    else if( (m.e[0][0] > m.e[1][1]) && (m.e[0][0] > m.e[2][2]) )
+    {
+        float s = (float)(sqrt( 1.0 + m.e[0][0] - m.e[1][1] - m.e[2][2] ) * 2);  // s = 4 * qx
+        r.w = (m.e[2][1] - m.e[1][2]) / s;
+        r.x = 0.25f * s;
+        r.y = (m.e[0][1] + m.e[1][0]) / s;
+        r.z = (m.e[0][2] + m.e[2][0]) / s;
+    }
+    else if( m.e[1][1] > m.e[2][2] )
+    {
+        float s = (float)(sqrt( 1.0 + m.e[1][1] - m.e[0][0] - m.e[2][2]) * 2);   // s = 4 * qy
+        r.w = (m.e[0][2] - m.e[2][0]) / s;
+        r.x = (m.e[0][1] + m.e[1][0]) / s;
+        r.y = 0.25f * s;
+        r.z = (m.e[1][2] + m.e[2][1]) / s;
+    }
+    else
+    {
+        float s = (float)(sqrt( 1.0 + m.e[2][2] - m.e[0][0] - m.e[1][1]) * 2);   // s = 4 * qz
+        r.w = (m.e[1][0] - m.e[0][1]) / s;
+        r.x = (m.e[0][2] + m.e[2][0]) / s;
+        r.y = (m.e[1][2] + m.e[2][1]) / s;
+        r.z = 0.25f * s;
+    }
+
+    return r;
+}
+
+inline void
+ToEulerXYZ( const q &r, float *pitch, float *yaw, float *roll )
+{
+    // TODO Develop the editor a bit further so that these ops can be applied
+    // over a selected object so we can visually test them at least
+}
 
 #endif /* __MATH_TYPES_H__ */

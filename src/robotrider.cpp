@@ -80,6 +80,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
         char statsText[1024];
         snprintf( statsText, 1024, "FPS %.1f", fps );   // Seems to be crossplatform, so it's good enough for now
+        //snprintf( statsText, 1024, "Elapsed %.1f seconds", input->gameElapsedSeconds );
 
         if( gameState->DEBUGglobalDebugging )
         {
