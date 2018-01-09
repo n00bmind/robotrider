@@ -1,6 +1,8 @@
 #ifndef __MATH_TYPES_H__
 #define __MATH_TYPES_H__ 
 
+// TODO IMPORTANT Write a nice test suite for this whole file
+
 
 // Vector 2 integer
 
@@ -12,6 +14,12 @@ union v2i
     };
     i32 e[2];
 };
+
+inline v2i
+V2iZero()
+{
+    return { 0, 0 };
+}
 
 inline bool
 AreEqual( const v2i &a, const v2i &b )
@@ -39,6 +47,12 @@ V2( const v2i &v )
 {
     v2 result = { (r32)v.x, (r32)v.y };
     return result;
+}
+
+inline v2
+V2Zero()
+{
+    return { 0.0f, 0.0f };
 }
 
 inline v2
@@ -108,6 +122,18 @@ V3( const v2 &v, r32 z )
 {
     v3 result = { v.x, v.y, z };
     return result;
+}
+
+inline v3
+V3Zero()
+{
+    return { 0.0f, 0.0f, 0.0f };
+}
+
+inline bool
+operator ==( const v3 &a, const v3 &b )
+{
+    return a.x == b.x && a.y == b.y && a.z == b.z;
 }
 
 inline v3
@@ -231,7 +257,7 @@ union m4
 };
 
 inline m4
-Identity()
+M4Identity()
 {
     m4 result =
     {{
@@ -245,7 +271,7 @@ Identity()
 }
 
 inline m4
-Translation( const v3 &p )
+M4Translation( const v3 &p )
 {
     m4 result =
     {{
@@ -349,7 +375,7 @@ GetRotation( const m4 &m )
 }
 
 inline m4
-Rows( const v3 &x, const v3 &y, const v3 &z )
+M4Rows( const v3 &x, const v3 &y, const v3 &z )
 {
     m4 result =
     {{
@@ -371,7 +397,7 @@ GetRow( const m4 &m, u32 row )
 }
 
 inline m4
-Columns( const v3 &x, const v3 &y, const v3 &z )
+M4Columns( const v3 &x, const v3 &y, const v3 &z )
 {
     m4 result =
     {{
@@ -389,6 +415,20 @@ GetColumn( const m4 &m, u32 col )
 {
     ASSERT( col >= 0 && col < 4 );
     v4 result = { m.e[0][col], m.e[1][col], m.e[2][col], m.e[3][col] };
+    return result;
+}
+
+inline m4
+Transposed( const m4 &m )
+{
+    m4 result =
+    {{
+         { m.e[0][0], m.e[1][0], m.e[2][0], m.e[3][0] },
+         { m.e[0][1], m.e[1][1], m.e[2][1], m.e[3][1] },
+         { m.e[0][2], m.e[1][2], m.e[2][2], m.e[3][2] },
+         { m.e[0][3], m.e[1][3], m.e[2][3], m.e[3][3] },
+    }};
+
     return result;
 }
 
@@ -440,7 +480,7 @@ operator*( const m4 &m1, const m4 &m2 )
 internal m4
 CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
 {
-    m4 r = Rows( x, y, z );
+    m4 r = M4Rows( x, y, z );
     r = Translate( r, -(r*p) );
 
     return r;
@@ -454,7 +494,7 @@ CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
     v3 vX = Cross( vUpN, vZ );
     v3 vY = Cross( vZ, vX );
 
-    m4 r = Rows( vX, vY, vZ );
+    m4 r = M4Rows( vX, vY, vZ );
     r = Translate( r, -(r*pSrc) );
 
     return r;

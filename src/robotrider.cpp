@@ -98,8 +98,8 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             FlyingDude *playerDude = gameState->playerDude;
             v3 pPlayer = gameState->pPlayer;
-
             v3 vPlayerDelta = {};
+
             if( input0->dLeft.endedDown )
             {
                 vPlayerDelta.x -= 3.f * dt;

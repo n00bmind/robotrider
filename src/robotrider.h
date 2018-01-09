@@ -48,7 +48,7 @@ InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
 {
     GameRenderCommands result;
 
-    result.mCamera = Identity();
+    result.mCamera = M4Identity();
     result.renderBuffer.base = renderBuffer;
     result.renderBuffer.size = 0;
     result.renderBuffer.maxSize = renderBufferMaxSize;

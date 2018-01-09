@@ -18,7 +18,7 @@ InitWorld( GameState *gameState )
             //3, 1, 0,
         },
     };
-    playerDude.mTransform = Identity();
+    playerDude.mTransform = M4Identity();
 
     int rowSize = 31;
     int rowHalf = rowSize >> 1;
@@ -45,7 +45,7 @@ InitWorld( GameState *gameState )
         r32 transX = (((i32)i % rowSize) - rowHalf) * 2.0f;
         r32 transY = ((i32)i / rowSize) * 2.0f;
 
-        cube.mTransform = Translation( { transX, transY, -1.0f } );
+        cube.mTransform = M4Translation( { transX, transY, -1.0f } );
     }
 }
 
