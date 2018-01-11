@@ -7,6 +7,6 @@
 
 FEATURES
 
-· Hot code reloading
-· Loop live code editing
-· Developer console with customizable commands
+· Hot code reloading<br />
+· Loop live code editing<br />
+· Developer console with customizable commands<br />
