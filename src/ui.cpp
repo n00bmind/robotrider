@@ -1,8 +1,3 @@
-#include "imgui/imgui_draw.cpp"
-#include "imgui/imgui.cpp"
-// TODO Remove!
-#include "imgui/imgui_demo.cpp"
-
 
 // Some global constants for colors, styling, etc.
 ImVec4 UInormalTextColor( 0.9f, 0.9f, 0.9f, 1.0f );
@@ -31,7 +26,7 @@ DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
 }
 
 void
-DrawEditorNotice( u16 windowWidth, u16 windowHeight, bool blink )
+DrawEditorNotice( u16 windowWidth, u16 windowHeight, bool blinkToggle )
 {
     ImVec2 statsPos( 0, 0 );
 
@@ -44,10 +39,26 @@ DrawEditorNotice( u16 windowWidth, u16 windowHeight, bool blink )
                   ImGuiWindowFlags_NoResize |
                   ImGuiWindowFlags_NoMove |
                   ImGuiWindowFlags_NoInputs );
-    ImGui::TextColored( UIdarkTextColor, blink ? "EDITOR MODE" : "" );
+    ImGui::TextColored( UIdarkTextColor, blinkToggle ? "EDITOR MODE" : "" );
     ImGui::End();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
 }
 
+void
+DrawAxisGizmos( GameRenderCommands *renderCommands, const v3 &pCamera )
+{
+    float size = 0.1f;
+    const m4 &currentCamTransform = renderCommands->mCamera;
+    v3 vLookAt = -GetRow( currentCamTransform, 2 ).xyz;
+    v3 xAxis = GetRow( currentCamTransform, 0 ).xyz;
+    v3 yAxis = GetRow( currentCamTransform, 1 ).xyz;
 
+    v3 startPos = pCamera + vLookAt * 3.f - xAxis - yAxis;
+    v3 p1 = startPos + xAxis * 0.f + yAxis * size;
+    v3 p2 = startPos + xAxis * 0.f + yAxis * 0.f;
+    v3 p3 = startPos + xAxis * size + yAxis * 0.f;
+    v3 p4 = startPos + xAxis * size + yAxis * size;
+
+    PushQuad( renderCommands, p1, p2, p3, p4 );
+}

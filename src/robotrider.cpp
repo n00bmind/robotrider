@@ -1,5 +1,11 @@
 #include "robotrider.h"
 #include "renderer.cpp"
+
+#include "imgui/imgui_draw.cpp"
+#include "imgui/imgui.cpp"
+// TODO Remove!
+#include "imgui/imgui_demo.cpp"
+
 #include "ui.cpp"
 #include "console.cpp"
 #include "world.cpp"

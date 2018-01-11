@@ -65,6 +65,6 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     r32 elapsedSeconds = input->gameElapsedSeconds;
     DrawEditorNotice( width, height, (i32)elapsedSeconds % 2 == 0 );
 
-    // TODO Draw gizmos for world axes
+    DrawAxisGizmos( renderCommands, editorState.pCamera );
 }
 

@@ -25,7 +25,7 @@ _PushRenderElement( GameRenderCommands *commands, u32 size, RenderEntryType type
     return result;
 }
 
-internal void
+void
 PushClear( GameRenderCommands *commands, v4 color )
 {
     RenderEntryClear *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryClear );
@@ -52,7 +52,65 @@ GetOrCreateCurrentTris( GameRenderCommands *commands )
     return result;
 }
 
-internal void
+void
+PushQuad( GameRenderCommands *commands, const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4 )
+{
+    RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
+    if( entry )
+    {
+        entry->triCount += 2;
+
+        // Push 4 vertices (1st vertex is "top-left" and counter-clockwise from there)
+        TexturedVertex *vert = commands->vertexBuffer.base + commands->vertexBuffer.count;
+
+        u32 vertexCount = 0;
+        {
+            vert[vertexCount].p = p1;
+            vert[vertexCount].color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
+            vert[vertexCount].uv = { 0, 0 };
+        }
+        vertexCount++;
+        {
+            vert[vertexCount].p = p2;
+            vert[vertexCount].color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
+            vert[vertexCount].uv = { 0, 0 };
+        }
+        vertexCount++;
+        {
+            vert[vertexCount].p = p3;
+            vert[vertexCount].color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
+            vert[vertexCount].uv = { 0, 0 };
+        }
+        vertexCount++;
+        {
+            vert[vertexCount].p = p4;
+            vert[vertexCount].color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
+            vert[vertexCount].uv = { 0, 0 };
+        }
+        vertexCount++;
+
+        ASSERT( commands->vertexBuffer.count + vertexCount <= commands->vertexBuffer.maxCount );
+        int indexOffset = commands->vertexBuffer.count;
+        commands->vertexBuffer.count += vertexCount;
+
+        // Push 6 indices for vertices 0-1-2 & 2-3-0
+        u32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
+
+        u32 indexCount = 0;
+        index[indexCount++] = indexOffset + 0;
+        index[indexCount++] = indexOffset + 1;
+        index[indexCount++] = indexOffset + 2;
+
+        index[indexCount++] = indexOffset + 2;
+        index[indexCount++] = indexOffset + 3;
+        index[indexCount++] = indexOffset + 0;
+
+        ASSERT( commands->indexBuffer.count + indexCount <= commands->indexBuffer.maxCount );
+        commands->indexBuffer.count += indexCount;
+    }
+}
+
+void
 PushRenderGroup( GameRenderCommands *commands, FlyingDude *dude )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
@@ -88,7 +146,7 @@ PushRenderGroup( GameRenderCommands *commands, FlyingDude *dude )
 
 }
 
-internal void
+void
 PushRenderGroup( GameRenderCommands *commands, CubeThing *cube )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );

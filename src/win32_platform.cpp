@@ -1,7 +1,8 @@
 #include "robotrider.h"
 #include <windows.h>
 
-#include "ui.cpp"
+#include "imgui/imgui_draw.cpp"
+#include "imgui/imgui.cpp"
 
 #include <gl/gl.h>
 #include "glext.h"
