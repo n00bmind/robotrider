@@ -141,10 +141,7 @@ PLATFORM_LOG(PlatformLog)
     vsnprintf( buffer, ARRAYCOUNT(buffer), fmt, args );
     va_end( args );
 
-    //printf( "%s\n", buffer );
-#if DEBUG
-    OutputDebugStringA( buffer );
-#endif
+    printf( "%s\n", buffer );
 
     if( globalPlatform.LogCallback )
         globalPlatform.LogCallback( buffer );
@@ -228,7 +225,7 @@ Win32InitXInput()
     HMODULE XInputLibrary = LoadLibrary( "xinput1_4.dll" );
     if( !XInputLibrary )
     {
-        // TODO Diagnostic
+        LOG( ".WARNING: xinput1_4.dll couldn't be loaded. Using xinput1_3.dll" );
         XInputLibrary = LoadLibrary( "xinput1_3.dll" );
     }
 
@@ -242,7 +239,7 @@ Win32InitXInput()
     }
     else
     {
-        // TODO Diagnostic
+        LOG( ".ERROR: Couldn't load xinput1_3.dll!" );
     }
 }
 
@@ -251,32 +248,40 @@ Win32InitXInput()
 internal Win32AudioOutput
 Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount, u32 bufferSizeFrames )
 {
+    LOG( ".Initializing WASAPI buffer..." );
+
+    Win32AudioOutput audioOutput = {};
+
     if( FAILED(CoInitializeEx( 0, COINIT_SPEED_OVER_MEMORY )) )
     {
-        // TODO Diagnostic
+        LOG( ".ERROR: CoInitializeEx failed!" );
         ASSERT( false );
+        return audioOutput;
     }
     
     IMMDeviceEnumerator *enumerator;
     if( FAILED(CoCreateInstance( __uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator) )) )
     {
-        // TODO Diagnostic
+        LOG( ".ERROR: CoCreateInstance failed!" );
         ASSERT( false );
+        return audioOutput;
     }
 
     IMMDevice *device;
     if( FAILED(enumerator->GetDefaultAudioEndpoint( eRender, eConsole, &device )) )
     {
-        // TODO Diagnostic
+        LOG( ".ERROR: Couldn't get default audio endpoint!" );
         ASSERT( false );
+        return audioOutput;
     }
 
     if( FAILED(device->Activate( __uuidof(IAudioClient), CLSCTX_ALL, NULL, (LPVOID *)&globalAudioClient )) )
     {
-        // TODO Diagnostic
+        LOG( ".ERROR: Couldn't activate IMMDevice" );
         ASSERT( false );
+        return audioOutput;
     }
-    
+
     WAVEFORMATEXTENSIBLE waveFormat;
     waveFormat.Format.cbSize = sizeof(waveFormat);
     waveFormat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
@@ -294,9 +299,6 @@ Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount, u32 bufferSiz
     HRESULT result = globalAudioClient->Initialize( AUDCLNT_SHAREMODE_SHARED,
                                                     AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM|AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
                                                     bufferDuration, 0, (WAVEFORMATEX *)&waveFormat, nullptr );
-    // TODO Diagnostic
-    ASSERT( result == S_OK );
-
 #if 0
     // Try to initialize again using the device preferred sample rate
 	if( result != S_OK )
@@ -316,22 +318,30 @@ Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount, u32 bufferSiz
     }
 #endif
 
+    if( result != S_OK )
+    {
+        LOG( ".ERROR: Couldn't initialize global audio client" );
+        ASSERT( false );
+        return audioOutput;
+    }
+
     if( FAILED(globalAudioClient->GetService( IID_PPV_ARGS(&globalAudioRenderClient) )) )
     {
-        // TODO Diagnostic
+        LOG( ".ERROR: Couldn't get audio render client" );
         ASSERT( false );
+        return audioOutput;
     }
 
     u32 audioFramesCount;
     if( FAILED(globalAudioClient->GetBufferSize( &audioFramesCount )) )
     {
-        // TODO Diagnostic
+        LOG( ".ERROR: Failed querying buffer size" );
         ASSERT( false );
+        return audioOutput;
     }
 
     ASSERT( bufferSizeFrames == audioFramesCount );
 
-    Win32AudioOutput audioOutput = {};
     audioOutput.samplingRate = waveFormat.Format.nSamplesPerSec;
     audioOutput.bytesPerFrame = AUDIO_BITDEPTH * AUDIO_CHANNELS / 8;
     audioOutput.bufferSizeFrames = bufferSizeFrames;
@@ -738,6 +748,8 @@ Win32BeginInputRecording( Win32State *platformState, u32 inputRecordingIndex )
 
         CopyMemory( replayBuffer->memoryBlock, platformState->gameMemoryBlock, platformState->gameMemorySize );
         // TODO Write state to disk asynchronously
+
+        LOG( "Started input recording at slot %d", inputRecordingIndex );
     }
 }
 
@@ -775,6 +787,8 @@ Win32BeginInputPlayback( Win32State *platformState, u32 inputPlaybackIndex )
                                                     OPEN_EXISTING, 0, 0 );
 
         CopyMemory( platformState->gameMemoryBlock, replayBuffer->memoryBlock, platformState->gameMemorySize );
+        
+        LOG( "Started input playback at slot %d", inputPlaybackIndex );
     }
 }
 
@@ -783,6 +797,8 @@ Win32EndInputPlayback( Win32State *platformState )
 {
     CloseHandle( platformState->playbackHandle );
     platformState->inputPlaybackIndex = 0;
+    
+    LOG( "Input playback finished" );
 }
 
 internal void
@@ -896,10 +912,6 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
 
         switch( message.message )
         {
-            case WM_QUIT:
-                globalRunning = false;
-                break;
-
             case WM_SYSKEYDOWN:
             case WM_SYSKEYUP:
                 altKeyDown = ((message.lParam & (1<<29)) != 0);
@@ -1194,13 +1206,11 @@ Win32WindowProc( HWND hwnd,
 
         case WM_CLOSE:
         {
-            // TODO Message to the user?
             globalRunning = false;
         } break;
 
         case WM_QUIT:
         {
-            // TODO Handle this as an error
             globalRunning = false;
         } break;
 
@@ -1241,6 +1251,8 @@ Win32GetExeFilename( Win32State *state )
 internal bool
 Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
 {
+    LOG( ".Initializing OpenGL..." );
+
     PIXELFORMATDESCRIPTOR pfd =
     {
         sizeof(PIXELFORMATDESCRIPTOR),
@@ -1264,13 +1276,13 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
     int formatIndex = ChoosePixelFormat( dc, &pfd );
     if( !formatIndex )
     {
-        // TODO Diagnostic
+        LOG( ".ERROR: ChoosePixelFormat failed!" );
         return false;
     }
 
     if( !SetPixelFormat( dc, formatIndex, &pfd ) )
     {
-        // TODO Diagnostic
+        LOG( ".ERROR: SetPixelFormat failed!" );
         return false;
     }
 
@@ -1278,14 +1290,14 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
     if( !legacyContext )
     {
         int error = glGetError();
-        // TODO Diagnostic
+        LOG( ".ERROR: wglCreateContext failed with code %d", error );
         return false;
     }
 
     if( !wglMakeCurrent( dc, legacyContext ) )
     {
         int error = glGetError();
-        // TODO Diagnostic
+        LOG( ".ERROR: wglMakeCurrent failed with code %d", error );
         return false;
     }
 
@@ -1308,7 +1320,7 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
         = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress( "wglCreateContextAttribsARB" );
     if( !wglCreateContextAttribsARB )
     {
-        // TODO Diagnostic
+        LOG( ".ERROR: Failed querying entry point for wglCreateContextAttribsARB!" );
         return false;
     }
 
@@ -1316,7 +1328,7 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
     if( !renderingContext )
     {
         int error = glGetError();
-        // TODO Diagnostic
+        LOG( ".ERROR: Couldn't create rendering context! Error code is: %d", error );
         return false;
     }
 
@@ -1327,7 +1339,8 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
 
     if( !wglMakeCurrent( dc, renderingContext ) )
     {
-        // TODO Diagnostic
+        int error = glGetError();
+        LOG( ".ERROR: wglMakeCurrent failed with code %d", error );
         return false;
     }
 
@@ -1382,11 +1395,8 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
 
 
 
-int CALLBACK
-WinMain( HINSTANCE hInstance,
-         HINSTANCE hPrevInstance,
-         LPSTR lpCmdLine,
-         int nCmdShow )
+int 
+main( int argC, char **argV )
 {
     globalPlatform.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
     globalPlatform.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
@@ -1408,6 +1418,8 @@ WinMain( HINSTANCE hInstance,
     char tempDLLPath[MAX_PATH];
     sprintf_s( tempDLLPath, ARRAYCOUNT(tempDLLPath), "%s%s", platformState.exeFilePath, tempDLLName );
 
+    LOG( "Initializing Win32 platform with game DLL at: %s", sourceDLLPath );
+
     // Init subsystems
     Win32InitXInput();
     // TODO Test what a safe value for buffer size/latency is with several audio cards
@@ -1418,19 +1430,23 @@ WinMain( HINSTANCE hInstance,
     QueryPerformanceFrequency( &perfCounterFreqMeasure );
     globalPerfCounterFrequency = perfCounterFreqMeasure.QuadPart;
 
-    // Set Windows schduler granularity so that our frame wait sleep is more granular
+#if 0
+    // Set Windows scheduler granularity so that our frame wait sleep is more granular
     bool sleepIsGranular = (timeBeginPeriod( 1 ) == TIMERR_NOERROR);
     if( !sleepIsGranular )
     {
-        // TODO Log a bit fat warning
+        LOG( ".Warning: We don't have a granular scheduler!" );
     }
+#endif
 
     // Register window class and create game window
     WNDCLASS windowClass = {};
     windowClass.style = CS_HREDRAW|CS_VREDRAW|CS_OWNDC;
     windowClass.lpfnWndProc = Win32WindowProc;
-    windowClass.hInstance = hInstance;
+    windowClass.hInstance = GetModuleHandle( NULL );
     windowClass.lpszClassName = "RobotRiderWindowClass";
+
+    LOG( ".Creating window..." );
 
     if( RegisterClass( &windowClass ) )
     {
@@ -1444,7 +1460,7 @@ WinMain( HINSTANCE hInstance,
                                       CW_USEDEFAULT,
                                       0,
                                       0,
-                                      hInstance,
+                                      windowClass.hInstance,
                                       0 );
                                             
         if( window )
@@ -1457,11 +1473,11 @@ WinMain( HINSTANCE hInstance,
             if( refreshRate > 1 )
             {
                 globalMonitorRefreshHz = refreshRate;
-                LOG( "Monitor refresh rate: %d Hz\n", globalMonitorRefreshHz );
+                LOG( ".Monitor refresh rate: %d Hz", globalMonitorRefreshHz );
             }
             else
             {
-                LOG( "WNG: Failed to query monitor refresh rate. Using %d Hz\n", VIDEO_TARGET_FRAMERATE );
+                LOG( ".WARNING: Failed to query monitor refresh rate. Using %d Hz", VIDEO_TARGET_FRAMERATE );
             }
             u32 frameVSyncSkipCount = Round( (r32)globalMonitorRefreshHz / VIDEO_TARGET_FRAMERATE );
             u32 videoTargetFramerateHz = globalMonitorRefreshHz / frameVSyncSkipCount;
@@ -1552,6 +1568,8 @@ WinMain( HINSTANCE hInstance,
 
                 if( gameMemory.permanentStorage && gameMemory.transientStorage && soundSamples )
                 {
+                    LOG( ".Allocated game memory with base address: %p", baseAddress );
+
                     GameInput input[2] = {};
                     GameInput *newInput = &input[0];
                     GameInput *oldInput = &input[1];
@@ -1581,7 +1599,7 @@ WinMain( HINSTANCE hInstance,
                         FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
                         if( CompareFileTime( &dllWriteTime, &game.lastDLLWriteTime ) != 0 )
                         {
-                            // FIXME Seems to be not working reliably!?
+                            // FIXME Detection seems to be not working reliably!?
                             LOG( "Detected updated game DLL. Reloading.." );
                             Win32UnloadGameCode( &game );
                             game = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );
@@ -1705,23 +1723,24 @@ WinMain( HINSTANCE hInstance,
                 }
                 else
                 {
-                    // TODO Log "Couldn't allocate memory"
+                    LOG( ".ERROR: Memory allocation failed!" );
                 }
             }
             else
             {
-                LOG( "OpenGL initialization failed" );
+                LOG( ".ERROR: OpenGL initialization failed!" );
             }
         }
         else
         {
-            // TODO Log "Couldn't create window"
+            LOG( ".ERROR: Failed creating window!" );
         }
     }
     else
     {
-        // TODO Log "Couldn't register window class"
+        LOG( "Couldn't register window class!" );
     }
+
     return 0;
 }
 

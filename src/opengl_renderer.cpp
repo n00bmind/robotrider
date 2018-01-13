@@ -174,7 +174,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     if( !success )
     {
         glGetShaderInfoLog( vertexShader, 512, NULL, infoLog );
-        LOG( "ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
+        LOG( ".ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
         INVALID_CODE_PATH
     }
 
@@ -190,7 +190,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     if( !success )
     {
         glGetShaderInfoLog( fragmentShader, 512, NULL, infoLog );
-        LOG( "ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
+        LOG( ".ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
         INVALID_CODE_PATH
     }
 
@@ -203,7 +203,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     if( !success )
     {
         glGetProgramInfoLog( gl.shaderProgram, 512, NULL, infoLog );
-        LOG( "ERROR :: Shader program linkage failed!\n%s\n", infoLog );
+        LOG( ".ERROR :: Shader program linkage failed!\n%s\n", infoLog );
         INVALID_CODE_PATH
     }
 
@@ -425,7 +425,7 @@ inline void SetupImGuiStyle( bool bStyleDark_, float alpha_  )
 internal ImGuiContext *
 OpenGLInitImGui( OpenGLState &gl )
 {
-    LOG( "Initializing ImGui version %s", ImGui::GetVersion() );
+    LOG( ".Initializing ImGui version %s", ImGui::GetVersion() );
 
     // We're gonna create our own ImGui context instead of relying on the default one,
     // FIXME We also should create an arena for all ImGui and pass a custom allocator/free here (and not use new!)
