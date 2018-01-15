@@ -27,12 +27,13 @@
     //int bytesPerPixel;
 //};
 
+// TODO Move to renderer.h?
 struct GameRenderCommands
 {
     u16 width;
     u16 height;
 
-    m4 mCamera;
+    Camera camera;
 
     RenderBuffer renderBuffer;
     VertexBuffer vertexBuffer;
@@ -48,7 +49,6 @@ InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
 {
     GameRenderCommands result;
 
-    result.mCamera = M4Identity();
     result.renderBuffer.base = renderBuffer;
     result.renderBuffer.size = 0;
     result.renderBuffer.maxSize = renderBufferMaxSize;

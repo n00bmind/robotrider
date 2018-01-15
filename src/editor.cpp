@@ -52,7 +52,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
         //editorState.pCamera += vCamForward * vCamDelta.z + vCamRight * vCamDelta.x;
         editorState.pCamera += Transposed( mCamRot ) * vCamDelta;
 
-        renderCommands->mCamera = mCamRot * M4Translation( -editorState.pCamera );
+        renderCommands->camera.mTransform = mCamRot * M4Translation( -editorState.pCamera );
     }
 
     // Draw the world
@@ -65,6 +65,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     r32 elapsedSeconds = input->gameElapsedSeconds;
     DrawEditorNotice( width, height, (i32)elapsedSeconds % 2 == 0 );
 
-    DrawAxisGizmos( renderCommands, editorState.pCamera );
+    DrawAxisGizmos( renderCommands ); //, editorState.pCamera );
+    // TODO Get fovX from camera fovY and aspect, and calc a world position which is close to the screen bottom left
 }
 

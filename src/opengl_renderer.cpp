@@ -1,6 +1,10 @@
 
 GL_DEBUG_CALLBACK(OpenGLDebugCallback)
 {
+    // Filter notifications by default because they flood the logs with some cards..
+    if( severity == GL_DEBUG_SEVERITY_NOTIFICATION )
+        return;
+
     const char *sourceStr;
     switch( source )
     {
@@ -513,8 +517,8 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
     glViewport( 0, 0, commands.width, commands.height );
     glDisable( GL_SCISSOR_TEST );
 
-    m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, 50 );
-    mProjView = mProjView * commands.mCamera;
+    m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
+    mProjView = mProjView * commands.camera.mTransform;
 
     glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 

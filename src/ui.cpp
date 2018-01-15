@@ -46,13 +46,17 @@ DrawEditorNotice( u16 windowWidth, u16 windowHeight, bool blinkToggle )
 }
 
 void
-DrawAxisGizmos( GameRenderCommands *renderCommands, const v3 &pCamera )
+DrawAxisGizmos( GameRenderCommands *renderCommands )
 {
     float size = 0.1f;
-    const m4 &currentCamTransform = renderCommands->mCamera;
+    const m4 &currentCamTransform = renderCommands->camera.mTransform;
     v3 vLookAt = -GetRow( currentCamTransform, 2 ).xyz;
     v3 xAxis = GetRow( currentCamTransform, 0 ).xyz;
     v3 yAxis = GetRow( currentCamTransform, 1 ).xyz;
+
+    // TODO Get fovX from camera fovY and aspect, and calc a world position which is close to the screen bottom left
+    v3 p = GetTranslation( currentCamTransform );
+    v3 pCamera = Transposed( currentCamTransform ) * (-p);
 
     v3 startPos = pCamera + vLookAt * 3.f - xAxis - yAxis;
     v3 p1 = startPos + xAxis * 0.f + yAxis * size;

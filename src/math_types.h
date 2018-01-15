@@ -565,6 +565,20 @@ CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 }
 
 inline m4
+CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
+{
+    v3 vUpN = Normalized( vUp );
+    v3 vZ = Normalized( -vDir );
+    v3 vX = Cross( vUpN, vZ );
+    v3 vY = Cross( vZ, vX );
+
+    m4 r = M4Rows( vX, vY, vZ );
+    r = Translate( r, -(r*pSrc) );
+
+    return r;
+}
+
+inline m4
 RotPos( const m4 &m, const v3 &p )
 {
     m4 result =

@@ -147,7 +147,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             v3 pCam = playerDude->mTransform * V3( 0, -2, 1 );
             v3 pLookAt = playerDude->mTransform * V3( 0, 1, 0 );
             v3 vUp = GetColumn( playerDude->mTransform, 2 ).xyz;
-            renderCommands->mCamera = CameraLookAt( pCam, pLookAt, vUp );
+            renderCommands->camera.mTransform = CameraLookAt( pCam, pLookAt, vUp );
         }
 
         //EndTemporaryMemory( renderMemory );

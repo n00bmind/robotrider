@@ -8,6 +8,14 @@ enum class Renderer
     // Software?
 };
 
+
+struct Camera
+{
+    r32 fovYDeg = 60;
+    m4 mTransform = M4Identity();
+};
+
+
 enum class RenderEntryType
 {
     RenderEntryClear,
