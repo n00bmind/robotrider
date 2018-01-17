@@ -65,7 +65,6 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     r32 elapsedSeconds = input->gameElapsedSeconds;
     DrawEditorNotice( width, height, (i32)elapsedSeconds % 2 == 0 );
 
-    DrawAxisGizmos( renderCommands ); //, editorState.pCamera );
-    // TODO Get fovX from camera fovY and aspect, and calc a world position which is close to the screen bottom left
+    DrawAxisGizmos( renderCommands );
 }
 

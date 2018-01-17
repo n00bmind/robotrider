@@ -102,7 +102,7 @@ OpenGLGetInfo( bool modernContext )
 internal m4
 CreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
 {
-    r32 n = 0.1f;
+    r32 n = 0.1f;		// Make this configurable?
     r32 f = 100.0f;
     r32 d = f - n;
     r32 a = aspectRatio;
@@ -539,6 +539,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 baseAddress += sizeof(*entry);
             } break;
 
+			// Deprecated
             case RenderEntryType::RenderEntryGroup:
             {
                 RenderEntryGroup *entry = (RenderEntryGroup *)entryHeader;
@@ -582,7 +583,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 GLuint uvAttribId = gl.uvAttribId;
                 GLuint cAttribId = gl.cAttribId;
 
-                // TODO This call should be done just once per frame at the very beginning..
+                // FIXME This call should be done just once per frame at the very beginning..
                 glBufferData( GL_ARRAY_BUFFER,
                               commands.vertexBuffer.count * sizeof(TexturedVertex),
                               commands.vertexBuffer.base,
@@ -596,7 +597,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 //glVertexAttribPointer( uvAttribId, 2, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, uv) );
                 //glVertexAttribPointer( cAttribId, 4, GL_UNSIGNED_BYTE, true, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color)  );
 
-                // TODO This call should be done just once per frame at the very beginning..
+                // FIXME This call should be done just once per frame at the very beginning..
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER,
                               commands.indexBuffer.count * sizeof(u32),
                               commands.indexBuffer.base,
