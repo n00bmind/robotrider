@@ -73,6 +73,7 @@ PFNGLDISABLEVERTEXATTRIBARRAYPROC       glDisableVertexAttribArray;
 PFNGLACTIVETEXTUREPROC	                glActiveTexture;
 PFNGLBLENDEQUATIONPROC	                glBlendEquation;
 PFNGLUNIFORM1IPROC	                    glUniform1i;
+PFNGLBINDATTRIBLOCATIONPROC             glBindAttribLocation;
 
 
 #endif /* __OPENGL_RENDERER_H__ */
