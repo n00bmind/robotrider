@@ -219,6 +219,13 @@ Normalized( const v3 &v )
 // (consequently the positive Y axis points 'forward')
 
 inline v3
+V3X()
+{
+    v3 result = { 1.0f, 0.0f, 0.0f };
+    return result;
+}
+
+inline v3
 V3Right()
 {
     v3 result = { 1.0f, 0.0f, 0.0f };
@@ -226,9 +233,23 @@ V3Right()
 }
 
 inline v3
+V3Y()
+{
+    v3 result = { 0.0f, 1.0f, 0.0f };
+    return result;
+}
+
+inline v3
 V3Forward()
 {
     v3 result = { 0.0f, 1.0f, 0.0f };
+    return result;
+}
+
+inline v3
+V3Z()
+{
+    v3 result = { 0.0f, 0.0f, 1.0f };
     return result;
 }
 

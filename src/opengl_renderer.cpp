@@ -604,11 +604,12 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 glEnableVertexAttribArray( pAttribId );
                 glEnableVertexAttribArray( uvAttribId );
-                //glEnableVertexAttribArray( cAttribId );
+                glEnableVertexAttribArray( cAttribId );
 
                 glVertexAttribPointer( pAttribId, 3, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, p) );
                 glVertexAttribPointer( uvAttribId, 2, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, uv) );
-                //glVertexAttribPointer( cAttribId, 4, GL_UNSIGNED_BYTE, true, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color)  );
+                // NOTE glVertexAttribPointer cannot be used with integral data. Beware the I!!!
+                glVertexAttribIPointer( cAttribId, 1, GL_UNSIGNED_INT, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color) );
 
                 // FIXME This call should be done just once per frame at the very beginning..
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER,
@@ -620,7 +621,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 glDisableVertexAttribArray( pAttribId );
                 glDisableVertexAttribArray( uvAttribId );
-                //glDisableVertexAttribArray( cAttribId );
+                glDisableVertexAttribArray( cAttribId );
 
                 glUseProgram( 0 );
 

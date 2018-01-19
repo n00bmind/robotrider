@@ -2,13 +2,14 @@ R"|(
 
 #version 330 core
 
-in uint vertColor;
+flat in uint vertColor;
 
 out vec4 fragColor;
 
 
 // TODO Move this to an include when we support that
 // vec4 to rgba8 uint
+// TODO Test
 uint pack( vec4 value )
 {
     // Ensure values are in [0..1] and make NaNs become zeros
@@ -36,7 +37,7 @@ vec4 unpack( uint value )
 
 void main()
 {
-    fragColor = vec4(1, 0, 0, 1); //vertColor;
+    fragColor = unpack( vertColor );
 }
 
 )|"

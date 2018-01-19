@@ -6,7 +6,7 @@ layout(location = 0) in vec3 pIn;
 layout(location = 1) in vec2 uvIn;
 layout(location = 2) in uint cIn;
 
-out uint vertColor;
+flat out uint vertColor;
 
 uniform mat4 mTransform;
 
