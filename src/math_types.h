@@ -188,6 +188,13 @@ operator *( const v3 &v, r32 s )
 }
 
 inline v3
+operator *( r32 s, const v3 &v )
+{
+    v3 result = { v.x * s, v.y * s, v.z * s };
+    return result;
+}
+
+inline v3
 Cross( const v3 &a, const v3 &b )
 {
     v3 result =
@@ -212,6 +219,13 @@ Normalized( const v3 &v )
 // (consequently the positive Y axis points 'forward')
 
 inline v3
+V3X()
+{
+    v3 result = { 1.0f, 0.0f, 0.0f };
+    return result;
+}
+
+inline v3
 V3Right()
 {
     v3 result = { 1.0f, 0.0f, 0.0f };
@@ -219,9 +233,23 @@ V3Right()
 }
 
 inline v3
+V3Y()
+{
+    v3 result = { 0.0f, 1.0f, 0.0f };
+    return result;
+}
+
+inline v3
 V3Forward()
 {
     v3 result = { 0.0f, 1.0f, 0.0f };
+    return result;
+}
+
+inline v3
+V3Z()
+{
+    v3 result = { 0.0f, 0.0f, 1.0f };
     return result;
 }
 
@@ -555,6 +583,20 @@ CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 {
     v3 vUpN = Normalized( vUp );
     v3 vZ = Normalized( pSrc - pTgt );
+    v3 vX = Cross( vUpN, vZ );
+    v3 vY = Cross( vZ, vX );
+
+    m4 r = M4Rows( vX, vY, vZ );
+    r = Translate( r, -(r*pSrc) );
+
+    return r;
+}
+
+inline m4
+CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
+{
+    v3 vUpN = Normalized( vUp );
+    v3 vZ = Normalized( -vDir );
     v3 vX = Cross( vUpN, vZ );
     v3 vY = Cross( vZ, vX );
 

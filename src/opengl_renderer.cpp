@@ -1,6 +1,10 @@
 
 GL_DEBUG_CALLBACK(OpenGLDebugCallback)
 {
+    // Filter notifications by default because they flood the logs with some cards..
+    if( severity == GL_DEBUG_SEVERITY_NOTIFICATION )
+        return;
+
     const char *sourceStr;
     switch( source )
     {
@@ -98,7 +102,7 @@ OpenGLGetInfo( bool modernContext )
 internal m4
 CreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
 {
-    r32 n = 0.1f;
+    r32 n = 0.1f;		// Make this configurable?
     r32 f = 100.0f;
     r32 d = f - n;
     r32 a = aspectRatio;
@@ -179,7 +183,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     }
 
     const char *fragmentShaderSource =
-#include "shaders/black.fs.glsl"
+#include "shaders/flat.fs.glsl"
         ;
 
     GLuint fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
@@ -197,6 +201,15 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     gl.shaderProgram = glCreateProgram();
     glAttachShader( gl.shaderProgram, vertexShader );
     glAttachShader( gl.shaderProgram, fragmentShader );
+
+    // Explicitly bind indices so that we don't need to conditionally bind shit later
+    // only to avoid stupid fucking errors
+    gl.pAttribId = 0;
+    gl.uvAttribId = 1;
+    gl.cAttribId = 2;
+    glBindAttribLocation( gl.shaderProgram, gl.pAttribId, "pIn" );
+    glBindAttribLocation( gl.shaderProgram, gl.uvAttribId, "uvIn" );
+    glBindAttribLocation( gl.shaderProgram, gl.cAttribId, "cIn" );
     glLinkProgram( gl.shaderProgram );
 
     glGetProgramiv( gl.shaderProgram, GL_LINK_STATUS, &success );
@@ -211,9 +224,13 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     glDeleteShader( fragmentShader );
 
     gl.transformUniformId = glGetUniformLocation( gl.shaderProgram, "mTransform" );
-    gl.pAttribId = glGetAttribLocation( gl.shaderProgram, "pIn" );
-    gl.uvAttribId = glGetAttribLocation( gl.shaderProgram, "uvIn" );
-    gl.cAttribId = glGetAttribLocation( gl.shaderProgram, "cIn" );
+    // TODO Automate all this shit
+    if( glGetAttribLocation( gl.shaderProgram, "pIn" ) == -1 )
+        LOG( ".WARNING :: Attribute 'pIn' is not active in shader program %d", gl.shaderProgram );
+    if( glGetAttribLocation( gl.shaderProgram, "uvIn" ) == -1 )
+        LOG( ".WARNING :: Attribute 'uvIn' is not active in shader program %d", gl.shaderProgram );
+    if( glGetAttribLocation( gl.shaderProgram, "cIn" ) == -1 )
+        LOG( ".WARNING :: Attribute 'cIn' is not active in shader program %d", gl.shaderProgram );
 
     ASSERT_GL_STATE;
     return info;
@@ -515,8 +532,8 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
     glViewport( 0, 0, commands.width, commands.height );
     glDisable( GL_SCISSOR_TEST );
 
-    m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, 50 );
-    mProjView = mProjView * commands.mCamera;
+    m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
+    mProjView = mProjView * commands.camera.mTransform;
 
     glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
@@ -537,6 +554,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 baseAddress += sizeof(*entry);
             } break;
 
+			// DEPRECATED
             case RenderEntryType::RenderEntryGroup:
             {
                 RenderEntryGroup *entry = (RenderEntryGroup *)entryHeader;
@@ -580,21 +598,22 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 GLuint uvAttribId = gl.uvAttribId;
                 GLuint cAttribId = gl.cAttribId;
 
-                // TODO This call should be done just once per frame at the very beginning..
+                // FIXME This call should be done just once per frame at the very beginning..
                 glBufferData( GL_ARRAY_BUFFER,
                               commands.vertexBuffer.count * sizeof(TexturedVertex),
                               commands.vertexBuffer.base,
                               GL_STREAM_DRAW );
 
                 glEnableVertexAttribArray( pAttribId );
-                //glEnableVertexAttribArray( uvAttribId );
-                //glEnableVertexAttribArray( cAttribId );
+                glEnableVertexAttribArray( uvAttribId );
+                glEnableVertexAttribArray( cAttribId );
 
                 glVertexAttribPointer( pAttribId, 3, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, p) );
-                //glVertexAttribPointer( uvAttribId, 2, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, uv) );
-                //glVertexAttribPointer( cAttribId, 4, GL_UNSIGNED_BYTE, true, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color)  );
+                glVertexAttribPointer( uvAttribId, 2, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, uv) );
+                // NOTE glVertexAttribPointer cannot be used with integral data. Beware the I!!!
+                glVertexAttribIPointer( cAttribId, 1, GL_UNSIGNED_INT, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color) );
 
-                // TODO This call should be done just once per frame at the very beginning..
+                // FIXME This call should be done just once per frame at the very beginning..
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER,
                               commands.indexBuffer.count * sizeof(u32),
                               commands.indexBuffer.base,
@@ -603,8 +622,8 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 glDrawElements( GL_TRIANGLES, 3 * entry->triCount, GL_UNSIGNED_INT, (void *)(u64)entry->indexBufferOffset );
 
                 glDisableVertexAttribArray( pAttribId );
-                //glDisableVertexAttribArray( uvAttribId );
-                //glDisableVertexAttribArray( cAttribId );
+                glDisableVertexAttribArray( uvAttribId );
+                glDisableVertexAttribArray( cAttribId );
 
                 glUseProgram( 0 );
 

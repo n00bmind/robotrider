@@ -53,7 +53,7 @@ GetOrCreateCurrentTris( GameRenderCommands *commands )
 }
 
 void
-PushQuad( GameRenderCommands *commands, const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4 )
+PushQuad( GameRenderCommands *commands, const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
@@ -66,25 +66,25 @@ PushQuad( GameRenderCommands *commands, const v3 &p1, const v3 &p2, const v3 &p3
         u32 vertexCount = 0;
         {
             vert[vertexCount].p = p1;
-            vert[vertexCount].color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
+            vert[vertexCount].color = color;
             vert[vertexCount].uv = { 0, 0 };
         }
         vertexCount++;
         {
             vert[vertexCount].p = p2;
-            vert[vertexCount].color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
+            vert[vertexCount].color = color;
             vert[vertexCount].uv = { 0, 0 };
         }
         vertexCount++;
         {
             vert[vertexCount].p = p3;
-            vert[vertexCount].color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
+            vert[vertexCount].color = color;
             vert[vertexCount].uv = { 0, 0 };
         }
         vertexCount++;
         {
             vert[vertexCount].p = p4;
-            vert[vertexCount].color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
+            vert[vertexCount].color = color;
             vert[vertexCount].uv = { 0, 0 };
         }
         vertexCount++;
@@ -129,7 +129,7 @@ PushRenderGroup( GameRenderCommands *commands, FlyingDude *dude )
             // TODO Matrix multiplication should probably be SIMD'd
             vert[i].p = dude->mTransform * dude->vertices[i];
             // TODO Test this!
-            vert[i].color = RGBAPack( 255 * V4( 1, 1, 1, 1 ) );
+            vert[i].color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
             vert[i].uv = { 0, 0 };
         }
         int indexOffset = commands->vertexBuffer.count;
@@ -165,7 +165,7 @@ PushRenderGroup( GameRenderCommands *commands, CubeThing *cube )
             // TODO Matrix multiplication should probably be SIMD'd
             vert[i].p = cube->mTransform * cube->vertices[i];
             // TODO Test this!
-            vert[i].color = RGBAPack( 255 * V4( 1, 1, 1, 1 ) );
+            vert[i].color = RGBAPack( 255 * V4( 0, 0, 0, 1 ) );
             vert[i].uv = { 0, 0 };
         }
         int indexOffset = commands->vertexBuffer.count;

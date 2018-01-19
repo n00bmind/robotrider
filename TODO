@@ -4,8 +4,7 @@
 
 
 EDITOR
-- Editor mode & view (start with a simple frame around the window borders, later add some kind of cool desaturation postpro effect on top of everything)
-- Free camera
+- Entity selection mode and showing debug data about them
 
 WORLDGEN
 - Procedural generation of some kind of infinite pipe-like world structure
