@@ -133,7 +133,7 @@ CreateOrthographicMatrix( r32 width, r32 height )
     return result;
 }
 
-internal OpenGLInfo
+OpenGLInfo
 OpenGLInit( OpenGLState &gl, bool modernContext )
 {
     OpenGLInfo info = OpenGLGetInfo( modernContext );
@@ -222,6 +222,8 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
 internal void
 OpenGLRenderImGui( ImDrawData *drawData )
 {
+    // FIXME This hack prevents us from easily updating the lib, so switch to what Omar suggested in
+    // https://github.com/ocornut/imgui/issues/1309
     OpenGLState &gl = *((OpenGLState *)drawData->UserData);
 
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
@@ -422,13 +424,13 @@ inline void SetupImGuiStyle( bool bStyleDark_, float alpha_  )
     }
 }
 
-internal ImGuiContext *
+ImGuiContext *
 OpenGLInitImGui( OpenGLState &gl )
 {
     LOG( ".Initializing ImGui version %s", ImGui::GetVersion() );
 
     // We're gonna create our own ImGui context instead of relying on the default one,
-    // FIXME We also should create an arena for all ImGui and pass a custom allocator/free here (and not use new!)
+    // FIXME We also should create an arena for all ImGui and pass a custom allocator/free here (and not use new for the atlas!)
     ImGuiContext *context = ImGui::CreateContext( NULL, NULL );
     ImGui::SetCurrentContext( context );
     ImGui::GetIO().Fonts = new ImFontAtlas();

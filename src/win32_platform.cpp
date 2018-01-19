@@ -1166,10 +1166,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
 }
 
 LRESULT CALLBACK
-Win32WindowProc( HWND hwnd,
-                 UINT  uMsg,
-                 WPARAM wParam,
-                 LPARAM lParam )
+Win32WindowProc( HWND hwnd, UINT  uMsg, WPARAM wParam, LPARAM lParam )
 {
     LRESULT result = 0;
     
@@ -1445,6 +1442,7 @@ main( int argC, char **argV )
     windowClass.lpfnWndProc = Win32WindowProc;
     windowClass.hInstance = GetModuleHandle( NULL );
     windowClass.lpszClassName = "RobotRiderWindowClass";
+    windowClass.hCursor = LoadCursor( NULL, IDC_ARROW );
 
     LOG( ".Creating window..." );
 
@@ -1738,7 +1736,7 @@ main( int argC, char **argV )
     }
     else
     {
-        LOG( "Couldn't register window class!" );
+        LOG( ".ERROR: Couldn't register window class!" );
     }
 
     return 0;
