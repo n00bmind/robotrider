@@ -49,14 +49,28 @@ InitWorld( GameState *gameState )
     }
 }
 
+internal void
+UpdateWorldGeneration( GameState *gameState )
+{
+    // To make things simple, we're gonna start only in 2D
+
+    // If we have no entries in the queue, pick up a random position based on player position
+}
+
 void
 UpdateAndRenderWorld( GameState *gameState, GameRenderCommands *renderCommands )
 {
-    PushRenderGroup( renderCommands, gameState->playerDude );
+    ///// Update
+
+    UpdateWorldGeneration( gameState );
+
+    ///// Render
+
+    PushRenderGroup( gameState->playerDude, renderCommands);
 
     for( u32 i = 0; i < gameState->cubeCount; ++i )
     {
         CubeThing *cube = gameState->cubes + i;
-        PushRenderGroup( renderCommands, cube );
+        PushRenderGroup( cube, renderCommands);
     }
 }

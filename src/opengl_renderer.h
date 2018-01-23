@@ -29,11 +29,26 @@ struct OpenGLImGuiState
     GLuint fontTexture;
 };
 
+struct OpenGLShaderProgram
+{
+    const char *vsFilename;
+    const char *fsFilename;
+
+    GLuint id;
+    char *vsSource;
+    char *fsSource;
+    GLuint programId;
+};
+
+OpenGLShaderProgram globalShaderPrograms[] =
+{
+    { "src\\shaders\\default.vs.glsl", "src\\shaders\\flat.fs.glsl" },
+};
+
 struct OpenGLState
 {
     GLuint vertexBuffer;
     GLuint indexBuffer;
-    GLuint shaderProgram;
 
     GLint transformUniformId;
     GLint pAttribId;

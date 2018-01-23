@@ -1,5 +1,3 @@
-R"|(
-
 #version 330 core
 
 flat in uint vertColor;
@@ -39,7 +37,3 @@ void main()
 {
     fragColor = unpack( vertColor );
 }
-
-)|"
-
-

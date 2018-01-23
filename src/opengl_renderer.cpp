@@ -163,74 +163,87 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     glGenBuffers( 1, &gl.indexBuffer );
     glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, gl.indexBuffer );
 
-    // Compile shaders
-    const char *vertexShaderSource =
-#include "shaders/default.vs.glsl"
-        ;
-
-    GLuint vertexShader = glCreateShader( GL_VERTEX_SHADER );
-    glShaderSource( vertexShader, 1, &vertexShaderSource, NULL );
-    glCompileShader( vertexShader );
-
-    int  success;
-    char infoLog[512];
-    glGetShaderiv( vertexShader, GL_COMPILE_STATUS, &success );
-    if( !success )
+    // Compile all program definitions
+    for( int i = 0; i < ARRAYSIZE(globalShaderPrograms); ++i )
     {
-        glGetShaderInfoLog( vertexShader, 512, NULL, infoLog );
-        LOG( ".ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
-        INVALID_CODE_PATH
+        OpenGLShaderProgram &prg = globalShaderPrograms[i];
+
+        // Vertex shader
+        DEBUGReadFileResult result;
+        // TODO Do automatic asset resolution in the platform, something like:
+        //result = globalPlatform.LoadAsset( PlatformAsset::SHADER, prg.vsFilename );
+        result = globalPlatform.DEBUGReadEntireFile( prg.vsFilename );
+        ASSERT( result.contents );
+        prg.vsSource = (char *)result.contents;
+
+        GLuint vertexShader = glCreateShader( GL_VERTEX_SHADER );
+        glShaderSource( vertexShader, 1, &prg.vsSource, NULL );
+        glCompileShader( vertexShader );
+
+        int  success;
+        char infoLog[512];
+        glGetShaderiv( vertexShader, GL_COMPILE_STATUS, &success );
+        if( !success )
+        {
+            glGetShaderInfoLog( vertexShader, 512, NULL, infoLog );
+            LOG( ".ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
+            continue;
+        }
+
+        // Fragment shader
+        result = globalPlatform.DEBUGReadEntireFile( prg.fsFilename );
+        ASSERT( result.contents );
+        prg.fsSource = (char *)result.contents;
+
+        GLuint fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
+        glShaderSource( fragmentShader, 1, &prg.fsSource, NULL );
+        glCompileShader( fragmentShader );
+
+        glGetShaderiv( fragmentShader, GL_COMPILE_STATUS, &success );
+        if( !success )
+        {
+            glGetShaderInfoLog( fragmentShader, 512, NULL, infoLog );
+            LOG( ".ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
+            continue;
+        }
+
+        // Create program
+        prg.programId = glCreateProgram();
+        glAttachShader( prg.programId, vertexShader );
+        glAttachShader( prg.programId, fragmentShader );
+
+        // TODO Add this as the program description too!!
+        // NOTE Explicitly bind indices so that we don't need to conditionally bind shit later
+        // only to avoid stupid fucking errors
+        gl.pAttribId = 0;
+        gl.uvAttribId = 1;
+        gl.cAttribId = 2;
+        glBindAttribLocation( prg.programId, gl.pAttribId, "pIn" );
+        glBindAttribLocation( prg.programId, gl.uvAttribId, "uvIn" );
+        glBindAttribLocation( prg.programId, gl.cAttribId, "cIn" );
+
+        glLinkProgram( prg.programId );
+        glGetProgramiv( prg.programId, GL_LINK_STATUS, &success );
+        if( !success )
+        {
+            glGetProgramInfoLog( prg.programId, 512, NULL, infoLog );
+            LOG( ".ERROR :: Shader program linkage failed!\n%s\n", infoLog );
+            continue;
+        }
+
+        // TODO
+        gl.transformUniformId = glGetUniformLocation( prg.programId, "mTransform" );
+        // TODO Automate all this shit
+        if( glGetAttribLocation( prg.programId, "pIn" ) == -1 )
+            LOG( ".WARNING :: Attribute 'pIn' is not active in shader program %d", prg.programId );
+        if( glGetAttribLocation( prg.programId, "uvIn" ) == -1 )
+            LOG( ".WARNING :: Attribute 'uvIn' is not active in shader program %d", prg.programId );
+        if( glGetAttribLocation( prg.programId, "cIn" ) == -1 )
+            LOG( ".WARNING :: Attribute 'cIn' is not active in shader program %d", prg.programId );
+
+        glDeleteShader( vertexShader );
+        glDeleteShader( fragmentShader );
     }
-
-    const char *fragmentShaderSource =
-#include "shaders/flat.fs.glsl"
-        ;
-
-    GLuint fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
-    glShaderSource( fragmentShader, 1, &fragmentShaderSource, NULL );
-    glCompileShader( fragmentShader );
-
-    glGetShaderiv( fragmentShader, GL_COMPILE_STATUS, &success );
-    if( !success )
-    {
-        glGetShaderInfoLog( fragmentShader, 512, NULL, infoLog );
-        LOG( ".ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
-        INVALID_CODE_PATH
-    }
-
-    gl.shaderProgram = glCreateProgram();
-    glAttachShader( gl.shaderProgram, vertexShader );
-    glAttachShader( gl.shaderProgram, fragmentShader );
-
-    // Explicitly bind indices so that we don't need to conditionally bind shit later
-    // only to avoid stupid fucking errors
-    gl.pAttribId = 0;
-    gl.uvAttribId = 1;
-    gl.cAttribId = 2;
-    glBindAttribLocation( gl.shaderProgram, gl.pAttribId, "pIn" );
-    glBindAttribLocation( gl.shaderProgram, gl.uvAttribId, "uvIn" );
-    glBindAttribLocation( gl.shaderProgram, gl.cAttribId, "cIn" );
-    glLinkProgram( gl.shaderProgram );
-
-    glGetProgramiv( gl.shaderProgram, GL_LINK_STATUS, &success );
-    if( !success )
-    {
-        glGetProgramInfoLog( gl.shaderProgram, 512, NULL, infoLog );
-        LOG( ".ERROR :: Shader program linkage failed!\n%s\n", infoLog );
-        INVALID_CODE_PATH
-    }
-
-    glDeleteShader( vertexShader );
-    glDeleteShader( fragmentShader );
-
-    gl.transformUniformId = glGetUniformLocation( gl.shaderProgram, "mTransform" );
-    // TODO Automate all this shit
-    if( glGetAttribLocation( gl.shaderProgram, "pIn" ) == -1 )
-        LOG( ".WARNING :: Attribute 'pIn' is not active in shader program %d", gl.shaderProgram );
-    if( glGetAttribLocation( gl.shaderProgram, "uvIn" ) == -1 )
-        LOG( ".WARNING :: Attribute 'uvIn' is not active in shader program %d", gl.shaderProgram );
-    if( glGetAttribLocation( gl.shaderProgram, "cIn" ) == -1 )
-        LOG( ".WARNING :: Attribute 'cIn' is not active in shader program %d", gl.shaderProgram );
 
     ASSERT_GL_STATE;
     return info;
@@ -559,7 +572,8 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
             {
                 RenderEntryGroup *entry = (RenderEntryGroup *)entryHeader;
 
-                glUseProgram( gl.shaderProgram );
+                OpenGLShaderProgram &prg = globalShaderPrograms[0];
+                glUseProgram( prg.programId );
 
                 // Bind Vertex Array Object with all the needed configuration
                 u32 vertexBuffer;
@@ -576,7 +590,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry->indexCount*sizeof(u32), entry->indices, GL_STATIC_DRAW );
 
                 m4 mTransform = mProjView * (*entry->mTransform);
-                GLint transformId = glGetUniformLocation( gl.shaderProgram, "mTransform" );
+                GLint transformId = glGetUniformLocation( prg.programId, "mTransform" );
                 glUniformMatrix4fv( transformId, 1, GL_TRUE, mTransform.e[0] );
 
                 glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
@@ -588,17 +602,19 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
             {
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
-                glUseProgram( gl.shaderProgram );
-                GLint transformId = gl.transformUniformId;
-                glUniformMatrix4fv( transformId, 1, GL_TRUE, mProjView.e[0] );
+                OpenGLShaderProgram &prg = globalShaderPrograms[0];
+                glUseProgram( prg.programId );
+                glUniformMatrix4fv( gl.transformUniformId, 1, GL_TRUE, mProjView.e[0] );
 
                 // Material *matPtr = entry->materialArray;
 
+                // TODO Automate this too!
                 GLuint pAttribId = gl.pAttribId;
                 GLuint uvAttribId = gl.uvAttribId;
                 GLuint cAttribId = gl.cAttribId;
 
                 // FIXME This call should be done just once per frame at the very beginning..
+                // or even better, we need a new render entry for program change/configuration
                 glBufferData( GL_ARRAY_BUFFER,
                               commands.vertexBuffer.count * sizeof(TexturedVertex),
                               commands.vertexBuffer.base,

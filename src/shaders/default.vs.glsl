@@ -1,5 +1,3 @@
-R"|(
-
 #version 330 core
 
 layout(location = 0) in vec3 pIn;
@@ -15,6 +13,4 @@ void main()
     gl_Position = mTransform * vec4(pIn, 1.0);
     vertColor = cIn;
 }
-
-)|"
 

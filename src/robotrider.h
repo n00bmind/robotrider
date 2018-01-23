@@ -9,7 +9,7 @@
 #include "memory.h"
 #include "math.h"
 #include "renderer.h"
-
+#include "world.h"
 
 #define CONSOLE_LINE_MAXLEN 1024
 
@@ -220,13 +220,13 @@ enum class ConsoleEntryType
 
 struct ConsoleEntry
 {
-    // FIXME This is absurd and we should allocate this as needed in the gameArena
     char text[CONSOLE_LINE_MAXLEN];
     ConsoleEntryType type;
 };
 
 struct GameConsole
 {
+    // FIXME This is absurd and we should allocate this as needed in the gameArena
     ConsoleEntry entries[4096];
     char inputBuffer[CONSOLE_LINE_MAXLEN];
 
@@ -266,6 +266,8 @@ struct GameState
 
     CubeThing *cubes;
     u32 cubeCount;
+
+    World *world;
 };
 
 struct TransientState

@@ -3,11 +3,14 @@
 :::::::::::::::::::::::::::
 
 
-EDITOR
-- Entity selection mode and showing debug data about them
-
 WORLDGEN
 - Procedural generation of some kind of infinite pipe-like world structure
+
+THREADING
+- Once the previous process is complex enough, develop worker threads that can do it in the background based on player distance
+
+EDITOR
+- Entity selection mode and showing debug data about them
 
 AUDIO
 - Win32: switch WASAPI to callback mode to reduce buffer size and improve latency.
@@ -34,7 +37,7 @@ INPUT
 
 DEBUGGING
 - Command completion & history navigation in the console
-- Really dump game state to disk (asynchronously)
+- Really dump game state to disk (asynchronously) and study how hard it would be to make it loadable across game state revisions
 - Add a command line switch & ingame command to load a recorded input block from disk
 - Simple static analysis:
   - Detect usage of 'internal' functions outside of the file where they're defined (in case we wanna ever have non-Unity builds)

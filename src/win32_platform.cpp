@@ -77,26 +77,26 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
                 }
                 else
                 {
-                    // TODO Log
+                    LOG( "ERROR: ReadFile failed" );
                     DEBUGPlatformFreeFileMemory( result.contents );
                     result.contents = 0;
                 }
             }
             else
             {
-                // TODO Log
+                LOG( "ERROR: Couldn't allocate buffer for file contents" );
             }
         }
         else
         {
-            // TODO Log
+                LOG( "ERROR: Failed querying file size" );
         }
 
         CloseHandle( fileHandle );
     }
     else
     {
-        // TODO Log
+        LOG( "ERROR: Failed opening file for reading" );
     }
 
     return result;
@@ -116,14 +116,14 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
         }
         else
         {
-            // TODO Log
+            LOG( "ERROR: WriteFile failed" );
         }
 
         CloseHandle( fileHandle );
     }
     else
     {
-        // TODO Log
+        LOG( "ERROR: Failed opening file for writing" );
     }
 
     return result;

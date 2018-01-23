@@ -87,13 +87,13 @@ struct DEBUGReadFileResult
     u32 contentSize;
     void *contents;
 };
-#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGReadFileResult name( char *filename )
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGReadFileResult name( const char *filename )
 typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(DebugPlatformReadEntireFileFunc);
 
 #define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name( void *memory )
 typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(DebugPlatformFreeFileMemoryFunc);
 
-#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool name( char *filename, u32 memorySize, void *memory )
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool name( const char *filename, u32 memorySize, void *memory )
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
 
 #define PLATFORM_LOG(name) void name( const char *fmt, ... )

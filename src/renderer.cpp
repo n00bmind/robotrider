@@ -111,7 +111,7 @@ PushQuad( GameRenderCommands *commands, const v3 &p1, const v3 &p2, const v3 &p3
 }
 
 void
-PushRenderGroup( GameRenderCommands *commands, FlyingDude *dude )
+PushRenderGroup( FlyingDude *dude, GameRenderCommands *commands )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
@@ -147,7 +147,7 @@ PushRenderGroup( GameRenderCommands *commands, FlyingDude *dude )
 }
 
 void
-PushRenderGroup( GameRenderCommands *commands, CubeThing *cube )
+PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
