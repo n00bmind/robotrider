@@ -29,10 +29,24 @@ struct OpenGLImGuiState
     GLuint fontTexture;
 };
 
+struct OpenGLShaderAttribute
+{
+    const char *name;
+};
+
+struct OpenGLShaderUniform
+{
+    const char *name;
+    GLint locationId;
+};
+
 struct OpenGLShaderProgram
 {
     const char *vsFilename;
     const char *fsFilename;
+    // Position in the array determines what location index the attribute will be bound to
+    OpenGLShaderAttribute attribs[16];
+    OpenGLShaderUniform uniforms[16];
 
     GLuint id;
     char *vsSource;
@@ -42,18 +56,18 @@ struct OpenGLShaderProgram
 
 OpenGLShaderProgram globalShaderPrograms[] =
 {
-    { "src\\shaders\\default.vs.glsl", "src\\shaders\\flat.fs.glsl" },
+    {
+        "src\\shaders\\default.vs.glsl",
+        "src\\shaders\\flat.fs.glsl",
+        { "pIn", "uvIn", "cIn" },
+        { "mTransform" },
+    },
 };
 
 struct OpenGLState
 {
     GLuint vertexBuffer;
     GLuint indexBuffer;
-
-    GLint transformUniformId;
-    GLint pAttribId;
-    GLint uvAttribId;
-    GLint cAttribId;
 
     OpenGLImGuiState imGui;
 };

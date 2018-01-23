@@ -170,7 +170,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
 
         // Vertex shader
         DEBUGReadFileResult result;
-        // TODO Do automatic asset resolution in the platform, something like:
+        // TODO Do automatic asset resolution (including relative paths) in the platform, something like:
         //result = globalPlatform.LoadAsset( PlatformAsset::SHADER, prg.vsFilename );
         result = globalPlatform.DEBUGReadEntireFile( prg.vsFilename );
         ASSERT( result.contents );
@@ -207,20 +207,20 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
             continue;
         }
 
-        // Create program
+        // Create and link program
+        // TODO Identify programs by a string instead of an index
         prg.programId = glCreateProgram();
         glAttachShader( prg.programId, vertexShader );
         glAttachShader( prg.programId, fragmentShader );
 
-        // TODO Add this as the program description too!!
         // NOTE Explicitly bind indices so that we don't need to conditionally bind shit later
         // only to avoid stupid fucking errors
-        gl.pAttribId = 0;
-        gl.uvAttribId = 1;
-        gl.cAttribId = 2;
-        glBindAttribLocation( prg.programId, gl.pAttribId, "pIn" );
-        glBindAttribLocation( prg.programId, gl.uvAttribId, "uvIn" );
-        glBindAttribLocation( prg.programId, gl.cAttribId, "cIn" );
+        for( int a = 0; a < ARRAYSIZE(prg.attribs); ++a )
+        {
+            OpenGLShaderAttribute &attr = prg.attribs[a];
+            if( attr.name )
+                glBindAttribLocation( prg.programId, a, attr.name );
+        }
 
         glLinkProgram( prg.programId );
         glGetProgramiv( prg.programId, GL_LINK_STATUS, &success );
@@ -231,15 +231,27 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
             continue;
         }
 
-        // TODO
-        gl.transformUniformId = glGetUniformLocation( prg.programId, "mTransform" );
-        // TODO Automate all this shit
-        if( glGetAttribLocation( prg.programId, "pIn" ) == -1 )
-            LOG( ".WARNING :: Attribute 'pIn' is not active in shader program %d", prg.programId );
-        if( glGetAttribLocation( prg.programId, "uvIn" ) == -1 )
-            LOG( ".WARNING :: Attribute 'uvIn' is not active in shader program %d", prg.programId );
-        if( glGetAttribLocation( prg.programId, "cIn" ) == -1 )
-            LOG( ".WARNING :: Attribute 'cIn' is not active in shader program %d", prg.programId );
+        // Check attribute & uniform locations
+        for( int u = 0; u < ARRAYSIZE(prg.uniforms); ++u )
+        {
+            OpenGLShaderUniform &uniform = prg.uniforms[u];
+            if( uniform.name )
+            {
+                uniform.locationId = glGetUniformLocation( prg.programId, uniform.name );
+                if( uniform.locationId == -1 )
+                    LOG( ".WARNING :: Uniform '%s' is not active in shader program %d", uniform.name, prg.programId );
+            }
+        }
+        
+        for( int a = 0; a < ARRAYSIZE(prg.attribs); ++a )
+        {
+            OpenGLShaderAttribute &attr = prg.attribs[a];
+            if( attr.name )
+            {
+                if( glGetAttribLocation( prg.programId, attr.name ) == -1 )
+                    LOG( ".WARNING :: Attribute '%s' is not active in shader program %d", attr.name, prg.programId );
+            }
+        }
 
         glDeleteShader( vertexShader );
         glDeleteShader( fragmentShader );
@@ -604,17 +616,18 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 OpenGLShaderProgram &prg = globalShaderPrograms[0];
                 glUseProgram( prg.programId );
-                glUniformMatrix4fv( gl.transformUniformId, 1, GL_TRUE, mProjView.e[0] );
+                glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, mProjView.e[0] );
 
                 // Material *matPtr = entry->materialArray;
 
                 // TODO Automate this too!
-                GLuint pAttribId = gl.pAttribId;
-                GLuint uvAttribId = gl.uvAttribId;
-                GLuint cAttribId = gl.cAttribId;
+                // we need a new render entry for program change/configuration
+                // see how we can generalize that step to make it independent of attribute data, etc.
+                GLuint pAttribId = 0;
+                GLuint uvAttribId = 1;
+                GLuint cAttribId = 2;
 
-                // FIXME This call should be done just once per frame at the very beginning..
-                // or even better, we need a new render entry for program change/configuration
+                // FIXME This call should be done just once when switching programs
                 glBufferData( GL_ARRAY_BUFFER,
                               commands.vertexBuffer.count * sizeof(TexturedVertex),
                               commands.vertexBuffer.base,
@@ -629,7 +642,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 // NOTE glVertexAttribPointer cannot be used with integral data. Beware the I!!!
                 glVertexAttribIPointer( cAttribId, 1, GL_UNSIGNED_INT, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color) );
 
-                // FIXME This call should be done just once per frame at the very beginning..
+                // FIXME This call should be done just once
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER,
                               commands.indexBuffer.count * sizeof(u32),
                               commands.indexBuffer.base,
