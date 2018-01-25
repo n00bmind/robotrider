@@ -24,7 +24,6 @@ AUDIO
   https://github.com/pauldotknopf/WindowsSDK7-Samples/blob/master/multimedia/audio/RenderExclusiveEventDriven/WASAPIRenderer.cpp
 
 GRAPHICS
-- Hot code reloading for shaders! (a la ShaderToy)
 - Aspect ratio independece using black bars as needed (also, allow the game to vary output resolution at will)
 - Edge detection shader
   From reddit: "If you have a deferred renderer and it can write triangle IDs to a texture, then you can render a wireframe
