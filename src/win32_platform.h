@@ -33,6 +33,7 @@ struct Win32GameCode
 
     GameSetupAfterReloadFunc *SetupAfterReload;
     GameUpdateAndRenderFunc *UpdateAndRender;
+    GameLogCallbackFunc *LogCallback;
 
     bool isValid;
 };
@@ -49,6 +50,10 @@ struct Win32ReplayBuffer
 struct Win32State
 {
     HWND mainWindow;
+    char exeFilePath[MAX_PATH];
+    char currentDirectory[MAX_PATH];
+
+    Win32GameCode gameCode;
 
     void *gameMemoryBlock;
     u64 gameMemorySize;
@@ -56,11 +61,12 @@ struct Win32State
 
     u32 inputRecordingIndex;
     HANDLE recordingHandle;
-
     u32 inputPlaybackIndex;
     HANDLE playbackHandle;
 
-    char exeFilePath[MAX_PATH];
+    HANDLE shadersDirHandle;
+    OVERLAPPED shadersOverlapped;
+    u8 shadersNotifyBuffer[8192];
 };
 
 #endif /* __WIN32_PLATFORM_H__ */

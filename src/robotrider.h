@@ -15,17 +15,9 @@
 
 //
 // Game entry points & data types for the platform layer
-// (should probably try to separate it as much as possible to minimize what tha
+// (should probably try to separate it as much as possible to minimize what the
 // platform side needs to include)
 //
-
-//struct GameOffscreenBuffer
-//{
-    //void *memory;
-    //int width;
-    //int height;
-    //int bytesPerPixel;
-//};
 
 // TODO Move to renderer.h?
 struct GameRenderCommands
@@ -156,6 +148,7 @@ GetController( GameInput *input, int controllerIndex )
     return result;
 }
 
+
 struct GameMemory
 {
     bool isInitialized;
@@ -168,7 +161,6 @@ struct GameMemory
 
     PlatformAPI *platformAPI;
 };
-
 
 
 #ifndef GAME_SETUP_AFTER_RELOAD
@@ -185,6 +177,26 @@ typedef GAME_SETUP_AFTER_RELOAD(GameSetupAfterReloadFunc);
 typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
 GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
 { }
+
+#ifndef GAME_ASSET_LOADED_CALLBACK
+#define GAME_ASSET_LOADED_CALLBACK(name) \
+    void name( const char *assetName, const u8 *contents, u32 len )
+#endif
+typedef GAME_ASSET_LOADED_CALLBACK(GameAssetLoadedCallbackFunc);
+
+#ifndef GAME_LOG_CALLBACK
+#define GAME_LOG_CALLBACK(name) \
+    void name( const char *msg )
+#endif
+typedef GAME_LOG_CALLBACK(GameLogCallbackFunc);
+
+
+struct GameAssetMapping
+{
+    const char *relativePath;
+    const char *extension;
+    GameAssetLoadedCallbackFunc *callback;
+};
 
 
 

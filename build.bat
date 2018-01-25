@@ -5,7 +5,7 @@ set RR="."
 set RRSRC=src
 set RRBIN=bin
 
-set LIBS=user32.lib gdi32.lib winmm.lib ole32.lib opengl32.lib
+set LIBS=user32.lib gdi32.lib winmm.lib ole32.lib opengl32.lib shlwapi.lib
 set WARNINGFLAGS=-wd4201 -wd4100 -wd4189 -wd4127 -wd4101 -wd4505
 set COMMONFLAGS=-MTd -nologo -FC -W4 -WX -Oi -GR- -EHa- %WARNINGFLAGS%
 set LINKERFLAGS=/opt:ref /incremental:no

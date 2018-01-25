@@ -48,17 +48,20 @@ struct OpenGLShaderProgram
     OpenGLShaderAttribute attribs[16];
     OpenGLShaderUniform uniforms[16];
 
-    GLuint id;
-    char *vsSource;
-    char *fsSource;
+    const char *vsSource;
+    const char *fsSource;
     GLuint programId;
+    GLuint vsId;
+    GLuint fsId;
 };
+
+#define SHADERS_RELATIVE_PATH "..\\src\\shaders\\"
 
 OpenGLShaderProgram globalShaderPrograms[] =
 {
     {
-        "src\\shaders\\default.vs.glsl",
-        "src\\shaders\\flat.fs.glsl",
+        "default.vs.glsl",
+        "flat.fs.glsl",
         { "pIn", "uvIn", "cIn" },
         { "mTransform" },
     },

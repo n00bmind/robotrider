@@ -137,6 +137,137 @@ CreateOrthographicMatrix( r32 width, r32 height )
     return result;
 }
 
+internal GLint
+OpenGLCompileVertexShader( const char *shaderSource, GLuint *shaderId )
+{
+    GLuint vertexShader = glCreateShader( GL_VERTEX_SHADER );
+    glShaderSource( vertexShader, 1, &shaderSource, NULL );     // That ** is super wrong!
+    glCompileShader( vertexShader );
+
+    GLint success;
+    char infoLog[1024];
+    glGetShaderiv( vertexShader, GL_COMPILE_STATUS, &success );
+
+    if( success )
+        *shaderId = vertexShader;
+    else
+    {
+        glGetShaderInfoLog( vertexShader, ARRAYSIZE(infoLog), NULL, infoLog );
+        LOG( ".ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
+    }
+
+    return success;
+}
+
+internal GLint
+OpenGLCompileFragmentShader( const char *shaderSource, GLuint *shaderId )
+{
+    GLuint fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
+    glShaderSource( fragmentShader, 1, &shaderSource, NULL );
+    glCompileShader( fragmentShader );
+
+    GLint success;
+    char infoLog[1024];
+    glGetShaderiv( fragmentShader, GL_COMPILE_STATUS, &success );
+
+    if( success )
+        *shaderId = fragmentShader;
+    else
+    {
+        glGetShaderInfoLog( fragmentShader, ARRAYSIZE(infoLog), NULL, infoLog );
+        LOG( ".ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
+    }
+
+    return success;
+}
+
+internal GLint
+OpenGLLinkProgram( OpenGLShaderProgram *prg )
+{
+    GLint programId;
+
+    // TODO Identify programs by a string instead of an index
+    programId = glCreateProgram();
+    glAttachShader( programId, prg->vsId );
+    glAttachShader( programId, prg->fsId );
+
+    // NOTE Explicitly bind indices so that we don't need to conditionally bind shit later
+    // only to avoid stupid fucking errors
+    for( int a = 0; a < ARRAYSIZE(prg->attribs); ++a )
+    {
+        OpenGLShaderAttribute &attr = prg->attribs[a];
+        if( attr.name )
+            glBindAttribLocation( programId, a, attr.name );
+    }
+
+    GLint success;
+    char infoLog[1024];
+    glLinkProgram( programId );
+    glGetProgramiv( programId, GL_LINK_STATUS, &success );
+    if( !success )
+    {
+        glGetProgramInfoLog( programId, ARRAYSIZE(infoLog), NULL, infoLog );
+        LOG( ".ERROR :: Shader program linkage failed!\n%s\n", infoLog );
+        return success;
+    }
+
+    // Check attribute & uniform locations
+    for( int u = 0; u < ARRAYSIZE(prg->uniforms); ++u )
+    {
+        OpenGLShaderUniform &uniform = prg->uniforms[u];
+        if( uniform.name )
+        {
+            uniform.locationId = glGetUniformLocation( programId, uniform.name );
+            if( uniform.locationId == -1 )
+                LOG( ".WARNING :: Uniform '%s' is not active in shader program %d", uniform.name, programId );
+        }
+    }
+
+    for( int a = 0; a < ARRAYSIZE(prg->attribs); ++a )
+    {
+        OpenGLShaderAttribute &attr = prg->attribs[a];
+        if( attr.name )
+        {
+            if( glGetAttribLocation( programId, attr.name ) == -1 )
+                LOG( ".WARNING :: Attribute '%s' is not active in shader program %d", attr.name, programId );
+        }
+    }
+
+    prg->programId = programId;
+    return success;
+}
+
+internal GLint
+OpenGLHotswapShader( const char *filename, const char *shaderSource )
+{
+    GLint success = 0;
+
+    // Find the program definition to which this file belongs
+    for( int i = 0; i < ARRAYSIZE(globalShaderPrograms); ++i )
+    {
+        OpenGLShaderProgram &prg = globalShaderPrograms[i];
+
+        if( strcmp( filename, prg.vsFilename ) == 0 )
+        {
+            success = OpenGLCompileVertexShader( shaderSource, &prg.vsId );
+            if( success )
+                prg.vsSource = shaderSource;
+        }
+        else if( strcmp( filename, prg.fsFilename ) == 0 )
+        {
+            success = OpenGLCompileFragmentShader( shaderSource, &prg.fsId );
+            if( success )
+                prg.fsSource = shaderSource;
+        }
+        
+        success &= OpenGLLinkProgram( &prg );
+        if( success )
+            break;
+    }
+
+    return success;
+}
+
 OpenGLInfo
 OpenGLInit( OpenGLState &gl, bool modernContext )
 {
@@ -151,7 +282,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
 #endif
 
 #if 1
-    // According to Muratori, changing VAOs is inefficient and not really used anymore (?)
+    // According to Muratori, changing VAOs is inefficient and not really used anymore
     // (gotta ask him about that claim..)
     GLuint dummyVAO;
     glGenVertexArrays( 1, &dummyVAO );
@@ -170,91 +301,35 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
 
         // Vertex shader
         DEBUGReadFileResult result;
+        char filePath[MAX_PATH];
+
         // TODO Do automatic asset resolution (including relative paths) in the platform, something like:
         //result = globalPlatform.LoadAsset( PlatformAsset::SHADER, prg.vsFilename );
-        result = globalPlatform.DEBUGReadEntireFile( prg.vsFilename );
+        strcpy( filePath, SHADERS_RELATIVE_PATH );
+        strcat( filePath, prg.vsFilename );
+        result = globalPlatform.DEBUGReadEntireFile( filePath );
         ASSERT( result.contents );
         prg.vsSource = (char *)result.contents;
 
-        GLuint vertexShader = glCreateShader( GL_VERTEX_SHADER );
-        glShaderSource( vertexShader, 1, &prg.vsSource, NULL );
-        glCompileShader( vertexShader );
-
-        int  success;
-        char infoLog[512];
-        glGetShaderiv( vertexShader, GL_COMPILE_STATUS, &success );
+        GLint success;
+        success = OpenGLCompileVertexShader( prg.vsSource, &prg.vsId );
         if( !success )
-        {
-            glGetShaderInfoLog( vertexShader, 512, NULL, infoLog );
-            LOG( ".ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
             continue;
-        }
 
         // Fragment shader
-        result = globalPlatform.DEBUGReadEntireFile( prg.fsFilename );
+        strcpy( filePath, SHADERS_RELATIVE_PATH );
+        strcat( filePath, prg.fsFilename );
+        result = globalPlatform.DEBUGReadEntireFile( filePath );
         ASSERT( result.contents );
         prg.fsSource = (char *)result.contents;
 
-        GLuint fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
-        glShaderSource( fragmentShader, 1, &prg.fsSource, NULL );
-        glCompileShader( fragmentShader );
-
-        glGetShaderiv( fragmentShader, GL_COMPILE_STATUS, &success );
+        success = OpenGLCompileFragmentShader( prg.fsSource, &prg.fsId );
         if( !success )
-        {
-            glGetShaderInfoLog( fragmentShader, 512, NULL, infoLog );
-            LOG( ".ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
             continue;
-        }
 
         // Create and link program
-        // TODO Identify programs by a string instead of an index
-        prg.programId = glCreateProgram();
-        glAttachShader( prg.programId, vertexShader );
-        glAttachShader( prg.programId, fragmentShader );
-
-        // NOTE Explicitly bind indices so that we don't need to conditionally bind shit later
-        // only to avoid stupid fucking errors
-        for( int a = 0; a < ARRAYSIZE(prg.attribs); ++a )
-        {
-            OpenGLShaderAttribute &attr = prg.attribs[a];
-            if( attr.name )
-                glBindAttribLocation( prg.programId, a, attr.name );
-        }
-
-        glLinkProgram( prg.programId );
-        glGetProgramiv( prg.programId, GL_LINK_STATUS, &success );
-        if( !success )
-        {
-            glGetProgramInfoLog( prg.programId, 512, NULL, infoLog );
-            LOG( ".ERROR :: Shader program linkage failed!\n%s\n", infoLog );
-            continue;
-        }
-
-        // Check attribute & uniform locations
-        for( int u = 0; u < ARRAYSIZE(prg.uniforms); ++u )
-        {
-            OpenGLShaderUniform &uniform = prg.uniforms[u];
-            if( uniform.name )
-            {
-                uniform.locationId = glGetUniformLocation( prg.programId, uniform.name );
-                if( uniform.locationId == -1 )
-                    LOG( ".WARNING :: Uniform '%s' is not active in shader program %d", uniform.name, prg.programId );
-            }
-        }
+        success = OpenGLLinkProgram( &prg );
         
-        for( int a = 0; a < ARRAYSIZE(prg.attribs); ++a )
-        {
-            OpenGLShaderAttribute &attr = prg.attribs[a];
-            if( attr.name )
-            {
-                if( glGetAttribLocation( prg.programId, attr.name ) == -1 )
-                    LOG( ".WARNING :: Attribute '%s' is not active in shader program %d", attr.name, prg.programId );
-            }
-        }
-
-        glDeleteShader( vertexShader );
-        glDeleteShader( fragmentShader );
     }
 
     ASSERT_GL_STATE;

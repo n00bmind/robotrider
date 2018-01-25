@@ -13,8 +13,9 @@
 
 
 PlatformAPI globalPlatform;
-
 internal GameConsole *gameConsole;
+
+LIB_EXPORT
 GAME_LOG_CALLBACK(GameLogCallback)
 {
     ConsoleLog( gameConsole, msg );
@@ -23,16 +24,11 @@ GAME_LOG_CALLBACK(GameLogCallback)
 LIB_EXPORT
 GAME_SETUP_AFTER_RELOAD(GameSetupAfterReload)
 {
+    globalPlatform = *memory->platformAPI;
+
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
     GameState *gameState = (GameState *)memory->permanentStorage;
-
-    // Copy all logs to the game's console
     gameConsole = &gameState->gameConsole;
-    memory->platformAPI->LogCallback = GameLogCallback;
-
-    globalPlatform = *memory->platformAPI;
-    // Make sure we never use our own copy (this is focking awful)
-    globalPlatform.LogCallback = NULL;
 
     // Re-set platform's ImGui context
     ImGui::SetCurrentContext( gameState->imGuiContext );
@@ -86,7 +82,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
         char statsText[1024];
         snprintf( statsText, 1024, "FPS %.1f", fps );   // Seems to be crossplatform, so it's good enough for now
-        //snprintf( statsText, 1024, "Elapsed %.1f seconds", input->gameElapsedSeconds );
+        //LOG( "Elapsed %.1f seconds", input->gameElapsedSeconds );
 
         if( gameState->DEBUGglobalDebugging )
         {
