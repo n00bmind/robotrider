@@ -637,6 +637,8 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
     glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
+    // TODO Diagnose number of draw calls, primitives per draw call, etc..
+
     RenderBuffer &buffer = commands.renderBuffer;
     for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
     {

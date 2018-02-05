@@ -32,6 +32,7 @@ GRAPHICS
   (http://williamchyr.com/2014/03/development-update-edge-detection/)
 
 INPUT
+- Implement a platform-independent keyboard representation (use tables from https://github.com/depp/keycode)
 - Find a way to calibrate different relative movement amounts from the different input methods
 
 DEBUGGING

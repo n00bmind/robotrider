@@ -1,4 +1,5 @@
 #include "robotrider.h"
+#include "data_types.h"
 #include "renderer.cpp"
 
 #include "imgui/imgui_draw.cpp"
@@ -66,6 +67,8 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         tranState->isInitialized = true;
     }
+
+    BucketTest();
 
 #if DEBUG
     if( gameState->DEBUGglobalEditing )
@@ -152,70 +155,4 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     CheckArena( &gameState->gameArena );
     CheckArena( &tranState->transientArena );
 }
-
-
-#if 0
-internal void
-DEBUGRenderWeirdGradient( GameOffscreenBuffer *buffer, int xOffset, int yOffset, b32 debugBeep )
-{
-    int width = buffer->width;
-    int height = buffer->height;
-    
-    int pitch = width * buffer->bytesPerPixel;
-    u8 *row = (u8 *)buffer->memory;
-    for( int y = 0; y < height; ++y )
-    {
-        u32 *pixel = (u32 *)row;
-        for( int x = 0; x < width; ++x )
-        {
-            u8 b = (u8)(x + xOffset);
-            u8 g = (u8)(y + yOffset);
-            *pixel++ = debugBeep ? 0xFFFFFFFF : ((g << 16) | b);
-        }
-        row += pitch;
-    }
-}
-
-internal void
-DEBUGRenderPlayer( GameOffscreenBuffer *buffer, int playerX, int playerY )
-{
-    int top = playerY;
-    int bottom = playerY + 10;
-    u32 pitch = buffer->width * buffer->bytesPerPixel;
-
-    for( int x = playerX; x < playerX+10; ++x )
-    {
-        u8 *pixel = ((u8 *)buffer->memory
-                     + x*buffer->bytesPerPixel
-                     + top*pitch);
-        for( int y = top; y < bottom; ++y )
-        {
-            *(u32 *)pixel = 0xFFFFFFFF;
-            pixel += pitch;
-        }
-    }
-}
-
-internal void
-DEBUGOutputSineWave( GameState *gameState, GameAudioBuffer *buffer, int toneHz, b32 debugBeep )
-{
-    u32 toneAmp = 6000;
-    u32 wavePeriod = buffer->samplesPerSecond / toneHz;
-
-    s16 *sampleOut = buffer->samples;
-    for( u32 sampleIndex = 0; sampleIndex < buffer->frameCount; ++sampleIndex )
-    {
-#if 1
-        r32 sineValue = sinf( gameState->tSine );
-        s16 sampleValue = (s16)(sineValue * toneAmp);
-#else
-        s16 sampleValue = 0;
-#endif
-        *sampleOut++ = debugBeep ? 32767 : sampleValue;
-        *sampleOut++ = debugBeep ? 32767 : sampleValue;
-
-        gameState->tSine += 2.f * PI32 * 1.0f / wavePeriod;
-    }
-}
-#endif
 
