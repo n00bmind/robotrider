@@ -622,7 +622,7 @@ RotPos( const m4 &m, const v3 &p )
 
 // Quaternions
 
-union q
+union qn
 {
     struct
     {
@@ -641,10 +641,10 @@ union q
 };
 
 // TODO Test
-inline q
-Q( const m4 &m )
+inline qn
+QN( const m4 &m )
 {
-    q r;
+    qn r;
     float tr = m.e[0][0] + m.e[1][1] + m.e[2][2];
 
     if( tr > 0.f )
@@ -684,7 +684,7 @@ Q( const m4 &m )
 }
 
 inline void
-ToEulerXYZ( const q &r, float *pitch, float *yaw, float *roll )
+ToEulerXYZ( const qn &r, float *pitch, float *yaw, float *roll )
 {
     // TODO Develop the editor a bit further so that these ops can be applied
     // over a selected object so we can visually test them at least
