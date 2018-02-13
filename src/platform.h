@@ -32,7 +32,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if _MSC_VER
 #define COMPILER_MSVC 1
 #else
-// TODO(casey): Moar compilerz!!!
+// TODO Moar compilerz!!!
 #define COMPILER_LLVM 1
 #endif
 

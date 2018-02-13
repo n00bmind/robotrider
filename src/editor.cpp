@@ -29,9 +29,9 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
 
     FlyingDude *playerDude = gameState->playerDude;
     
+    // Setup a zenithal camera initially
     if( editorState.pCamera == V3Zero() )
     {
-        // Setup a zenithal camera initially
         editorState.pCamera = V3( 0, -5, 10 );
         editorState.camYaw = 0;
         editorState.camPitch = 0;
@@ -78,13 +78,34 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
         renderCommands->camera.mTransform = mCamRot * M4Translation( -editorState.pCamera );
     }
 
-    // Draw the world
-    PushClear( renderCommands, { 0.95f, 0.95f, 1.0f, 1.0f } );
-
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
 
-    UpdateAndRenderWorld( gameState, renderCommands );
+    // Draw the world
+    {
+        PushClear( { 0.95f, 0.95f, 1.0f, 1.0f }, renderCommands );
+
+        UpdateAndRenderWorld( gameState, renderCommands );
+    }
+
+    // Draw marching cubes tests
+    {
+        u32 black = Pack01ToRGBA( V4( 0, 0, 0, 1 ) );
+        const r32 TEST_MARCHED_AREA_SIZE = 10;
+        const r32 TEST_MARCHED_CUBE_SIZE = 1;
+
+        r32 zStart = -TEST_MARCHED_AREA_SIZE;
+        r32 zEnd = TEST_MARCHED_AREA_SIZE;
+
+        for( float x = -TEST_MARCHED_AREA_SIZE; x < TEST_MARCHED_AREA_SIZE; x += TEST_MARCHED_CUBE_SIZE )
+        {
+            for( float y = -TEST_MARCHED_AREA_SIZE; y < TEST_MARCHED_AREA_SIZE; y += TEST_MARCHED_CUBE_SIZE )
+            {
+                PushLine( V3( x, y, zStart ), V3( x, y, zEnd ), black, renderCommands );
+            }
+        }
+    }
+
     r32 elapsedSeconds = input->gameElapsedSeconds;
     DrawEditorNotice( width, height, (i32)elapsedSeconds % 2 == 0 );
 

@@ -33,6 +33,7 @@ _PushRenderElement( GameRenderCommands *commands, u32 size, RenderEntryType type
         result = (RenderEntry *)(buffer.base + buffer.size);
         memset( result, 0, size );
         result->type = type;
+        result->size = size;
         buffer.size += size;
     }
     else
@@ -41,14 +42,15 @@ _PushRenderElement( GameRenderCommands *commands, u32 size, RenderEntryType type
         INVALID_CODE_PATH
     }
 
-    // Reset currentTris so a new bundle is started
-    commands->currentTris = 0;
+    // Reset batched entries so they start over as needed
+    commands->currentTris = nullptr;
+    commands->currentLines = nullptr;
 
     return result;
 }
 
 void
-PushClear( GameRenderCommands *commands, v4 color )
+PushClear( v4 color, GameRenderCommands *commands )
 {
     RenderEntryClear *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryClear );
     if( entry )
@@ -65,17 +67,31 @@ GetOrCreateCurrentTris( GameRenderCommands *commands )
     if( !commands->currentTris )
     {
         commands->currentTris = PUSH_RENDER_ELEMENT( commands, RenderEntryTexturedTris );
-        commands->currentTris->triCount = 0;
         commands->currentTris->vertexBufferOffset = commands->vertexBuffer.count;
         commands->currentTris->indexBufferOffset = commands->indexBuffer.count;
+        commands->currentTris->triCount = 0;
     }
 
     RenderEntryTexturedTris *result = commands->currentTris;
     return result;
 }
 
+internal RenderEntryLines *
+GetOrCreateCurrentLines( GameRenderCommands *commands )
+{
+    if( !commands->currentLines )
+    {
+        commands->currentLines = PUSH_RENDER_ELEMENT( commands, RenderEntryLines );
+        commands->currentLines->vertexBufferOffset = commands->vertexBuffer.count;
+        commands->currentLines->lineCount = 0;
+    }
+
+    RenderEntryLines *result = commands->currentLines;
+    return result;
+}
+
 void
-PushQuad( GameRenderCommands *commands, const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color )
+PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, GameRenderCommands *commands )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
@@ -151,7 +167,7 @@ PushRenderGroup( FlyingDude *dude, GameRenderCommands *commands )
             // TODO Matrix multiplication should probably be SIMD'd
             vert[i].p = dude->mTransform * dude->vertices[i];
             // TODO Test this!
-            vert[i].color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
+            vert[i].color = Pack01ToRGBA( V4( 1, 0, 0, 1 ) );
             vert[i].uv = { 0, 0 };
         }
         int indexOffset = commands->vertexBuffer.count;
@@ -187,7 +203,7 @@ PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
             // TODO Matrix multiplication should probably be SIMD'd
             vert[i].p = cube->mTransform * cube->vertices[i];
             // TODO Test this!
-            vert[i].color = RGBAPack( 255 * V4( 0, 0, 0, 1 ) );
+            vert[i].color = Pack01ToRGBA( V4( 0, 0, 0, 1 ) );
             vert[i].uv = { 0, 0 };
         }
         int indexOffset = commands->vertexBuffer.count;
@@ -200,5 +216,27 @@ PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
             index[i] = indexOffset + cube->indices[i];
         }
         commands->indexBuffer.count += indexCount;
+    }
+}
+
+void
+PushLine( v3 pStart, v3 pEnd, u32 color, GameRenderCommands *commands )
+{
+    RenderEntryLines *entry = GetOrCreateCurrentLines( commands );
+    if( entry )
+    {
+        ASSERT( commands->vertexBuffer.count + 2 <= commands->vertexBuffer.maxCount );
+        TexturedVertex *vert = commands->vertexBuffer.base + commands->vertexBuffer.count;
+
+        vert[0].p = pStart;
+        vert[0].color = color;
+        vert[0].uv = { 0, 0 };
+
+        vert[1].p = pEnd;
+        vert[1].color = color;
+        vert[1].uv = { 0, 0 };
+
+        commands->vertexBuffer.count += 2;
+        ++entry->lineCount;
     }
 }

@@ -43,12 +43,13 @@ enum class RenderEntryType
 {
     RenderEntryClear,
     RenderEntryTexturedTris,
-    RenderEntryGroup,
+    RenderEntryLines,
 };
 
 struct RenderEntry
 {
     RenderEntryType type;
+    u32 size;
 };
 
 struct RenderEntryClear
@@ -75,18 +76,13 @@ struct RenderEntryTexturedTris
     u32 triCount;
 };
 
-struct RenderEntryGroup
+struct RenderEntryLines
 {
     RenderEntry header;
 
-    v3 *vertices;
-    u32 vertexCount;
-    u32 *indices;
-    u32 indexCount;
-
-    m4 *mTransform;
+    u32 vertexBufferOffset;
+    u32 lineCount;
 };
-
 
 struct RenderBuffer
 {

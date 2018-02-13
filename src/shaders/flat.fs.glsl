@@ -58,6 +58,5 @@ vec4 unpack( uint value )
 
 void main()
 {
-    //fragColor = unpack( vertColor );
-    fragColor = unpack( 0xFF0000FFu );
+    fragColor = unpack( vertColor );
 }

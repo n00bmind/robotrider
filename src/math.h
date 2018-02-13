@@ -37,12 +37,12 @@ Radians( r32 degrees )
 }
 
 inline u32
-RGBAPack( v4 unpacked )
+Pack01ToRGBA( v4 unpacked )
 {
-    u32 result = (((Round(unpacked.a) & 0xFF) << 24)
-                | ((Round(unpacked.b) & 0xFF) << 16)
-                | ((Round(unpacked.g) & 0xFF) << 8)
-                | ((Round(unpacked.r) & 0xFF) << 0));
+    u32 result = (((Round(unpacked.a * 255) & 0xFF) << 24)
+                | ((Round(unpacked.b * 255) & 0xFF) << 16)
+                | ((Round(unpacked.g * 255) & 0xFF) << 8)
+                | ((Round(unpacked.r * 255) & 0xFF) << 0));
     return result;
 }
 #endif /* __MATH_H__ */

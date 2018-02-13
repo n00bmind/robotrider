@@ -159,7 +159,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             gameState->pPlayer = pPlayer;
         }
 
-        PushClear( renderCommands, { 0.95f, 0.95f, 0.95f, 1.0f } );
+        PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
         UpdateAndRenderWorld( gameState, renderCommands );
 
         {

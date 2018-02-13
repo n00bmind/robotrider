@@ -34,7 +34,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "renderer.h"
 #include "world.h"
 
-#define CONSOLE_LINE_MAXLEN 1024
 
 //
 // Game entry points & data types for the platform layer
@@ -55,6 +54,7 @@ struct GameRenderCommands
     IndexBuffer indexBuffer;
 
     RenderEntryTexturedTris *currentTris;
+    RenderEntryLines *currentLines;
 };
 
 inline GameRenderCommands
@@ -73,6 +73,9 @@ InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
     result.indexBuffer.base = indexBuffer;
     result.indexBuffer.count = 0;
     result.indexBuffer.maxCount = indexBufferMaxCount;
+
+    result.currentTris = nullptr;
+    result.currentLines = nullptr;
 
     return result;
 }
@@ -252,6 +255,8 @@ enum class ConsoleEntryType
     History,
     CommandOutput,
 };
+
+#define CONSOLE_LINE_MAXLEN 1024
 
 struct ConsoleEntry
 {

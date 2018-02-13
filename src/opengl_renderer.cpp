@@ -649,6 +649,68 @@ OpenGLInitImGui( OpenGLState &gl )
 }
 
 internal void
+OpenGLUseProgram( OpenGLProgramName programName, OpenGLState &gl )
+{
+    if( programName == OpenGLProgramName::None )
+    {
+        for( int i = 0; i < MAX_SHADER_ATTRIBS; ++i )
+            glDisableVertexAttribArray( i );
+
+        glUseProgram( 0 );
+
+        gl.activeProgram = nullptr;
+    }
+    else
+    {
+        if( gl.activeProgram && gl.activeProgram->name == programName )
+            // Nothing to do
+            return;
+
+        int programIndex = -1;
+
+        for( int i = 0; i < ARRAYSIZE(globalShaderPrograms); ++i )
+        {
+            if( globalShaderPrograms[i].name == programName )
+            {
+                programIndex = i;
+                break;
+            }
+        }
+
+        if( programIndex == -1 )
+        {
+            LOG( "ERROR :: Unknown shader program [%d]", programName );
+        }
+        else
+        {
+            OpenGLShaderProgram &prg = globalShaderPrograms[programIndex];
+            glUseProgram( prg.programId );
+
+            // FIXME This exact procedure will of course vary for different programs,
+            // but I want to see exactly how before doing anything more abstracted
+
+            // Material *matPtr = entry->materialArray;
+
+            glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, gl.mCurrentProjView.e[0] );
+
+            GLuint pAttribId = 0;
+            GLuint uvAttribId = 1;
+            GLuint cAttribId = 2;
+
+            glEnableVertexAttribArray( pAttribId );
+            glEnableVertexAttribArray( uvAttribId );
+            glEnableVertexAttribArray( cAttribId );
+
+            glVertexAttribPointer( pAttribId, 3, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, p) );
+            glVertexAttribPointer( uvAttribId, 2, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, uv) );
+            // NOTE glVertexAttribPointer cannot be used with integral data. Beware the I!!!
+            glVertexAttribIPointer( cAttribId, 1, GL_UNSIGNED_INT, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color) );
+
+            gl.activeProgram = &prg;
+        }
+    }
+}
+internal void
 OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 {
     glViewport( 0, 0, commands.width, commands.height );
@@ -656,8 +718,11 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
     m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
     mProjView = mProjView * commands.camera.mTransform;
+    gl.mCurrentProjView = mProjView;
 
-    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    glLineWidth( 1.f );
+    glDisable( GL_LINE_SMOOTH );
 
     // TODO Diagnose number of draw calls, primitives per draw call, etc..
 
@@ -674,74 +739,19 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 glClearColor( entry->color.r, entry->color.g, entry->color.b, entry->color.a ); 
                 glClear( GL_COLOR_BUFFER_BIT );
-
-                baseAddress += sizeof(*entry);
-            } break;
-
-			// DEPRECATED
-            case RenderEntryType::RenderEntryGroup:
-            {
-                RenderEntryGroup *entry = (RenderEntryGroup *)entryHeader;
-
-                OpenGLShaderProgram &prg = globalShaderPrograms[0];
-                glUseProgram( prg.programId );
-
-                // Bind Vertex Array Object with all the needed configuration
-                u32 vertexBuffer;
-                u32 elementBuffer;
-
-                glGenBuffers( 1, &vertexBuffer );
-                glBindBuffer( GL_ARRAY_BUFFER, vertexBuffer );
-                glBufferData( GL_ARRAY_BUFFER, entry->vertexCount*sizeof(v3), entry->vertices, GL_STATIC_DRAW );
-                glEnableVertexAttribArray( 0 );
-                glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0 );
-
-                glGenBuffers( 1, &elementBuffer );
-                glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, elementBuffer );
-                glBufferData( GL_ELEMENT_ARRAY_BUFFER, entry->indexCount*sizeof(u32), entry->indices, GL_STATIC_DRAW );
-
-                m4 mTransform = mProjView * (*entry->mTransform);
-                GLint transformId = glGetUniformLocation( prg.programId, "mTransform" );
-                glUniformMatrix4fv( transformId, 1, GL_TRUE, mTransform.e[0] );
-
-                glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 );
-
-                baseAddress += sizeof(*entry);
             } break;
 
             case RenderEntryType::RenderEntryTexturedTris:
             {
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
-                OpenGLShaderProgram &prg = globalShaderPrograms[0];
-                glUseProgram( prg.programId );
-                glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, mProjView.e[0] );
+                OpenGLUseProgram( OpenGLProgramName::DefaultFlat, gl );
 
-                // Material *matPtr = entry->materialArray;
-
-                // TODO Automate this too!
-                // we need a new render entry for program change/configuration
-                // see how we can generalize that step to make it independent of attribute data, etc.
-                GLuint pAttribId = 0;
-                GLuint uvAttribId = 1;
-                GLuint cAttribId = 2;
-
-                // FIXME This call should be done just once when switching programs
                 glBufferData( GL_ARRAY_BUFFER,
                               commands.vertexBuffer.count * sizeof(TexturedVertex),
                               commands.vertexBuffer.base,
                               GL_STREAM_DRAW );
 
-                glEnableVertexAttribArray( pAttribId );
-                glEnableVertexAttribArray( uvAttribId );
-                glEnableVertexAttribArray( cAttribId );
-
-                glVertexAttribPointer( pAttribId, 3, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, p) );
-                glVertexAttribPointer( uvAttribId, 2, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, uv) );
-                // NOTE glVertexAttribPointer cannot be used with integral data. Beware the I!!!
-                glVertexAttribIPointer( cAttribId, 1, GL_UNSIGNED_INT, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color) );
-
-                // FIXME This call should be done just once
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER,
                               commands.indexBuffer.count * sizeof(u32),
                               commands.indexBuffer.base,
@@ -749,18 +759,34 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 glDrawElements( GL_TRIANGLES, 3 * entry->triCount, GL_UNSIGNED_INT, (void *)(u64)entry->indexBufferOffset );
 
-                glDisableVertexAttribArray( pAttribId );
-                glDisableVertexAttribArray( uvAttribId );
-                glDisableVertexAttribArray( cAttribId );
-
-                glUseProgram( 0 );
-
-                baseAddress += sizeof(*entry);
             } break;
 
-            INVALID_DEFAULT_CASE
+            // TODO Debug
+            case RenderEntryType::RenderEntryLines:
+            {
+                RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
+
+                OpenGLUseProgram( OpenGLProgramName::DefaultFlat, gl );
+
+                glBufferData( GL_ARRAY_BUFFER,
+                              commands.vertexBuffer.count * sizeof(TexturedVertex),
+                              commands.vertexBuffer.base,
+                              GL_STREAM_DRAW );
+
+                glDrawArrays( GL_LINES, (GLint)entry->vertexBufferOffset, entry->lineCount );
+
+            } break;
+
+            default:
+            {
+                LOG( "ERROR :: Unsupported RenderEntry type [%d]", entryHeader->type );
+            } break;
         }
 
+        baseAddress += entryHeader->size;
         ASSERT_GL_STATE;
     }
+
+    // Don't keep active program for next frame
+    OpenGLUseProgram( OpenGLProgramName::None, gl );
 }

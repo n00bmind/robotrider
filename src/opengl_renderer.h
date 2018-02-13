@@ -24,7 +24,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __OPENGL_RENDERER_H__
 #define __OPENGL_RENDERER_H__ 
 
-#define ASSERT_GL_STATE ASSERT( glGetError() == GL_NO_ERROR);
+#define ASSERT_GL_STATE ASSERT( glGetError() == GL_NO_ERROR );
 
 struct OpenGLInfo
 {
@@ -52,6 +52,12 @@ struct OpenGLImGuiState
     GLuint fontTexture;
 };
 
+enum class OpenGLProgramName
+{
+    None,
+    DefaultFlat,
+};
+
 struct OpenGLShaderAttribute
 {
     const char *name;
@@ -63,13 +69,17 @@ struct OpenGLShaderUniform
     GLint locationId;
 };
 
+#define MAX_SHADER_ATTRIBS 16
+#define MAX_SHADER_UNIFORMS 16
+
 struct OpenGLShaderProgram
 {
+    OpenGLProgramName name;
     const char *vsFilename;
     const char *fsFilename;
     // Position in the array determines what location index the attribute will be bound to
-    OpenGLShaderAttribute attribs[16];
-    OpenGLShaderUniform uniforms[16];
+    OpenGLShaderAttribute attribs[MAX_SHADER_ATTRIBS];
+    OpenGLShaderUniform uniforms[MAX_SHADER_UNIFORMS];
 
     const char *vsSource;
     const char *fsSource;
@@ -83,6 +93,7 @@ struct OpenGLShaderProgram
 OpenGLShaderProgram globalShaderPrograms[] =
 {
     {
+        OpenGLProgramName::DefaultFlat,
         "default.vs.glsl",
         "flat.fs.glsl",
         { "pIn", "uvIn", "cIn" },
@@ -94,8 +105,11 @@ struct OpenGLState
 {
     GLuint vertexBuffer;
     GLuint indexBuffer;
+    m4 mCurrentProjView;
 
     OpenGLImGuiState imGui;
+
+    OpenGLShaderProgram *activeProgram;
 };
 
 // Pointers to extension functions setup natively by the platform

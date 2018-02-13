@@ -90,48 +90,48 @@ DrawAxisGizmos( GameRenderCommands *renderCommands )
     v3 startPos = pCamera + z * vCamFwd - (w2-margin) * vCamX - (h2-margin) * vCamY;
 
     v3 p1, p2, p3, p4;
-    u32 color = RGBAPack( 255 * V4( 1, 0, 0, 1 ) );
+    u32 color = Pack01ToRGBA( V4( 1, 0, 0, 1 ) );
     v3 vL = V3X();
     v3 vD = V3Z();
     p1 = startPos + vL * 0.f + vD * thick;
     p2 = startPos + vL * 0.f + vD * 0.f;
     p3 = startPos + vL * len + vD * 0.f;
     p4 = startPos + vL * len + vD * thick;
-    PushQuad( renderCommands, p1, p2, p3, p4, color );
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
     vD = V3Y();
     p1 = startPos + vL * 0.f + vD * thick;
     p2 = startPos + vL * 0.f + vD * 0.f;
     p3 = startPos + vL * len + vD * 0.f;
     p4 = startPos + vL * len + vD * thick;
-    PushQuad( renderCommands, p1, p2, p3, p4, color );
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
 
     vL = V3Y();
     vD = V3X();
-    color = RGBAPack( 255 * V4( 0, 1, 0, 1 ) );
+    color = Pack01ToRGBA( V4( 0, 1, 0, 1 ) );
     p1 = startPos + vL * 0.f + vD * thick;
     p2 = startPos + vL * 0.f + vD * 0.f;
     p3 = startPos + vL * len + vD * 0.f;
     p4 = startPos + vL * len + vD * thick;
-    PushQuad( renderCommands, p1, p2, p3, p4, color );
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
     vD = V3Z();
     p1 = startPos + vL * 0.f + vD * thick;
     p2 = startPos + vL * 0.f + vD * 0.f;
     p3 = startPos + vL * len + vD * 0.f;
     p4 = startPos + vL * len + vD * thick;
-    PushQuad( renderCommands, p1, p2, p3, p4, color );
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
 
     vL = V3Z();
     vD = V3X();
-    color = RGBAPack( 255 * V4( 0, 0, 1, 1 ) );
+    color = Pack01ToRGBA( V4( 0, 0, 1, 1 ) );
     p1 = startPos + vL * 0.f + vD * thick;
     p2 = startPos + vL * 0.f + vD * 0.f;
     p3 = startPos + vL * len + vD * 0.f;
     p4 = startPos + vL * len + vD * thick;
-    PushQuad( renderCommands, p1, p2, p3, p4, color );
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
     vD = V3Y();
     p1 = startPos + vL * 0.f + vD * thick;
     p2 = startPos + vL * 0.f + vD * 0.f;
     p3 = startPos + vL * len + vD * 0.f;
     p4 = startPos + vL * len + vD * thick;
-    PushQuad( renderCommands, p1, p2, p3, p4, color );
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
 }
