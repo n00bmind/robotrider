@@ -317,7 +317,7 @@ Win32SetupAssetUpdateListener( Win32State *state )
 
     BOOL read = ReadDirectoryChangesW( state->shadersDirHandle,
                                        state->shadersNotifyBuffer,
-                                       ARRAYSIZE(state->shadersNotifyBuffer), TRUE,
+                                       ARRAYCOUNT(state->shadersNotifyBuffer), TRUE,
                                        FILE_NOTIFY_CHANGE_LAST_WRITE,
                                        NULL, &state->shadersOverlapped, NULL );
     ASSERT( read );
@@ -344,7 +344,7 @@ Win32CheckAssetUpdates( Win32State *state )
 
             // Check and strip extension
             char extension[16];
-            ExtractFileExtension( filename, extension, ARRAYSIZE(extension) );
+            ExtractFileExtension( filename, extension, ARRAYCOUNT(extension) );
             
             if( strcmp( extension, "glsl" ) == 0 )
             {
@@ -365,7 +365,7 @@ Win32CheckAssetUpdates( Win32State *state )
         // Restart monitorization
         BOOL read = ReadDirectoryChangesW( state->shadersDirHandle,
                                            state->shadersNotifyBuffer,
-                                           ARRAYSIZE(state->shadersNotifyBuffer), TRUE,
+                                           ARRAYCOUNT(state->shadersNotifyBuffer), TRUE,
                                            FILE_NOTIFY_CHANGE_LAST_WRITE,
                                            NULL, &state->shadersOverlapped, NULL );
         ASSERT( read );
@@ -1406,10 +1406,10 @@ Win32WindowProc( HWND hwnd, UINT  uMsg, WPARAM wParam, LPARAM lParam )
 internal void
 Win32GetFilePaths( Win32State *state )
 {
-    DWORD pathLen = GetCurrentDirectory( ARRAYSIZE(state->currentDirectory), state->currentDirectory );
+    DWORD pathLen = GetCurrentDirectory( ARRAYCOUNT(state->currentDirectory), state->currentDirectory );
     LOG( state->currentDirectory );
 
-    pathLen = GetModuleFileName( 0, state->exeFilePath, ARRAYSIZE(state->exeFilePath) );
+    pathLen = GetModuleFileName( 0, state->exeFilePath, ARRAYCOUNT(state->exeFilePath) );
     RemoveFilenameFromPath( state->exeFilePath );
 }
 

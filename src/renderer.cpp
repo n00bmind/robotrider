@@ -69,7 +69,8 @@ GetOrCreateCurrentTris( GameRenderCommands *commands )
         commands->currentTris = PUSH_RENDER_ELEMENT( commands, RenderEntryTexturedTris );
         commands->currentTris->vertexBufferOffset = commands->vertexBuffer.count;
         commands->currentTris->indexBufferOffset = commands->indexBuffer.count;
-        commands->currentTris->triCount = 0;
+        commands->currentTris->vertexCount = 0;
+        commands->currentTris->indexCount = 0;
     }
 
     RenderEntryTexturedTris *result = commands->currentTris;
@@ -90,61 +91,54 @@ GetOrCreateCurrentLines( GameRenderCommands *commands )
     return result;
 }
 
+inline internal void
+PushVertex( const v3 &p, u32 color, const v2 &uv, GameRenderCommands *commands )
+{
+    ASSERT( commands->vertexBuffer.count + 1 <= commands->vertexBuffer.maxCount );
+
+    TexturedVertex *vert = commands->vertexBuffer.base + commands->vertexBuffer.count;
+    vert->p = p;
+    vert->color = color;
+    vert->uv = uv;
+
+    commands->vertexBuffer.count++;
+}
+
+inline internal void
+PushIndex( u32 value, GameRenderCommands* commands )
+{
+    ASSERT( commands->indexBuffer.count + 1 <= commands->indexBuffer.maxCount );
+
+    u32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
+    *index = value;
+
+    commands->indexBuffer.count++;
+}
+
 void
 PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, GameRenderCommands *commands )
 {
+    int indexOffsetStart = commands->vertexBuffer.count;
+        
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {
-        entry->triCount += 2;
-
         // Push 4 vertices (1st vertex is "top-left" and counter-clockwise from there)
-        TexturedVertex *vert = commands->vertexBuffer.base + commands->vertexBuffer.count;
-
-        u32 vertexCount = 0;
-        {
-            vert[vertexCount].p = p1;
-            vert[vertexCount].color = color;
-            vert[vertexCount].uv = { 0, 0 };
-        }
-        vertexCount++;
-        {
-            vert[vertexCount].p = p2;
-            vert[vertexCount].color = color;
-            vert[vertexCount].uv = { 0, 0 };
-        }
-        vertexCount++;
-        {
-            vert[vertexCount].p = p3;
-            vert[vertexCount].color = color;
-            vert[vertexCount].uv = { 0, 0 };
-        }
-        vertexCount++;
-        {
-            vert[vertexCount].p = p4;
-            vert[vertexCount].color = color;
-            vert[vertexCount].uv = { 0, 0 };
-        }
-        vertexCount++;
-
-        ASSERT( commands->vertexBuffer.count + vertexCount <= commands->vertexBuffer.maxCount );
-        int indexOffset = commands->vertexBuffer.count;
-        commands->vertexBuffer.count += vertexCount;
+        PushVertex( p1, color, { 0, 0 }, commands );
+        PushVertex( p2, color, { 0, 0 }, commands );
+        PushVertex( p3, color, { 0, 0 }, commands );
+        PushVertex( p4, color, { 0, 0 }, commands );
+        entry->vertexCount += 4;
 
         // Push 6 indices for vertices 0-1-2 & 2-3-0
-        u32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
+        PushIndex( indexOffsetStart + 0, commands );
+        PushIndex( indexOffsetStart + 1, commands );
+        PushIndex( indexOffsetStart + 2, commands );
 
-        u32 indexCount = 0;
-        index[indexCount++] = indexOffset + 0;
-        index[indexCount++] = indexOffset + 1;
-        index[indexCount++] = indexOffset + 2;
-
-        index[indexCount++] = indexOffset + 2;
-        index[indexCount++] = indexOffset + 3;
-        index[indexCount++] = indexOffset + 0;
-
-        ASSERT( commands->indexBuffer.count + indexCount <= commands->indexBuffer.maxCount );
-        commands->indexBuffer.count += indexCount;
+        PushIndex( indexOffsetStart + 2, commands );
+        PushIndex( indexOffsetStart + 3, commands );
+        PushIndex( indexOffsetStart + 0, commands );
+        entry->indexCount += 6;
     }
 }
 
@@ -157,31 +151,24 @@ PushRenderGroup( FlyingDude *dude, GameRenderCommands *commands )
         u32 vertexCount = ARRAYCOUNT( dude->vertices );
         u32 indexCount = ARRAYCOUNT( dude->indices );
 
-        entry->triCount += indexCount / 3;
+        int indexOffsetStart = commands->vertexBuffer.count;
 
-        ASSERT( commands->vertexBuffer.count + vertexCount <= commands->vertexBuffer.maxCount );
-        TexturedVertex *vert = commands->vertexBuffer.base + commands->vertexBuffer.count;
         for( u32 i = 0; i < vertexCount; ++i )
         {
             // Transform to world coordinates so this can all be rendered in big chunks
-            // TODO Matrix multiplication should probably be SIMD'd
-            vert[i].p = dude->mTransform * dude->vertices[i];
-            // TODO Test this!
-            vert[i].color = Pack01ToRGBA( V4( 1, 0, 0, 1 ) );
-            vert[i].uv = { 0, 0 };
+            PushVertex( dude->mTransform * dude->vertices[i],
+                        Pack01ToRGBA( V4( 1, 0, 0, 1 ) ),
+                        { 0, 0 },
+                        commands );
         }
-        int indexOffset = commands->vertexBuffer.count;
-        commands->vertexBuffer.count += vertexCount;
+        entry->vertexCount += vertexCount;
 
-        ASSERT( commands->indexBuffer.count + indexCount <= commands->indexBuffer.maxCount );
-        u32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
         for( u32 i = 0; i < indexCount; ++i )
         {
-            index[i] = indexOffset + dude->indices[i];
+            PushIndex( indexOffsetStart + dude->indices[i], commands );
         }
-        commands->indexBuffer.count += indexCount;
+        entry->indexCount += indexCount;
     }
-
 }
 
 void
@@ -193,29 +180,23 @@ PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
         u32 vertexCount = ARRAYCOUNT( cube->vertices );
         u32 indexCount = ARRAYCOUNT( cube->indices );
 
-        entry->triCount += indexCount / 3;
+        int indexOffsetStart = commands->vertexBuffer.count;
 
-        ASSERT( commands->vertexBuffer.count + vertexCount <= commands->vertexBuffer.maxCount );
-        TexturedVertex *vert = commands->vertexBuffer.base + commands->vertexBuffer.count;
         for( u32 i = 0; i < vertexCount; ++i )
         {
             // Transform to world coordinates so this can all be rendered in big chunks
-            // TODO Matrix multiplication should probably be SIMD'd
-            vert[i].p = cube->mTransform * cube->vertices[i];
-            // TODO Test this!
-            vert[i].color = Pack01ToRGBA( V4( 0, 0, 0, 1 ) );
-            vert[i].uv = { 0, 0 };
+            PushVertex( cube->mTransform * cube->vertices[i],
+                        Pack01ToRGBA( V4( 0, 0, 0, 1 ) ),
+                        { 0, 0 },
+                        commands );
         }
-        int indexOffset = commands->vertexBuffer.count;
-        commands->vertexBuffer.count += vertexCount;
+        entry->vertexCount += vertexCount;
 
-        ASSERT( commands->indexBuffer.count + indexCount <= commands->indexBuffer.maxCount );
-        u32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
         for( u32 i = 0; i < indexCount; ++i )
         {
-            index[i] = indexOffset + cube->indices[i];
+            PushIndex( indexOffsetStart + cube->indices[i], commands );
         }
-        commands->indexBuffer.count += indexCount;
+        entry->indexCount += indexCount;
     }
 }
 
@@ -225,18 +206,9 @@ PushLine( v3 pStart, v3 pEnd, u32 color, GameRenderCommands *commands )
     RenderEntryLines *entry = GetOrCreateCurrentLines( commands );
     if( entry )
     {
-        ASSERT( commands->vertexBuffer.count + 2 <= commands->vertexBuffer.maxCount );
-        TexturedVertex *vert = commands->vertexBuffer.base + commands->vertexBuffer.count;
+        PushVertex( pStart, color, { 0, 0 }, commands );
+        PushVertex( pEnd, color, { 0, 0 }, commands );
 
-        vert[0].p = pStart;
-        vert[0].color = color;
-        vert[0].uv = { 0, 0 };
-
-        vert[1].p = pEnd;
-        vert[1].color = color;
-        vert[1].uv = { 0, 0 };
-
-        commands->vertexBuffer.count += 2;
         ++entry->lineCount;
     }
 }

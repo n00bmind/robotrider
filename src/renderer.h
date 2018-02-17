@@ -71,9 +71,11 @@ struct RenderEntryTexturedTris
     RenderEntry header;
 
     u32 vertexBufferOffset;
+    u32 vertexCount;
     u32 indexBufferOffset;
+    u32 indexCount;
+
     // Material **materialArray;
-    u32 triCount;
 };
 
 struct RenderEntryLines

@@ -174,7 +174,7 @@ OpenGLCompileVertexShader( const char *shaderSource, GLuint *shaderId )
         *shaderId = vertexShader;
     else
     {
-        glGetShaderInfoLog( vertexShader, ARRAYSIZE(infoLog), NULL, infoLog );
+        glGetShaderInfoLog( vertexShader, ARRAYCOUNT(infoLog), NULL, infoLog );
         LOG( ".ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
     }
 
@@ -196,7 +196,7 @@ OpenGLCompileFragmentShader( const char *shaderSource, GLuint *shaderId )
         *shaderId = fragmentShader;
     else
     {
-        glGetShaderInfoLog( fragmentShader, ARRAYSIZE(infoLog), NULL, infoLog );
+        glGetShaderInfoLog( fragmentShader, ARRAYCOUNT(infoLog), NULL, infoLog );
         LOG( ".ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
     }
 
@@ -215,7 +215,7 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
 
     // NOTE Explicitly bind indices so that we don't need to conditionally bind shit later
     // only to avoid stupid fucking errors
-    for( int a = 0; a < ARRAYSIZE(prg->attribs); ++a )
+    for( int a = 0; a < ARRAYCOUNT(prg->attribs); ++a )
     {
         OpenGLShaderAttribute &attr = prg->attribs[a];
         if( attr.name )
@@ -228,13 +228,13 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
     glGetProgramiv( programId, GL_LINK_STATUS, &success );
     if( !success )
     {
-        glGetProgramInfoLog( programId, ARRAYSIZE(infoLog), NULL, infoLog );
+        glGetProgramInfoLog( programId, ARRAYCOUNT(infoLog), NULL, infoLog );
         LOG( ".ERROR :: Shader program linkage failed!\n%s\n", infoLog );
         return success;
     }
 
     // Check attribute & uniform locations
-    for( int u = 0; u < ARRAYSIZE(prg->uniforms); ++u )
+    for( int u = 0; u < ARRAYCOUNT(prg->uniforms); ++u )
     {
         OpenGLShaderUniform &uniform = prg->uniforms[u];
         if( uniform.name )
@@ -245,7 +245,7 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
         }
     }
 
-    for( int a = 0; a < ARRAYSIZE(prg->attribs); ++a )
+    for( int a = 0; a < ARRAYCOUNT(prg->attribs); ++a )
     {
         OpenGLShaderAttribute &attr = prg->attribs[a];
         if( attr.name )
@@ -265,7 +265,7 @@ OpenGLHotswapShader( const char *filename, const char *shaderSource )
     GLint success = 0;
 
     // Find the program definition to which this file belongs
-    for( int i = 0; i < ARRAYSIZE(globalShaderPrograms); ++i )
+    for( int i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
 
@@ -317,7 +317,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, gl.indexBuffer );
 
     // Compile all program definitions
-    for( int i = 0; i < ARRAYSIZE(globalShaderPrograms); ++i )
+    for( int i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
 
@@ -668,7 +668,7 @@ OpenGLUseProgram( OpenGLProgramName programName, OpenGLState &gl )
 
         int programIndex = -1;
 
-        for( int i = 0; i < ARRAYSIZE(globalShaderPrograms); ++i )
+        for( int i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
         {
             if( globalShaderPrograms[i].name == programName )
             {
@@ -710,6 +710,7 @@ OpenGLUseProgram( OpenGLProgramName programName, OpenGLState &gl )
         }
     }
 }
+
 internal void
 OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 {
@@ -719,10 +720,6 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
     m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
     mProjView = mProjView * commands.camera.mTransform;
     gl.mCurrentProjView = mProjView;
-
-    //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-    glLineWidth( 1.f );
-    glDisable( GL_LINE_SMOOTH );
 
     // TODO Diagnose number of draw calls, primitives per draw call, etc..
 
@@ -747,33 +744,37 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 OpenGLUseProgram( OpenGLProgramName::DefaultFlat, gl );
 
+                //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+
+                GLuint countBytes = entry->vertexCount * sizeof(TexturedVertex);
                 glBufferData( GL_ARRAY_BUFFER,
-                              commands.vertexBuffer.count * sizeof(TexturedVertex),
-                              commands.vertexBuffer.base,
+                              countBytes,
+                              commands.vertexBuffer.base + entry->vertexBufferOffset,
                               GL_STREAM_DRAW );
 
+                countBytes = entry->indexCount * sizeof(u32);
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER,
-                              commands.indexBuffer.count * sizeof(u32),
-                              commands.indexBuffer.base,
+                              countBytes,
+                              commands.indexBuffer.base + entry->indexBufferOffset,
                               GL_STREAM_DRAW );
 
-                glDrawElements( GL_TRIANGLES, 3 * entry->triCount, GL_UNSIGNED_INT, (void *)(u64)entry->indexBufferOffset );
+                glDrawElements( GL_TRIANGLES, entry->indexCount, GL_UNSIGNED_INT, (void *)0 );
 
             } break;
 
-            // TODO Debug
             case RenderEntryType::RenderEntryLines:
             {
-                RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
+                //RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
 
-                OpenGLUseProgram( OpenGLProgramName::DefaultFlat, gl );
+                //OpenGLUseProgram( OpenGLProgramName::DefaultFlat, gl );
 
-                glBufferData( GL_ARRAY_BUFFER,
-                              commands.vertexBuffer.count * sizeof(TexturedVertex),
-                              commands.vertexBuffer.base,
-                              GL_STREAM_DRAW );
+                //GLuint countBytes = entry->lineCount * 2 * sizeof(TexturedVertex);
+                //glBufferData( GL_ARRAY_BUFFER,
+                              //countBytes,
+                              //commands.vertexBuffer.base + entry->vertexBufferOffset,
+                              //GL_STREAM_DRAW );
 
-                glDrawArrays( GL_LINES, (GLint)entry->vertexBufferOffset, entry->lineCount );
+                //glDrawArrays( GL_LINES, 0, entry->lineCount * 2 );
 
             } break;
 

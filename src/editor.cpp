@@ -90,25 +90,30 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
 
     // Draw marching cubes tests
     {
-        u32 black = Pack01ToRGBA( V4( 0, 0, 0, 1 ) );
         const r32 TEST_MARCHED_AREA_SIZE = 10;
         const r32 TEST_MARCHED_CUBE_SIZE = 1;
 
-        r32 zStart = -TEST_MARCHED_AREA_SIZE;
-        r32 zEnd = TEST_MARCHED_AREA_SIZE;
+        const r32 AHALF = TEST_MARCHED_AREA_SIZE / 2;
+        r32 zStart = -AHALF;
+        r32 zEnd = AHALF;
 
-        for( float x = -TEST_MARCHED_AREA_SIZE; x < TEST_MARCHED_AREA_SIZE; x += TEST_MARCHED_CUBE_SIZE )
+        u32 black = Pack01ToRGBA( V4( 0, 0, 0, 1 ) );
+        v3 off = V3( 0, -AHALF, AHALF );
+
+        for( float x = -AHALF; x < AHALF; x += TEST_MARCHED_CUBE_SIZE )
         {
-            for( float y = -TEST_MARCHED_AREA_SIZE; y < TEST_MARCHED_AREA_SIZE; y += TEST_MARCHED_CUBE_SIZE )
+            for( float y = -AHALF; y < AHALF; y += TEST_MARCHED_CUBE_SIZE )
             {
-                PushLine( V3( x, y, zStart ), V3( x, y, zEnd ), black, renderCommands );
+               PushLine( V3( x, y, zStart ) + off, V3( x, y, zEnd ) + off, black, renderCommands );
             }
         }
     }
 
+    // FIXME Not drawn when issued after the lines!
+    DrawAxisGizmos( renderCommands );
+
     r32 elapsedSeconds = input->gameElapsedSeconds;
     DrawEditorNotice( width, height, (i32)elapsedSeconds % 2 == 0 );
 
-    DrawAxisGizmos( renderCommands );
 }
 

@@ -176,7 +176,7 @@ DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char
         ImGui::PopStyleColor();        
         
         entryIndex++;
-        if( entryIndex >= ARRAYSIZE(console->entries) )
+        if( entryIndex >= ARRAYCOUNT(console->entries) )
             entryIndex = 0;
     }
 
@@ -188,7 +188,7 @@ DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char
     ImGui::Separator();
 
     // Input
-    if( ImGui::InputText( "input_console", console->inputBuffer, ARRAYSIZE(console->inputBuffer),
+    if( ImGui::InputText( "input_console", console->inputBuffer, ARRAYCOUNT(console->inputBuffer),
                           ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory,
                           &ConsoleInputCallback, console ) )
     {

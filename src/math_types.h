@@ -550,6 +550,7 @@ Transform( const m4 &m, const v4 &v )
     return r;
 }
 
+// TODO SIMD this! (and most of the other stuff!)
 inline v3
 operator*( const m4 &m, const v3 &v )
 {
