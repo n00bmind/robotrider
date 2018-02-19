@@ -94,6 +94,6 @@ UpdateAndRenderWorld( GameState *gameState, GameRenderCommands *renderCommands )
     for( u32 i = 0; i < gameState->cubeCount; ++i )
     {
         CubeThing *cube = gameState->cubes + i;
-        PushRenderGroup( cube, renderCommands);
+        //PushRenderGroup( cube, renderCommands);
     }
 }

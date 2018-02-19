@@ -764,17 +764,17 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
             case RenderEntryType::RenderEntryLines:
             {
-                //RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
+                RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
 
-                //OpenGLUseProgram( OpenGLProgramName::DefaultFlat, gl );
+                OpenGLUseProgram( OpenGLProgramName::DefaultFlat, gl );
 
-                //GLuint countBytes = entry->lineCount * 2 * sizeof(TexturedVertex);
-                //glBufferData( GL_ARRAY_BUFFER,
-                              //countBytes,
-                              //commands.vertexBuffer.base + entry->vertexBufferOffset,
-                              //GL_STREAM_DRAW );
+                GLuint countBytes = entry->lineCount * 2 * sizeof(TexturedVertex);
+                glBufferData( GL_ARRAY_BUFFER,
+                              countBytes,
+                              commands.vertexBuffer.base + entry->vertexBufferOffset,
+                              GL_STREAM_DRAW );
 
-                //glDrawArrays( GL_LINES, 0, entry->lineCount * 2 );
+                glDrawArrays( GL_LINES, 0, entry->lineCount * 2 );
 
             } break;
 

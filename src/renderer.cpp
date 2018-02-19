@@ -118,11 +118,11 @@ PushIndex( u32 value, GameRenderCommands* commands )
 void
 PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, GameRenderCommands *commands )
 {
-    int indexOffsetStart = commands->vertexBuffer.count;
-        
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {
+        int indexOffsetStart = entry->vertexCount;
+
         // Push 4 vertices (1st vertex is "top-left" and counter-clockwise from there)
         PushVertex( p1, color, { 0, 0 }, commands );
         PushVertex( p2, color, { 0, 0 }, commands );
@@ -151,7 +151,7 @@ PushRenderGroup( FlyingDude *dude, GameRenderCommands *commands )
         u32 vertexCount = ARRAYCOUNT( dude->vertices );
         u32 indexCount = ARRAYCOUNT( dude->indices );
 
-        int indexOffsetStart = commands->vertexBuffer.count;
+        int indexOffsetStart = entry->vertexCount;
 
         for( u32 i = 0; i < vertexCount; ++i )
         {
@@ -180,7 +180,7 @@ PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
         u32 vertexCount = ARRAYCOUNT( cube->vertices );
         u32 indexCount = ARRAYCOUNT( cube->indices );
 
-        int indexOffsetStart = commands->vertexBuffer.count;
+        int indexOffsetStart = entry->vertexCount;
 
         for( u32 i = 0; i < vertexCount; ++i )
         {

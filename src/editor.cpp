@@ -94,17 +94,35 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
         const r32 TEST_MARCHED_CUBE_SIZE = 1;
 
         const r32 AHALF = TEST_MARCHED_AREA_SIZE / 2;
-        r32 zStart = -AHALF;
-        r32 zEnd = AHALF;
 
-        u32 black = Pack01ToRGBA( V4( 0, 0, 0, 1 ) );
+        u32 semiBlack = Pack01ToRGBA( V4( 0, 0, 0, 0.25f ) );
         v3 off = V3( 0, -AHALF, AHALF );
 
-        for( float x = -AHALF; x < AHALF; x += TEST_MARCHED_CUBE_SIZE )
+        r32 zStart = -AHALF;
+        r32 zEnd = AHALF;
+        for( float x = -AHALF; x <= AHALF; x += TEST_MARCHED_CUBE_SIZE )
         {
-            for( float y = -AHALF; y < AHALF; y += TEST_MARCHED_CUBE_SIZE )
+            for( float y = -AHALF; y <= AHALF; y += TEST_MARCHED_CUBE_SIZE )
             {
-               PushLine( V3( x, y, zStart ) + off, V3( x, y, zEnd ) + off, black, renderCommands );
+                PushLine( V3( x, y, zStart ) + off, V3( x, y, zEnd ) + off, semiBlack, renderCommands );
+            }
+        }
+        r32 yStart = -AHALF;
+        r32 yEnd = AHALF;
+        for( float x = -AHALF; x <= AHALF; x += TEST_MARCHED_CUBE_SIZE )
+        {
+            for( float z = -AHALF; z <= AHALF; z += TEST_MARCHED_CUBE_SIZE )
+            {
+                PushLine( V3( x, yStart, z ) + off, V3( x, yEnd, z ) + off, semiBlack, renderCommands );
+            }
+        }
+        r32 xStart = -AHALF;
+        r32 xEnd = AHALF;
+        for( float z = -AHALF; z <= AHALF; z += TEST_MARCHED_CUBE_SIZE )
+        {
+            for( float y = -AHALF; y <= AHALF; y += TEST_MARCHED_CUBE_SIZE )
+            {
+                PushLine( V3( xStart, y, z ) + off, V3( xEnd, y, z ) + off, semiBlack, renderCommands );
             }
         }
     }
