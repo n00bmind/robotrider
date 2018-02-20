@@ -27,16 +27,62 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <mutex>
 #include <condition_variable>
 
-/////     LINKED LIST    /////
-// TODO Test!
-//template <typename T>
-//struct Node
-//{
-    //T data;
+/////     STATIC ARRAY    /////
 
-    //Node *next;
-    //Node *prev;
-//};
+template <typename T, u32 N = 0>
+struct Array
+{
+    T data[N];
+    u32 count = 0;
+    const u32 maxCount = N;
+};
+
+
+/////     DYNAMIC ARRAY    /////
+
+template <typename T>
+struct Array<T, 0>
+{
+    T *data;
+    u32 count;
+    u32 maxCount;
+};
+
+
+// TODO
+/////     BUCKET ARRAY     /////
+
+template <typename T, u32 N = 8>
+struct Bucket
+{
+    T data[N];
+    bool occupied[N];
+
+    u32 count;
+    u32 bucketIndex;
+
+    Bucket *next;
+    Bucket *prev;
+};
+
+template <typename T, u32 N = 8>
+struct BucketList
+{
+    u32 count;
+    Bucket<T, N> first;
+    Bucket<T, N> *last;
+    // TODO Keep pointer(s) to non-full buckets
+};
+
+template <typename T, u32 N = 8>
+struct BucketArray
+{
+    u32 count;
+    Bucket<T, N> *data;
+};
+
+
+/////     LINKED LIST    /////
 
 template <typename T>
 struct LinkedList
@@ -45,6 +91,14 @@ struct LinkedList
     // Dummy value so that the list always has something in it, and we don't have to check
     // for that edge case when inserting/removing (and we never have nullptrs!)
     T sentinel;
+
+    // Horrible C++ 11 shit
+    using TN = decltype(sentinel.next);
+    static_assert( std::is_pointer<TN>::value && std::is_base_of< T, typename std::remove_pointer<TN>::type >::value,
+                   "Type needs to declare a pointer to itself called 'next'" );
+    using TP = decltype(sentinel.prev);
+    static_assert( std::is_pointer<TP>::value && std::is_base_of< T, typename std::remove_pointer<TP>::type >::value,
+                   "Type needs to declare a pointer to itself called 'prev'" );
 
     LinkedList()
     {
@@ -188,40 +242,9 @@ struct ConcurrentQueue
 };
 
 
-// TODO
-/////     BUCKET ARRAY     /////
-
-template <typename T, u32 N = 8>
-struct Bucket
-{
-    T data[N];
-    bool occupied[N];
-
-    u32 count;
-    u32 bucketIndex;
-
-    Bucket *next;
-    Bucket *prev;
-};
-
-template <typename T, u32 N = 8>
-struct BucketList
-{
-    u32 count;
-    Bucket<T, N> first;
-    Bucket<T, N> *last;
-    // TODO Keep pointer(s) to non-full buckets
-};
-
-template <typename T, u32 N = 8>
-struct BucketArray
-{
-    u32 count;
-    Bucket<T, N> *data;
-};
 
 
-
+/////     TESTS     /////
 
 struct Dummy
 {
@@ -229,10 +252,17 @@ struct Dummy
     Dummy *prev;
 };
 
-void BucketTest()
+void DoDataTypesTests()
 {
     ConcurrentQueue<Dummy> q;
     Bucket<float> bucket;
+
+    Array<v3> dynArray;
+    Array<v3, 10> stArray;
+    v3 aLotOfVecs[10];
+
+    dynArray.data = aLotOfVecs;
+    dynArray.maxCount = ARRAYCOUNT(aLotOfVecs);
 }
 
 #endif /* __DATA_TYPES_H__ */
