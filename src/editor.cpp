@@ -24,6 +24,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 void
 UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands *renderCommands )
 {
+    float dT = input->frameElapsedSeconds;
+    float elapsedT = input->gameElapsedSeconds;
+
     GameState *gameState = (GameState *)memory->permanentStorage;
     EditorState &editorState = gameState->DEBUGeditorState;
 
@@ -42,29 +45,28 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
 
     // Update camera based on input
     {
-        float dt = input->frameElapsedSeconds;
         GameControllerInput *input0 = GetController( input, 0 );
 
         v3 vCamDelta = {};
         if( input0->dLeft.endedDown )
-            vCamDelta.x -= 3.f * dt;
+            vCamDelta.x -= 3.f * dT;
         if( input0->dRight.endedDown )
-            vCamDelta.x += 3.f * dt;
+            vCamDelta.x += 3.f * dT;
 
         if( input0->dUp.endedDown )
-            vCamDelta.z -= 3.f * dt;
+            vCamDelta.z -= 3.f * dT;
         if( input0->dDown.endedDown )
-            vCamDelta.z += 3.f * dt;
+            vCamDelta.z += 3.f * dT;
 
         if( input0->leftShoulder.endedDown )
-            vCamDelta.y -= 3.f * dt;
+            vCamDelta.y -= 3.f * dT;
         if( input0->rightShoulder.endedDown )
-            vCamDelta.y += 3.f * dt;
+            vCamDelta.y += 3.f * dT;
 
         if( input0->rightStick.avgX || input0->rightStick.avgY )
         {
-            editorState.camPitch += input0->rightStick.avgY / 15.f * dt;
-            editorState.camYaw += input0->rightStick.avgX / 15.f * dt; 
+            editorState.camPitch += input0->rightStick.avgY / 15.f * dT;
+            editorState.camYaw += input0->rightStick.avgX / 15.f * dT; 
         }
 
         m4 mCamRot = XRotation( editorState.camPitch )
@@ -96,7 +98,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
         const r32 AHALF = TEST_MARCHED_AREA_SIZE / 2;
 
         u32 semiBlack = Pack01ToRGBA( V4( 0, 0, 0, 0.25f ) );
-        v3 off = V3( 0, -AHALF, AHALF );
+        v3 off = V3Zero();
 
         r32 zStart = -AHALF;
         r32 zEnd = AHALF;
@@ -125,6 +127,8 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
                 PushLine( V3( xStart, y, z ) + off, V3( xEnd, y, z ) + off, semiBlack, renderCommands );
             }
         }
+
+        TestMetaballs( AHALF, TEST_MARCHED_CUBE_SIZE, elapsedT, renderCommands );
     }
 
     // FIXME Not drawn when issued after the lines!

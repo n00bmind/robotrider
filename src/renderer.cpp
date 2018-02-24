@@ -50,7 +50,7 @@ _PushRenderElement( GameRenderCommands *commands, u32 size, RenderEntryType type
 }
 
 void
-PushClear( v4 color, GameRenderCommands *commands )
+PushClear( const v4& color, GameRenderCommands *commands )
 {
     RenderEntryClear *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryClear );
     if( entry )
@@ -210,5 +210,31 @@ PushLine( v3 pStart, v3 pEnd, u32 color, GameRenderCommands *commands )
         PushVertex( pEnd, color, { 0, 0 }, commands );
 
         ++entry->lineCount;
+    }
+}
+
+void
+PushMesh( const Mesh& mesh, GameRenderCommands *commands )
+{
+    RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
+    if( entry )
+    {
+        int indexOffsetStart = entry->vertexCount;
+
+        for( u32 i = 0; i < mesh.vertexCount; ++i )
+        {
+            // Transform to world coordinates so this can all be rendered in big chunks
+            PushVertex( mesh.mTransform * mesh.vertices[i],
+                        Pack01ToRGBA( V4( 0, 0, 0, 1 ) ),
+                        { 0, 0 },
+                        commands );
+        }
+        entry->vertexCount += mesh.vertexCount;
+
+        for( u32 i = 0; i < mesh.indexCount; ++i )
+        {
+            PushIndex( indexOffsetStart + mesh.indices[i], commands );
+        }
+        entry->indexCount += mesh.indexCount;
     }
 }

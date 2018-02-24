@@ -81,7 +81,7 @@ SampleMetaballs( const void* sampleData, const v3& pos )
 }
 
 void
-TestMetaballs( float halfSideMeters, float cubeSize, float dT )
+TestMetaballs( float halfSideMeters, float cubeSize, float elapsedT, GameRenderCommands *renderCommands )
 {
     local_persistent Metaball balls[10] = {};
 
@@ -89,11 +89,11 @@ TestMetaballs( float halfSideMeters, float cubeSize, float dT )
     {
         for( int i = 0; i < ARRAYCOUNT(balls); ++i )
         {
-            r32 x = RandomRange( -halfSideMeters, halfSideMeters );
-            r32 y = RandomRange( -halfSideMeters, halfSideMeters );
-            r32 z = RandomRange( -halfSideMeters, halfSideMeters );
+            //r32 x = RandomRange( -halfSideMeters, halfSideMeters );
+            //r32 y = RandomRange( -halfSideMeters, halfSideMeters );
+            //r32 z = RandomRange( -halfSideMeters, halfSideMeters );
             r32 r = RandomRange( 1.0f, 5.0f );
-            balls[i] = { { x, y, z }, r };
+            balls[i] = { V3Zero(), r };
         }
     }
 
@@ -101,9 +101,11 @@ TestMetaballs( float halfSideMeters, float cubeSize, float dT )
     for( int i = 0; i < ARRAYCOUNT(balls); ++i )
     {
         Metaball& ball = balls[i];
-        r32 x = (i+1) / 2.0f * Cos( dT - i );
-        r32 y = (i+2) / 2.0f * Sin( dT + i );
-        r32 z = (i+3) / 2.0f * Sin( dT - i );
+        r32 x = (i+1) / 2.0f * Cos( elapsedT - i );
+        r32 y = (i+2) / 2.0f * Sin( elapsedT + i );
+        r32 z = (i+3) / 2.0f * Sin( elapsedT - i );
+
+        ball.pCenter = { x, y, z };
     }
     
     // Update mesh by sampling our cubic area centered at origin
@@ -117,6 +119,17 @@ TestMetaballs( float halfSideMeters, float cubeSize, float dT )
         for( float j = -halfSideMeters; j < halfSideMeters; j += cubeSize )
             for( float k = -halfSideMeters; k < halfSideMeters; k += cubeSize )
                 MarchCube( V3( i, j, k ), cubeSize, balls, SampleMetaballs, &vertices, &indices );
+
+    // FIXME Do a pass to eliminate all the duplicate vertices that marching cubes creates
+
+    metaMesh.vertices = vertices.data;
+    metaMesh.indices = indices.data;
+    metaMesh.vertexCount = vertices.count;
+    metaMesh.indexCount = indices.count;
+
+    //GenerateFaceNormals( metaMesh );
+
+    PushMesh( metaMesh, renderCommands );
 }
 
 
