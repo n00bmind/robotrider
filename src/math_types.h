@@ -217,6 +217,13 @@ operator *( r32 s, const v3 &v )
     return result;
 }
 
+inline r32
+Dot( const v3& a, const v3& b )
+{
+    r32 result = a.x * b.x + a.y * b.y + a.z * b.z;
+    return result;
+}
+
 inline v3
 Cross( const v3 &a, const v3 &b )
 {
@@ -234,6 +241,20 @@ Normalized( const v3 &v )
 {
     r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
     v3 result = { v.x * invL, v.y * invL, v.z * invL };
+    return result;
+}
+
+inline r32
+LengthSq( const v3& v )
+{
+    r32 result = Dot( v, v );
+    return result;
+}
+
+inline r32
+DistanceSq( const v3& a, const v3& b )
+{
+    r32 result = LengthSq(a - b);
     return result;
 }
 

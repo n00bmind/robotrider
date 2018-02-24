@@ -32,6 +32,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "ui.cpp"
 #include "console.cpp"
+#include "meshgen.cpp"
 #include "world.cpp"
 #include "editor.cpp"
 
@@ -56,6 +57,9 @@ GAME_SETUP_AFTER_RELOAD(GameSetupAfterReload)
 
     // Re-set platform's ImGui context
     ImGui::SetCurrentContext( gameState->imGuiContext );
+
+    // Do this in its own executable
+    TestDataTypes();
 }
 
 LIB_EXPORT
@@ -90,8 +94,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         tranState->isInitialized = true;
     }
-
-    BucketTest();
 
 #if DEBUG
     if( gameState->DEBUGglobalEditing )

@@ -45,4 +45,25 @@ Pack01ToRGBA( v4 unpacked )
                 | ((Round(unpacked.r * 255) & 0xFF) << 0));
     return result;
 }
+
+// FIXME Make all random generating functions repeatable for PCG
+// https://www.gamasutra.com/blogs/RuneSkovboJohansen/20150105/233505/A_Primer_on_Repeatable_Random_Numbers.php
+// https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/monte-carlo-methods-in-practice/generating-random-numbers
+
+// Includes min & max
+inline i32
+RandomRange( i32 min, i32 max )
+{
+    i32 result = min + rand() / (RAND_MAX / (max - min + 1) + 1);
+    return result;
+}
+
+inline r32
+RandomRange( r32 min, r32 max )
+{
+    r32 t = rand() / ((r32)RAND_MAX + 1);
+    r32 result = min + t * (max - min);
+    return result;
+}
+
 #endif /* __MATH_H__ */

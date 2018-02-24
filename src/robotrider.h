@@ -26,6 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <math.h>
 
 #include "platform.h"
@@ -229,24 +230,6 @@ struct GameAssetMapping
 //
 // Other stuff
 //
-
-struct FlyingDude
-{
-    v3 vertices[3];
-    u32 indices[3];
-
-    m4 mTransform;
-    u32 renderHandle;
-};
-
-struct CubeThing
-{
-    v3 vertices[4];
-    u32 indices[6];
-
-    m4 mTransform;
-    u32 renderHandle;
-};
 
 enum class ConsoleEntryType
 {

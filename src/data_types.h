@@ -27,27 +27,49 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <mutex>
 #include <condition_variable>
 
-/////     STATIC ARRAY    /////
-
-template <typename T, u32 N = 0>
-struct Array
-{
-    T data[N];
-    u32 count = 0;
-    const u32 maxCount = N;
-};
-
-
 /////     DYNAMIC ARRAY    /////
 
 template <typename T>
-struct Array<T, 0>
+struct Array
 {
     T *data;
     u32 count;
     u32 maxCount;
+
+    T& operator[]( u32 i )
+    {
+        ASSERT( i < maxCount );
+        return data[i];
+    }
+
+    const T& operator[]( u32 i ) const
+    {
+        ASSERT( i < maxCount );
+        return data[i];
+    }
 };
 
+template <typename T> void
+ArrayAdd( Array<T> *array, const T& item )
+{
+    ASSERT( array->count + 1 < array->maxCount );
+    array->data[array->count++] = item;
+}
+
+/////     STATIC ARRAY    /////
+
+template <typename T, u32 N = 0>
+struct SArray : public Array<T>
+{
+    T storage[N];
+
+    SArray()
+    {
+        data = storage;
+        count = 0;
+        maxCount = N;
+    }
+};
 
 // TODO
 /////     BUCKET ARRAY     /////
@@ -252,13 +274,13 @@ struct Dummy
     Dummy *prev;
 };
 
-void DoDataTypesTests()
+void TestDataTypes()
 {
     ConcurrentQueue<Dummy> q;
     Bucket<float> bucket;
 
     Array<v3> dynArray;
-    Array<v3, 10> stArray;
+    SArray<v3, 10> stArray;
     v3 aLotOfVecs[10];
 
     dynArray.data = aLotOfVecs;

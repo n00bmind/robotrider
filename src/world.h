@@ -24,6 +24,32 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __WORLD_H__
 #define __WORLD_H__ 
 
+struct FlyingDude
+{
+    v3 vertices[3];
+    u32 indices[3];
+
+    m4 mTransform;
+};
+
+struct CubeThing
+{
+    v3 vertices[4];
+    u32 indices[6];
+
+    m4 mTransform;
+};
+
+struct Mesh
+{
+    v3* vertices;
+    u32* indices;
+    u32 vertexCount;
+    u32 indexCount;
+
+    m4 mTransform;
+};
+
 // Entry points are the start of a new generation 'path'
 struct GenEntryPoint
 {

@@ -99,6 +99,8 @@ typedef double r64;
 
 typedef size_t mem_idx;
 
+#define R32MAX FLT_MAX
+#define R32MIN FLT_MIN
 
 
 //
