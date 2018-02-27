@@ -55,7 +55,8 @@ struct OpenGLImGuiState
 enum class OpenGLProgramName
 {
     None,
-    DefaultFlat,
+    PlainColor,
+    FlatShaded,
 };
 
 struct OpenGLShaderAttribute
@@ -75,16 +76,19 @@ struct OpenGLShaderUniform
 struct OpenGLShaderProgram
 {
     OpenGLProgramName name;
-    const char *vsFilename;
-    const char *fsFilename;
+    const char* vsFilename;
+    const char* gsFilename;
+    const char* fsFilename;
     // Position in the array determines what location index the attribute will be bound to
     OpenGLShaderAttribute attribs[MAX_SHADER_ATTRIBS];
     OpenGLShaderUniform uniforms[MAX_SHADER_UNIFORMS];
 
-    const char *vsSource;
-    const char *fsSource;
+    const char* vsSource;
+    const char* gsSource;
+    const char* fsSource;
     GLuint programId;
     GLuint vsId;
+    GLuint gsId;
     GLuint fsId;
 };
 
@@ -93,10 +97,19 @@ struct OpenGLShaderProgram
 OpenGLShaderProgram globalShaderPrograms[] =
 {
     {
-        OpenGLProgramName::DefaultFlat,
+        OpenGLProgramName::PlainColor,
         "default.vs.glsl",
+        nullptr,
+        "plain_color.fs.glsl",
+        { "inPosition", "inTexCoords", "inColor" },
+        { "mTransform" },
+    },
+    {
+        OpenGLProgramName::FlatShaded,
+        "default.vs.glsl",
+        "face_normal.gs.glsl",
         "flat.fs.glsl",
-        { "pIn", "uvIn", "cIn" },
+        { "inPosition", "inTexCoords", "inColor" },
         { "mTransform" },
     },
 };

@@ -23,22 +23,33 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #version 330 core
 
-layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec2 inTexCoords;
-layout(location = 2) in uint inColor;
+layout(triangles) in;
+layout(triangle_strip, max_vertices=3) out;
+
+in VertexData
+{
+    flat uint color;
+} _in[];
 
 out VertexData
 {
     flat uint color;
+    flat vec3 faceNormal;
 } _out;
-
-// TODO Consider using interface block for uniforms in the future too
-uniform mat4 mTransform;
 
 
 void main()
 {
-    gl_Position = mTransform * vec4( inPosition, 1.0 );
-    _out.color = inColor;
-}
+    vec3 v1 = (gl_in[1].gl_Position - gl_in[0].gl_Position).xyz;
+    vec3 v2 = (gl_in[2].gl_Position - gl_in[0].gl_Position).xyz;
+    vec3 normal = normalize( cross( v1, v2 ) );
 
+    for( int i = 0; i < gl_in.length(); ++i )
+    {
+        gl_Position = gl_in[i].gl_Position;
+        _out.color = _in[i].color;
+        _out.faceNormal = normal;
+        EmitVertex();
+    }
+    EndPrimitive();
+}

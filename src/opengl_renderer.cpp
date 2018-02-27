@@ -160,44 +160,25 @@ CreateOrthographicMatrix( r32 width, r32 height )
 }
 
 internal GLint
-OpenGLCompileVertexShader( const char *shaderSource, GLuint *shaderId )
+OpenGLCompileShader( GLenum shaderType, const char *shaderSource, GLuint *outShaderId )
 {
-    GLuint vertexShader = glCreateShader( GL_VERTEX_SHADER );
-    glShaderSource( vertexShader, 1, &shaderSource, NULL );     // That ** is super wrong!
-    glCompileShader( vertexShader );
+    GLuint shader = glCreateShader( shaderType );
+    if( shader == 0 )
+        return GL_FALSE;
+
+    glShaderSource( shader, 1, &shaderSource, NULL );     // That ** is super wrong!
+    glCompileShader( shader );
 
     GLint success;
     char infoLog[1024];
-    glGetShaderiv( vertexShader, GL_COMPILE_STATUS, &success );
+    glGetShaderiv( shader, GL_COMPILE_STATUS, &success );
 
     if( success )
-        *shaderId = vertexShader;
+        *outShaderId = shader;
     else
     {
-        glGetShaderInfoLog( vertexShader, ARRAYCOUNT(infoLog), NULL, infoLog );
-        LOG( ".ERROR :: Vertex shader compilation failed!\n%s\n", infoLog );
-    }
-
-    return success;
-}
-
-internal GLint
-OpenGLCompileFragmentShader( const char *shaderSource, GLuint *shaderId )
-{
-    GLuint fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
-    glShaderSource( fragmentShader, 1, &shaderSource, NULL );
-    glCompileShader( fragmentShader );
-
-    GLint success;
-    char infoLog[1024];
-    glGetShaderiv( fragmentShader, GL_COMPILE_STATUS, &success );
-
-    if( success )
-        *shaderId = fragmentShader;
-    else
-    {
-        glGetShaderInfoLog( fragmentShader, ARRAYCOUNT(infoLog), NULL, infoLog );
-        LOG( ".ERROR :: Fragment shader compilation failed!\n%s\n", infoLog );
+        glGetShaderInfoLog( shader, ARRAYCOUNT(infoLog), NULL, infoLog );
+        LOG( ".ERROR :: Shader compilation failed!\n%s\n", infoLog );
     }
 
     return success;
@@ -211,6 +192,8 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
     // TODO Identify programs by a string instead of an index
     programId = glCreateProgram();
     glAttachShader( programId, prg->vsId );
+    if( prg->gsId )
+        glAttachShader( programId, prg->gsId );
     glAttachShader( programId, prg->fsId );
 
     // NOTE Explicitly bind indices so that we don't need to conditionally bind shit later
@@ -241,7 +224,7 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
         {
             uniform.locationId = glGetUniformLocation( programId, uniform.name );
             if( uniform.locationId == -1 )
-                LOG( ".WARNING :: Uniform '%s' is not active in shader program %d", uniform.name, programId );
+                LOG( ".WARNING :: Uniform '%s' is not active in shader program %d", uniform.name, prg->name );
         }
     }
 
@@ -251,7 +234,7 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
         if( attr.name )
         {
             if( glGetAttribLocation( programId, attr.name ) == -1 )
-                LOG( ".WARNING :: Attribute '%s' is not active in shader program %d", attr.name, programId );
+                LOG( ".WARNING :: Attribute '%s' is not active in shader program %d", attr.name, prg->name );
         }
     }
 
@@ -259,35 +242,53 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
     return success;
 }
 
-internal GLint
+internal void
 OpenGLHotswapShader( const char *filename, const char *shaderSource )
 {
-    GLint success = 0;
-
-    // Find the program definition to which this file belongs
+    // Find which program definition(s) the file belongs to
     for( int i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
 
+        bool found = true;
+        GLuint newId;
+        GLint success = GL_FALSE;
+
         if( strcmp( filename, prg.vsFilename ) == 0 )
         {
-            success = OpenGLCompileVertexShader( shaderSource, &prg.vsId );
+            success = OpenGLCompileShader( GL_VERTEX_SHADER, shaderSource, &newId );
             if( success )
+            {
+                prg.vsId = newId;
                 prg.vsSource = shaderSource;
+            }
+        }
+        else if( prg.gsFilename && strcmp( filename, prg.gsFilename ) == 0 )
+        {
+            success = OpenGLCompileShader( GL_GEOMETRY_SHADER, shaderSource, &newId );
+            if( success )
+            {
+                prg.gsId = newId;
+                prg.gsSource = shaderSource;
+            }
         }
         else if( strcmp( filename, prg.fsFilename ) == 0 )
         {
-            success = OpenGLCompileFragmentShader( shaderSource, &prg.fsId );
+            success = OpenGLCompileShader( GL_FRAGMENT_SHADER, shaderSource, &newId );
             if( success )
+            {
+                prg.fsId = newId;
                 prg.fsSource = shaderSource;
+            }
         }
-        
-        success &= OpenGLLinkProgram( &prg );
-        if( success )
-            break;
-    }
+        else
+            found = false;
 
-    return success;
+        if( found && success )
+            success = OpenGLLinkProgram( &prg );
+
+        // TODO Log failures?
+    }
 }
 
 OpenGLInfo
@@ -322,8 +323,9 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
 
         // Vertex shader
-        DEBUGReadFileResult result;
         char filePath[MAX_PATH];
+        DEBUGReadFileResult result;
+        GLint success;
 
         // TODO Do automatic asset resolution (including relative paths) in the platform, something like:
         //result = globalPlatform.LoadAsset( PlatformAsset::SHADER, prg.vsFilename );
@@ -333,10 +335,23 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
         ASSERT( result.contents );
         prg.vsSource = (char *)result.contents;
 
-        GLint success;
-        success = OpenGLCompileVertexShader( prg.vsSource, &prg.vsId );
+        success = OpenGLCompileShader( GL_VERTEX_SHADER, prg.vsSource, &prg.vsId );
         if( !success )
             continue;
+
+        if( prg.gsFilename )
+        {
+            // Geometry shader
+            strcpy( filePath, SHADERS_RELATIVE_PATH );
+            strcat( filePath, prg.gsFilename );
+            result = globalPlatform.DEBUGReadEntireFile( filePath );
+            ASSERT( result.contents );
+            prg.gsSource = (char *)result.contents;
+
+            success = OpenGLCompileShader( GL_GEOMETRY_SHADER, prg.gsSource, &prg.gsId );
+            if( !success )
+                continue;
+        }
 
         // Fragment shader
         strcpy( filePath, SHADERS_RELATIVE_PATH );
@@ -345,7 +360,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
         ASSERT( result.contents );
         prg.fsSource = (char *)result.contents;
 
-        success = OpenGLCompileFragmentShader( prg.fsSource, &prg.fsId );
+        success = OpenGLCompileShader( GL_FRAGMENT_SHADER, prg.fsSource, &prg.fsId );
         if( !success )
             continue;
 
@@ -742,7 +757,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
             {
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
-                OpenGLUseProgram( OpenGLProgramName::DefaultFlat, gl );
+                OpenGLUseProgram( OpenGLProgramName::FlatShaded, gl );
 
                 //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
@@ -766,7 +781,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
             {
                 RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
 
-                OpenGLUseProgram( OpenGLProgramName::DefaultFlat, gl );
+                OpenGLUseProgram( OpenGLProgramName::PlainColor, gl );
 
                 GLuint countBytes = entry->lineCount * 2 * sizeof(TexturedVertex);
                 glBufferData( GL_ARRAY_BUFFER,

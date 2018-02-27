@@ -23,22 +23,44 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #version 330 core
 
-layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec2 inTexCoords;
-layout(location = 2) in uint inColor;
-
-out VertexData
+in VertexData
 {
     flat uint color;
-} _out;
+    flat vec3 faceNormal;
+} _in;
 
-// TODO Consider using interface block for uniforms in the future too
-uniform mat4 mTransform;
+out vec4 outColor;
 
+
+// TODO Move this to an include when we support that
+// vec4 to rgba8 uint
+// TODO Test
+uint pack( vec4 value )
+{
+    // Ensure values are in [0..1] and make NaNs become zeros
+    value = min( max( value, 0.0f ), 1.0f );
+    
+    // Each component gets 8 bit
+    value = value * 255 + 0.5f;
+    value = floor( value );
+    
+    // Pack into one 32 bit uint
+    return( uint(value.x) |
+           (uint(value.y)<< 8) |
+           (uint(value.z)<<16) |
+           (uint(value.w)<<24) );
+}
+
+// rgba8 uint to vec4
+vec4 unpack( uint value )
+{
+    return vec4(float(value & 0xFFu) / 255,
+                float((value >>  8) & 0xFFu) / 255,
+                float((value >> 16) & 0xFFu) / 255,
+                float((value >> 24) & 0xFFu) / 255);
+}
 
 void main()
 {
-    gl_Position = mTransform * vec4( inPosition, 1.0 );
-    _out.color = inColor;
+    outColor = unpack( _in.color );
 }
-

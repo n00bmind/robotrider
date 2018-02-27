@@ -23,9 +23,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #version 330 core
 
-flat in uint vertColor;
+in VertexData
+{
+    flat uint color;
+    flat vec3 faceNormal;
+} _in;
 
-out vec4 fragColor;
+out vec4 outColor;
 
 
 // TODO Move this to an include when we support that
@@ -58,5 +62,8 @@ vec4 unpack( uint value )
 
 void main()
 {
-    fragColor = unpack( vertColor );
+    vec3 lightDirection = vec3( 0.0, 0.0, 1.0 );
+    float d = dot( lightDirection, _in.faceNormal );
+    //outColor = unpack( _in.color );
+    outColor = vec4( d, d, d, 1 );
 }
