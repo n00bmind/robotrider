@@ -77,7 +77,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
         //editorState.pCamera += vCamForward * vCamDelta.z + vCamRight * vCamDelta.x;
         editorState.pCamera += Transposed( mCamRot ) * vCamDelta;
 
-        renderCommands->camera.mTransform = mCamRot * M4Translation( -editorState.pCamera );
+        renderCommands->camera.mTransform = mCamRot * Translation( -editorState.pCamera );
     }
 
     u16 width = renderCommands->width;

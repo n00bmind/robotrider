@@ -93,6 +93,12 @@ V2Zero()
     return { 0.0f, 0.0f };
 }
 
+inline bool
+operator ==( const v2& a, const v2& b )
+{
+    return a.x == b.x && a.y == b.y;
+}
+
 inline v2
 operator -( const v2 &a, const v2 &b )
 {
@@ -210,6 +216,14 @@ operator *( const v3 &v, r32 s )
     return result;
 }
 
+inline void
+operator *=( v3& v, r32 s )
+{
+    v.x *= s;
+    v.y *= s;
+    v.z *= s;
+}
+
 inline v3
 operator *( r32 s, const v3 &v )
 {
@@ -236,11 +250,18 @@ Cross( const v3 &a, const v3 &b )
     return result;
 }
 
+inline void
+Normalize( v3& v )
+{
+    r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
+    v *= invL;
+}
+
 inline v3
 Normalized( const v3 &v )
 {
     r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
-    v3 result = { v.x * invL, v.y * invL, v.z * invL };
+    v3 result = v * invL;
     return result;
 }
 
@@ -398,7 +419,7 @@ M4Identity()
 }
 
 inline m4
-M4Translation( const v3 &p )
+Translation( const v3 &p )
 {
     m4 result =
     {{
@@ -482,6 +503,20 @@ ZRotation( r32 angleRads )
          { s, c, 0, 0 },
          { 0, 0, 1, 0 },
          { 0, 0, 0, 1 }
+    }};
+
+    return result;
+}
+
+inline m4
+Scale( const v3 &f )
+{
+    m4 result =
+    {{
+         { f.x,   0,    0,    0 },
+         { 0,     f.y,  0,    0 },
+         { 0,     0,    f.z,  0 },
+         { 0,     0,    0,    1 }
     }};
 
     return result;

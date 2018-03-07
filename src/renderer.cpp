@@ -223,11 +223,10 @@ PushMesh( const Mesh& mesh, GameRenderCommands *commands )
 
         for( u32 i = 0; i < mesh.vertexCount; ++i )
         {
+            TexturedVertex& v = mesh.vertices[i];
+
             // Transform to world coordinates so this can all be rendered in big chunks
-            PushVertex( mesh.mTransform * mesh.vertices[i],
-                        Pack01ToRGBA( V4( 0, 0, 0, 1 ) ),
-                        { 0, 0 },
-                        commands );
+            PushVertex( mesh.mTransform * v.p, v.color, v.uv, commands );
         }
         entry->vertexCount += mesh.vertexCount;
 

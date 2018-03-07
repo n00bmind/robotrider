@@ -21,6 +21,14 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#define DATA_RELATIVE_PATH "..\\data\\"
+
+
+// FIXME Put this in some arena
+internal SArray<TexturedVertex, 65536> testVertices;
+internal SArray<u32, 256*1024> testIndices;
+
+
 void
 InitWorld( GameState *gameState )
 {
@@ -68,8 +76,10 @@ InitWorld( GameState *gameState )
         r32 transX = (((i32)i % rowSize) - rowHalf) * 2.0f;
         r32 transY = ((i32)i / rowSize) * 2.0f;
 
-        cube.mTransform = M4Translation( { transX, transY, -1.0f } );
+        cube.mTransform = Translation( { transX, transY, -1.0f } );
     }
+
+    LoadOBJ( DATA_RELATIVE_PATH "bunny.obj", &testVertices, &testIndices );
 }
 
 internal void
@@ -88,6 +98,15 @@ UpdateAndRenderWorld( GameState *gameState, GameRenderCommands *renderCommands )
     UpdateWorldGeneration( gameState );
 
     ///// Render
+
+    Mesh testMesh;
+    testMesh.vertices = testVertices.data;
+    testMesh.indices = testIndices.data;
+    testMesh.vertexCount = testVertices.count;
+    testMesh.indexCount = testIndices.count;
+    testMesh.mTransform = Scale({ 10, 10, 10 });
+    PushMesh( testMesh, renderCommands );
+
 
     PushRenderGroup( gameState->playerDude, renderCommands);
 

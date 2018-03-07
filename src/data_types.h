@@ -24,6 +24,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __DATA_TYPES_H__
 #define __DATA_TYPES_H__ 
 
+// FIXME Get rid of these
 #include <mutex>
 #include <condition_variable>
 
@@ -47,14 +48,13 @@ struct Array
         ASSERT( i < maxCount );
         return data[i];
     }
-};
 
-template <typename T> void
-ArrayAdd( Array<T> *array, const T& item )
-{
-    ASSERT( array->count + 1 < array->maxCount );
-    array->data[array->count++] = item;
-}
+    void Add( const T& item )
+    {
+        ASSERT( count < maxCount );
+        data[count++] = item;
+    }
+};
 
 /////     STATIC ARRAY    /////
 
@@ -68,6 +68,169 @@ struct SArray : public Array<T>
         data = storage;
         count = 0;
         maxCount = N;
+    }
+};
+
+/////     STRING     /////
+
+// NOTE We're using stdlib but still wrapping everything in case we wanna do something different in the future
+u32 Length( const char* cstring )
+{
+    return (u32)strlen( cstring );
+}
+
+struct String
+{
+    char *data;
+    u32 size;
+    u32 maxSize;
+
+    // NOTE For now we don't allow (const) string literals,
+    // otherwise we should make our own data const too. We'll see..
+    String( char *cString )
+    {
+        data = cString;
+        size = maxSize = Length( cString );
+    }
+
+    String( char *cString, u32 size_, u32 maxSize_ )
+    {
+        data = cString;
+        size = size_;
+        maxSize = maxSize_;
+    }
+
+    bool IsNullOrEmpty()
+    {
+        return data == nullptr || *data == '\0';
+    }
+
+    bool IsEqual( const char* cString )
+    {
+        return strncmp( data, cString, size ) == 0
+            && cString[size] == '\0';
+    }
+
+    bool StartsWith( const char* cString )
+    {
+        ASSERT( *cString );
+        if( IsNullOrEmpty() )
+            return true;
+
+        char* nextThis = data;
+        const char* nextThat = cString;
+
+        while( *nextThis && *nextThis == *nextThat )
+        {
+            nextThis++;
+            nextThat++;
+
+            if( *nextThat == '\0' )
+                return true;
+        }
+
+        return false;
+    }
+
+    char* FindString( const char* cString )
+    {
+        ASSERT( *cString );
+        if( IsNullOrEmpty() )
+            return nullptr;
+
+        char* prospect = data;
+        u32 remaining = size;
+        while( remaining && *prospect )
+        {
+            char* nextThis = prospect;
+            const char* nextThat = cString;
+            while( *nextThis && *nextThis == *nextThat )
+            {
+                nextThis++;
+                nextThat++;
+
+                if( *nextThat == '\0' )
+                    return prospect;
+            }
+
+            prospect++;
+            remaining--;
+        }
+
+        return nullptr;
+    }
+
+    String ConsumeLine()
+    {
+        u32 lineLen = size;
+
+        char* onePastNL = FindString( "\n" );
+
+        if( onePastNL )
+        {
+            onePastNL++;
+            lineLen = SafeTruncToU32( onePastNL - data );
+        }
+
+        String line( data, lineLen, maxSize );
+
+        ASSERT( lineLen <= size );
+        data = onePastNL;
+        size -= lineLen;
+        maxSize -= lineLen;
+
+        return line;
+    }
+
+    // Consume next word trimming whatever whitespace is there at the beginning
+    String ConsumeWord()
+    {
+        char *start = data;
+        u32 remaining = size;
+
+        // TODO We may not want things like '\n' here?
+        while( *start && isspace( *start ) && remaining > 0 )
+        {
+            start++;
+            remaining--;
+        }
+
+        u32 trimmed = SafeTruncToU32( start - data );
+        u32 wordLen = 0;
+        if( *start && remaining > 0 )
+        {
+            char *end = start;
+            while( *end && !isspace( *end ) )
+                end++;
+
+            wordLen = SafeTruncToU32( end - start );
+        }
+
+        String result( start, wordLen, maxSize - trimmed );
+
+        // Consume stripped part
+        u32 totalLen = trimmed + wordLen;
+        ASSERT( totalLen <= size );
+        data += totalLen;
+        size -= totalLen;
+        maxSize -= totalLen; 
+
+        return result;
+    }
+
+    int Scan( const char *format, ... )
+    {
+        va_list args;
+        va_start( args, format );
+
+        // HACK Horrible, but it's what we have for now
+        char endChar = *(data + size);
+        *(data + size) = '\0';
+        int result = vsscanf( data, format, args );
+        *(data + size) = endChar;
+
+        va_end( args );
+        return result;
     }
 };
 

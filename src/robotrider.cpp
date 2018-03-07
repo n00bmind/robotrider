@@ -32,13 +32,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "ui.cpp"
 #include "console.cpp"
+#include "asset_loaders.cpp"
 #include "meshgen.cpp"
 #include "world.cpp"
 #include "editor.cpp"
 
 
+
 PlatformAPI globalPlatform;
 internal GameConsole *gameConsole;
+
+
 
 LIB_EXPORT
 GAME_LOG_CALLBACK(GameLogCallback)
@@ -58,7 +62,7 @@ GAME_SETUP_AFTER_RELOAD(GameSetupAfterReload)
     // Re-set platform's ImGui context
     ImGui::SetCurrentContext( gameState->imGuiContext );
 
-    // Do this in its own executable
+    // Do this in a real test suite
     TestDataTypes();
 }
 
@@ -166,6 +170,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
         UpdateAndRenderWorld( gameState, renderCommands );
 
+#if 0
     // Draw marching cubes tests
     {
         const r32 TEST_MARCHED_AREA_SIZE = 10;
@@ -206,6 +211,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         TestMetaballs( AHALF, TEST_MARCHED_CUBE_SIZE, elapsedT, renderCommands );
     }
+#endif
 
         {
             FlyingDude *playerDude = gameState->playerDude;

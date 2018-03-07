@@ -25,8 +25,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define __ROBOTRIDER_H__ 
 
 #include <string.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <math.h>
 
 #include "platform.h"

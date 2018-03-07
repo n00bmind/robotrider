@@ -42,7 +42,7 @@ struct CubeThing
 
 struct Mesh
 {
-    v3* vertices;
+    TexturedVertex* vertices;
     u32* indices;
     u32 vertexCount;
     u32 indexCount;

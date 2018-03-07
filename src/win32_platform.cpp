@@ -151,7 +151,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
         if( GetFileSizeEx( fileHandle, &fileSize ) )
         {
             u32 fileSize32 = SafeTruncToU32( fileSize.QuadPart );
-            result.contents = VirtualAlloc( 0, fileSize32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+            result.contents = VirtualAlloc( 0, fileSize32 + 1, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
             if( result.contents )
             {
@@ -159,7 +159,9 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
                 if( ReadFile( fileHandle, result.contents, fileSize32, &bytesRead, 0 )
                     && (fileSize32 == bytesRead) )
                 {
-                    result.contentSize = fileSize32;
+                    // Null-terminate to help when handling text files
+                    *((u8 *)result.contents + fileSize32) = '\0';
+                    result.contentSize = fileSize32 + 1;
                 }
                 else
                 {

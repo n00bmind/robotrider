@@ -64,6 +64,8 @@ struct TexturedVertex
     v3 p;
     u32 color;
     v2 uv;
+    // TODO Should we just ignore these and do it all in the GS based on what shading we want?
+    v3 normal;
 };
 
 struct RenderEntryTexturedTris

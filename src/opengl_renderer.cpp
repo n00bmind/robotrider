@@ -322,11 +322,11 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     {
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
 
-        // Vertex shader
         char filePath[MAX_PATH];
         DEBUGReadFileResult result;
         GLint success;
 
+        // Vertex shader
         // TODO Do automatic asset resolution (including relative paths) in the platform, something like:
         //result = globalPlatform.LoadAsset( PlatformAsset::SHADER, prg.vsFilename );
         strcpy( filePath, SHADERS_RELATIVE_PATH );
@@ -757,9 +757,9 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
             {
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
-                OpenGLUseProgram( OpenGLProgramName::FlatShaded, gl );
+                OpenGLUseProgram( OpenGLProgramName::PlainColor, gl );
 
-                //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+                glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
                 GLuint countBytes = entry->vertexCount * sizeof(TexturedVertex);
                 glBufferData( GL_ARRAY_BUFFER,

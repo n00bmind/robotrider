@@ -57,8 +57,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if DEBUG
 #define HALT() ( (*(int *)0 = 0) != 0 )
 #define ASSERT(expr) ((void)( !(expr) && (_assert_handler( #expr, __FILE__, __LINE__ ), 1) && HALT()))
+#define ASSERTM(expr, msg) ((void)( !(expr) && (_assert_handler( msg, __FILE__, __LINE__ ), 1) && HALT()))
 #else
 #define ASSERT(expr) ((void)0)
+#define ASSERTM(expr) ((void)0)
 #endif
 
 #if DEBUG
@@ -74,7 +76,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define LOG globalPlatform.Log
 
 #define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
-#define OFFSETOF(type, member) ((mem_idx)&(((type *)0)->member))
+#define OFFSETOF(type, member) ((sz)&(((type *)0)->member))
 #define STR(s) _STR(s)
 #define _STR(s) #s
 
@@ -97,7 +99,7 @@ typedef uint64_t u64;
 typedef float r32;
 typedef double r64;
 
-typedef size_t mem_idx;
+typedef size_t sz;
 
 #define R32MAX FLT_MAX
 #define R32MIN FLT_MIN

@@ -27,14 +27,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 struct MemoryArena
 {
     u8 *base;
-    mem_idx size;
-    mem_idx used;
+    sz size;
+    sz used;
 
     u32 tempCount;
 };
 
 inline void
-InitializeArena( MemoryArena *arena, u8 *base, mem_idx size )
+InitializeArena( MemoryArena *arena, u8 *base, sz size )
 {
     arena->base = base;
     arena->size = size;
@@ -45,7 +45,7 @@ InitializeArena( MemoryArena *arena, u8 *base, mem_idx size )
 struct TemporaryMemory
 {
     MemoryArena *arena;
-    mem_idx used;
+    sz used;
 };
 
 inline TemporaryMemory
@@ -83,7 +83,7 @@ CheckArena( MemoryArena *arena )
 #define PUSH_ARRAY(arena, count, type) (type *)_PushSize( arena, (count)*sizeof(type) )
 #define PUSH_SIZE(arena, size) _PushSize( arena, size )
 inline void *
-_PushSize( MemoryArena *arena, mem_idx size )
+_PushSize( MemoryArena *arena, sz size )
 {
     ASSERT( arena->used + size <= arena->size );
     // TODO Clear to zero option

@@ -56,8 +56,8 @@ MarchCube( v3 pMinCorner, float cubeSize, const void* sampledData, MarchedCubeSa
             //v3 vPos = Lerp( pA, t, pB );
 #endif
 
-            ArrayAdd( indices, vertices->count );
-            ArrayAdd( vertices, vPos );
+            indices->Add( vertices->count );
+            vertices->Add( vPos );
 
             ++caseVertex;
         }
@@ -122,7 +122,7 @@ TestMetaballs( float halfSideMeters, float cubeSize, float elapsedT, GameRenderC
 
     // FIXME Do a pass to eliminate all the duplicate vertices that marching cubes creates
 
-    metaMesh.vertices = vertices.data;
+    //metaMesh.vertices = vertices.data;
     metaMesh.indices = indices.data;
     metaMesh.vertexCount = vertices.count;
     metaMesh.indexCount = indices.count;
