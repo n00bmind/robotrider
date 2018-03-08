@@ -33,8 +33,8 @@ out vec4 outColor;
 
 
 // TODO Move this to an include when we support that
-// vec4 to rgba8 uint
 // TODO Test
+// vec4 to rgba8 uint
 uint pack( vec4 value )
 {
     // Ensure values are in [0..1] and make NaNs become zeros

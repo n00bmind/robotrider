@@ -312,6 +312,8 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     glBindVertexArray( dummyVAO );
 #endif
 
+    // We're also using a single VBO and index buffer
+    // TODO Test performance when using just one vs various
     glGenBuffers( 1, &gl.vertexBuffer );
     glBindBuffer( GL_ARRAY_BUFFER, gl.vertexBuffer );
     glGenBuffers( 1, &gl.indexBuffer );
@@ -730,13 +732,18 @@ internal void
 OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 {
     glViewport( 0, 0, commands.width, commands.height );
+    
     glDisable( GL_SCISSOR_TEST );
+    glEnable( GL_CULL_FACE );
+    glEnable( GL_DEPTH_TEST );
 
     m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
     mProjView = mProjView * commands.camera.mTransform;
     gl.mCurrentProjView = mProjView;
 
-    // TODO Diagnose number of draw calls, primitives per draw call, etc..
+    globalPlatform.totalDrawCalls = 0;
+    globalPlatform.totalPrimitiveCount = 0;
+
 
     RenderBuffer &buffer = commands.renderBuffer;
     for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
@@ -750,16 +757,16 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 RenderEntryClear *entry = (RenderEntryClear *)entryHeader;
 
                 glClearColor( entry->color.r, entry->color.g, entry->color.b, entry->color.a ); 
-                glClear( GL_COLOR_BUFFER_BIT );
+                glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
             } break;
 
             case RenderEntryType::RenderEntryTexturedTris:
             {
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
-                OpenGLUseProgram( OpenGLProgramName::PlainColor, gl );
+                OpenGLUseProgram( OpenGLProgramName::FlatShaded, gl );
 
-                glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+                //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
                 GLuint countBytes = entry->vertexCount * sizeof(TexturedVertex);
                 glBufferData( GL_ARRAY_BUFFER,
@@ -775,6 +782,8 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 glDrawElements( GL_TRIANGLES, entry->indexCount, GL_UNSIGNED_INT, (void *)0 );
 
+                globalPlatform.totalDrawCalls++;
+                globalPlatform.totalPrimitiveCount += (entry->indexCount / 3);
             } break;
 
             case RenderEntryType::RenderEntryLines:
@@ -791,6 +800,8 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 glDrawArrays( GL_LINES, 0, entry->lineCount * 2 );
 
+                globalPlatform.totalDrawCalls++;
+                globalPlatform.totalPrimitiveCount += entry->lineCount;
             } break;
 
             default:

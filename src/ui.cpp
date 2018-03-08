@@ -48,7 +48,7 @@ DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
 }
 
 void
-DrawEditorNotice( u16 windowWidth, u16 windowHeight, bool blinkToggle )
+DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool blinkToggle )
 {
     ImVec2 statsPos( 0, 0 );
 
@@ -61,6 +61,8 @@ DrawEditorNotice( u16 windowWidth, u16 windowHeight, bool blinkToggle )
                   ImGuiWindowFlags_NoResize |
                   ImGuiWindowFlags_NoMove |
                   ImGuiWindowFlags_NoInputs );
+    ImGui::TextColored( UIdarkTextColor, statsText );
+    ImGui::SameLine( (r32)windowWidth - 100 );
     ImGui::TextColored( UIdarkTextColor, blinkToggle ? "EDITOR MODE" : "" );
     ImGui::End();
     ImGui::PopStyleColor();

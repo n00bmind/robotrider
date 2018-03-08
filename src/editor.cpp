@@ -21,11 +21,12 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#if DEBUG
 void
-UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands *renderCommands )
+UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands *renderCommands, const char* statsText )
 {
     float dT = input->frameElapsedSeconds;
-    float elapsedT = input->gameElapsedSeconds;
+    float elapsedT = input->totalElapsedSeconds;
 
     GameState *gameState = (GameState *)memory->permanentStorage;
     EditorState &editorState = gameState->DEBUGeditorState;
@@ -90,11 +91,10 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
         UpdateAndRenderWorld( gameState, renderCommands );
     }
 
-    // FIXME Not drawn when issued after the lines!
     DrawAxisGizmos( renderCommands );
 
-    r32 elapsedSeconds = input->gameElapsedSeconds;
-    DrawEditorNotice( width, height, (i32)elapsedSeconds % 2 == 0 );
+    r32 elapsedSeconds = input->totalElapsedSeconds;
+    DrawEditorStats( width, height, statsText, (i32)elapsedSeconds % 2 == 0 );
 
 }
-
+#endif

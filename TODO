@@ -4,7 +4,11 @@
 
 
 WORLDGEN
+- Mesh simplication using Fast Quadric method
 - Procedural generation of some kind of infinite pipe-like world structure
+
+GAMEPLAY
+- Develop some kind of entity system with selective updating based on distance from player
 
 THREADING
 - Once the previous process is complex enough, develop worker threads that can do it in the background based on player distance
@@ -36,11 +40,11 @@ INPUT
 - Find a way to calibrate different relative movement amounts from the different input methods
 
 DEBUGGING
+- Profiler
+- Profile & optimize the DEBUG build!
 - Command completion & history navigation in the console
 - Really dump game state to disk (asynchronously) and study how hard it would be to make it loadable across game state revisions
 - Add a command line switch & ingame command to load a recorded input block from disk
 - Simple static analysis:
   - Detect usage of 'internal' functions outside of the file where they're defined (in case we wanna ever have non-Unity builds)
-- Logging system, with categories & levels, threadsafe, dumped to disk & console
-- Profiler
 

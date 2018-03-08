@@ -60,7 +60,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define ASSERTM(expr, msg) ((void)( !(expr) && (_assert_handler( msg, __FILE__, __LINE__ ), 1) && HALT()))
 #else
 #define ASSERT(expr) ((void)0)
-#define ASSERTM(expr) ((void)0)
+#define ASSERTM(expr, msg) ((void)0)
 #endif
 
 #if DEBUG
@@ -135,6 +135,10 @@ struct PlatformAPI
     DebugPlatformWriteEntireFileFunc *DEBUGWriteEntireFile;
 
     PlatformLogFunc *Log;
+
+    // Some stats for debugging (here until I find a better place for them)
+    u32 totalDrawCalls;
+    u32 totalPrimitiveCount;
 };
 extern PlatformAPI globalPlatform;
 

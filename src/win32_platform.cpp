@@ -886,7 +886,7 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
     for( int i = 0; i < ARRAYCOUNT(newInput->mouseButtons); ++i )
         newInput->mouseButtons[i] = oldInput->mouseButtons[i];
     newInput->frameElapsedSeconds = elapsedSeconds;
-    newInput->gameElapsedSeconds = totalSeconds;
+    newInput->totalElapsedSeconds = totalSeconds;
 }
 
 
@@ -1058,6 +1058,7 @@ Win32HideWindow( HWND window )
     SetWindowPlacement( window, &wp );
 }
 
+#if DEBUG
 void
 Win32ToggleGlobalDebugging( GameState *gameState, HWND window )
 {
@@ -1076,24 +1077,22 @@ Win32ToggleGlobalDebugging( GameState *gameState, HWND window )
                   ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
                   SWP_NOMOVE | SWP_NOSIZE );
 }
-
+#endif
 
 internal void
 Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                              GameInput *input, GameControllerInput *keyMouseController )
 {
     MSG message;
-    bool altKeyDown = false;
+    bool altKeyDown, ctrlKeyDown, shiftKeyDown;
+    auto& imGuiIO = ImGui::GetIO();
 
     while( PeekMessage( &message, 0, 0, 0, PM_REMOVE ) )
     {
-        auto& imGuiIO = ImGui::GetIO();
-
         switch( message.message )
         {
             case WM_SYSKEYDOWN:
             case WM_SYSKEYUP:
-                altKeyDown = ((message.lParam & (1<<29)) != 0);
             case WM_KEYDOWN:
             case WM_KEYUP:
             {
@@ -1107,7 +1106,11 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                 if( vkCode < 256 )
                     imGuiIO.KeysDown[vkCode] = isDown ? 1 : 0;
 
-                // Set button states (only for up/down transitions)
+                altKeyDown = (GetKeyState( VK_MENU ) & 0x8000) != 0;
+                ctrlKeyDown = (GetKeyState( VK_CONTROL ) & 0x8000) != 0;
+                shiftKeyDown = (GetKeyState( VK_SHIFT ) & 0x8000) != 0;
+
+                // Set controller button states (only for up/down transitions)
                 // (don't ever send keys to game if ImGui is handling them)
                 if( isDown != wasDown && !imGuiIO.WantCaptureKeyboard )
                 {
@@ -1161,6 +1164,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                     }
                 }
 
+                // Respond to keyboard input
                 if( isDown )
                 {
                     if( vkCode == VK_F4 && altKeyDown )
@@ -1196,10 +1200,10 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                     // TODO This may only work in the spanish keyboard?
                     else if( vkCode == VK_OEM_5 )
                     {
-                        if( gameState->DEBUGglobalDebugging )
+                        if( ctrlKeyDown )
                             gameState->DEBUGglobalEditing = true;
-
-                        Win32ToggleGlobalDebugging( gameState, platformState->mainWindow );
+                        else if( !gameState->DEBUGglobalDebugging && !gameState->DEBUGglobalEditing )
+                            Win32ToggleGlobalDebugging( gameState, platformState->mainWindow );
                     }
                     else if( vkCode == VK_F1 )
                     {
@@ -1367,10 +1371,10 @@ Win32WindowProc( HWND hwnd, UINT  uMsg, WPARAM wParam, LPARAM lParam )
         //{
         //} break;
 
-        case WM_SETCURSOR:
-        {
-            SetCursor( DEBUGglobalCursor );
-        } break;
+        //case WM_SETCURSOR:
+        //{
+            //SetCursor( DEBUGglobalCursor );
+        //} break;
 
         case WM_SYSKEYDOWN:
         case WM_SYSKEYUP:
@@ -1595,6 +1599,8 @@ main( int argC, char **argV )
     // (stress test by artificially lowering the framerate)
     Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS, AUDIO_LATENCY_SAMPLES );
 
+    u32 runningFrameCounter = 0;
+    r32 totalElapsedSeconds = 0;
     LARGE_INTEGER perfCounterFreqMeasure;
     QueryPerformanceFrequency( &perfCounterFreqMeasure );
     globalPerfCounterFrequency = perfCounterFreqMeasure.QuadPart;
@@ -1658,10 +1664,11 @@ main( int argC, char **argV )
             audioOutput.systemLatencyFrames = (u16)Ceil( (u64)latency * audioOutput.samplingRate / 10000000.0 );
             u32 audioLatencyFrames = audioOutput.samplingRate / videoTargetFramerateHz;
 
-#if !DEBUG
+#if DEBUG
+            DEBUGglobalCursor = LoadCursor( 0, IDC_CROSS );
+#else
             Win32ToggleFullscreen( window );
 #endif
-            DEBUGglobalCursor = LoadCursor( 0, IDC_CROSS );
 
             globalNativeState.mainWindow = window;
             Win32RegisterRawMouseInput( window );
@@ -1761,11 +1768,12 @@ main( int argC, char **argV )
                     Win32SetupAssetUpdateListener( &globalNativeState );
 
                     // Main loop
-                    u32 runningFrameCounter = 0;
                     while( globalRunning )
                     {
-                        r32 totalSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
-                        Win32PrepareInputData( oldInput, newInput, lastDeltaTimeSecs, totalSeconds );
+                        totalElapsedSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
+                        Win32PrepareInputData( oldInput, newInput, lastDeltaTimeSecs, totalElapsedSeconds );
+                        if( runningFrameCounter == 0 )
+                            newInput->executableReloaded = true;
 
 #if DEBUG
                         // Check for game code updates
@@ -1916,6 +1924,9 @@ main( int argC, char **argV )
     {
         LOG( ".ERROR: Couldn't register window class!" );
     }
+
+    LOG( "\nFPS: %.1f imm. / %.1f avg.",
+         ImGui::GetIO().Framerate, (r32)runningFrameCounter / totalElapsedSeconds );
 
     return 0;
 }
