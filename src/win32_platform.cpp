@@ -74,6 +74,9 @@ internal i64 globalPerfCounterFrequency;
 internal HCURSOR DEBUGglobalCursor;
 #endif
 
+// Global switches
+internal bool globalVSyncEnabled = false;
+
 
 internal void
 MakePathAbsolute( const char *relativePath, const char *pathBase, char *destination )
@@ -1421,7 +1424,7 @@ Win32GetFilePaths( Win32State *state )
 
 
 internal bool
-Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
+Win32InitOpenGL( HDC dc, const GameRenderCommands& commands, u32 frameVSyncSkipCount )
 {
     LOG( ".Initializing OpenGL..." );
 
@@ -1523,6 +1526,7 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
     BINDGLPROC( glGenBuffers, PFNGLGENBUFFERSPROC );
     BINDGLPROC( glBindBuffer, PFNGLBINDBUFFERPROC );
     BINDGLPROC( glBufferData, PFNGLBUFFERDATAPROC );
+    BINDGLPROC( glBufferSubData, PFNGLBUFFERSUBDATAPROC );
     BINDGLPROC( glCreateShader, PFNGLCREATESHADERPROC );
     BINDGLPROC( glShaderSource, PFNGLSHADERSOURCEPROC );
     BINDGLPROC( glCompileShader, PFNGLCOMPILESHADERPROC );
@@ -1552,17 +1556,16 @@ Win32InitOpenGL( HDC dc, u32 frameVSyncSkipCount )
 #undef BINDGLPROC
 
 
-    OpenGLInfo info = OpenGLInit( globalOpenGLState, true );
+    OpenGLInfo info = OpenGLInit( globalOpenGLState, commands, true );
 
 
     // VSync
     PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT =
         (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress( "wglSwapIntervalEXT" );
 
-    if( wglSwapIntervalEXT )
-    {
+    ASSERT( wglSwapIntervalEXT );
+    if( globalVSyncEnabled )
         wglSwapIntervalEXT( frameVSyncSkipCount );
-    }
 
     return true;
 }
@@ -1666,6 +1669,7 @@ main( int argC, char **argV )
 
 #if DEBUG
             DEBUGglobalCursor = LoadCursor( 0, IDC_CROSS );
+            ShowWindow( window, SW_MAXIMIZE );
 #else
             Win32ToggleFullscreen( window );
 #endif
@@ -1673,7 +1677,21 @@ main( int argC, char **argV )
             globalNativeState.mainWindow = window;
             Win32RegisterRawMouseInput( window );
 
-            if( Win32InitOpenGL( deviceContext, frameVSyncSkipCount ) )
+            // TODO Decide a proper size for this
+            u32 renderBufferSize = MEGABYTES( 4 );
+            u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize,
+                                                   MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+            u32 vertexBufferSize = 1024*1024;
+            TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferSize * sizeof(TexturedVertex),
+                                                                           MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+            u32 indexBufferSize = vertexBufferSize;
+            u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferSize * sizeof(u32),
+                                                    MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+            GameRenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
+                                                                    vertexBuffer, vertexBufferSize,
+                                                                    indexBuffer, indexBufferSize );
+
+            if( Win32InitOpenGL( deviceContext, renderCommands, frameVSyncSkipCount ) )
             {
                 LPVOID baseAddress = 0;
 #if DEBUG
@@ -1692,20 +1710,6 @@ main( int argC, char **argV )
                 globalNativeState.gameMemorySize = totalSize;
 
                 GameState *gameState = (GameState *)gameMemory.permanentStorage;
-
-                // TODO Decide a proper size for this
-                u32 renderBufferSize = MEGABYTES( 4 );
-                u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize,
-                                                       MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-                u32 vertexBufferSize = 1024*1024;
-                TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferSize * sizeof(TexturedVertex),
-                                                                               MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-                u32 indexBufferSize = vertexBufferSize;
-                u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferSize * sizeof(u32),
-                                                        MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-                GameRenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
-                                                                        vertexBuffer, vertexBufferSize,
-                                                                        indexBuffer, indexBufferSize );
 
                 i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );

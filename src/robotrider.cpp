@@ -107,10 +107,11 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 #if DEBUG
     float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
+    float frameTime = 1000.f / fps;
     char statsText[1024];
     snprintf( statsText, ARRAYCOUNT(statsText),
-              "FPS %.1f   DrawCalls %u   Primitives %u",
-              fps, globalPlatform.totalDrawCalls, globalPlatform.totalPrimitiveCount );
+              "Frame ms.: %.3f (%.1f FPS)   DrawCalls %u   Primitives %u",
+              frameTime, fps, globalPlatform.totalDrawCalls, globalPlatform.totalPrimitiveCount );
 
     if( gameState->DEBUGglobalEditing )
         UpdateAndRenderEditor( input, memory, renderCommands, statsText );

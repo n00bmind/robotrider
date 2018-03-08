@@ -292,7 +292,7 @@ OpenGLHotswapShader( const char *filename, const char *shaderSource )
 }
 
 OpenGLInfo
-OpenGLInit( OpenGLState &gl, bool modernContext )
+OpenGLInit( OpenGLState &gl, const GameRenderCommands& commands, bool modernContext )
 {
     OpenGLInfo info = OpenGLGetInfo( modernContext );
 
@@ -762,13 +762,19 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
             case RenderEntryType::RenderEntryTexturedTris:
             {
+                // TODO Try out some of the approaches mentioned in http://www.seas.upenn.edu/~pcozzi/OpenGLInsights/OpenGLInsights-AsynchronousBufferTransfers.pdf
+                // (specially example 28.4 - unsynchronized mapping - seems to be the most performant)
+                // Why, maybe even be super scientific about it and implement the various paths with a key that can switch among them for A/B testing
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
                 OpenGLUseProgram( OpenGLProgramName::FlatShaded, gl );
 
-                //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+                glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
                 GLuint countBytes = entry->vertexCount * sizeof(TexturedVertex);
+                // Tried orphaning the buffers previously, but it seems slower
+                // (the driver is probably doing something sneaky as they like to do)
+                // We'll have to test again when we are actually using multiple draw calls / subsections of the buffers, etc.
                 glBufferData( GL_ARRAY_BUFFER,
                               countBytes,
                               commands.vertexBuffer.base + entry->vertexBufferOffset,

@@ -131,6 +131,7 @@ PFNGLGETSTRINGIPROC	                    glGetStringi;
 PFNGLGENBUFFERSPROC	                    glGenBuffers;
 PFNGLBINDBUFFERPROC	                    glBindBuffer;
 PFNGLBUFFERDATAPROC	                    glBufferData;
+PFNGLBUFFERSUBDATAPROC                  glBufferSubData;
 PFNGLCREATESHADERPROC	                glCreateShader;
 PFNGLSHADERSOURCEPROC	                glShaderSource;
 PFNGLCOMPILESHADERPROC	                glCompileShader;

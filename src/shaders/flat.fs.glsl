@@ -62,6 +62,8 @@ vec4 unpack( uint value )
 
 void main()
 {
+    // FIXME This is relative to the view,
+    // make the light always come from a 'sun' at -Z inf. (so a directional light pointing to +Z)
     vec3 lightDirection = vec3( 0.0, 0.0, 1.0 );
     float d = dot( lightDirection, _in.faceNormal );
     //outColor = unpack( _in.color );

@@ -91,6 +91,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
         UpdateAndRenderWorld( gameState, renderCommands );
     }
 
+    // FIXME Draw this as plain color always
     DrawAxisGizmos( renderCommands );
 
     r32 elapsedSeconds = input->totalElapsedSeconds;

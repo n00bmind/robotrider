@@ -42,6 +42,7 @@ INPUT
 DEBUGGING
 - Profiler
 - Profile & optimize the DEBUG build!
+- Live editable 'switches' data file (reloadable asset) that can overwrite generic game & platform variables
 - Command completion & history navigation in the console
 - Really dump game state to disk (asynchronously) and study how hard it would be to make it loadable across game state revisions
 - Add a command line switch & ingame command to load a recorded input block from disk
