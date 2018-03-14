@@ -231,6 +231,13 @@ operator *( r32 s, const v3 &v )
     return result;
 }
 
+inline v3
+operator /( const v3& v, r32 s )
+{
+    v3 result = { v.x / s, v.y / s, v.z / s };
+    return result;
+}
+
 inline r32
 Dot( const v3& a, const v3& b )
 {
@@ -696,6 +703,74 @@ RotPos( const m4 &m, const v3 &p )
          { m.e[2][0], m.e[2][1], m.e[2][2], p.z },
          {         0,         0,         0,   1 }
     }};
+
+    return result;
+}
+
+// Symmetric Matrix 4x4 (double precision)
+
+union m4Symmetric
+{
+    // TODO Try if it would be acceptable to use just floats here
+    r64 e[10];
+};
+
+inline m4Symmetric
+M4SymmetricZero()
+{
+    m4Symmetric result;
+    for( int i = 0; i < 10; ++i )
+        result.e[i] = 0;
+
+    return result;
+}
+
+// Make plane
+inline m4Symmetric
+M4Symmetric( r64 a, r64 b, r64 c, r64 d )
+{
+    m4Symmetric result =
+    {{
+        a * a, a * b, a * c, a * d,
+               b * b, b * c, b * d,
+                      c * c, c * d,
+                             d * d,
+     }};
+
+    return result;
+}
+
+inline m4Symmetric
+operator +( const m4Symmetric& a, const m4Symmetric& b )
+{
+    m4Symmetric result =
+    {{
+         a.e[0] + b.e[0], a.e[1] + b.e[1], a.e[2] + b.e[2], a.e[3] + b.e[3],
+                          a.e[4] + b.e[4], a.e[5] + b.e[5], a.e[6] + b.e[6],
+                                           a.e[7] + b.e[7], a.e[8] + b.e[8],
+                                                            a.e[9] + b.e[9],
+    }};
+
+    return result;
+}
+
+inline void
+operator +=( m4Symmetric& a, const m4Symmetric& b )
+{
+    a.e[0] += b.e[0]; a.e[1] += b.e[1]; a.e[2] += b.e[2]; a.e[3] += b.e[3];
+                      a.e[4] += b.e[4]; a.e[5] += b.e[5]; a.e[6] += b.e[6];
+                                        a.e[7] += b.e[7]; a.e[8] += b.e[8];
+                                                          a.e[9] += b.e[9];
+}
+
+inline r64
+Determinant3x3( const m4Symmetric& m,
+                int e11, int e12, int e13,
+                int e21, int e22, int e23, 
+                int e31, int e32, int e33 )
+{
+    r64 result = m.e[e11]*m.e[e22]*m.e[e33] + m.e[e13]*m.e[e21]*m.e[e32] + m.e[e12]*m.e[e23]*m.e[e31]
+               - m.e[e13]*m.e[e22]*m.e[e31] - m.e[e11]*m.e[e23]*m.e[e32] - m.e[e12]*m.e[e21]*m.e[e33];
 
     return result;
 }

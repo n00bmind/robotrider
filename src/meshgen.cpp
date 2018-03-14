@@ -133,6 +133,411 @@ TestMetaballs( float halfSideMeters, float cubeSize, float elapsedT, GameRenderC
 }
 
 
+internal inline r64
+VertexError( const m4Symmetric& q, r64 x, r64 y, r64 z )
+{
+    // Error between vertex and quadric
+    r64 result = q.e[0]*x*x + 2*q.e[1]*x*y + 2*q.e[2]*x*z + 2*q.e[3]*x
+               + q.e[4]*y*y + 2*q.e[5]*y*z + 2*q.e[6]*y
+               + q.e[7]*z*z + 2*q.e[8]*z
+               + q.e[9];
+    return result;
+}
+
+internal r64
+CalculateError( GeneratedMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
+{
+    Vertex& v1 = mesh->vertices[v1Idx];
+    Vertex& v2 = mesh->vertices[v2Idx];
+
+    // Compute interpolated vertex
+    m4Symmetric q = v1.q + v2.q;
+    bool border = v1.border && v2.border;
+    r64 error = 0;
+    r64 det = Determinant3x3( q, 0, 1, 2, 1, 4, 5, 2, 5, 7 );
+
+    // TODO Epsilon?
+    if( det != 0 && !border )
+    {
+        // Invertible
+        result->x = (r32)(-1 / det * Determinant3x3( q, 1, 2, 3, 4, 5, 6, 5, 7, 8 ));
+        result->y = (r32)( 1 / det * Determinant3x3( q, 0, 2, 3, 1, 5, 6, 2, 7, 8 ));
+        result->z = (r32)(-1 / det * Determinant3x3( q, 0, 1, 3, 1, 4, 6, 2, 5, 8 ));
+        error = VertexError( q, result->x, result->y, result->z );
+    }
+    else
+    {
+        // Try to find best result
+        v3 p1 = v1.p;
+        v3 p2 = v2.p;
+        v3 p3 = (p1 + p2) / 2;
+        r64 error1 = VertexError( q, p1.x, p1.y, p1.z );
+        r64 error2 = VertexError( q, p2.x, p2.y, p2.z );
+        r64 error3 = VertexError( q, p3.x, p3.y, p3.z );
+        error = Min( error1, Min( error2, error3 ) );
+
+        if( error1 == error )
+            *result = p1;
+        else if( error2 == error )
+            *result = p2;
+        else if( error3 == error )
+            *result = p3;
+    }
+
+    return error;
+}
+
+internal void
+UpdateMesh( GeneratedMesh* mesh, Array<VertexRef>* refs, u32 iteration )
+{
+    if( iteration > 0 )
+    {
+        // Compact tri array
+        u32 dst = 0;
+        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        {
+            if( !mesh->triangles[i].deleted )
+            {
+                // FIXME Optimize this since probably the first N tris won't be deleted
+                // and this copies them into themselves
+                // Also, is this really necessary at all?
+                mesh->triangles[dst++] = mesh->triangles[i];
+            }
+        }
+        mesh->triangles.count = dst;
+    }
+
+    // Init quadrics plane & edge errors
+    // Required at the first iteration. Not required later, but could improve the result for closed meshes
+    if( iteration == 0 )
+    {
+        for( u32 i = 0; i < mesh->vertices.count; ++i )
+            mesh->vertices[i].q = M4SymmetricZero();
+
+        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        {
+            Triangle& tri = mesh->triangles[i];
+            v3 n;
+            v3 p[3] =
+            {
+                mesh->vertices[tri.v[0]].p,
+                mesh->vertices[tri.v[1]].p,
+                mesh->vertices[tri.v[2]].p
+            };
+
+            n = Normalized( Cross( p[1] - p[0], p[2] - p[0] ) );
+            tri.n = n;
+
+            for( int j = 0; j < 3; ++j )
+            {
+                mesh->vertices[tri.v[j]].q += M4Symmetric( n.x, n.y, n.z, -Dot( n, p[0] ) );
+            }
+        }
+
+        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        {
+            Triangle& tri = mesh->triangles[i];
+            v3 p;
+
+            for( int j = 0; j < 3; ++j )
+                tri.error[j] = CalculateError( mesh, tri.v[j], tri.v[(j+1)%3], &p );
+
+            tri.error[3] = Min( tri.error[0], Min( tri.error[1], tri.error[2] ) );
+        }
+    }
+
+    // Rebuild refs list
+    for( u32 i = 0; i < mesh->vertices.count; ++i )
+    {
+        mesh->vertices[i].refStart = 0;
+        mesh->vertices[i].refCount = 0;
+    }
+    for( u32 i = 0; i < mesh->triangles.count; ++i )
+    {
+        Triangle& tri = mesh->triangles[i];
+        for( int j = 0; j < 3; ++j )
+            mesh->vertices[tri.v[j]].refCount++;
+    }
+
+    u32 refStart = 0;
+    for( u32 i = 0; i < mesh->vertices.count; ++i )
+    {
+        Vertex& v = mesh->vertices[i];
+        v.refStart = refStart;
+        refStart += v.refCount;
+        v.refCount = 0;
+    }
+
+    refs->count = mesh->triangles.count * 3;
+    for( u32 i = 0; i < mesh->triangles.count; ++i )
+    {
+        Triangle& tri = mesh->triangles[i];
+        for( int j = 0; j < 3; ++j )
+        {
+            Vertex& v = mesh->vertices[tri.v[j]];
+            VertexRef& r = (*refs)[v.refStart + v.refCount];
+
+            r.tId = i;
+            r.tVertex = j;
+            v.refCount++;
+        }
+    }
+
+    // Identify boundary vertices
+    if( iteration == 0 )
+    {
+        SArray<u32, 1000> vCount;
+        SArray<u32, 1000> vIds;
+
+        for( u32 i = 0; i < mesh->vertices.count; ++i )
+            mesh->vertices[i].border = false;
+        
+        for( u32 i = 0; i < mesh->vertices.count; ++i )
+        {
+            vCount.count = 0;
+            vIds.count = 0;
+
+            Vertex& v = mesh->vertices[i];
+
+            for( u32 j = 0; j < v.refCount; ++j )
+            {
+                u32 tId = (*refs)[v.refStart + j].tId;
+                Triangle& tri = mesh->triangles[tId];
+
+                for( int k = 0; k < 3; ++k )
+                {
+                    u32 ofs = 0;
+                    u32 id = tri.v[k];
+                    while( ofs < vCount.count )
+                    {
+                        if( vIds[ofs] == id )
+                            break;
+                        ofs++;
+                    }
+
+                    if( ofs == vCount.count )
+                    {
+                        vCount.Add( 1 );
+                        vIds.Add( id );
+                    }
+                    else
+                        vCount[ofs]++;
+                }
+            }
+
+            for( u32 j = 0; j < vCount.count; ++j )
+            {
+                if( vCount[j] == 1 )
+                    mesh->vertices[vIds[j]].border = true;
+            }
+        }
+    }
+}
+
+internal bool
+Flipped( const GeneratedMesh& mesh, const Array<VertexRef>& refs,
+         const v3& p, u32 i0, u32 i1, const Vertex& v0, const Vertex& v1, Array<bool>* deleted )
+{
+    for( u32 k = 0; k < v0.refCount; ++k )
+    {
+        const Triangle& tri = mesh.triangles[refs[v0.refStart + k].tId];
+        if( tri.deleted )
+            continue;
+
+        u32 s = refs[v0.refStart + k].tVertex;
+        u32 id1 = tri.v[(s+1)%3];
+        u32 id2 = tri.v[(s+2)%3];
+
+        if( id1 == i1 || id2 == i1 )    // delete?
+        {
+            (*deleted)[k] = true;
+            continue;
+        }
+
+        v3 d1 = Normalized( mesh.vertices[id1].p - p );
+        v3 d2 = Normalized( mesh.vertices[id2].p - p );
+        if( Abs( Dot( d1, d2 ) ) > 0.999f )
+            return true;
+
+        v3 n = Normalized( Cross( d1, d2 ) );
+        (*deleted)[k] = false;
+
+        if( Dot( n, tri.n ) < 0.2f )
+            return true;
+    }
+
+    return false;
+}
+
+// Update triangle connections and edge error after an edge is collapsed
+internal void
+UpdateTriangles( u32 i0, const Vertex& v, const Array<bool>& deleted,
+                 GeneratedMesh* mesh, Array<VertexRef>* refs, u32* deleteTriangleCount )
+{
+    v3 p;
+    for( u32 k = 0; k < v.refCount; ++k )
+    {
+        VertexRef& ref = (*refs)[v.refStart + k];
+        Triangle& tri = mesh->triangles[ref.tId];
+
+        if( tri.deleted )
+            continue;
+        if( deleted[k] )
+        {
+            tri.deleted = true;
+            (*deleteTriangleCount)++;
+            continue;
+        }
+
+        tri.v[ref.tVertex] = i0;
+        tri.dirty = true;
+        tri.error[0] = CalculateError( mesh, tri.v[0], tri.v[1], &p );
+        tri.error[1] = CalculateError( mesh, tri.v[1], tri.v[2], &p );
+        tri.error[2] = CalculateError( mesh, tri.v[2], tri.v[0], &p );
+        tri.error[3] = Min( tri.error[0], Min( tri.error[1], tri.error[2] ) );
+        refs->Add( ref );
+    }
+}
+
+internal void
+CompactMesh( GeneratedMesh* mesh )
+{
+    u32 dst = 0;
+
+    for( u32 i = 0; i < mesh->vertices.count; ++i )
+        mesh->vertices[i].refCount = 0;
+
+    for( u32 i = 0; i < mesh->triangles.count; ++i )
+    {
+        Triangle& tri = mesh->triangles[i];
+        if( !tri.deleted )
+        {
+            mesh->triangles[dst++] = tri;
+            for( int j = 0; j < 3; ++j )
+                // TODO This looks wrong!?
+                mesh->vertices[tri.v[j]].refCount = 1;
+        }
+    }
+    mesh->triangles.count = dst;
+    dst = 0;
+
+    for( u32 i = 0; i < mesh->vertices.count; ++i )
+    {
+        Vertex& v = mesh->vertices[i];
+        if( v.refCount )
+        {
+            v.refStart = dst;
+            mesh->vertices[dst].p = v.p;
+            dst++;
+        }
+    }
+
+    for( u32 i = 0; i < mesh->triangles.count; ++i )
+    {
+        Triangle& tri = mesh->triangles[i];
+        for( int j = 0; j < 3; ++j )
+            tri.v[j] = mesh->vertices[tri.v[j]].refStart;
+    }
+    mesh->vertices.count = dst;
+}
+
+// FIXME Put these in an arena
+SArray<VertexRef, 500000> refs;
+
+// Taken from https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification
+void FastQuadricSimplify( GeneratedMesh* mesh, u32 targetTriCount, r32 agressiveness = 7 )
+{
+    u32 triangleCount = mesh->triangles.count;
+    u32 deletedTriangleCount = 0;
+
+    for( u32 i = 0; i < triangleCount; ++i )
+        mesh->triangles[i].deleted = false;
+
+    for( int iteration = 0; iteration < 100; ++iteration )
+    {
+        if( triangleCount - deletedTriangleCount <= targetTriCount )
+            break;
+
+        // Update mesh every few cycles (including first time through)
+        if( iteration % 5 == 0 )
+            UpdateMesh( mesh, &refs, iteration );
+
+        for( u32 i = 0; i < mesh->triangles.count; ++i )
+            mesh->triangles[i].dirty = false;
+
+        // All triangles with edges below the threshold will be removed
+        // NOTE The following numbers usually work. Adjust as needed
+        r64 threshold = 0.000000001 * Pow( r64(iteration + 3), agressiveness );
+
+        if( iteration % 5 == 0 )
+            LOG( "Iteration %d - tris %d  threshold %g", iteration, triangleCount - deletedTriangleCount, threshold );
+
+        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        {
+            Triangle& tri = mesh->triangles[i];
+            if( tri.error[3] > threshold || tri.deleted || tri.dirty )
+                continue;
+
+            for( int j = 0; j < 3; ++j )
+            {
+                if( tri.error[j] < threshold )
+                {
+                    SArray<bool, 1000> deleted0;
+                    SArray<bool, 1000> deleted1;
+
+                    u32 i0 = tri.v[j];          Vertex& v0 = mesh->vertices[i0];
+                    u32 i1 = tri.v[(j+1)%3];    Vertex& v1 = mesh->vertices[i1];
+
+                    if( v0.border != v1.border )
+                        continue;
+
+                    // Compute vertex to collapse to
+                    v3 p;
+                    CalculateError( mesh, i0, i1, &p );
+
+                    deleted0.count = v0.refCount;
+					deleted1.count = v1.refCount;
+
+					// Don't remove if flipped
+					if( Flipped( *mesh, refs, p, i0, i1, v0, v1, &deleted0 ) )
+					    continue;
+					if( Flipped( *mesh, refs, p, i1, i0, v1, v0, &deleted1 ) )
+					    continue;
+
+                    v0.p = p;
+                    v0.q = v1.q + v0.q;
+
+                    u32 refStart = refs.count;
+                    UpdateTriangles( i0, v0, deleted0, mesh, &refs, &deletedTriangleCount );
+                    UpdateTriangles( i0, v1, deleted1, mesh, &refs, &deletedTriangleCount );
+                    u32 refCount = refs.count - refStart;
+
+                    if( refCount <= v0.refCount )
+                    {
+                        // Save ram (sic) !?
+                        if( refCount )
+                            memcpy( &refs[v0.refStart], &refs[refStart], refCount * sizeof(VertexRef) );
+                    }
+                    else
+                        v0.refStart = refStart;
+
+                    v0.refCount = refCount;
+                    break;
+                }
+            }
+
+            if( triangleCount - deletedTriangleCount <= targetTriCount )
+                break;
+        }
+    }
+
+    CompactMesh( mesh );
+}
+
+
+
+
+// LUTs and stuff
 
 namespace
 {

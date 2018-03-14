@@ -767,7 +767,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 // Why, maybe even be super scientific about it and implement the various paths with a key that can switch among them for A/B testing
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
-                OpenGLUseProgram( OpenGLProgramName::FlatShaded, gl );
+                OpenGLUseProgram( OpenGLProgramName::PlainColor, gl );
 
                 glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 

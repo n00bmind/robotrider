@@ -27,6 +27,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // FIXME Put this in some arena
 internal SArray<TexturedVertex, 65536> testVertices;
 internal SArray<u32, 256*1024> testIndices;
+// FIXME
+internal SArray<Vertex, 65536> genVertices;
+internal SArray<Triangle, 256*1024> genTriangles;
 
 
 void
@@ -91,7 +94,7 @@ UpdateWorldGeneration( GameState *gameState )
 }
 
 void
-UpdateAndRenderWorld( GameState *gameState, GameRenderCommands *renderCommands )
+UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands *renderCommands )
 {
     ///// Update
 
@@ -142,11 +145,44 @@ UpdateAndRenderWorld( GameState *gameState, GameRenderCommands *renderCommands )
 #else
 
     Mesh testMesh;
-    testMesh.vertices = testVertices.data;
-    testMesh.indices = testIndices.data;
-    testMesh.vertexCount = testVertices.count;
-    testMesh.indexCount = testIndices.count;
-    testMesh.mTransform = Scale({ 10, 10, 10 });
+    {
+        if( ((i32)input->frameCounter - 180) % 300 == 0 )
+        {
+            GeneratedMesh gen;
+            {
+                genVertices.count = testVertices.count;
+                for( u32 i = 0; i < genVertices.count; ++i )
+                    genVertices[i].p = testVertices[i].p;
+                genTriangles.count = testIndices.count / 3;
+                for( u32 i = 0; i < genTriangles.count; ++i )
+                {
+                    genTriangles[i].v[0] = testIndices[i*3];
+                    genTriangles[i].v[1] = testIndices[i*3 + 1];
+                    genTriangles[i].v[2] = testIndices[i*3 + 2];
+                }
+                gen.vertices = genVertices;
+                gen.triangles = genTriangles;
+            }
+            FastQuadricSimplify( &gen, (u32)(gen.triangles.count * 0.75f) );
+
+            testVertices.count = gen.vertices.count;
+            for( u32 i = 0; i < testVertices.count; ++i )
+                testVertices[i].p = gen.vertices[i].p;
+            testIndices.count = gen.triangles.count * 3;
+            for( u32 i = 0; i < gen.triangles.count; ++i )
+            {
+                testIndices[i*3 + 0] = gen.triangles[i].v[0];
+                testIndices[i*3 + 1] = gen.triangles[i].v[1];
+                testIndices[i*3 + 2] = gen.triangles[i].v[2];
+            }
+        }
+
+        testMesh.vertices = testVertices.data;
+        testMesh.indices = testIndices.data;
+        testMesh.vertexCount = testVertices.count;
+        testMesh.indexCount = testIndices.count;
+        testMesh.mTransform = Scale({ 10, 10, 10 });
+    }
     PushMesh( testMesh, renderCommands );
 
 #endif

@@ -88,7 +88,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     {
         PushClear( { 0.95f, 0.95f, 1.0f, 1.0f }, renderCommands );
 
-        UpdateAndRenderWorld( gameState, renderCommands );
+        UpdateAndRenderWorld( input, gameState, renderCommands );
     }
 
     // FIXME Draw this as plain color always

@@ -34,6 +34,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "platform.h"
 #include "memory.h"
 #include "math.h"
+#include "data_types.h"
+#include "meshgen.h"
 #include "renderer.h"
 #include "world.h"
 
@@ -160,6 +162,7 @@ struct GameInput
     bool executableReloaded;
     r32 frameElapsedSeconds;
     r32 totalElapsedSeconds;
+    u32 frameCounter;
 
     GameControllerInput _controllers[5];
 

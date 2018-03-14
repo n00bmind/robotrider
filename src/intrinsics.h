@@ -84,4 +84,28 @@ Sqrt( r32 value )
     return result;
 }
 
+inline r32
+Min( r32 a, r32 b )
+{
+    return a < b ? a : b;
+}
+
+inline r64
+Min( r64 a, r64 b )
+{
+    return a < b ? a : b;
+}
+
+inline r64
+Pow( r64 b, r64 exp )
+{
+    return pow( b, exp );
+}
+
+inline r32
+Abs( r32 value )
+{
+    return value >= 0.f ? value : -value;
+}
+
 #endif /* __INTRINSICS_H__ */

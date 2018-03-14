@@ -876,7 +876,7 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 
 internal void
 Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
-                       float elapsedSeconds, float totalSeconds )
+                       float elapsedSeconds, float totalSeconds, u32 frameCounter )
 {
     GameInput *temp = newInput;
     newInput = oldInput;
@@ -890,6 +890,7 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
         newInput->mouseButtons[i] = oldInput->mouseButtons[i];
     newInput->frameElapsedSeconds = elapsedSeconds;
     newInput->totalElapsedSeconds = totalSeconds;
+    newInput->frameCounter = frameCounter;
 }
 
 
@@ -1775,7 +1776,8 @@ main( int argC, char **argV )
                     while( globalRunning )
                     {
                         totalElapsedSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
-                        Win32PrepareInputData( oldInput, newInput, lastDeltaTimeSecs, totalElapsedSeconds );
+                        Win32PrepareInputData( oldInput, newInput,
+                                               lastDeltaTimeSecs, totalElapsedSeconds, runningFrameCounter );
                         if( runningFrameCounter == 0 )
                             newInput->executableReloaded = true;
 

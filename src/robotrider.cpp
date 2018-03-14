@@ -22,7 +22,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 #include "robotrider.h"
-#include "data_types.h"
 #include "renderer.cpp"
 
 #include "imgui/imgui_draw.cpp"
@@ -176,7 +175,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
 
         PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
-        UpdateAndRenderWorld( gameState, renderCommands );
+        UpdateAndRenderWorld( input, gameState, renderCommands );
 
         {
             FlyingDude *playerDude = gameState->playerDude;
