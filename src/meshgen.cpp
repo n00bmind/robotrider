@@ -569,14 +569,31 @@ SampleCuboid( const void* sampleData, const v3& p )
     GenPath* path = (GenPath*)sampleData;
 
     // Calc distance to both canonical planes along dir
+    // NOTE Max() means 'intersection'
     r32 dUp = Max( Dot( path->vUp, p ) - path->thicknessSq, Dot( -path->vUp, p ) - path->thicknessSq );
 
     // TODO Precalc
     v3 vRight = Cross( path->vDir, path->vUp );
     r32 dRight = Max( Dot( vRight, p ) - path->thicknessSq, Dot( -vRight, p ) - path->thicknessSq );
  
-    r32 result = Max( dUp, dRight ) + 0.1f;
-    return result;
+    r32 result = Max( dUp, dRight );
+
+    if( path->distanceToTurn < path->areaSideMeters )
+    {
+        v3 vDir = { 0, 0, 1 };
+        v3 vUp = { 0, -1, 0 };
+
+        dUp = Max( Dot( vUp, p ) - path->thicknessSq, Dot( -vUp, p ) - path->thicknessSq );
+
+        // TODO Precalc
+        vRight = Cross( vDir, vUp );
+        dRight = Max( Dot( vRight, p ) - path->thicknessSq, Dot( -vRight, p ) - path->thicknessSq );
+
+        r32 newResult = Max( dUp, dRight );
+        // NOTE Min() means 'union'
+        result = Min( result, newResult );
+    }
+    return result + 0.1f;
 }
 
 internal r32
