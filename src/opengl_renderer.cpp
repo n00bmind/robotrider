@@ -734,7 +734,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
     glViewport( 0, 0, commands.width, commands.height );
     
     glDisable( GL_SCISSOR_TEST );
-    glEnable( GL_CULL_FACE );
+    //glEnable( GL_CULL_FACE );
     glEnable( GL_DEPTH_TEST );
 
     m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
@@ -767,9 +767,9 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 // Why, maybe even be super scientific about it and implement the various paths with a key that can switch among them for A/B testing
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
-                OpenGLUseProgram( OpenGLProgramName::PlainColor, gl );
+                OpenGLUseProgram( OpenGLProgramName::FlatShaded, gl );
 
-                glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+                //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
                 GLuint countBytes = entry->vertexCount * sizeof(TexturedVertex);
                 // Tried orphaning the buffers previously, but it seems slower

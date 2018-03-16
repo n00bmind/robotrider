@@ -4,5 +4,6 @@
 *.ipch
 *.opendb
 *.suo
+*.swo
 bin/
 LocMetrics*

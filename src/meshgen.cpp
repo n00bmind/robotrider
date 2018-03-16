@@ -1,4 +1,3 @@
-#include "meshgen.h"
 
 
 typedef float MarchedCubeSampleFunc( const void* sampleData, const v3& p );
@@ -12,9 +11,9 @@ namespace
     extern int triangleTable[][16];
 }
 
-void
-MarchCube( v3 pMinCorner, float cubeSize, const void* sampledData, MarchedCubeSampleFunc *sampleFunc,
-           Array<v3>* vertices, Array<u32>* indices )
+internal void
+MarchCube( const v3& pMinCorner, float cubeSize, MarchedCubeSampleFunc * sampleFunc, const void* sampledData, 
+           Array<TexturedVertex>* vertices, Array<u32>* indices )
 {
     // Construct case mask from 8 corner samples
     int caseIndex = 0;
@@ -57,17 +56,59 @@ MarchCube( v3 pMinCorner, float cubeSize, const void* sampledData, MarchedCubeSa
 #endif
 
             indices->Add( vertices->count );
-            vertices->Add( vPos );
+            TexturedVertex v = {};
+            v.p = vPos;
+            v.color = Pack01ToRGBA( { 0, 0, 0, 1 } );
+            vertices->Add( v );
 
             ++caseVertex;
         }
     }
 }
 
+internal void
+MarchLayer( const v3& pCenter, r32 topH, r32 areaSideMeters, r32 cubeSizeMeters, MarchedCubeSampleFunc* sampleFunc,
+            const void* sampleData, Array<TexturedVertex>* vertices, Array<u32>* indices )
+{
+    r32 halfSideMeters = areaSideMeters / 2;
+    for( float i = -halfSideMeters; i < halfSideMeters; i += cubeSizeMeters )
+        for( float j = -halfSideMeters; j < halfSideMeters; j += cubeSizeMeters )
+            // TODO Maybe pass pCenter as a sampling offset to avoid float precision errors?
+            MarchCube( pCenter + V3( i, j, topH ), cubeSizeMeters, sampleFunc, sampleData, vertices, indices );
+}
+
+// FIXME
+internal SArray<TexturedVertex, 64*1024> metaVertices;
+internal SArray<u32, 64*1024> metaIndices;
+
+Mesh
+MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters, MarchedCubeSampleFunc* sampleFunc,
+               const void* sampleData )
+{
+    metaVertices.count = 0;
+    metaIndices.count = 0;
+
+    // TODO Pre-sample top and bottom slices of values for each layer so we only sample one corner per cube
+    // TODO Eliminate all the duplicate vertices that marching cubes creates
+    // see http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng
+    r32 halfSideMeters = areaSideMeters / 2;
+    for( float k = -halfSideMeters; k < halfSideMeters; k += cubeSizeMeters )
+        MarchLayer( pCenter, k, areaSideMeters, cubeSizeMeters, sampleFunc, sampleData, &metaVertices, &metaIndices );
+
+    Mesh result;
+    result.vertices = metaVertices.data;
+    result.indices = metaIndices.data;
+    result.vertexCount = metaVertices.count;
+    result.indexCount = metaIndices.count;
+    result.mTransform = Translation( pCenter );
+
+    return result;
+}
+
 internal r32
 SampleMetaballs( const void* sampleData, const v3& pos )
 {
-    const Array<Metaball>& balls = (const Array<Metaball>&)sampleData;
+    const Array<Metaball>& balls = *(const Array<Metaball>*)sampleData;
 
     r32 minValue = R32MAX;
     for( u32 i = 0; i < balls.maxCount; ++i )
@@ -81,24 +122,24 @@ SampleMetaballs( const void* sampleData, const v3& pos )
 }
 
 void
-TestMetaballs( float halfSideMeters, float cubeSize, float elapsedT, GameRenderCommands *renderCommands )
+TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, GameRenderCommands *renderCommands )
 {
-    local_persistent Metaball balls[10] = {};
+    local_persistent SArray<Metaball, 10> balls;
 
     if( balls[0].radiusMeters == 0 )
     {
-        for( int i = 0; i < ARRAYCOUNT(balls); ++i )
+        for( u32 i = 0; i < balls.maxCount; ++i )
         {
             //r32 x = RandomRange( -halfSideMeters, halfSideMeters );
             //r32 y = RandomRange( -halfSideMeters, halfSideMeters );
             //r32 z = RandomRange( -halfSideMeters, halfSideMeters );
             r32 r = RandomRange( 1.0f, 5.0f );
-            balls[i] = { V3Zero(), r };
+            balls.Add( { V3Zero(), r } );
         }
     }
 
     // Update positions
-    for( int i = 0; i < ARRAYCOUNT(balls); ++i )
+    for( u32 i = 0; i < balls.count; ++i )
     {
         Metaball& ball = balls[i];
         r32 x = (i+1) / 2.0f * Cos( elapsedT - i );
@@ -109,29 +150,14 @@ TestMetaballs( float halfSideMeters, float cubeSize, float elapsedT, GameRenderC
     }
     
     // Update mesh by sampling our cubic area centered at origin
-    Mesh metaMesh;
-    metaMesh.mTransform = M4Identity();
-
-    SArray<v3, 32*1024> vertices;
-    SArray<u32, 32*1024> indices;
-
-    for( float i = -halfSideMeters; i < halfSideMeters; i += cubeSize )
-        for( float j = -halfSideMeters; j < halfSideMeters; j += cubeSize )
-            for( float k = -halfSideMeters; k < halfSideMeters; k += cubeSize )
-                MarchCube( V3( i, j, k ), cubeSize, balls, SampleMetaballs, &vertices, &indices );
-
-    // FIXME Do a pass to eliminate all the duplicate vertices that marching cubes creates
-
-    //metaMesh.vertices = vertices.data;
-    metaMesh.indices = indices.data;
-    metaMesh.vertexCount = vertices.count;
-    metaMesh.indexCount = indices.count;
+    Mesh metaMesh = MarchAreaFast( V3Zero(), areaSideMeters, cubeSizeMeters, SampleMetaballs, &balls );
 
     //GenerateFaceNormals( metaMesh );
 
     PushMesh( metaMesh, renderCommands );
 }
 
+///// MESH SIMPLIFICATION /////
 
 internal inline r64
 VertexError( const m4Symmetric& q, r64 x, r64 y, r64 z )
@@ -535,9 +561,51 @@ void FastQuadricSimplify( GeneratedMesh* mesh, u32 targetTriCount, r32 agressive
 }
 
 
+///// PATH GENERATION /////
+
+internal r32
+SampleCuboid( const void* sampleData, const v3& p )
+{
+    GenPath* path = (GenPath*)sampleData;
+
+    // Calc distance to both canonical planes along dir
+    r32 dUp = Max( Dot( path->vUp, p ) - path->thicknessSq, Dot( -path->vUp, p ) - path->thicknessSq );
+
+    // TODO Precalc
+    v3 vRight = Cross( path->vDir, path->vUp );
+    r32 dRight = Max( Dot( vRight, p ) - path->thicknessSq, Dot( -vRight, p ) - path->thicknessSq );
+ 
+    r32 result = Max( dUp, dRight ) + 0.1f;
+    return result;
+}
+
+internal r32
+SampleCylinder( const void* sampleData, const v3& p )
+{
+    GenPath* path = (GenPath*)sampleData;
+
+    v3 vP = p - path->pCenter;
+    // l is the length of the projection of vP along the director line
+    r32 l = Dot( path->vDir, vP );
+    // Translate p the previous distance along vDir (backwards) to align it with pCenter
+    v3 pPrime = p - path->vDir * l;
+
+    r32 result = DistanceSq( path->pCenter, pPrime ) - path->thicknessSq;
+    return result;
+}
+
+Mesh
+GenerateOnePathStep( GenPath* path, r32 resolutionMeters )
+{
+    // TODO Use a destination pointer for the mesh instead of copying every time?
+    Mesh result = MarchAreaFast( path->pCenter, path->areaSideMeters, resolutionMeters, SampleCuboid, path );
+    //path->pCenter += path->vDir * path->areaSideMeters;
+
+    return result;
+}
 
 
-// LUTs and stuff
+///// MARCHING CUBES LUTs /////
 
 namespace
 {

@@ -35,8 +35,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "memory.h"
 #include "math.h"
 #include "data_types.h"
-#include "meshgen.h"
 #include "renderer.h"
+#include "meshgen.h"
 #include "world.h"
 
 

@@ -21,6 +21,43 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+internal void
+DrawTestGrid( r32 areaSizeMeters, r32 resolutionMeters, GameRenderCommands* renderCommands )
+{
+    const r32 areaHalf = areaSizeMeters / 2;
+
+    u32 semiBlack = Pack01ToRGBA( V4( 0, 0, 0, 0.1f ) );
+    v3 off = V3Zero();
+
+    r32 zStart = -areaHalf;
+    r32 zEnd = areaHalf;
+    for( float x = -areaHalf; x <= areaHalf; x += resolutionMeters )
+    {
+        for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
+        {
+            PushLine( V3( x, y, zStart ) + off, V3( x, y, zEnd ) + off, semiBlack, renderCommands );
+        }
+    }
+    r32 yStart = -areaHalf;
+    r32 yEnd = areaHalf;
+    for( float x = -areaHalf; x <= areaHalf; x += resolutionMeters )
+    {
+        for( float z = -areaHalf; z <= areaHalf; z += resolutionMeters )
+        {
+            PushLine( V3( x, yStart, z ) + off, V3( x, yEnd, z ) + off, semiBlack, renderCommands );
+        }
+    }
+    r32 xStart = -areaHalf;
+    r32 xEnd = areaHalf;
+    for( float z = -areaHalf; z <= areaHalf; z += resolutionMeters )
+    {
+        for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
+        {
+            PushLine( V3( xStart, y, z ) + off, V3( xEnd, y, z ) + off, semiBlack, renderCommands );
+        }
+    }
+
+}
 #if DEBUG
 void
 UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands *renderCommands, const char* statsText )
@@ -36,7 +73,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     // Setup a zenithal camera initially
     if( editorState.pCamera == V3Zero() )
     {
-        editorState.pCamera = V3( 0, -5, 10 );
+        editorState.pCamera = V3( 0, -12, 12 );
         editorState.camYaw = 0;
         editorState.camPitch = 0;
         //v3 pLookAt = gameState->pPlayer;
@@ -90,6 +127,29 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
 
         UpdateAndRenderWorld( input, gameState, renderCommands );
     }
+
+    const r32 TEST_MARCHED_AREA_SIZE = 10;
+    const r32 TEST_MARCHED_CUBE_SIZE = 1;
+
+    // Draw marching cubes tests
+    local_persistent Mesh testMesh;
+    local_persistent GenPath testPath =
+    {
+        V3Zero(),
+        TEST_MARCHED_AREA_SIZE,
+        { 0, 1, 0 },
+        { 0, 0, 1 },
+        IsoSurfaceType::Cuboid,
+        1.2f,
+        5, 0
+    };
+
+    if( input->frameCounter % 500 == 0 )
+    {
+        testMesh = GenerateOnePathStep( &testPath, TEST_MARCHED_CUBE_SIZE );
+    }
+    DrawTestGrid( TEST_MARCHED_AREA_SIZE, TEST_MARCHED_CUBE_SIZE, renderCommands );
+    PushMesh( testMesh, renderCommands );
 
     // FIXME Draw this as plain color always
     DrawAxisGizmos( renderCommands );

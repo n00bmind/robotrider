@@ -52,9 +52,6 @@ struct Mesh
 
 struct World
 {
-    // Review how Muratori implements this, specifically how to allocate nodes that will at some point be destroyed
-    //GenEntryPoint *pendingEntryPointsQHead;
-    //GenEntryPoint *pendingEntryPointsQTail;
 
 };
 

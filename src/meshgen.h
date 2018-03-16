@@ -54,19 +54,36 @@ struct GeneratedMesh
     Array<Triangle> triangles;
 };
 
-// Entry points are the start of a new generation 'path'
-struct GenEntryPoint
-{
-    v3 pStart;
-    v3 vDirection;
-    GenEntryPoint *next;
-};
-
-
 struct Metaball
 {
     v3 pCenter;
     r32 radiusMeters;
+};
+
+enum class IsoSurfaceType
+{
+    Cuboid,
+    HexPrism,
+    Cylinder,
+};
+
+struct GenPath
+{
+    // Center point and area around it for cube marching
+    v3 pCenter;
+    r32 areaSideMeters;
+
+    // Direction of progression (normalized)
+    v3 vDir;
+    v3 vUp;
+    // Surface algorithm used
+    IsoSurfaceType isoType;
+
+    r32 thicknessSq;
+    r32 distanceToTurn;
+    r32 distanceToFork;
+
+    GenPath* nextFork;
 };
 
 #endif /* __MESHGEN_H__ */

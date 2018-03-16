@@ -96,6 +96,12 @@ Min( r64 a, r64 b )
     return a < b ? a : b;
 }
 
+inline r32
+Max( r32 a, r32 b )
+{
+    return a > b ? a : b;
+}
+
 inline r64
 Pow( r64 b, r64 exp )
 {
