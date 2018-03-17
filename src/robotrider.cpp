@@ -85,11 +85,12 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // Init game arena & world state
     if( !memory->isInitialized )
     {
-        InitializeArena( &gameState->gameArena,
+        InitializeArena( &gameState->worldArena,
                          (u8 *)memory->permanentStorage + sizeof(GameState),
                          memory->permanentStorageSize - sizeof(GameState) );
 
-        InitWorld( gameState );
+        gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
+        InitWorld( gameState->world, &gameState->worldArena );
 
         memory->isInitialized = true;
     }
@@ -104,6 +105,15 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         tranState->isInitialized = true;
     }
 
+    //TemporaryMemory renderMemory = BeginTemporaryMemory( &tranState->transientArena );
+
+    u16 width = renderCommands->width;
+    u16 height = renderCommands->height;
+
+    PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
+    UpdateAndRenderWorld( input, gameState, renderCommands );
+
+
 #if DEBUG
     float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
     float frameTime = 1000.f / fps;
@@ -113,84 +123,22 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
               frameTime, fps, globalPlatform.totalDrawCalls, globalPlatform.totalPrimitiveCount );
 
     if( gameState->DEBUGglobalEditing )
-        UpdateAndRenderEditor( input, memory, renderCommands, statsText );
-    else
-#endif
     {
-        //TemporaryMemory renderMemory = BeginTemporaryMemory( &tranState->transientArena );
-
-#if DEBUG
-        u16 width = renderCommands->width;
-        u16 height = renderCommands->height;
-
-        if( gameState->DEBUGglobalDebugging )
-        {
-            DrawConsole( &gameState->gameConsole, width, height, statsText );
-            ImGui::SetNextWindowPos( ImVec2( width - 500.f, height - 300.f ) );
-            ImGui::ShowUserGuide();
-        }
-        else
-            DrawStats( width, height, statsText );
+        UpdateAndRenderEditor( input, memory, renderCommands, statsText );
+    }
+    else if( gameState->DEBUGglobalDebugging )
+    {
+        DrawConsole( &gameState->gameConsole, width, height, statsText );
+        ImGui::SetNextWindowPos( ImVec2( width - 500.f, height - 300.f ) );
+        ImGui::ShowUserGuide();
+    }
+    else
+        DrawStats( width, height, statsText );
 #endif
 
-        float dT = input->frameElapsedSeconds;
-        float elapsedT = input->totalElapsedSeconds;
+    //EndTemporaryMemory( renderMemory );
 
-        // Update player based on input
-        {
-            GameControllerInput *input0 = GetController( input, 0 );
-
-            FlyingDude *playerDude = gameState->playerDude;
-            v3 pPlayer = gameState->pPlayer;
-            v3 vPlayerDelta = {};
-
-            if( input0->dLeft.endedDown )
-            {
-                vPlayerDelta.x -= 3.f * dT;
-            }
-            if( input0->dRight.endedDown )
-            {
-                vPlayerDelta.x += 3.f * dT;
-            }
-            if( input0->dUp.endedDown )
-            {
-                vPlayerDelta.y += 3.f * dT;
-            }
-            if( input0->dDown.endedDown )
-            {
-                vPlayerDelta.y -= 3.f * dT;
-            }
-
-            if( input0->rightStick.avgX || input0->rightStick.avgY )
-            {
-                gameState->playerPitch += -input0->rightStick.avgY / 15.f * dT;
-                gameState->playerYaw += -input0->rightStick.avgX / 15.f * dT; 
-            }
-
-            m4 mPlayerRot = ZRotation( gameState->playerYaw ) * XRotation( gameState->playerPitch );
-            pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
-            playerDude->mTransform = RotPos( mPlayerRot, pPlayer );
-
-            gameState->pPlayer = pPlayer;
-        }
-
-        PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
-        UpdateAndRenderWorld( input, gameState, renderCommands );
-
-        {
-            FlyingDude *playerDude = gameState->playerDude;
-            // Create a chasing camera
-            // TODO Use a PID controller
-            v3 pCam = playerDude->mTransform * V3( 0, -2, 1 );
-            v3 pLookAt = playerDude->mTransform * V3( 0, 1, 0 );
-            v3 vUp = GetColumn( playerDude->mTransform, 2 ).xyz;
-            renderCommands->camera.mTransform = CameraLookAt( pCam, pLookAt, vUp );
-        }
-
-        //EndTemporaryMemory( renderMemory );
-    }
-
-    CheckArena( &gameState->gameArena );
+    CheckArena( &gameState->worldArena );
     CheckArena( &tranState->transientArena );
 }
 

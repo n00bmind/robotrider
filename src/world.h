@@ -52,6 +52,14 @@ struct Mesh
 
 struct World
 {
+    v3 pPlayer;
+    r32 playerPitch;
+    r32 playerYaw;
+
+    FlyingDude *playerDude;
+
+    CubeThing *cubes;
+    u32 cubeCount;
 
 };
 

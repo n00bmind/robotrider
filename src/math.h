@@ -49,6 +49,7 @@ Pack01ToRGBA( v4 unpacked )
 // FIXME Make all random generating functions repeatable for PCG
 // https://www.gamasutra.com/blogs/RuneSkovboJohansen/20150105/233505/A_Primer_on_Repeatable_Random_Numbers.php
 // https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/monte-carlo-methods-in-practice/generating-random-numbers
+// http://www.pcg-random.org/
 
 inline u32
 Random()

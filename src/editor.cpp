@@ -68,8 +68,6 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     GameState *gameState = (GameState *)memory->permanentStorage;
     EditorState &editorState = gameState->DEBUGeditorState;
 
-    FlyingDude *playerDude = gameState->playerDude;
-    
     // Setup a zenithal camera initially
     if( editorState.pCamera == V3Zero() )
     {
@@ -121,18 +119,10 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
 
-    // Draw the world
-    {
-        PushClear( { 0.95f, 0.95f, 1.0f, 1.0f }, renderCommands );
-
-        UpdateAndRenderWorld( input, gameState, renderCommands );
-    }
-
     const r32 TEST_MARCHED_AREA_SIZE = 10;
     const r32 TEST_MARCHED_CUBE_SIZE = 1;
 
     // Draw marching cubes tests
-    local_persistent Mesh testMesh;
     v3 vForward = V3Forward();
     v3 vUp = V3Up();
     local_persistent GenPath testPath =
@@ -142,15 +132,21 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
         M4Basis( Cross( vForward, vUp ), vForward, vUp ),
         IsoSurfaceType::Cuboid,
         2,
-        7, 3
+        RandomRange( 0.f, 100.f ), RandomRange( 0.f, 100.f )
     };
 
-    if( input->frameCounter % 500 == 0 )
+    // FIXME
+    local_persistent Mesh testMeshes[1000];
+    local_persistent u32 testMeshCount = 0;
+
+    if( input->frameCounter % 300 == 0 )
     {
-        testMesh = GenerateOnePathStep( &testPath, TEST_MARCHED_CUBE_SIZE );
+        ASSERT( testMeshCount < ARRAYCOUNT(testMeshes) );
+        testMeshes[testMeshCount++] = GenerateOnePathStep( &testPath, TEST_MARCHED_CUBE_SIZE );
     }
     DrawTestGrid( TEST_MARCHED_AREA_SIZE, TEST_MARCHED_CUBE_SIZE, renderCommands );
-    PushMesh( testMesh, renderCommands );
+    //for( u32 i = 0; i < testMeshCount; ++i )
+        //PushMesh( testMeshes[i], renderCommands );
 
     // FIXME Draw this as plain color always
     DrawAxisGizmos( renderCommands );

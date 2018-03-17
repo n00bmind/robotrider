@@ -274,10 +274,11 @@ struct ImGuiContext;
 
 struct GameState
 {
-    MemoryArena gameArena;
     ImGuiContext* imGuiContext;
-
     GameConsole gameConsole;
+
+    MemoryArena worldArena;
+    World *world;
 
 #if DEBUG
     bool DEBUGglobalDebugging;
@@ -286,16 +287,6 @@ struct GameState
     EditorState DEBUGeditorState;
 #endif
 
-    v3 pPlayer;
-    r32 playerPitch;
-    r32 playerYaw;
-
-    FlyingDude *playerDude;
-
-    CubeThing *cubes;
-    u32 cubeCount;
-
-    World *world;
 };
 
 struct TransientState

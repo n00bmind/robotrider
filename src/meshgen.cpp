@@ -693,16 +693,22 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters )
     // TODO Use a destination pointer for the mesh instead of copying every time?
     Mesh result = MarchAreaFast( path->pCenter, path->areaSideMeters, resolutionMeters, SampleCuboid, path );
 
-    //path->pCenter += path->vDir * path->areaSideMeters;
+    path->distanceToTurn -= path->areaSideMeters;
+    path->distanceToFork -= path->areaSideMeters;
     if( turnInThisStep )
     {
-        //path->basis = nextBasis;
+        path->basis = nextBasis;
         path->nextBasis = nullptr;
+        path->distanceToTurn = RandomRange( 0.f, 100.f );
     }
     if( forkInThisStep )
     {
         path->nextFork = nullptr;
+        path->distanceToFork = RandomRange( 0.f, 100.f );
     }
+
+    v3 vForward = GetYBasis( path->basis );
+    path->pCenter += vForward * path->areaSideMeters;
 
     return result;
 }
