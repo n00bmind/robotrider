@@ -50,6 +50,15 @@ struct Mesh
     m4 mTransform;
 };
 
+struct HullChunk
+{
+    Mesh mesh;
+    // TODO How're we gonna keep track of the generators so we can recreate everything
+    // whenever the chunks get evicted because they're too far?
+    HullChunk* prev;
+    GenPath* generator;
+};
+
 struct World
 {
     v3 pPlayer;
@@ -61,6 +70,13 @@ struct World
     CubeThing *cubes;
     u32 cubeCount;
 
+    // 'real' stuff
+    GenPath* currentGeneratorPath;
+    Array<Mesh> hullMeshes;
+    //Array<HullChunk> hullChunksBuffer;
+
+    r32 marchingAreaSize;
+    r32 marchingCubeSize;
 };
 
 #endif /* __WORLD_H__ */

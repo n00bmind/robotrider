@@ -78,8 +78,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         gameConsole = &gameState->gameConsole;
         // Re-set platform's ImGui context
         ImGui::SetCurrentContext( gameState->imGuiContext );
-
-        tranState->isInitialized = false;
     }
 
     // Init game arena & world state
@@ -105,14 +103,13 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         tranState->isInitialized = true;
     }
 
-    //TemporaryMemory renderMemory = BeginTemporaryMemory( &tranState->transientArena );
+    TemporaryMemory tempMemory = BeginTemporaryMemory( &tranState->transientArena );
 
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
 
     PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
     UpdateAndRenderWorld( input, gameState, renderCommands );
-
 
 #if DEBUG
     float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
@@ -136,7 +133,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         DrawStats( width, height, statsText );
 #endif
 
-    //EndTemporaryMemory( renderMemory );
+    EndTemporaryMemory( tempMemory );
 
     CheckArena( &gameState->worldArena );
     CheckArena( &tranState->transientArena );

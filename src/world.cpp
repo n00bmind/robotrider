@@ -24,13 +24,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define DATA_RELATIVE_PATH "..\\data\\"
 
 
+#if 0
 // FIXME Put this in some arena
 internal SArray<TexturedVertex, 65536> testVertices;
 internal SArray<u32, 256*1024> testIndices;
 // FIXME
 internal SArray<Vertex, 65536> genVertices;
 internal SArray<Triangle, 256*1024> genTriangles;
-
+#endif
 
 void
 InitWorld( World* world, MemoryArena* worldArena )
@@ -85,12 +86,42 @@ InitWorld( World* world, MemoryArena* worldArena )
 #if 0
     LoadOBJ( DATA_RELATIVE_PATH "bunny.obj", &testVertices, &testIndices );
 #endif
+
+    world->marchingAreaSize = 10;
+    world->marchingCubeSize = 1;
 }
 
 internal void
-UpdateWorldGeneration( World* world )
+UpdateWorldGeneration( World* world, MemoryArena* arena )
 {
-    // If we have no entries in the queue, pick up a random position based on player position
+    if( !world->currentGeneratorPath )
+    {
+        v3 vForward = V3Forward();
+        v3 vUp = V3Up();
+        world->currentGeneratorPath = PUSH_STRUCT( arena, GenPath );
+        *world->currentGeneratorPath = 
+        {
+            V3Zero(),
+            world->marchingAreaSize,
+            M4Basis( Cross( vForward, vUp ), vForward, vUp ),
+            IsoSurfaceType::Cuboid,
+            2,
+            RandomRange( 0.f, 100.f ), RandomRange( 0.f, 100.f )
+        };
+    }
+
+    // TODO Switch to hull chunks (and then to generic entities)
+    // TODO Decide how to pack entities for archival using minimal data
+    // (probably just use the GenPaths at each chunk position and regenerate)
+    // TODO Implement simulation regions
+    if( !world->hullMeshes )
+    {
+        world->hullMeshes.Init( arena, 10000 );
+    }
+    if( world->hullMeshes && world->hullMeshes.count < 5 )
+    {
+        GenerateOnePathStep( world->currentGeneratorPath, world->marchingCubeSize, arena, world->hullMeshes.Place() );
+    }
 }
 
 void
@@ -143,7 +174,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
         world->pPlayer = pPlayer;
     }
 
-    UpdateWorldGeneration( world );
+    UpdateWorldGeneration( world, &gameState->worldArena );
 
     ///// Render
 
@@ -190,6 +221,9 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
     }
     PushMesh( testMesh, renderCommands );
 #endif
+
+    for( u32 i = 0; i < world->hullMeshes.count; ++i )
+        PushMesh( world->hullMeshes[i], renderCommands );
 
     PushRenderGroup( world->playerDude, renderCommands);
 

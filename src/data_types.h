@@ -49,10 +49,35 @@ struct Array
         return data[i];
     }
 
+    operator bool() const
+    {
+        return data != nullptr;
+    }
+
+    void Init( MemoryArena* arena, u32 maxCount_ )
+    {
+        // For now we don't allow init'ing twice
+        ASSERT( data == nullptr );
+        data = PUSH_ARRAY( arena, maxCount_, T );
+        count = 0;
+        maxCount = maxCount_;
+    }
+
     void Add( const T& item )
     {
         ASSERT( count < maxCount );
         data[count++] = item;
+    }
+
+    T* Place()
+    {
+        ASSERT( count < maxCount );
+        return data + count++;
+    }
+
+    void BlitTo( T* buffer ) const
+    {
+        memcpy( buffer, data, count * sizeof(T) );
     }
 };
 

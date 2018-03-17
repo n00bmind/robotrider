@@ -119,34 +119,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
 
-    const r32 TEST_MARCHED_AREA_SIZE = 10;
-    const r32 TEST_MARCHED_CUBE_SIZE = 1;
-
-    // Draw marching cubes tests
-    v3 vForward = V3Forward();
-    v3 vUp = V3Up();
-    local_persistent GenPath testPath =
-    {
-        V3Zero(),
-        TEST_MARCHED_AREA_SIZE,
-        M4Basis( Cross( vForward, vUp ), vForward, vUp ),
-        IsoSurfaceType::Cuboid,
-        2,
-        RandomRange( 0.f, 100.f ), RandomRange( 0.f, 100.f )
-    };
-
-    // FIXME
-    local_persistent Mesh testMeshes[1000];
-    local_persistent u32 testMeshCount = 0;
-
-    if( input->frameCounter % 300 == 0 )
-    {
-        ASSERT( testMeshCount < ARRAYCOUNT(testMeshes) );
-        testMeshes[testMeshCount++] = GenerateOnePathStep( &testPath, TEST_MARCHED_CUBE_SIZE );
-    }
-    DrawTestGrid( TEST_MARCHED_AREA_SIZE, TEST_MARCHED_CUBE_SIZE, renderCommands );
-    //for( u32 i = 0; i < testMeshCount; ++i )
-        //PushMesh( testMeshes[i], renderCommands );
+    DrawTestGrid( gameState->world->marchingAreaSize, gameState->world->marchingCubeSize, renderCommands );
 
     // FIXME Draw this as plain color always
     DrawAxisGizmos( renderCommands );

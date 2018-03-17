@@ -77,32 +77,34 @@ MarchLayer( const v3& pCenter, r32 topH, r32 areaSideMeters, r32 cubeSizeMeters,
             MarchCube( pCenter + V3( i, j, topH ), cubeSizeMeters, sampleFunc, sampleData, vertices, indices );
 }
 
-// FIXME
-internal SArray<TexturedVertex, 64*1024> metaVertices;
-internal SArray<u32, 64*1024> metaIndices;
+// TODO Think about how to minimize waste here
+internal SArray<TexturedVertex, 64*1024> scratchVertices;
+internal SArray<u32, 64*1024> scratchIndices;
 
-Mesh
-MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters, MarchedCubeSampleFunc* sampleFunc,
-               const void* sampleData )
+void
+MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
+               MarchedCubeSampleFunc* sampleFunc, const void* sampleData, MemoryArena* arena, Mesh* outMesh )
 {
-    metaVertices.count = 0;
-    metaIndices.count = 0;
+    scratchVertices.count = 0;
+    scratchIndices.count = 0;
 
     // TODO Pre-sample top and bottom slices of values for each layer so we only sample one corner per cube
     // TODO Eliminate all the duplicate vertices that marching cubes creates
     // see http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng
     r32 halfSideMeters = areaSideMeters / 2;
     for( float k = -halfSideMeters; k < halfSideMeters; k += cubeSizeMeters )
-        MarchLayer( pCenter, k, areaSideMeters, cubeSizeMeters, sampleFunc, sampleData, &metaVertices, &metaIndices );
+        MarchLayer( pCenter, k, areaSideMeters, cubeSizeMeters, sampleFunc, sampleData, &scratchVertices, &scratchIndices );
 
-    Mesh result;
-    result.vertices = metaVertices.data;
-    result.indices = metaIndices.data;
-    result.vertexCount = metaVertices.count;
-    result.indexCount = metaIndices.count;
-    result.mTransform = Translation( pCenter );
+    // Write output mesh
+    outMesh->vertices = PUSH_ARRAY( arena, scratchVertices.count, TexturedVertex );
+    scratchVertices.BlitTo( outMesh->vertices );
+    outMesh->vertexCount = scratchVertices.count;
 
-    return result;
+    outMesh->indices = PUSH_ARRAY( arena, scratchIndices.count, u32 );
+    scratchIndices.BlitTo( outMesh->indices );
+    outMesh->indexCount = scratchIndices.count;
+
+    outMesh->mTransform = Translation( pCenter );
 }
 
 internal r32
@@ -122,7 +124,8 @@ SampleMetaballs( const void* sampleData, const v3& pos )
 }
 
 void
-TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, GameRenderCommands *renderCommands )
+TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, MemoryArena* arena,
+               GameRenderCommands *renderCommands )
 {
     local_persistent SArray<Metaball, 10> balls;
 
@@ -150,7 +153,8 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, GameR
     }
     
     // Update mesh by sampling our cubic area centered at origin
-    Mesh metaMesh = MarchAreaFast( V3Zero(), areaSideMeters, cubeSizeMeters, SampleMetaballs, &balls );
+    Mesh metaMesh;
+    MarchAreaFast( V3Zero(), areaSideMeters, cubeSizeMeters, SampleMetaballs, &balls, arena, &metaMesh );
 
     //GenerateFaceNormals( metaMesh );
 
@@ -643,8 +647,8 @@ SampleCylinder( const void* sampleData, const v3& p )
     return result;
 }
 
-Mesh
-GenerateOnePathStep( GenPath* path, r32 resolutionMeters )
+void
+GenerateOnePathStep( GenPath* path, r32 resolutionMeters, MemoryArena* arena, Mesh* outMesh )
 {
     m4 nextBasis = {};
     // FIXME Allocate
@@ -690,8 +694,7 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters )
         path->nextFork = &nextFork;
     }
 
-    // TODO Use a destination pointer for the mesh instead of copying every time?
-    Mesh result = MarchAreaFast( path->pCenter, path->areaSideMeters, resolutionMeters, SampleCuboid, path );
+    MarchAreaFast( path->pCenter, path->areaSideMeters, resolutionMeters, SampleCuboid, path, arena, outMesh );
 
     path->distanceToTurn -= path->areaSideMeters;
     path->distanceToFork -= path->areaSideMeters;
@@ -709,8 +712,6 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters )
 
     v3 vForward = GetYBasis( path->basis );
     path->pCenter += vForward * path->areaSideMeters;
-
-    return result;
 }
 
 
