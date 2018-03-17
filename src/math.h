@@ -50,6 +50,12 @@ Pack01ToRGBA( v4 unpacked )
 // https://www.gamasutra.com/blogs/RuneSkovboJohansen/20150105/233505/A_Primer_on_Repeatable_Random_Numbers.php
 // https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/monte-carlo-methods-in-practice/generating-random-numbers
 
+inline u32
+Random()
+{
+    return rand();
+}
+
 // Includes min & max
 inline i32
 RandomRange( i32 min, i32 max )

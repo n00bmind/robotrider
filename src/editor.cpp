@@ -133,15 +133,16 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
 
     // Draw marching cubes tests
     local_persistent Mesh testMesh;
+    v3 vForward = V3Forward();
+    v3 vUp = V3Up();
     local_persistent GenPath testPath =
     {
         V3Zero(),
         TEST_MARCHED_AREA_SIZE,
-        { 0, 1, 0 },
-        { 0, 0, 1 },
+        M4Basis( Cross( vForward, vUp ), vForward, vUp ),
         IsoSurfaceType::Cuboid,
-        1.2f,
-        5, 0
+        2,
+        7, 3
     };
 
     if( input->frameCounter % 500 == 0 )

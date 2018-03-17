@@ -63,7 +63,7 @@ struct Metaball
 enum class IsoSurfaceType
 {
     Cuboid,
-    HexPrism,
+    //HexPrism,
     Cylinder,
 };
 
@@ -73,9 +73,8 @@ struct GenPath
     v3 pCenter;
     r32 areaSideMeters;
 
-    // Direction of progression (normalized)
-    v3 vDir;
-    v3 vUp;
+    // Current basis (Y is forward, Z is up)
+    m4 basis;
     // Surface algorithm used
     IsoSurfaceType isoType;
 
@@ -83,6 +82,7 @@ struct GenPath
     r32 distanceToTurn;
     r32 distanceToFork;
 
+    m4* nextBasis;
     GenPath* nextFork;
 };
 

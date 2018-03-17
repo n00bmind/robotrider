@@ -588,6 +588,33 @@ GetColumn( const m4 &m, u32 col )
 }
 
 inline m4
+M4Basis( const v3& x, const v3& y, const v3& z )
+{
+    return M4Columns( x, y, z );
+}
+
+inline v3
+GetXBasis( const m4& m )
+{
+    v3 result = { m.e[0][0], m.e[1][0], m.e[2][0] };
+    return result;
+}
+
+inline v3
+GetYBasis( const m4& m )
+{
+    v3 result = { m.e[0][1], m.e[1][1], m.e[2][1] };
+    return result;
+}
+
+inline v3
+GetZBasis( const m4& m )
+{
+    v3 result = { m.e[0][2], m.e[1][2], m.e[2][2] };
+    return result;
+}
+
+inline m4
 Transposed( const m4 &m )
 {
     m4 result =
@@ -795,7 +822,7 @@ union qn
     r32 e[4];
 };
 
-// TODO Test
+// TODO Test from here on
 inline qn
 QN( const m4 &m )
 {
@@ -843,6 +870,64 @@ ToEulerXYZ( const qn &r, float *pitch, float *yaw, float *roll )
 {
     // TODO Develop the editor a bit further so that these ops can be applied
     // over a selected object so we can visually test them at least
+}
+
+inline m4
+ToM4( const qn& q )
+{
+    r64 sqw = q.w * q.w;
+    r64 sqx = q.x * q.x;
+    r64 sqy = q.y * q.y;
+    r64 sqz = q.z * q.z;
+
+    m4 result = {};
+    // Inverse square lenght, only required if quaternion is not already normalized (multiply all matrix terms by it)
+    //r64 invs = 1.0 / (sqx + sqy + sqz + sqw);
+    result.e[0][0] = (r32)( sqx - sqy - sqz + sqw);
+    result.e[1][1] = (r32)(-sqx + sqy - sqz + sqw);
+    result.e[2][2] = (r32)(-sqx - sqy + sqz + sqw);
+
+    r64 tmp1 = q.x * q.y;
+    r64 tmp2 = q.z * q.w;
+    result.e[1][0] = (r32)(2.0 * (tmp1 + tmp2));
+    result.e[0][1] = (r32)(2.0 * (tmp1 - tmp2));
+    
+    tmp1 = q.x * q.z;
+    tmp2 = q.y * q.w;
+    result.e[2][0] = (r32)(2.0 * (tmp1 - tmp2));
+    result.e[0][2] = (r32)(2.0 * (tmp1 + tmp2));
+
+    tmp1 = q.y * q.z;
+    tmp2 = q.x * q.w;
+    result.e[2][1] = (r32)(2.0 * (tmp1 + tmp2));
+    result.e[1][2] = (r32)(2.0 * (tmp1 - tmp2));
+
+    return result;
+}
+
+inline qn
+Conjugate( const qn& q )
+{
+    qn result = { -q.x, -q.y, -q.z, q.w };
+    return result;
+}
+
+inline qn
+operator *( const qn& a, const qn& b )
+{
+    r32 rw = b.w*a.w - b.x*a.x - b.y*a.y - b.z*a.z;
+    r32 rx = b.w*a.x + b.x*a.w - b.y*a.z + b.z*a.y;
+    r32 ry = b.w*a.y + b.x*a.z + b.y*a.w - b.z*a.x;
+    r32 rz = b.w*a.z - b.x*a.y + b.y*a.x + b.z*a.w;
+}
+
+inline v3
+Rotate( const v3& v, const qn& q )
+{
+    // TODO Optimize
+    qn vPure = { v.x, v.y, v.z, 0 };
+    qn qResult = q * vPure * Conjugate( q );
+    return qResult.xyz;
 }
 
 #endif /* __MATH_TYPES_H__ */

@@ -567,32 +567,63 @@ internal r32
 SampleCuboid( const void* sampleData, const v3& p )
 {
     GenPath* path = (GenPath*)sampleData;
+    v3 vRight = GetXBasis( path->basis );
+    v3 vForward = GetYBasis( path->basis );
+    v3 vUp = GetZBasis( path->basis );
 
-    // Calc distance to both canonical planes along dir
+    // Calc distance to both aligned planes along dir
     // NOTE Max() means 'intersection'
-    r32 dUp = Max( Dot( path->vUp, p ) - path->thicknessSq, Dot( -path->vUp, p ) - path->thicknessSq );
-
-    // TODO Precalc
-    v3 vRight = Cross( path->vDir, path->vUp );
-    r32 dRight = Max( Dot( vRight, p ) - path->thicknessSq, Dot( -vRight, p ) - path->thicknessSq );
+    r32 dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
+    r32 dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
  
     r32 result = Max( dUp, dRight );
 
-    if( path->distanceToTurn < path->areaSideMeters )
+    // Turns
+    if( path->nextBasis )
     {
-        v3 vDir = { 0, 0, 1 };
-        v3 vUp = { 0, -1, 0 };
+        // Cut with plane across motion dir
+        // NOTE For now we're gonna assume that all turns take place at the area's center point
+        r32 d = 0; // path->areaSideMeters/2 - path->distanceToTurn;
+        result += Clamp0( Dot( vForward, p ) + d );
 
-        dUp = Max( Dot( vUp, p ) - path->thicknessSq, Dot( -vUp, p ) - path->thicknessSq );
+        vRight = GetXBasis( *path->nextBasis );
+        vForward = GetYBasis( *path->nextBasis );
+        vUp = GetZBasis( *path->nextBasis );
 
-        // TODO Precalc
-        vRight = Cross( vDir, vUp );
-        dRight = Max( Dot( vRight, p ) - path->thicknessSq, Dot( -vRight, p ) - path->thicknessSq );
+        dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
+        dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
 
         r32 newResult = Max( dUp, dRight );
+        // Cut with plane across motion dir (backwards)
+        // NOTE For now we're gonna assume that all turns take place at the area's center point
+        d = 0; // path->areaSideMeters/2 - path->distanceToTurn;
+        newResult += Clamp0( Dot( -vForward, p ) + d );
+
         // NOTE Min() means 'union'
         result = Min( result, newResult );
     }
+
+    //Forks
+    if( path->nextFork )
+    {
+        vRight = GetXBasis( path->nextFork->basis );
+        vForward = GetYBasis( path->nextFork->basis );
+        vUp = GetZBasis( path->nextFork->basis );
+
+        dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
+        dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
+
+        r32 newResult = Max( dUp, dRight );
+        // Cut with plane across motion dir (bakcwards)
+        // NOTE For now we're gonna assume that all forks take place at the area's center point
+        r32 d = 0; // path->areaSideMeters/2 - path->distanceToFork;
+        newResult += Clamp0( Dot( -vForward, p ) + d );
+
+        // NOTE Min() means 'union'
+        result = Min( result, newResult );
+    }
+
+    // FIXME Use an offset that's in proportion to step resolution (add resolution to path struct?)
     return result + 0.1f;
 }
 
@@ -600,12 +631,13 @@ internal r32
 SampleCylinder( const void* sampleData, const v3& p )
 {
     GenPath* path = (GenPath*)sampleData;
+    v3 vForward = GetYBasis( path->basis );
 
     v3 vP = p - path->pCenter;
     // l is the length of the projection of vP along the director line
-    r32 l = Dot( path->vDir, vP );
+    r32 l = Dot( vForward, vP );
     // Translate p the previous distance along vDir (backwards) to align it with pCenter
-    v3 pPrime = p - path->vDir * l;
+    v3 pPrime = p - vForward * l;
 
     r32 result = DistanceSq( path->pCenter, pPrime ) - path->thicknessSq;
     return result;
@@ -614,9 +646,63 @@ SampleCylinder( const void* sampleData, const v3& p )
 Mesh
 GenerateOnePathStep( GenPath* path, r32 resolutionMeters )
 {
+    m4 nextBasis = {};
+    // FIXME Allocate
+    GenPath nextFork;
+
+    r32 pi2 = PI32 / 2;
+    m4 rotations[4] =
+    {
+        ZRotation( pi2 ),
+        ZRotation( -pi2 ),
+        XRotation( pi2 ),
+        XRotation( -pi2 ),
+    };
+    u32 random = Random();
+    u32 rotIndex = random & 0x3;
+
+    bool turnInThisStep = path->distanceToTurn < path->areaSideMeters;
+    bool forkInThisStep = path->distanceToFork < path->areaSideMeters;
+
+    if( turnInThisStep )
+    {
+        m4& rot = rotations[rotIndex];
+
+        // Save current basis in fork for using later
+        if( forkInThisStep )
+            nextFork = *path;
+
+        // Create a new basis by randomly rotating the current one, and pass it to the sampler
+        nextBasis = rot * path->basis;
+        path->nextBasis = &nextBasis;
+    }
+
+    if( forkInThisStep )
+    {
+        if( turnInThisStep )
+            rotations[rotIndex] = M4Identity();
+
+        rotIndex = (random >> 2) & 0x3;
+        m4& rot = rotations[rotIndex];
+
+        nextFork.basis = rot * nextFork.basis;
+        nextFork.nextBasis = nullptr;
+        path->nextFork = &nextFork;
+    }
+
     // TODO Use a destination pointer for the mesh instead of copying every time?
     Mesh result = MarchAreaFast( path->pCenter, path->areaSideMeters, resolutionMeters, SampleCuboid, path );
+
     //path->pCenter += path->vDir * path->areaSideMeters;
+    if( turnInThisStep )
+    {
+        //path->basis = nextBasis;
+        path->nextBasis = nullptr;
+    }
+    if( forkInThisStep )
+    {
+        path->nextFork = nullptr;
+    }
 
     return result;
 }

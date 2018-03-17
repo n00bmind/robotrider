@@ -102,6 +102,12 @@ Max( r32 a, r32 b )
     return a > b ? a : b;
 }
 
+inline r32
+Clamp0( r32 value )
+{
+    return Max( 0, value );
+}
+
 inline r64
 Pow( r64 b, r64 exp )
 {
