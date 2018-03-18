@@ -89,15 +89,16 @@ InitWorld( World* world, MemoryArena* worldArena )
 
     world->marchingAreaSize = 10;
     world->marchingCubeSize = 1;
+    srand( 1234 );
 }
 
 internal void
-UpdateWorldGeneration( World* world, MemoryArena* arena )
+UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena )
 {
-    if( !world->currentGeneratorPath )
+    if( !world->currentGeneratorPath || input->executableReloaded )
     {
-        v3 vForward = V3Forward();
-        v3 vUp = V3Up();
+        v3 vForward = V3Up();
+        v3 vUp = -V3Forward();
         world->currentGeneratorPath = PUSH_STRUCT( arena, GenPath );
         *world->currentGeneratorPath = 
         {
@@ -106,7 +107,10 @@ UpdateWorldGeneration( World* world, MemoryArena* arena )
             M4Basis( Cross( vForward, vUp ), vForward, vUp ),
             IsoSurfaceType::Cuboid,
             2,
-            RandomRange( 0.f, 100.f ), RandomRange( 0.f, 100.f )
+            50.f,
+            50.f,
+            1000, //RandomRange( 0.f, 50.f ),
+            3, //RandomRange( 0.f, 50.f ),
         };
     }
 
@@ -114,13 +118,18 @@ UpdateWorldGeneration( World* world, MemoryArena* arena )
     // TODO Decide how to pack entities for archival using minimal data
     // (probably just use the GenPaths at each chunk position and regenerate)
     // TODO Implement simulation regions
+
     if( !world->hullMeshes )
     {
         world->hullMeshes.Init( arena, 10000 );
+
+        if( firstStepOnly )
+            world->hullMeshes.Place();
     }
-    if( world->hullMeshes && world->hullMeshes.count < 5 )
+    if( world->hullMeshes && input->frameCounter % 100 == 0 )
     {
-        GenerateOnePathStep( world->currentGeneratorPath, world->marchingCubeSize, arena, world->hullMeshes.Place() );
+        Mesh* outMesh = firstStepOnly ? &world->hullMeshes[0] : world->hullMeshes.Place();
+        GenerateOnePathStep( world->currentGeneratorPath, world->marchingCubeSize, !firstStepOnly, arena, outMesh );
     }
 }
 
@@ -142,23 +151,24 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
 
         FlyingDude *playerDude = world->playerDude;
         v3 pPlayer = world->pPlayer;
+        r32 playerSpeed = 9.f;
         v3 vPlayerDelta = {};
 
         if( input0->dLeft.endedDown )
         {
-            vPlayerDelta.x -= 3.f * dT;
+            vPlayerDelta.x -= playerSpeed * dT;
         }
         if( input0->dRight.endedDown )
         {
-            vPlayerDelta.x += 3.f * dT;
+            vPlayerDelta.x += playerSpeed * dT;
         }
         if( input0->dUp.endedDown )
         {
-            vPlayerDelta.y += 3.f * dT;
+            vPlayerDelta.y += playerSpeed * dT;
         }
         if( input0->dDown.endedDown )
         {
-            vPlayerDelta.y -= 3.f * dT;
+            vPlayerDelta.y -= playerSpeed * dT;
         }
 
         if( input0->rightStick.avgX || input0->rightStick.avgY )
@@ -174,10 +184,39 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
         world->pPlayer = pPlayer;
     }
 
-    UpdateWorldGeneration( world, &gameState->worldArena );
+
+    bool firstStepOnly = true;
+
+
+    UpdateWorldGeneration( input, firstStepOnly, world, &gameState->worldArena );
 
     ///// Render
 
+    for( u32 i = 0; i < world->hullMeshes.count; ++i )
+    {
+        PushMesh( world->hullMeshes[i], renderCommands );
+        if( firstStepOnly )
+            break;
+    }
+
+    PushRenderGroup( world->playerDude, renderCommands);
+
+    for( u32 i = 0; i < world->cubeCount; ++i )
+    {
+        CubeThing *cube = world->cubes + i;
+        PushRenderGroup( cube, renderCommands);
+    }
+
+    {
+        FlyingDude *playerDude = world->playerDude;
+        // Create a chasing camera
+        // TODO Use a PID controller
+        v3 pCam = playerDude->mTransform * V3( 0, -2, 1 );
+        v3 pLookAt = playerDude->mTransform * V3( 0, 1, 0 );
+        v3 vUp = GetColumn( playerDude->mTransform, 2 ).xyz;
+        renderCommands->camera.mTransform = CameraLookAt( pCam, pLookAt, vUp );
+    }
+    
     // Mesh simplification test
 #if 0
     Mesh testMesh;
@@ -221,25 +260,4 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
     }
     PushMesh( testMesh, renderCommands );
 #endif
-
-    for( u32 i = 0; i < world->hullMeshes.count; ++i )
-        PushMesh( world->hullMeshes[i], renderCommands );
-
-    PushRenderGroup( world->playerDude, renderCommands);
-
-    for( u32 i = 0; i < world->cubeCount; ++i )
-    {
-        CubeThing *cube = world->cubes + i;
-        PushRenderGroup( cube, renderCommands);
-    }
-
-    {
-        FlyingDude *playerDude = world->playerDude;
-        // Create a chasing camera
-        // TODO Use a PID controller
-        v3 pCam = playerDude->mTransform * V3( 0, -2, 1 );
-        v3 pLookAt = playerDude->mTransform * V3( 0, 1, 0 );
-        v3 vUp = GetColumn( playerDude->mTransform, 2 ).xyz;
-        renderCommands->camera.mTransform = CameraLookAt( pCam, pLookAt, vUp );
-    }
 }

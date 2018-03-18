@@ -125,7 +125,7 @@ internal m4
 CreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
 {
     r32 n = 0.1f;		// Make this configurable?
-    r32 f = 100.0f;
+    r32 f = 1000.0f;
     r32 d = f - n;
     r32 a = aspectRatio;
     r32 fovy = Radians( fovYDeg );

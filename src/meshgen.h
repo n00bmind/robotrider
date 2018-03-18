@@ -79,9 +79,11 @@ struct GenPath
     IsoSurfaceType isoType;
 
     r32 thicknessSq;
+    r32 maxDistanceToTurn;
+    r32 maxDistanceToFork;
+
     r32 distanceToTurn;
     r32 distanceToFork;
-
     m4* nextBasis;
     GenPath* nextFork;
 };

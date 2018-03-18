@@ -648,26 +648,27 @@ SampleCylinder( const void* sampleData, const v3& p )
 }
 
 void
-GenerateOnePathStep( GenPath* path, r32 resolutionMeters, MemoryArena* arena, Mesh* outMesh )
+GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, MemoryArena* arena, Mesh* outMesh )
 {
-    m4 nextBasis = {};
     // FIXME Allocate
     GenPath nextFork;
-
-    r32 pi2 = PI32 / 2;
-    m4 rotations[4] =
-    {
-        ZRotation( pi2 ),
-        ZRotation( -pi2 ),
-        XRotation( pi2 ),
-        XRotation( -pi2 ),
-    };
-    u32 random = Random();
-    u32 rotIndex = random & 0x3;
 
     bool turnInThisStep = path->distanceToTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToFork < path->areaSideMeters;
 
+    r32 pi2 = PI32 / 2;
+    m4 rotations[4] =
+    {
+        // Expressed as if +Y == 'forward'
+        ZRotation(  pi2 ),
+        ZRotation( -pi2 ),
+        XRotation(  pi2 ),
+        XRotation( -pi2 ),
+    };
+    u32 random = 0; //Random();
+    u32 rotIndex = random & 0x3;
+
+    m4 nextBasis = {};
     if( turnInThisStep )
     {
         m4& rot = rotations[rotIndex];
@@ -677,7 +678,8 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters, MemoryArena* arena, Me
             nextFork = *path;
 
         // Create a new basis by randomly rotating the current one, and pass it to the sampler
-        nextBasis = rot * path->basis;
+        // We're actually rotating the 'rotation' itself by our current basis
+        nextBasis = path->basis * rot;  // NOT rot * path->basis
         path->nextBasis = &nextBasis;
     }
 
@@ -694,24 +696,29 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters, MemoryArena* arena, Me
         path->nextFork = &nextFork;
     }
 
-    MarchAreaFast( path->pCenter, path->areaSideMeters, resolutionMeters, SampleCuboid, path, arena, outMesh );
+    MarchAreaFast( V3Zero(), path->areaSideMeters, resolutionMeters, SampleCuboid, path, arena, outMesh );
+    outMesh->mTransform = Translation( path->pCenter );
 
-    path->distanceToTurn -= path->areaSideMeters;
-    path->distanceToFork -= path->areaSideMeters;
-    if( turnInThisStep )
+    // Advance to next chunk
+    if( advancePosition )
     {
-        path->basis = nextBasis;
-        path->nextBasis = nullptr;
-        path->distanceToTurn = RandomRange( 0.f, 100.f );
-    }
-    if( forkInThisStep )
-    {
-        path->nextFork = nullptr;
-        path->distanceToFork = RandomRange( 0.f, 100.f );
-    }
+        path->distanceToTurn -= path->areaSideMeters;
+        path->distanceToFork -= path->areaSideMeters;
+        if( turnInThisStep )
+        {
+            path->basis = nextBasis;
+            path->nextBasis = nullptr;
+            path->distanceToTurn = RandomRange( 0.f, path->maxDistanceToTurn );
+        }
+        if( forkInThisStep )
+        {
+            path->nextFork = nullptr;
+            path->distanceToFork = RandomRange( 0.f, path->maxDistanceToFork );
+        }
 
-    v3 vForward = GetYBasis( path->basis );
-    path->pCenter += vForward * path->areaSideMeters;
+        v3 vForward = GetYBasis( path->basis );
+        path->pCenter += vForward * (path->areaSideMeters + 0.1f);
+    }
 }
 
 
