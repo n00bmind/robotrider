@@ -66,6 +66,16 @@ void main()
     // make the light always come from a 'sun' at -Z inf. (so a directional light pointing to +Z)
     vec3 lightDirection = vec3( 0.0, 0.0, 1.0 );
     float d = dot( lightDirection, _in.faceNormal );
+    vec4 lightColor = vec4( d, d, d, 1 );
+
+#if 0
+    // Do this in a second pass for simple fog'ing
+    float dMax = 20;
+    float dMin = 10;
+    float tFog = clamp( (dMax - gl_FragCoord.z) / (dMax - dMin), 0, 1 );
+#endif
+
     //outColor = unpack( _in.color );
-    outColor = vec4( d, d, d, 1 );
+    //outColor = mix( vec4( 0, 1, 0, 1 ), lightColor, tFog );
+    outColor = lightColor;
 }

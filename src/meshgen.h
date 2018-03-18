@@ -79,11 +79,13 @@ struct GenPath
     IsoSurfaceType isoType;
 
     r32 thicknessSq;
+    r32 minDistanceToTurn;
     r32 maxDistanceToTurn;
+    r32 minDistanceToFork;
     r32 maxDistanceToFork;
 
-    r32 distanceToTurn;
-    r32 distanceToFork;
+    r32 distanceToNextTurn;
+    r32 distanceToNextFork;
     m4* nextBasis;
     // TODO Support multiple forks?
     GenPath* nextFork;

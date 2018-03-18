@@ -734,7 +734,7 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
     glViewport( 0, 0, commands.width, commands.height );
     
     glDisable( GL_SCISSOR_TEST );
-    //glEnable( GL_CULL_FACE );
+    glEnable( GL_CULL_FACE );
     glEnable( GL_DEPTH_TEST );
 
     m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );

@@ -41,8 +41,8 @@ InitWorld( World* world, MemoryArena* worldArena )
     playerDude =
     {
         {
-            { -0.5f,   -0.5f,  0.0f, },
-            {  0.5f,   -0.5f,  0.0f, },
+            { -0.3f,   -0.5f,  0.0f, },
+            {  0.3f,   -0.5f,  0.0f, },
             {  0.0f,    1.0f,  0.0f, },
             //{  0.0f,     0.5f	 0.5f, },
         },
@@ -95,26 +95,26 @@ InitWorld( World* world, MemoryArena* worldArena )
 internal void
 UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena )
 {
-    if( !world->currentGeneratorPath || input->executableReloaded )
+    if( !world->pathsBuffer || input->executableReloaded )
     {
         v3 vForward = V3Forward();
         v3 vUp = V3Up();
-        world->currentGeneratorPath = PUSH_STRUCT( arena, GenPath );
-        *world->currentGeneratorPath = 
+        world->pathsBuffer.Init( arena, 1000 );
+        world->pathsBuffer.Add( 
         {
             V3Zero(),
             world->marchingAreaSize,
             M4Basis( Cross( vForward, vUp ), vForward, vUp ),
             IsoSurfaceType::Cuboid,
             2,
-            50.f,
-            50.f,
-            1000, //RandomRange( 0.f, 50.f ),
-            3, //RandomRange( 0.f, 50.f ),
-        };
+            50, 100,
+            150, 550,
+            RandomRange( 50.f, 100.f ),
+            RandomRange( 150.f, 550.f ),
+        } );
     }
 
-    // TODO Switch to hull chunks (and then to generic entities)
+    // TODO Switch to HullChunk (and then to generic entities)
     // TODO Decide how to pack entities for archival using minimal data
     // (probably just use the GenPaths at each chunk position and regenerate)
     // TODO Implement simulation regions
@@ -126,10 +126,32 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
         if( firstStepOnly )
             world->hullMeshes.Place();
     }
-    if( world->hullMeshes && input->frameCounter % 100 == 0 )
+
+    if( world->hullMeshes.count < 1000 ) //&& input->frameCounter % 10 == 0 )
     {
-        Mesh* outMesh = firstStepOnly ? &world->hullMeshes[0] : world->hullMeshes.Place();
-        GenerateOnePathStep( world->currentGeneratorPath, world->marchingCubeSize, !firstStepOnly, arena, outMesh );
+        // TODO This is all temporary
+        // We need to plan this with care. Keep the buffer sorted by distance to player always
+        GenPath* currentPath = nullptr;
+        for( u32 i = 0; i < world->pathsBuffer.count; ++i )
+        {
+            GenPath* path = &world->pathsBuffer[i];
+            if( DistanceSq( path->pCenter, world->pPlayer ) < 10000 )
+            {
+                currentPath = path;
+                break;
+            }
+        }
+
+        if( currentPath )
+        {
+            GenPath fork;
+            Mesh* outMesh = firstStepOnly ? &world->hullMeshes[0] : world->hullMeshes.Place();
+
+            u32 numForks =
+                GenerateOnePathStep( currentPath, world->marchingCubeSize, !firstStepOnly, arena, outMesh, &fork );
+            if( numForks )
+                world->pathsBuffer.Add( fork );
+        }
     }
 }
 
@@ -185,7 +207,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
     }
 
 
-    bool firstStepOnly = true;
+    bool firstStepOnly = false;
 
 
     UpdateWorldGeneration( input, firstStepOnly, world, &gameState->worldArena );

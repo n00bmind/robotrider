@@ -71,9 +71,9 @@ struct World
     u32 cubeCount;
 
     // 'real' stuff
-    GenPath* currentGeneratorPath;
     Array<Mesh> hullMeshes;
     //Array<HullChunk> hullChunksBuffer;
+    Array<GenPath> pathsBuffer;
 
     r32 marchingAreaSize;
     r32 marchingCubeSize;

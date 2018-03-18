@@ -71,7 +71,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     // Setup a zenithal camera initially
     if( editorState.pCamera == V3Zero() )
     {
-        editorState.pCamera = V3( 0, -12, 12 );
+        editorState.pCamera = V3( 0, -50, 50 );
         editorState.camYaw = 0;
         editorState.camPitch = 0;
         //v3 pLookAt = gameState->pPlayer;
@@ -82,22 +82,23 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     // Update camera based on input
     {
         GameControllerInput *input0 = GetController( input, 0 );
+        r32 camSpeed = 9.f;
 
         v3 vCamDelta = {};
         if( input0->dLeft.endedDown )
-            vCamDelta.x -= 3.f * dT;
+            vCamDelta.x -= camSpeed * dT;
         if( input0->dRight.endedDown )
-            vCamDelta.x += 3.f * dT;
+            vCamDelta.x += camSpeed * dT;
 
         if( input0->dUp.endedDown )
-            vCamDelta.z -= 3.f * dT;
+            vCamDelta.z -= camSpeed * dT;
         if( input0->dDown.endedDown )
-            vCamDelta.z += 3.f * dT;
+            vCamDelta.z += camSpeed * dT;
 
         if( input0->leftShoulder.endedDown )
-            vCamDelta.y -= 3.f * dT;
+            vCamDelta.y -= camSpeed * dT;
         if( input0->rightShoulder.endedDown )
-            vCamDelta.y += 3.f * dT;
+            vCamDelta.y += camSpeed * dT;
 
         if( input0->rightStick.avgX || input0->rightStick.avgY )
         {

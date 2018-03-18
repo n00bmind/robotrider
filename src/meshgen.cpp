@@ -587,7 +587,7 @@ SampleCuboid( const void* sampleData, const v3& p )
     {
         // Cut with plane across motion dir
         // NOTE For now we're gonna assume that all turns take place at the area's center point
-        r32 d = 0; // path->areaSideMeters/2 - path->distanceToTurn;
+        r32 d = 0; // path->areaSideMeters/2 - path->distanceToNextTurn;
         result += Clamp0( Dot( vForward, p ) + d );
 
         vRight = GetXBasis( *path->nextBasis );
@@ -600,7 +600,7 @@ SampleCuboid( const void* sampleData, const v3& p )
         r32 newResult = Max( dUp, dRight );
         // Cut with plane across motion dir (backwards)
         // NOTE For now we're gonna assume that all turns take place at the area's center point
-        d = 0; // path->areaSideMeters/2 - path->distanceToTurn;
+        d = 0; // path->areaSideMeters/2 - path->distanceToNextTurn;
         newResult += Clamp0( Dot( -vForward, p ) + d );
 
         // NOTE Min() means 'union'
@@ -620,7 +620,7 @@ SampleCuboid( const void* sampleData, const v3& p )
         r32 newResult = Max( dUp, dRight );
         // Cut with plane across motion dir (bakcwards)
         // NOTE For now we're gonna assume that all forks take place at the area's center point
-        r32 d = 0; // path->areaSideMeters/2 - path->distanceToFork;
+        r32 d = 0; // path->areaSideMeters/2 - path->distanceToNextFork;
         newResult += Clamp0( Dot( -vForward, p ) + d );
 
         // NOTE Min() means 'union'
@@ -647,11 +647,12 @@ SampleCylinder( const void* sampleData, const v3& p )
     return result;
 }
 
-void
-GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, MemoryArena* arena, Mesh* outMesh )
+u32
+GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, MemoryArena* arena,
+                     Mesh* outMesh, GenPath* nextFork )
 {
-    bool turnInThisStep = path->distanceToTurn < path->areaSideMeters;
-    bool forkInThisStep = path->distanceToFork < path->areaSideMeters;
+    bool turnInThisStep = path->distanceToNextTurn < path->areaSideMeters;
+    bool forkInThisStep = path->distanceToNextFork < path->areaSideMeters;
 
     r32 pi2 = PI32 / 2;
     m4 rotations[4] =
@@ -679,8 +680,6 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, 
         path->nextBasis = &nextBasis;
     }
 
-    // FIXME Allocate
-    GenPath nextFork = {};
     if( forkInThisStep )
     {
         if( turnInThisStep )
@@ -689,10 +688,10 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, 
         rotIndex = (random >> 2) & 0x3;
         m4& rot = rotations[rotIndex];
 
-        nextFork = *path;
-        nextFork.basis = path->basis * rot;
-        nextFork.nextBasis = nullptr;
-        path->nextFork = &nextFork;
+        *nextFork = *path;
+        nextFork->basis = path->basis * rot;
+        nextFork->nextBasis = nullptr;
+        path->nextFork = nextFork;
     }
 
     MarchAreaFast( V3Zero(), path->areaSideMeters, resolutionMeters, SampleCuboid, path, arena, outMesh );
@@ -701,23 +700,23 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, 
     // Advance to next chunk
     if( advancePosition )
     {
-        path->distanceToTurn -= path->areaSideMeters;
-        path->distanceToFork -= path->areaSideMeters;
+        path->distanceToNextTurn -= path->areaSideMeters;
+        path->distanceToNextFork -= path->areaSideMeters;
         if( turnInThisStep )
         {
             path->basis = nextBasis;
-            path->nextBasis = nullptr;
-            path->distanceToTurn = RandomRange( 0.f, path->maxDistanceToTurn );
+            path->distanceToNextTurn = RandomRange( path->minDistanceToTurn, path->maxDistanceToTurn );
         }
         if( forkInThisStep )
         {
-            path->nextFork = nullptr;
-            path->distanceToFork = RandomRange( 0.f, path->maxDistanceToFork );
+            path->distanceToNextFork = RandomRange( path->minDistanceToFork, path->maxDistanceToFork );
         }
 
         v3 vForward = GetYBasis( path->basis );
         path->pCenter += vForward * (path->areaSideMeters + 0.1f);
     }
+
+    return forkInThisStep ? 1 : 0;
 }
 
 
