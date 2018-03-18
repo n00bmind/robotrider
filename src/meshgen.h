@@ -85,6 +85,7 @@ struct GenPath
     r32 distanceToTurn;
     r32 distanceToFork;
     m4* nextBasis;
+    // TODO Support multiple forks?
     GenPath* nextFork;
 };
 

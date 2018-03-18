@@ -97,8 +97,8 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
 {
     if( !world->currentGeneratorPath || input->executableReloaded )
     {
-        v3 vForward = V3Up();
-        v3 vUp = -V3Forward();
+        v3 vForward = V3Forward();
+        v3 vUp = V3Up();
         world->currentGeneratorPath = PUSH_STRUCT( arena, GenPath );
         *world->currentGeneratorPath = 
         {

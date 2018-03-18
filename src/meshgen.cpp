@@ -650,9 +650,6 @@ SampleCylinder( const void* sampleData, const v3& p )
 void
 GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, MemoryArena* arena, Mesh* outMesh )
 {
-    // FIXME Allocate
-    GenPath nextFork;
-
     bool turnInThisStep = path->distanceToTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToFork < path->areaSideMeters;
 
@@ -665,24 +662,25 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, 
         XRotation(  pi2 ),
         XRotation( -pi2 ),
     };
-    u32 random = 0; //Random();
+    u32 random = Random();
     u32 rotIndex = random & 0x3;
+
+    path->nextBasis = nullptr;
+    path->nextFork = nullptr;
 
     m4 nextBasis = {};
     if( turnInThisStep )
     {
         m4& rot = rotations[rotIndex];
 
-        // Save current basis in fork for using later
-        if( forkInThisStep )
-            nextFork = *path;
-
-        // Create a new basis by randomly rotating the current one, and pass it to the sampler
+        // Create a new basis by randomly rotating the current one, and pass it to the next sampler
         // We're actually rotating the 'rotation' itself by our current basis
         nextBasis = path->basis * rot;  // NOT rot * path->basis
         path->nextBasis = &nextBasis;
     }
 
+    // FIXME Allocate
+    GenPath nextFork = {};
     if( forkInThisStep )
     {
         if( turnInThisStep )
@@ -691,7 +689,8 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, 
         rotIndex = (random >> 2) & 0x3;
         m4& rot = rotations[rotIndex];
 
-        nextFork.basis = rot * nextFork.basis;
+        nextFork = *path;
+        nextFork.basis = path->basis * rot;
         nextFork.nextBasis = nullptr;
         path->nextFork = &nextFork;
     }
