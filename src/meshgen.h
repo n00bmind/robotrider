@@ -67,6 +67,11 @@ enum class IsoSurfaceType
     Cylinder,
 };
 
+struct StoredGenPath
+{
+
+};
+
 struct GenPath
 {
     // Center point and area around it for cube marching

@@ -33,6 +33,13 @@ internal SArray<Vertex, 65536> genVertices;
 internal SArray<Triangle, 256*1024> genTriangles;
 #endif
 
+internal u32 clusterHashFunction( const v3& keyValue, u32 bitCount )
+{
+    // TODO Better hash function! x)
+    u32 hashValue = 19*value.pWorld.x + 7*value.pWorld.y + 3*valu.pWorld.z;
+    return hashValue;
+}
+
 void
 InitWorld( World* world, MemoryArena* worldArena )
 {
@@ -90,11 +97,17 @@ InitWorld( World* world, MemoryArena* worldArena )
     world->marchingAreaSize = 10;
     world->marchingCubeSize = 1;
     srand( 1234 );
+
+    //world->clusterTable.Init( worldArena, 1024*1024, clusterHashFunction );
+    world->clusterTable = SHashTable( worldArena, clusterHashFunction );
 }
 
 internal void
 UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena )
 {
+    // TODO Make an infinite connected 'cosmic grid structure'
+    // so we can test for a good cluster size, evaluate current generation speeds,
+    // debug moving across clusters, etc.
     if( !world->pathsBuffer || input->executableReloaded )
     {
         v3 vForward = V3Forward();

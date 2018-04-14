@@ -37,6 +37,13 @@ struct Array
     u32 count;
     u32 maxCount;
 
+    Array( MemoryArena* arena, u32 maxCount_ )
+    {
+        data = PUSH_ARRAY( arena, maxCount_, T );
+        count = 0;
+        maxCount = maxCount_;
+    }
+
     T& operator[]( u32 i )
     {
         ASSERT( i < maxCount );
@@ -52,15 +59,6 @@ struct Array
     operator bool() const
     {
         return data != nullptr;
-    }
-
-    void Init( MemoryArena* arena, u32 maxCount_ )
-    {
-        // For now we don't allow init'ing twice
-        ASSERT( data == nullptr );
-        data = PUSH_ARRAY( arena, maxCount_, T );
-        count = 0;
-        maxCount = maxCount_;
     }
 
     void Add( const T& item )
@@ -79,16 +77,25 @@ struct Array
     {
         memcpy( buffer, data, count * sizeof(T) );
     }
+
+protected:
+
+    Array()
+    {
+        data = nullptr;
+        count = 0;
+        maxCount = 0;
+    }
 };
 
 /////     STATIC ARRAY    /////
 
-template <typename T, u32 N = 0>
+template <typename T, u32 N>
 struct SArray : public Array<T>
 {
     T storage[N];
 
-    SArray()
+    SArray() : Array()
     {
         data = storage;
         count = 0;
@@ -96,10 +103,119 @@ struct SArray : public Array<T>
     }
 };
 
+/////     HASH TABLE    /////
+
+template <typename K, typename T>
+struct HashTable
+{
+    typedef u32 HashFunction( const K& key, u32 bitCount );
+
+    struct HashSlot
+    {
+        bool filled;
+        K key;
+        T value;
+        HashSlot* nextInHash;
+    };
+
+    Array<HashSlot> array;
+    u32 count;
+    HashFunction* hashFunction;
+
+    HashTable( MemoryArena* arena, u32 maxCount_, HashFunction* hashFunction_ )
+    {
+        // FIXME Check maxCount_ is a power of 2
+        //ASSERT( maxCount_ && ((maxCount_ & (maxCount_ - 1) == 0) );
+
+        //array.Init( arena, maxCount_ );
+        array = Array( arena, maxCount_ );
+        // The internal array is always marked as filled so we can lookup/store
+        // at arbitrary indices
+        array.count = maxCount_;
+        hashFunction = hashFunction_;
+
+        Clear();
+    }
+
+    void Clear()
+    {
+        for( int i = 0; i < array.maxCount; ++i )
+            array[i].filled = false;
+        // TODO Deallocate externally chained elements if we ever end up supporting that
+        count = 0;
+    }
+
+    u32 IndexFromKey( const K& key )
+    {
+        u32 hashValue = hashFunction( key );
+        u32 result = hashValue & (array.maxCount - 1);
+        return result;
+    }
+
+    T* Find( const K& key )
+    {
+        u32 idx = IndexFromKey( key );
+
+        HashSlot<T>* slot = &array[idx];
+        if( slot->filled )
+        {
+            do
+            {
+                // TODO Allow key comparisons different from bit-equality if needed
+                if( slot->key == key )
+                    return slot;
+
+                slot = slot->nextInHash;
+            } while( slot );
+        }
+
+        return nullptr;
+    }
+
+    void Add( const K& key, const T& value, MemoryArena* arena )
+    {
+        u32 idx = IndexFromKey( key );
+
+        HashSlot<T>* slot = &array[idx];
+        if( slot->filled )
+        {
+            do
+            {
+                // TODO Allow key comparisons different from bit-equality if needed
+                if( slot->key == key )
+                    break;
+
+                slot = slot->nextInHash;
+            } while( slot );
+
+            slot = PUSH_STRUCT( arena, T );
+        }
+
+        *slot = { true, key, value, nullptr };
+        count++;
+    }
+};
+
+// TODO N _must_ be a power of 2!
+template <typename K, typename T, u32 N>
+struct SHashTable : public HashTable<K, T>
+{
+    HashSlot storage[N];
+
+    SHashTable( MemoryArena* arena, HashFunction* hashFunction_ )
+        : HashTable( arena, hashFunction_ )
+    {
+        array.data = storage;
+        array.count = N;
+        array.maxCount = N;
+    }
+};
+
 /////     STRING     /////
 
 // NOTE We're using stdlib but still wrapping everything in case we wanna do something different in the future
-u32 Length( const char* cstring )
+inline u32
+Length( const char* cstring )
 {
     return (u32)strlen( cstring );
 }
@@ -275,21 +391,24 @@ struct Bucket
     Bucket *prev;
 };
 
-template <typename T, u32 N = 8>
-struct BucketList
-{
-    u32 count;
-    Bucket<T, N> first;
-    Bucket<T, N> *last;
-    // TODO Keep pointer(s) to non-full buckets
-};
-
+// TODO Implement using LinkedList?
 template <typename T, u32 N = 8>
 struct BucketArray
 {
     u32 count;
-    Bucket<T, N> *data;
+    Bucket<T, N> first;
+    Bucket<T, N> *last; // ?
+    // TODO Keep buckets compact when deleting items
+    // TODO Keep totally empty buckets in their own separate list for reusing later
+    Bucket<T, N>* firstFree;
 };
+
+//template <typename T, u32 N = 8>
+//struct BucketArray
+//{
+    //u32 count;
+    //Bucket<T, N> *data;
+//};
 
 
 /////     LINKED LIST    /////
@@ -402,7 +521,7 @@ struct Queue
 
 /////     CONCURRENT QUEUE     /////
 // TODO Test!
-// TODO Speed up using intrinsics and get rid of the mutex/condition variable
+// TODO Speed up using (lock-free) intrinsics and get rid of the mutex/condition variable
 
 template <typename T>
 struct ConcurrentQueue
