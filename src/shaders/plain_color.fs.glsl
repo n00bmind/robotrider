@@ -26,7 +26,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 in VertexData
 {
     flat uint color;
-    flat vec3 faceNormal;
 } _in;
 
 out vec4 outColor;

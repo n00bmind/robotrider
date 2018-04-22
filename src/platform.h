@@ -82,7 +82,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define KILOBYTES(value) ((value)*1024)
 #define MEGABYTES(value) (KILOBYTES(value)*1024)
-#define GIGABYTES(value) (MEGABYTES(value)*1024)
+#define GIGABYTES(value) (MEGABYTES((u64)value)*1024)
 
 
 // NOTE Only use these where storage is important (i.e: structs)

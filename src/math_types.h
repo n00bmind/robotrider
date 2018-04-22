@@ -332,6 +332,27 @@ V3Up()
     return result;
 }
 
+// Vector 3 integer
+
+union v3i
+{
+    struct
+    {
+        i32 x, y, z;
+    };
+    struct
+    {
+        v2i xy;
+        i32 _ignored0;
+    };
+    struct
+    {
+        i32 _ignored1;
+        v2i yz;
+    };
+    i32 e[3];
+};
+
 // Vector 4
 
 union v4

@@ -1582,8 +1582,8 @@ main( int argC, char **argV )
     globalPlatform.Log = PlatformLog;
 
     GameMemory gameMemory = {};
-    gameMemory.permanentStorageSize = MEGABYTES(64);
-    gameMemory.transientStorageSize = GIGABYTES((u64)1);
+    gameMemory.permanentStorageSize = GIGABYTES(2);
+    gameMemory.transientStorageSize = GIGABYTES(1);
     gameMemory.platformAPI = &globalPlatform;
 
     Win32GetFilePaths( &globalNativeState );
@@ -1696,7 +1696,7 @@ main( int argC, char **argV )
             {
                 LPVOID baseAddress = 0;
 #if DEBUG
-                baseAddress = (LPVOID)GIGABYTES((u64)2048);
+                baseAddress = (LPVOID)GIGABYTES(2048);
 #endif
 
                 // Allocate game memory pools
