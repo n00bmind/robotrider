@@ -55,6 +55,8 @@ struct HullChunk
     Mesh mesh;
     // TODO How're we gonna keep track of the generators so we can recreate everything
     // whenever the chunks get evicted from the hi list (stored) because they're too far?
+    // Answer: We're not gonna generate using connected paths anymore. Instead, each chunk
+    // must be correctly generated everytime just based on its coordinates.
     HullChunk* prev;
     GenPath* generator;
 };
@@ -129,10 +131,14 @@ struct World
     // TODO Is the previous sentence true?
     // TODO Investigate what a good bucket size is
     // TODO This would be a good thing to allocate in a transient arena (if we do the whole fetch-update-store cycle every frame)
-    BucketArray<LiveEntity, 4096> hiEntities;
-    // Handles to lo entities to allow arbitrary entity cross-referencing even for entities that move
+    BucketArray<LiveEntity, 4096> liveEntities;
+    // Handles to stored entities to allow arbitrary entity cross-referencing even for entities that move
     // across clusters
     SHashTable<u32, StoredEntity*, 1024> entityRefs;
+
+    // Coordinates of the current cluster
+    v3i pWorldOrigin;
+    v3i pLastWorldOrigin;
 
     r32 marchingAreaSize;
     r32 marchingCubeSize;

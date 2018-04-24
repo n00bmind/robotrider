@@ -108,6 +108,48 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
     // TODO Make an infinite connected 'cosmic grid structure'
     // so we can test for a good cluster size, evaluate current generation speeds,
     // debug moving across clusters, etc.
+    if( pWorldOrigin != pLastWorldOrigin )
+    {
+        for( int i = -SIM_APRON_RADIUS; i <= SIM_APRON_RADIUS; ++i )
+        {
+            for( int j = -SIM_APRON_RADIUS; j <= SIM_APRON_RADIUS; ++j )
+            {
+                for( int k = -SIM_APRON_RADIUS; k <= SIM_APRON_RADIUS; ++k )
+                {
+                    v3i pLastClusterCoords = world->pLastWorldOrigin + { i, j, k };
+
+                    // Evict all entities contained in a cluster which is now out of bounds
+                    if( !IsInSimApron( pLastClusterCoords, world->pWorldOrigin ) )
+                    {
+                        Cluster* cluster
+                            = world->clusterTable.Find( pLastClusterCoords );
+                        ...
+                    }
+                }
+            }
+        }
+
+        for( int i = -SIM_APRON_RADIUS; i <= SIM_APRON_RADIUS; ++i )
+        {
+            for( int j = -SIM_APRON_RADIUS; j <= SIM_APRON_RADIUS; ++j )
+            {
+                for( int k = -SIM_APRON_RADIUS; k <= SIM_APRON_RADIUS; ++k )
+                {
+                    v3i pClusterCoords = world->pWorldOrigin + { i, j, k };
+
+                    // Retrieve all entities contained in a cluster which is now inside bounds
+                    // and put them in the live entities list
+                    if( !IsInSimApron( pClusterCoords, world->pLastWorldOrigin ) )
+                    {
+                        Cluster* cluster
+                            = world->clusterTable.Find( pClusterCoords );
+                        ...
+                    }
+                }
+            }
+        }
+    }
+
     if( !world->pathsBuffer || input->executableReloaded )
     {
         v3 vForward = V3Forward();
