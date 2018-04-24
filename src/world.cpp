@@ -33,10 +33,10 @@ internal SArray<Vertex, 65536> genVertices;
 internal SArray<Triangle, 256*1024> genTriangles;
 #endif
 
-internal u32 clusterHashFunction( const v3& keyValue, u32 bitCount )
+internal u32 clusterHashFunction( const v3i& keyValue, u32 bitCount )
 {
     // TODO Better hash function! x)
-    u32 hashValue = 19*value.pWorld.x + 7*value.pWorld.y + 3*valu.pWorld.z;
+    u32 hashValue = (u32)(19*keyValue.x + 7*keyValue.y + 3*keyValue.z);
     return hashValue;
 }
 
@@ -98,8 +98,7 @@ InitWorld( World* world, MemoryArena* worldArena )
     world->marchingCubeSize = 1;
     srand( 1234 );
 
-    //world->clusterTable.Init( worldArena, 1024*1024, clusterHashFunction );
-    world->clusterTable = SHashTable( worldArena, clusterHashFunction );
+    world->clusterTable = HashTable<v3i, Cluster>( worldArena, 256*1024, clusterHashFunction );
 }
 
 internal void
@@ -108,13 +107,14 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
     // TODO Make an infinite connected 'cosmic grid structure'
     // so we can test for a good cluster size, evaluate current generation speeds,
     // debug moving across clusters, etc.
+#if 0
     if( pWorldOrigin != pLastWorldOrigin )
     {
-        for( int i = -SIM_APRON_RADIUS; i <= SIM_APRON_RADIUS; ++i )
+        for( int i = -SIM_APRON_WIDTH; i <= SIM_APRON_WIDTH; ++i )
         {
-            for( int j = -SIM_APRON_RADIUS; j <= SIM_APRON_RADIUS; ++j )
+            for( int j = -SIM_APRON_WIDTH; j <= SIM_APRON_WIDTH; ++j )
             {
-                for( int k = -SIM_APRON_RADIUS; k <= SIM_APRON_RADIUS; ++k )
+                for( int k = -SIM_APRON_WIDTH; k <= SIM_APRON_WIDTH; ++k )
                 {
                     v3i pLastClusterCoords = world->pLastWorldOrigin + { i, j, k };
 
@@ -129,11 +129,11 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
             }
         }
 
-        for( int i = -SIM_APRON_RADIUS; i <= SIM_APRON_RADIUS; ++i )
+        for( int i = -SIM_APRON_WIDTH; i <= SIM_APRON_WIDTH; ++i )
         {
-            for( int j = -SIM_APRON_RADIUS; j <= SIM_APRON_RADIUS; ++j )
+            for( int j = -SIM_APRON_WIDTH; j <= SIM_APRON_WIDTH; ++j )
             {
-                for( int k = -SIM_APRON_RADIUS; k <= SIM_APRON_RADIUS; ++k )
+                for( int k = -SIM_APRON_WIDTH; k <= SIM_APRON_WIDTH; ++k )
                 {
                     v3i pClusterCoords = world->pWorldOrigin + { i, j, k };
 
@@ -149,12 +149,13 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
             }
         }
     }
+#endif
 
     if( !world->pathsBuffer || input->executableReloaded )
     {
         v3 vForward = V3Forward();
         v3 vUp = V3Up();
-        world->pathsBuffer.Init( arena, 1000 );
+        world->pathsBuffer = Array<GenPath>( arena, 1000 );
         world->pathsBuffer.Add( 
         {
             V3Zero(),
@@ -176,7 +177,7 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
 
     if( !world->hullMeshes )
     {
-        world->hullMeshes.Init( arena, 10000 );
+        world->hullMeshes = Array<Mesh>( arena, 10000 );
 
         if( firstStepOnly )
             world->hullMeshes.Place();

@@ -118,17 +118,17 @@ struct HashTable
         HashSlot* nextInHash;
     };
 
+
     Array<HashSlot> array;
     u32 count;
     HashFunction* hashFunction;
 
     HashTable( MemoryArena* arena, u32 maxCount_, HashFunction* hashFunction_ )
+        : array( arena, maxCount_ )
     {
-        // FIXME Check maxCount_ is a power of 2
-        //ASSERT( maxCount_ && ((maxCount_ & (maxCount_ - 1) == 0) );
+        // Check maxCount_ is a power of 2
+        ASSERT( maxCount_ && ((maxCount_ & (maxCount_ - 1)) == 0) );
 
-        //array.Init( arena, maxCount_ );
-        array = Array( arena, maxCount_ );
         // The internal array is always marked as filled so we can lookup/store
         // at arbitrary indices
         array.count = maxCount_;
@@ -139,7 +139,7 @@ struct HashTable
 
     void Clear()
     {
-        for( int i = 0; i < array.maxCount; ++i )
+        for( u32 i = 0; i < array.maxCount; ++i )
             array[i].filled = false;
         // TODO Deallocate externally chained elements if we ever end up supporting that
         count = 0;
@@ -193,21 +193,6 @@ struct HashTable
 
         *slot = { true, key, value, nullptr };
         count++;
-    }
-};
-
-// TODO N _must_ be a power of 2!
-template <typename K, typename T, u32 N>
-struct SHashTable : public HashTable<K, T>
-{
-    HashSlot storage[N];
-
-    SHashTable( MemoryArena* arena, HashFunction* hashFunction_ )
-        : HashTable( arena, hashFunction_ )
-    {
-        array.data = storage;
-        array.count = N;
-        array.maxCount = N;
     }
 };
 
@@ -391,7 +376,6 @@ struct Bucket
     Bucket *prev;
 };
 
-// TODO Implement using LinkedList?
 template <typename T, u32 N = 8>
 struct BucketArray
 {
@@ -586,12 +570,13 @@ void TestDataTypes()
     ConcurrentQueue<Dummy> q;
     Bucket<float> bucket;
 
-    Array<v3> dynArray;
+    // This now requires a memory arena for construction
+    //Array<v3> dynArray;
     SArray<v3, 10> stArray;
     v3 aLotOfVecs[10];
 
-    dynArray.data = aLotOfVecs;
-    dynArray.maxCount = ARRAYCOUNT(aLotOfVecs);
+    //dynArray.data = aLotOfVecs;
+    //dynArray.maxCount = ARRAYCOUNT(aLotOfVecs);
 }
 
 #endif /* __DATA_TYPES_H__ */

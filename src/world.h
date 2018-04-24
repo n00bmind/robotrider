@@ -56,7 +56,7 @@ struct HullChunk
     // TODO How're we gonna keep track of the generators so we can recreate everything
     // whenever the chunks get evicted from the hi list (stored) because they're too far?
     // Answer: We're not gonna generate using connected paths anymore. Instead, each chunk
-    // must be correctly generated everytime just based on its coordinates.
+    // must be correctly and deterministically generated everytime just based on its coordinates.
     HullChunk* prev;
     GenPath* generator;
 };
@@ -79,14 +79,6 @@ struct HullChunk
 // Our RNG will be totally deterministic, so any given cluster can (must) be filled in a deterministic way.
 // (this implies getting rid of the always-connected pipes, at least in the way we do them now).
 
-struct LiveEntity
-{
-    StoredEntity stored;
-
-    // Relative position (always relative to the current sim-region center)
-    v3 p;
-};
-
 // Minimal stored version of an entity
 // (for entities that have it)
 struct StoredEntity
@@ -98,6 +90,14 @@ struct StoredEntity
 
     // TODO Are we sure we want to have to regenerate the mesh?
     //Generator generator;
+};
+
+struct LiveEntity
+{
+    StoredEntity stored;
+
+    // Relative position (always relative to the current sim-region center)
+    v3 p;
 };
 
 struct Cluster
@@ -124,7 +124,7 @@ struct World
 
     // 'REAL' stuff
     // For now this will be the primary storage for (stored) entities
-    SHashTable<v3i, Cluster, 1024*1024> clusterTable;
+    HashTable<v3i, Cluster> clusterTable;
     // Scratch buffer for all the entities in the simulation region
     // (we take the clusters we want to simulate, expand the entities stored there to their live version, and then store them back)
     // (clusters around the player are always kept live)
@@ -134,7 +134,7 @@ struct World
     BucketArray<LiveEntity, 4096> liveEntities;
     // Handles to stored entities to allow arbitrary entity cross-referencing even for entities that move
     // across clusters
-    SHashTable<u32, StoredEntity*, 1024> entityRefs;
+    HashTable<u32, StoredEntity*> entityRefs;
 
     // Coordinates of the current cluster
     v3i pWorldOrigin;
