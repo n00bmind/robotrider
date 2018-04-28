@@ -101,8 +101,13 @@ typedef double r64;
 
 typedef size_t sz;
 
+#define I32MAX INT_MAX
+#define I32MIN INT_MIN
+
 #define R32MAX FLT_MAX
 #define R32MIN FLT_MIN
+#define R32INF INFINITY
+#define R32NAN NAN
 
 
 //

@@ -788,12 +788,13 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 
             newController->rightStick.endY = Win32ProcessXInputStickValue( pad->sThumbRY,
                                                                            XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE );
-            // TODO Left/right triggers
-
             newController->rightStick.avgY
                 = (newController->rightStick.startY + newController->rightStick.endY) / 2;
 
-            if( newController->leftStick.avgX != 0.0f || newController->leftStick.avgY != 0.0f )
+            // TODO Left/right triggers
+
+            if( newController->leftStick.avgX != 0.0f || newController->leftStick.avgY != 0.0f ||
+                newController->rightStick.avgX != 0.0f || newController->rightStick.avgY != 0.0f )
             {
                 newController->isAnalog = true;
             }

@@ -32,14 +32,6 @@ struct FlyingDude
     m4 mTransform;
 };
 
-struct CubeThing
-{
-    v3 vertices[4];
-    u32 indices[6];
-
-    m4 mTransform;
-};
-
 struct Mesh
 {
     TexturedVertex* vertices;
@@ -108,6 +100,8 @@ struct Cluster
     BucketArray<StoredEntity, 256> entityBuckets;
 };
 
+#define SIM_APRON_WIDTH 0
+
 struct World
 {
     v3 pPlayer;
@@ -115,9 +109,6 @@ struct World
     r32 playerYaw;
 
     FlyingDude *playerDude;
-
-    CubeThing *cubes;
-    u32 cubeCount;
 
     Array<Mesh> hullMeshes;
     Array<GenPath> pathsBuffer;

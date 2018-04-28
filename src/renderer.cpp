@@ -171,6 +171,7 @@ PushRenderGroup( FlyingDude *dude, GameRenderCommands *commands )
     }
 }
 
+/*
 void
 PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
 {
@@ -199,6 +200,7 @@ PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
         entry->indexCount += indexCount;
     }
 }
+*/
 
 void
 PushLine( v3 pStart, v3 pEnd, u32 color, GameRenderCommands *commands )

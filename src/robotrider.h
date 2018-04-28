@@ -131,6 +131,8 @@ struct GameControllerInput
     GameStickState leftStick;
     GameStickState rightStick;
 
+    // TODO Left/right triggers
+
     union
     {
         struct

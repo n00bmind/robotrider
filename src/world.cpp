@@ -62,34 +62,6 @@ InitWorld( World* world, MemoryArena* worldArena )
     };
     playerDude.mTransform = M4Identity();
 
-    int rowSize = 31;
-    int rowHalf = rowSize >> 1;
-    world->cubeCount = rowSize * rowSize;
-    world->cubes = PUSH_ARRAY( worldArena, world->cubeCount, CubeThing );
-
-    for( u32 i = 0; i < world->cubeCount; ++i )
-    {
-        CubeThing &cube = world->cubes[i];
-        cube =
-        {
-            {
-                { -0.5f,    -0.5f,      0.0f },
-                { -0.5f,     0.5f,      0.0f },
-                {  0.5f,    -0.5f,      0.0f },
-                {  0.5f,     0.5f,      0.0f },
-            },
-            {
-                0, 1, 2,
-                2, 1, 3
-            },
-        };
-
-        r32 transX = (((i32)i % rowSize) - rowHalf) * 2.0f;
-        r32 transY = ((i32)i / rowSize) * 2.0f;
-
-        cube.mTransform = Translation( { transX, transY, -1.0f } );
-    }
-
 #if 0
     LoadOBJ( DATA_RELATIVE_PATH "bunny.obj", &testVertices, &testIndices );
 #endif
@@ -99,6 +71,23 @@ InitWorld( World* world, MemoryArena* worldArena )
     srand( 1234 );
 
     world->clusterTable = HashTable<v3i, Cluster>( worldArena, 256*1024, clusterHashFunction );
+
+    world->pWorldOrigin = { 0, 0, 0 };
+    world->pLastWorldOrigin = { I32MAX, I32MAX, I32MAX };
+}
+
+internal void
+StoreEntitiesInCluster( const v3i& clusterCoords, World* world )
+{
+    Cluster* cluster = world->clusterTable.Find( clusterCoords );
+
+}
+
+internal void
+LoadEntitiesInCluster( const v3i& clusterCoords, World* world )
+{
+    Cluster* cluster = world->clusterTable.Find( clusterCoords );
+
 }
 
 internal void
@@ -107,7 +96,7 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
     // TODO Make an infinite connected 'cosmic grid structure'
     // so we can test for a good cluster size, evaluate current generation speeds,
     // debug moving across clusters, etc.
-#if 0
+
     if( pWorldOrigin != pLastWorldOrigin )
     {
         for( int i = -SIM_APRON_WIDTH; i <= SIM_APRON_WIDTH; ++i )
@@ -121,9 +110,7 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
                     // Evict all entities contained in a cluster which is now out of bounds
                     if( !IsInSimApron( pLastClusterCoords, world->pWorldOrigin ) )
                     {
-                        Cluster* cluster
-                            = world->clusterTable.Find( pLastClusterCoords );
-                        ...
+                        StoreEntitiesInCluster( pLastClusterCoords, world );
                     }
                 }
             }
@@ -141,15 +128,12 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
                     // and put them in the live entities list
                     if( !IsInSimApron( pClusterCoords, world->pLastWorldOrigin ) )
                     {
-                        Cluster* cluster
-                            = world->clusterTable.Find( pClusterCoords );
-                        ...
+                        LoadEntitiesInCluster( pClusterCoords, world );
                     }
                 }
             }
         }
     }
-#endif
 
     if( !world->pathsBuffer || input->executableReloaded )
     {
@@ -278,12 +262,6 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
     }
 
     PushRenderGroup( world->playerDude, renderCommands);
-
-    for( u32 i = 0; i < world->cubeCount; ++i )
-    {
-        CubeThing *cube = world->cubes + i;
-        PushRenderGroup( cube, renderCommands);
-    }
 
     {
         FlyingDude *playerDude = world->playerDude;
