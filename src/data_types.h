@@ -172,7 +172,7 @@ struct HashTable
         return nullptr;
     }
 
-    bool Add( const K& key, const T& value, MemoryArena* arena )
+    T* Add( const K& key, const T& value, MemoryArena* arena )
     {
         u32 idx = IndexFromKey( key );
 
@@ -184,7 +184,7 @@ struct HashTable
             {
                 // TODO Allow key comparisons different from bit-equality if needed
                 if( slot->key == key )
-                    return false;
+                    return nullptr;
 
                 prev = slot;
                 slot = slot->nextInHash;
@@ -197,7 +197,7 @@ struct HashTable
         *slot = { true, key, value, nullptr };
         count++;
 
-        return true;
+        return &slot->value;
     }
 };
 

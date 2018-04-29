@@ -93,7 +93,7 @@ struct Generator
     GeneratorFunc* func;
 };
 
-#define INIT_GENERATOR(t) (Generator##t){ { t, Generator##tFunc } }
+#define INIT_GENERATOR(t) (Generator##t){ { GeneratorType::t, Generator##t##Func } }
 
 struct GeneratorPath
 {

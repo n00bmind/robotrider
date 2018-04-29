@@ -40,6 +40,8 @@ internal u32 clusterHashFunction( const v3i& keyValue )
     return hashValue;
 }
 
+#define INITIAL_CLUSTER_COORDS V3I( I32MAX, I32MAX, I32MAX )
+
 void
 InitWorld( World* world, MemoryArena* worldArena )
 {
@@ -73,7 +75,8 @@ InitWorld( World* world, MemoryArena* worldArena )
     world->clusterTable = HashTable<v3i, Cluster>( worldArena, 256*1024, clusterHashFunction );
 
     world->pWorldOrigin = { 0, 0, 0 };
-    world->pLastWorldOrigin = { I32MAX, I32MAX, I32MAX };
+    world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
+    world->hullNodeGenerator = INIT_GENERATOR( HullNode );
 }
 
 internal void
@@ -114,7 +117,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
     if( !cluster )
     {
         Cluster newCluster = { false, BucketArray<StoredEntity>( 256, arena ) };
-        world->clusterTable.Add( clusterCoords, newCluster, arena );
+        cluster = world->clusterTable.Add( clusterCoords, newCluster, arena );
     }
 
     if( !cluster->populated )
@@ -151,7 +154,7 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
     if( !cluster )
     {
         // Should only happen on the very first iteration
-        ASSERT( world->clusterTable.count == 0 );
+        ASSERT( clusterCoords == INITIAL_CLUSTER_COORDS );
         return;
     }
 
