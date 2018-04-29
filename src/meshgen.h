@@ -23,6 +23,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MESHGEN_H__
 #define __MESHGEN_H__ 
 
+
+struct Mesh
+{
+    TexturedVertex* vertices;
+    u32* indices;
+    u32 vertexCount;
+    u32 indexCount;
+
+    m4 mTransform;
+};
+
 struct Vertex
 {
     v3 p;
@@ -67,13 +78,27 @@ enum class IsoSurfaceType
     Cylinder,
 };
 
-struct StoredGenPath
+enum class GeneratorType
 {
-
+    Path,
+    HullNode,
 };
 
-struct GenPath
+struct Generator;
+typedef Mesh GeneratorFunc( Generator* generator ); //, const v3& p );
+
+struct Generator
 {
+    GeneratorType type;
+    GeneratorFunc* func;
+};
+
+#define INIT_GENERATOR(t) (Generator##t){ { t, Generator##tFunc } }
+
+struct GeneratorPath
+{
+    Generator header;
+
     // Center point and area around it for cube marching
     v3 pCenter;
     r32 areaSideMeters;
@@ -93,7 +118,13 @@ struct GenPath
     r32 distanceToNextFork;
     m4* nextBasis;
     // TODO Support multiple forks?
-    GenPath* nextFork;
+    GeneratorPath* nextFork;
+};
+
+struct GeneratorHullNode
+{
+    Generator header;
+
 };
 
 #endif /* __MESHGEN_H__ */

@@ -33,7 +33,7 @@ internal SArray<Vertex, 65536> genVertices;
 internal SArray<Triangle, 256*1024> genTriangles;
 #endif
 
-internal u32 clusterHashFunction( const v3i& keyValue, u32 bitCount )
+internal u32 clusterHashFunction( const v3i& keyValue )
 {
     // TODO Better hash function! x)
     u32 hashValue = (u32)(19*keyValue.x + 7*keyValue.y + 3*keyValue.z);
@@ -77,17 +77,116 @@ InitWorld( World* world, MemoryArena* worldArena )
 }
 
 internal void
-StoreEntitiesInCluster( const v3i& clusterCoords, World* world )
+CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, World* world, MemoryArena* arena )
 {
-    Cluster* cluster = world->clusterTable.Find( clusterCoords );
+    const r32 margin = 5.f;
 
+    // TEST Place an entity every 5 meters, leaving some margin
+    for( r32 i = -CLUSTER_HALF_SIZE_METERS + margin; i <= CLUSTER_HALF_SIZE_METERS - margin; i += 5.f )
+    {
+        for( r32 j = -CLUSTER_HALF_SIZE_METERS + margin; j <= CLUSTER_HALF_SIZE_METERS - margin; j += 5.f )
+        {
+            for( r32 k = -CLUSTER_HALF_SIZE_METERS + margin; k <= CLUSTER_HALF_SIZE_METERS - margin; k += 5.f )
+            {
+                cluster->entityStorage.Add(
+                {
+                    clusterCoords,
+                    V3( i, j, k ),
+                    (Generator*)&world->hullNodeGenerator,
+                }, arena );
+            }
+        }
+    }
+}
+
+internal v3
+GetClusterWorldOffset( const v3i& clusterCoords, const World* world )
+{
+    v3 result = V3(clusterCoords - world->pWorldOrigin) * CLUSTER_HALF_SIZE_METERS * 2;
+    return result;
 }
 
 internal void
-LoadEntitiesInCluster( const v3i& clusterCoords, World* world )
+LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena )
 {
     Cluster* cluster = world->clusterTable.Find( clusterCoords );
 
+    if( !cluster )
+    {
+        Cluster newCluster = { false, BucketArray<StoredEntity>( 256, arena ) };
+        world->clusterTable.Add( clusterCoords, newCluster, arena );
+    }
+
+    if( !cluster->populated )
+    {
+        CreateEntitiesInCluster( clusterCoords, cluster, world, arena );
+        cluster->populated = true;
+    }
+
+    v3 vClusterWorldOffset = GetClusterWorldOffset( clusterCoords, world );
+
+    BucketArray<StoredEntity>::Idx it = cluster->entityStorage.First();
+    while( it )
+    {
+        StoredEntity& storedEntity = it;
+
+        // Make live entity from stored and put it in the world
+        LiveEntity liveEntity = 
+        {
+            storedEntity,
+            vClusterWorldOffset + storedEntity.pClusterOffset,
+            storedEntity.generator->func( storedEntity.generator ),
+        };
+        world->liveEntities.Add( liveEntity, arena );
+
+        it.Next();
+    }
+}
+
+internal void
+StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena )
+{
+    Cluster* cluster = world->clusterTable.Find( clusterCoords );
+
+    if( !cluster )
+    {
+        // Should only happen on the very first iteration
+        ASSERT( world->clusterTable.count == 0 );
+        return;
+    }
+
+    cluster->entityStorage.Clear();
+    v3 vClusterWorldOffset = GetClusterWorldOffset( clusterCoords, world );
+
+    BucketArray<LiveEntity>::Idx it = world->liveEntities.Last();
+    while( it )
+    {
+        LiveEntity& liveEntity = ((LiveEntity&)it);
+        v3 pClusterOffset = liveEntity.p - vClusterWorldOffset;
+        if( pClusterOffset.x > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.x < CLUSTER_HALF_SIZE_METERS &&
+            pClusterOffset.y > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.y < CLUSTER_HALF_SIZE_METERS &&
+            pClusterOffset.z > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.z < CLUSTER_HALF_SIZE_METERS )
+        {
+            StoredEntity& storedEntity = liveEntity.stored;
+            storedEntity.pCluster = clusterCoords;
+            storedEntity.pClusterOffset = pClusterOffset;
+
+            cluster->entityStorage.Add( storedEntity, arena );
+            world->liveEntities.Remove( it );
+        }
+
+        it.Prev();
+    }
+}
+
+internal bool
+IsInSimApron( const v3i& pClusterCoords, const v3i& pWorldOrigin )
+{
+    v3i vRelativeCoords = pClusterCoords - pWorldOrigin;
+
+    return vRelativeCoords.x >= -SIM_APRON_WIDTH && vRelativeCoords.x <= SIM_APRON_WIDTH &&
+        vRelativeCoords.y >= -SIM_APRON_WIDTH && vRelativeCoords.y <= SIM_APRON_WIDTH &&
+        vRelativeCoords.z >= -SIM_APRON_WIDTH && vRelativeCoords.z <= SIM_APRON_WIDTH;
 }
 
 internal void
@@ -97,7 +196,7 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
     // so we can test for a good cluster size, evaluate current generation speeds,
     // debug moving across clusters, etc.
 
-    if( pWorldOrigin != pLastWorldOrigin )
+    if( world->pWorldOrigin != world->pLastWorldOrigin )
     {
         for( int i = -SIM_APRON_WIDTH; i <= SIM_APRON_WIDTH; ++i )
         {
@@ -105,12 +204,12 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
             {
                 for( int k = -SIM_APRON_WIDTH; k <= SIM_APRON_WIDTH; ++k )
                 {
-                    v3i pLastClusterCoords = world->pLastWorldOrigin + { i, j, k };
+                    v3i pLastClusterCoords = world->pLastWorldOrigin + V3I( i, j, k );
 
                     // Evict all entities contained in a cluster which is now out of bounds
                     if( !IsInSimApron( pLastClusterCoords, world->pWorldOrigin ) )
                     {
-                        StoreEntitiesInCluster( pLastClusterCoords, world );
+                        StoreEntitiesInCluster( pLastClusterCoords, world, arena );
                     }
                 }
             }
@@ -122,24 +221,25 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
             {
                 for( int k = -SIM_APRON_WIDTH; k <= SIM_APRON_WIDTH; ++k )
                 {
-                    v3i pClusterCoords = world->pWorldOrigin + { i, j, k };
+                    v3i pClusterCoords = world->pWorldOrigin + V3I( i, j, k );
 
                     // Retrieve all entities contained in a cluster which is now inside bounds
                     // and put them in the live entities list
                     if( !IsInSimApron( pClusterCoords, world->pLastWorldOrigin ) )
                     {
-                        LoadEntitiesInCluster( pClusterCoords, world );
+                        LoadEntitiesInCluster( pClusterCoords, world, arena );
                     }
                 }
             }
         }
     }
 
+#if 0
     if( !world->pathsBuffer || input->executableReloaded )
     {
         v3 vForward = V3Forward();
         v3 vUp = V3Up();
-        world->pathsBuffer = Array<GenPath>( arena, 1000 );
+        world->pathsBuffer = Array<GeneratorPath>( arena, 1000 );
         world->pathsBuffer.Add( 
         {
             V3Zero(),
@@ -154,7 +254,6 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
         } );
     }
 
-    // TODO Switch to HullChunk (and then to generic entities)
     // TODO Decide how to pack entities for archival using minimal data
     // (probably just use the GenPaths at each chunk position and regenerate)
     // TODO Implement simulation regions
@@ -171,10 +270,10 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
     {
         // TODO This is all temporary
         // We need to plan this with care. Keep the buffer sorted by distance to player always
-        GenPath* currentPath = nullptr;
+        GeneratorPath* currentPath = nullptr;
         for( u32 i = 0; i < world->pathsBuffer.count; ++i )
         {
-            GenPath* path = &world->pathsBuffer[i];
+            GeneratorPath* path = &world->pathsBuffer[i];
             if( DistanceSq( path->pCenter, world->pPlayer ) < 10000 )
             {
                 currentPath = path;
@@ -184,7 +283,7 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
 
         if( currentPath )
         {
-            GenPath fork;
+            GeneratorPath fork;
             Mesh* outMesh = firstStepOnly ? &world->hullMeshes[0] : world->hullMeshes.Place();
 
             u32 numForks =
@@ -193,6 +292,7 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
                 world->pathsBuffer.Add( fork );
         }
     }
+#endif
 }
 
 void

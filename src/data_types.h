@@ -108,30 +108,30 @@ struct SArray : public Array<T>
 template <typename K, typename T>
 struct HashTable
 {
-    typedef u32 HashFunction( const K& key, u32 bitCount );
+    typedef u32 HashFunction( const K& key );
 
     struct HashSlot
     {
-        bool filled;
+        bool occupied;
         K key;
         T value;
         HashSlot* nextInHash;
     };
 
 
-    Array<HashSlot> array;
+    HashSlot* table;
+    u32 tableSize;
     u32 count;
     HashFunction* hashFunction;
 
-    HashTable( MemoryArena* arena, u32 maxCount_, HashFunction* hashFunction_ )
-        : array( arena, maxCount_ )
+    HashTable( MemoryArena* arena, u32 size, HashFunction* hashFunction_ )
     {
-        // Check maxCount_ is a power of 2
-        ASSERT( maxCount_ && ((maxCount_ & (maxCount_ - 1)) == 0) );
+        // Check size is a power of 2
+        ASSERT( size && ((size & (size - 1)) == 0) );
 
-        // The internal array is always marked as filled so we can lookup/store
-        // at arbitrary indices
-        array.count = maxCount_;
+        table = PUSH_ARRAY( arena, size, HashSlot );
+        tableSize = size;
+        count = 0;
         hashFunction = hashFunction_;
 
         Clear();
@@ -139,16 +139,16 @@ struct HashTable
 
     void Clear()
     {
-        for( u32 i = 0; i < array.maxCount; ++i )
-            array[i].filled = false;
-        // TODO Deallocate externally chained elements if we ever end up supporting that
+        for( u32 i = 0; i < tableSize; ++i )
+            table[i].occupied = false;
+        // TODO Add existing externally chained elements to a free list like in BucketArray
         count = 0;
     }
 
     u32 IndexFromKey( const K& key )
     {
         u32 hashValue = hashFunction( key );
-        u32 result = hashValue & (array.maxCount - 1);
+        u32 result = hashValue & (tableSize - 1);
         return result;
     }
 
@@ -156,14 +156,14 @@ struct HashTable
     {
         u32 idx = IndexFromKey( key );
 
-        HashSlot<T>* slot = &array[idx];
-        if( slot->filled )
+        HashSlot* slot = &table[idx];
+        if( slot->occupied )
         {
             do
             {
                 // TODO Allow key comparisons different from bit-equality if needed
                 if( slot->key == key )
-                    return slot;
+                    return &slot->value;
 
                 slot = slot->nextInHash;
             } while( slot );
@@ -172,27 +172,32 @@ struct HashTable
         return nullptr;
     }
 
-    void Add( const K& key, const T& value, MemoryArena* arena )
+    bool Add( const K& key, const T& value, MemoryArena* arena )
     {
         u32 idx = IndexFromKey( key );
 
-        HashSlot<T>* slot = &array[idx];
-        if( slot->filled )
+        HashSlot* prev = nullptr;
+        HashSlot* slot = &table[idx];
+        if( slot->occupied )
         {
             do
             {
                 // TODO Allow key comparisons different from bit-equality if needed
                 if( slot->key == key )
-                    break;
+                    return false;
 
+                prev = slot;
                 slot = slot->nextInHash;
             } while( slot );
 
-            slot = PUSH_STRUCT( arena, T );
+            slot = PUSH_STRUCT( arena, HashSlot );
+            prev->nextInHash = slot;
         }
 
         *slot = { true, key, value, nullptr };
         count++;
+
+        return true;
     }
 };
 
@@ -360,39 +365,173 @@ struct String
     }
 };
 
+
 // TODO
 /////     BUCKET ARRAY     /////
 
-template <typename T, u32 N = 8>
-struct Bucket
-{
-    T data[N];
-    bool occupied[N];
-
-    u32 count;
-    u32 bucketIndex;
-
-    Bucket *next;
-    Bucket *prev;
-};
-
-template <typename T, u32 N = 8>
+template <typename T>
 struct BucketArray
 {
-    u32 count;
-    Bucket<T, N> first;
-    Bucket<T, N> *last; // ?
-    // TODO Keep buckets compact when deleting items
-    // TODO Keep totally empty buckets in their own separate list for reusing later
-    Bucket<T, N>* firstFree;
-};
+    struct Bucket
+    {
+        T* data;
+        u32 size;
 
-//template <typename T, u32 N = 8>
-//struct BucketArray
-//{
-    //u32 count;
-    //Bucket<T, N> *data;
-//};
+        u32 count;
+
+        Bucket *next;
+        Bucket *prev;
+
+        Bucket( u32 size_, MemoryArena* arena )
+        {
+            data = PUSH_ARRAY( arena, size_, T );
+            size = size_;
+            count = 0;
+            next = prev = nullptr;
+        }
+
+        void Clear()
+        {
+            count = 0;
+            next = prev = nullptr;
+        }
+    };
+
+    struct Idx
+    {
+        Bucket* base;
+        u32 index;
+
+        operator bool() const
+        {
+            return IsValid();
+        }
+
+        operator T&() const
+        {
+            ASSERT( *this );
+            return base->data[index];
+        }
+
+        bool IsValid() const
+        {
+            return base && index < base->count;
+        }
+
+        void Next()
+        {
+            if( index < base->count )
+                index++;
+            else
+            {
+                base = base->next;
+                index = 0;
+            }
+        }
+
+        void Prev()
+        {
+            if( index > 0 )
+                index--;
+            else
+            {
+                base = base->prev;
+                index = base ? base->count - 1 : 0;
+            }
+        }
+    };
+
+
+    u32 count;
+    Bucket first;
+    Bucket *last; // ?
+    // TODO Keep buckets compact when deleting items
+    // TODO Keep buckets that become totally empty in their own separate list for reusing later
+    Bucket* firstFree;
+
+
+    BucketArray( u32 bucketSize, MemoryArena* arena )
+        : first( bucketSize, arena )
+    {
+        count = 0;
+        last = &first;
+        firstFree = nullptr;
+    }
+
+    void Add( const T& item, MemoryArena* arena )
+    {
+        if( last->count == last->size )
+        {
+            Bucket* newBucket;
+            if( firstFree )
+            {
+                newBucket = firstFree;
+                firstFree = firstFree->next;
+                newBucket->Clear();
+            }
+            else
+            {
+                newBucket = PUSH_STRUCT( arena, Bucket );
+                *newBucket = Bucket( first.size, arena );
+            }
+            newBucket->prev = last;
+            last->next = newBucket;
+
+            last = newBucket;
+        }
+
+        last->data[last->count++] = item;
+        count++;
+    }
+
+    void Remove( const Idx& index )
+    {
+        ASSERT( index.IsValid() );
+
+        // If index is not pointing to last item, find last item and swap it
+        if( index.base != last || index.index != last->count - 1 )
+        {
+            T& lastItem = last->data[last->count - 1];
+            (T&)index = lastItem;
+        }
+
+        last->count--;
+        if( last->count == 0 && last != &first )
+        {
+            // Empty now, so place it at the beginning of the free list
+            last->next = firstFree;
+            firstFree = last;
+
+            last = last->prev;
+        }
+
+        count--;
+    }
+
+    void Clear()
+    {
+        if( last != &first )
+        {
+            // Place all chained buckets in the free list
+            last->next = firstFree;
+            firstFree = first.next;
+        }
+
+        first.Clear();
+        count = 0;
+        last = &first;
+    }
+
+    Idx First()
+    {
+        return { &first, 0 };
+    }
+
+    Idx Last()
+    {
+        return { last, last->count - 1 };
+    }
+};
 
 
 /////     LINKED LIST    /////
@@ -568,9 +707,9 @@ struct Dummy
 void TestDataTypes()
 {
     ConcurrentQueue<Dummy> q;
-    Bucket<float> bucket;
 
     // This now requires a memory arena for construction
+    //BucketArray<float> bkArray;
     //Array<v3> dynArray;
     SArray<v3, 10> stArray;
     v3 aLotOfVecs[10];

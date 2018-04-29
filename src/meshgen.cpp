@@ -570,7 +570,7 @@ void FastQuadricSimplify( GeneratedMesh* mesh, u32 targetTriCount, r32 agressive
 internal r32
 SampleCuboid( const void* sampleData, const v3& p )
 {
-    GenPath* path = (GenPath*)sampleData;
+    GeneratorPath* path = (GeneratorPath*)sampleData;
     v3 vRight = GetXBasis( path->basis );
     v3 vForward = GetYBasis( path->basis );
     v3 vUp = GetZBasis( path->basis );
@@ -634,7 +634,7 @@ SampleCuboid( const void* sampleData, const v3& p )
 internal r32
 SampleCylinder( const void* sampleData, const v3& p )
 {
-    GenPath* path = (GenPath*)sampleData;
+    GeneratorPath* path = (GeneratorPath*)sampleData;
     v3 vForward = GetYBasis( path->basis );
 
     v3 vP = p - path->pCenter;
@@ -648,8 +648,8 @@ SampleCylinder( const void* sampleData, const v3& p )
 }
 
 u32
-GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, MemoryArena* arena,
-                     Mesh* outMesh, GenPath* nextFork )
+GenerateOnePathStep( GeneratorPath* path, r32 resolutionMeters, bool advancePosition, MemoryArena* arena,
+                     Mesh* outMesh, GeneratorPath* nextFork )
 {
     bool turnInThisStep = path->distanceToNextTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToNextFork < path->areaSideMeters;
