@@ -61,16 +61,16 @@ struct Array
         return data != nullptr;
     }
 
-    void Add( const T& item )
-    {
-        ASSERT( count < maxCount );
-        data[count++] = item;
-    }
-
-    T* Place()
+    T* Reserve()
     {
         ASSERT( count < maxCount );
         return data + count++;
+    }
+
+    void Add( const T& item )
+    {
+        T* slot = Reserve();
+        *slot = item;
     }
 
     void BlitTo( T* buffer ) const
@@ -172,7 +172,7 @@ struct HashTable
         return nullptr;
     }
 
-    T* Add( const K& key, const T& value, MemoryArena* arena )
+    T* Reserve( const K& key, MemoryArena* arena )
     {
         u32 idx = IndexFromKey( key );
 
@@ -194,11 +194,25 @@ struct HashTable
             prev->nextInHash = slot;
         }
 
-        *slot = { true, key, value, nullptr };
         count++;
+        slot->occupied = true;
+        slot->key = key;
+        slot->nextInHash = nullptr;
 
         return &slot->value;
     }
+
+    void Add( const K& key, const T& value, MemoryArena* arena )
+    {
+        T* slotValue = Reserve( key, arena );
+        *slotValue = value;
+    }
+
+private:
+    
+    // Disallow implicit copying
+    HashTable( const HashTable& );
+    HashTable& operator =( const HashTable& );
 };
 
 /////     STRING     /////
@@ -366,7 +380,6 @@ struct String
 };
 
 
-// TODO
 /////     BUCKET ARRAY     /////
 
 template <typename T>
@@ -409,7 +422,7 @@ struct BucketArray
 
         operator T&() const
         {
-            ASSERT( *this );
+            ASSERT( IsValid() );
             return base->data[index];
         }
 
@@ -420,7 +433,7 @@ struct BucketArray
 
         void Next()
         {
-            if( index < base->count )
+            if( index < base->count - 1 )
                 index++;
             else
             {
@@ -444,10 +457,10 @@ struct BucketArray
 
     u32 count;
     Bucket first;
-    Bucket *last; // ?
-    // TODO Keep buckets compact when deleting items
-    // TODO Keep buckets that become totally empty in their own separate list for reusing later
+    Bucket* last;
     Bucket* firstFree;
+
+    MemoryArena* arena;
 
 
     BucketArray( u32 bucketSize, MemoryArena* arena )
@@ -456,32 +469,22 @@ struct BucketArray
         count = 0;
         last = &first;
         firstFree = nullptr;
+        this->arena = arena;
     }
 
-    void Add( const T& item, MemoryArena* arena )
+    T* Reserve()
     {
         if( last->count == last->size )
-        {
-            Bucket* newBucket;
-            if( firstFree )
-            {
-                newBucket = firstFree;
-                firstFree = firstFree->next;
-                newBucket->Clear();
-            }
-            else
-            {
-                newBucket = PUSH_STRUCT( arena, Bucket );
-                *newBucket = Bucket( first.size, arena );
-            }
-            newBucket->prev = last;
-            last->next = newBucket;
+            AddEmptyBucket();
 
-            last = newBucket;
-        }
-
-        last->data[last->count++] = item;
         count++;
+        return &last->data[last->count++];
+    }
+
+    void Add( const T& item )
+    {
+        T* slot = Reserve();
+        *slot = item;
     }
 
     void Remove( const Idx& index )
@@ -530,6 +533,32 @@ struct BucketArray
     Idx Last()
     {
         return { last, last->count - 1 };
+    }
+
+private:
+    
+    // Disallow implicit copying
+    BucketArray( const BucketArray& );
+    BucketArray& operator =( const BucketArray& );
+
+    void AddEmptyBucket()
+    {
+        Bucket* newBucket;
+        if( firstFree )
+        {
+            newBucket = firstFree;
+            firstFree = firstFree->next;
+            newBucket->Clear();
+        }
+        else
+        {
+            newBucket = PUSH_STRUCT( arena, Bucket );
+            *newBucket = Bucket( first.size, arena );
+        }
+        newBucket->prev = last;
+        last->next = newBucket;
+
+        last = newBucket;
     }
 };
 
@@ -614,6 +643,12 @@ struct LinkedList
         }
         return result;
     }
+
+private:
+    
+    // Disallow implicit copying
+    LinkedList( const LinkedList& );
+    LinkedList& operator =( const LinkedList& );
 };
 
 

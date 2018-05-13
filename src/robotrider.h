@@ -188,10 +188,12 @@ struct GameMemory
     bool isInitialized;
 
     u64 permanentStorageSize;
-    void *permanentStorage;     // NOTE Required to be cleared to zero at startup
+    // NOTE Required to be cleared to zero at startup
+    void *permanentStorage;
 
     u64 transientStorageSize;
-    void *transientStorage;     // NOTE Required to be cleared to zero at startup
+    // NOTE Required to be cleared to zero at startup
+    void *transientStorage;
 
     PlatformAPI *platformAPI;
 };

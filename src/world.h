@@ -69,8 +69,7 @@ struct LiveEntity
 {
     StoredEntity stored;
 
-    // Relative position (always relative to the current sim-region center)
-    v3 p;
+    // NOTE Mesh translation is always relative to the current sim-region center
     Mesh mesh;
 };
 
@@ -93,12 +92,15 @@ struct World
 
     FlyingDude *playerDude;
 
+#if 0
     Array<Mesh> hullMeshes;
     Array<GeneratorPath> pathsBuffer;
+#endif
 
     GeneratorHullNode hullNodeGenerator;
 
     // 'REAL' stuff
+    //
     // For now this will be the primary storage for (stored) entities
     HashTable<v3i, Cluster> clusterTable;
     // Scratch buffer for all the entities in the simulation region

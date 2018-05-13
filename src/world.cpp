@@ -40,6 +40,12 @@ internal u32 clusterHashFunction( const v3i& keyValue )
     return hashValue;
 }
 
+internal u32 entityHashFunction( const u32& keyValue )
+{
+    // TODO Better hash function! x)
+    return keyValue;
+}
+
 #define INITIAL_CLUSTER_COORDS V3I( I32MAX, I32MAX, I32MAX )
 
 void
@@ -72,7 +78,9 @@ InitWorld( World* world, MemoryArena* worldArena )
     world->marchingCubeSize = 1;
     srand( 1234 );
 
-    world->clusterTable = HashTable<v3i, Cluster>( worldArena, 256*1024, clusterHashFunction );
+    new (&world->clusterTable) HashTable<v3i, Cluster>( worldArena, 256*1024, clusterHashFunction );
+    new (&world->liveEntities) BucketArray<LiveEntity>( 256, worldArena );
+    new (&world->entityRefs) HashTable<u32, StoredEntity *>( worldArena, 1024, entityHashFunction );
 
     world->pWorldOrigin = { 0, 0, 0 };
     world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
@@ -96,7 +104,7 @@ CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, World* worl
                     clusterCoords,
                     V3( i, j, k ),
                     (Generator*)&world->hullNodeGenerator,
-                }, arena );
+                } );
             }
         }
     }
@@ -116,8 +124,9 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 
     if( !cluster )
     {
-        Cluster newCluster = { false, BucketArray<StoredEntity>( 256, arena ) };
-        cluster = world->clusterTable.Add( clusterCoords, newCluster, arena );
+        cluster = world->clusterTable.Reserve( clusterCoords, arena );
+        cluster->populated = false;
+        new (&cluster->entityStorage) BucketArray<StoredEntity>( 256, arena );
     }
 
     if( !cluster->populated )
@@ -132,15 +141,15 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
     while( it )
     {
         StoredEntity& storedEntity = it;
+        v3 pEntity = vClusterWorldOffset + storedEntity.pClusterOffset; 
 
         // Make live entity from stored and put it in the world
-        LiveEntity liveEntity = 
+        LiveEntity* liveEntity = world->liveEntities.Reserve();
+        *liveEntity =
         {
             storedEntity,
-            vClusterWorldOffset + storedEntity.pClusterOffset,
-            storedEntity.generator->func( storedEntity.generator ),
+            storedEntity.generator->func( storedEntity, pEntity, arena ),
         };
-        world->liveEntities.Add( liveEntity, arena );
 
         it.Next();
     }
@@ -165,7 +174,7 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
     while( it )
     {
         LiveEntity& liveEntity = ((LiveEntity&)it);
-        v3 pClusterOffset = liveEntity.p - vClusterWorldOffset;
+        v3 pClusterOffset = GetTranslation( liveEntity.mesh.mTransform ) - vClusterWorldOffset;
         if( pClusterOffset.x > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.x < CLUSTER_HALF_SIZE_METERS &&
             pClusterOffset.y > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.y < CLUSTER_HALF_SIZE_METERS &&
             pClusterOffset.z > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.z < CLUSTER_HALF_SIZE_METERS )
@@ -174,7 +183,7 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
             storedEntity.pCluster = clusterCoords;
             storedEntity.pClusterOffset = pClusterOffset;
 
-            cluster->entityStorage.Add( storedEntity, arena );
+            cluster->entityStorage.Add( storedEntity );
             world->liveEntities.Remove( it );
         }
 
@@ -236,7 +245,9 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
             }
         }
     }
+    world->pLastWorldOrigin = world->pWorldOrigin;
 
+    // Connected paths test
 #if 0
     if( !world->pathsBuffer || input->executableReloaded )
     {
@@ -355,21 +366,25 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
 
     UpdateWorldGeneration( input, firstStepOnly, world, &gameState->worldArena );
 
+
+
+
     ///// Render
 
-    for( u32 i = 0; i < world->hullMeshes.count; ++i )
+    auto it = world->liveEntities.First();
+    while( it )
     {
-        PushMesh( world->hullMeshes[i], renderCommands );
-        if( firstStepOnly )
-            break;
+        PushMesh( ((LiveEntity&)it).mesh, renderCommands );
+
+        it.Next();
     }
 
     PushRenderGroup( world->playerDude, renderCommands);
 
     {
-        FlyingDude *playerDude = world->playerDude;
         // Create a chasing camera
         // TODO Use a PID controller
+        FlyingDude *playerDude = world->playerDude;
         v3 pCam = playerDude->mTransform * V3( 0, -2, 1 );
         v3 pLookAt = playerDude->mTransform * V3( 0, 1, 0 );
         v3 vUp = GetColumn( playerDude->mTransform, 2 ).xyz;

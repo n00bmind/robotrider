@@ -84,8 +84,10 @@ enum class GeneratorType
     HullNode,
 };
 
-struct Generator;
-typedef Mesh GeneratorFunc( Generator* generator ); //, const v3& p );
+struct StoredEntity;
+#define GENERATOR_FUNC(name) \
+    Mesh name( const StoredEntity& storedEntity, const v3& p, MemoryArena* arena ) //Generator* generator
+typedef GENERATOR_FUNC(GeneratorFunc);
 
 struct Generator
 {
@@ -93,7 +95,7 @@ struct Generator
     GeneratorFunc* func;
 };
 
-#define INIT_GENERATOR(t) (Generator##t){ { GeneratorType::t, Generator##t##Func } }
+#define INIT_GENERATOR(t) { { GeneratorType::t, Generator##t##Func } }
 
 struct GeneratorPath
 {

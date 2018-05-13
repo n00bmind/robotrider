@@ -565,7 +565,7 @@ void FastQuadricSimplify( GeneratedMesh* mesh, u32 targetTriCount, r32 agressive
 }
 
 
-///// PATH GENERATION /////
+///// MESH GENERATION /////
 
 internal r32
 SampleCuboid( const void* sampleData, const v3& p )
@@ -719,6 +719,29 @@ GenerateOnePathStep( GeneratorPath* path, r32 resolutionMeters, bool advancePosi
     return forkInThisStep ? 1 : 0;
 }
 
+internal r32
+SampleHullNode( const void* sampleData, const v3& p )
+{
+    StoredEntity* storedEntity = (StoredEntity *)sampleData;
+
+    // Just a sphere for now
+    r32 result = DistanceSq( p, V3Zero() ) - 5;
+    return result;
+}
+
+GENERATOR_FUNC(GeneratorHullNodeFunc)
+{
+    Mesh result;
+
+    // TODO These will probably come from the entity itself
+    r32 areaSideMeters = 10;
+    r32 resolutionMeters = 1;
+
+    MarchAreaFast( p, areaSideMeters, resolutionMeters, SampleHullNode, &storedEntity,
+                   arena, &result );
+
+    return result;
+}
 
 ///// MARCHING CUBES LUTs /////
 
