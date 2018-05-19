@@ -52,13 +52,6 @@ struct OpenGLImGuiState
     GLuint fontTexture;
 };
 
-enum class OpenGLProgramName
-{
-    None,
-    PlainColor,
-    FlatShaded,
-};
-
 struct OpenGLShaderAttribute
 {
     const char *name;
@@ -75,7 +68,7 @@ struct OpenGLShaderUniform
 
 struct OpenGLShaderProgram
 {
-    OpenGLProgramName name;
+    ShaderProgramName name;
     const char* vsFilename;
     const char* gsFilename;
     const char* fsFilename;
@@ -97,7 +90,7 @@ struct OpenGLShaderProgram
 OpenGLShaderProgram globalShaderPrograms[] =
 {
     {
-        OpenGLProgramName::PlainColor,
+        ShaderProgramName::PlainColor,
         "default.vs.glsl",
         nullptr,
         "plain_color.fs.glsl",
@@ -105,7 +98,7 @@ OpenGLShaderProgram globalShaderPrograms[] =
         { "mTransform" },
     },
     {
-        OpenGLProgramName::FlatShaded,
+        ShaderProgramName::FlatShaded,
         "default.vs.glsl",
         "face_normal.gs.glsl",
         "flat.fs.glsl",

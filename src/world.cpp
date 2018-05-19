@@ -29,8 +29,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 internal SArray<TexturedVertex, 65536> testVertices;
 internal SArray<u32, 256*1024> testIndices;
 // FIXME
-internal SArray<Vertex, 65536> genVertices;
-internal SArray<Triangle, 256*1024> genTriangles;
+internal SArray<InflatedVertex, 65536> genVertices;
+internal SArray<InflatedTriangle, 256*1024> genTriangles;
 #endif
 
 internal u32 clusterHashFunction( const v3i& keyValue )
@@ -85,6 +85,8 @@ InitWorld( World* world, MemoryArena* worldArena )
     world->pWorldOrigin = { 0, 0, 0 };
     world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
     world->hullNodeGenerator = INIT_GENERATOR( HullNode );
+
+    Init( &world->meshPool, MEGABYTES(1), worldArena );
 }
 
 internal void
@@ -93,11 +95,11 @@ CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, World* worl
     const r32 margin = 5.f;
 
     // TEST Place an entity every 5 meters, leaving some margin
-    for( r32 i = -CLUSTER_HALF_SIZE_METERS + margin; i <= CLUSTER_HALF_SIZE_METERS - margin; i += 5.f )
+    for( r32 i = -CLUSTER_HALF_SIZE_METERS + margin; i <= CLUSTER_HALF_SIZE_METERS - margin; i += 10.f )
     {
-        for( r32 j = -CLUSTER_HALF_SIZE_METERS + margin; j <= CLUSTER_HALF_SIZE_METERS - margin; j += 5.f )
+        for( r32 j = -CLUSTER_HALF_SIZE_METERS + margin; j <= CLUSTER_HALF_SIZE_METERS - margin; j += 10.f )
         {
-            for( r32 k = -CLUSTER_HALF_SIZE_METERS + margin; k <= CLUSTER_HALF_SIZE_METERS - margin; k += 5.f )
+            for( r32 k = -CLUSTER_HALF_SIZE_METERS + margin; k <= CLUSTER_HALF_SIZE_METERS - margin; k += 10.f )
             {
                 cluster->entityStorage.Add(
                 {
@@ -118,7 +120,14 @@ GetClusterWorldOffset( const v3i& clusterCoords, const World* world )
 }
 
 internal void
-LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena )
+DEBUGClearAllClusters( World* world )
+{
+    // NOTE This very likely leaks
+    world->clusterTable.Clear();
+}
+
+internal void
+LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena, MeshPool* meshPool )
 {
     Cluster* cluster = world->clusterTable.Find( clusterCoords );
 
@@ -143,12 +152,16 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
         StoredEntity& storedEntity = it;
         v3 pEntity = vClusterWorldOffset + storedEntity.pClusterOffset; 
 
+        GeneratorHullNode* generator = (GeneratorHullNode*)storedEntity.generator;
+        generator->entity = &storedEntity;
+        generator->pRelative = pEntity;
+
         // Make live entity from stored and put it in the world
         LiveEntity* liveEntity = world->liveEntities.Reserve();
         *liveEntity =
         {
             storedEntity,
-            storedEntity.generator->func( storedEntity, pEntity, arena ),
+            storedEntity.generator->func( storedEntity.generator, pEntity, arena, meshPool ),
         };
 
         it.Next();
@@ -156,7 +169,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 }
 
 internal void
-StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena )
+StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena, MeshPool* meshPool )
 {
     Cluster* cluster = world->clusterTable.Find( clusterCoords );
 
@@ -174,7 +187,7 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
     while( it )
     {
         LiveEntity& liveEntity = ((LiveEntity&)it);
-        v3 pClusterOffset = GetTranslation( liveEntity.mesh.mTransform ) - vClusterWorldOffset;
+        v3 pClusterOffset = GetTranslation( liveEntity.mesh->mTransform ) - vClusterWorldOffset;
         if( pClusterOffset.x > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.x < CLUSTER_HALF_SIZE_METERS &&
             pClusterOffset.y > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.y < CLUSTER_HALF_SIZE_METERS &&
             pClusterOffset.z > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.z < CLUSTER_HALF_SIZE_METERS )
@@ -184,6 +197,8 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
             storedEntity.pClusterOffset = pClusterOffset;
 
             cluster->entityStorage.Add( storedEntity );
+
+            ReleaseMesh( liveEntity.mesh, meshPool );
             world->liveEntities.Remove( it );
         }
 
@@ -202,7 +217,7 @@ IsInSimApron( const v3i& pClusterCoords, const v3i& pWorldOrigin )
 }
 
 internal void
-UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena )
+UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena, MeshPool* meshPool )
 {
     // TODO Make an infinite connected 'cosmic grid structure'
     // so we can test for a good cluster size, evaluate current generation speeds,
@@ -221,7 +236,7 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
                     // Evict all entities contained in a cluster which is now out of bounds
                     if( !IsInSimApron( pLastClusterCoords, world->pWorldOrigin ) )
                     {
-                        StoreEntitiesInCluster( pLastClusterCoords, world, arena );
+                        StoreEntitiesInCluster( pLastClusterCoords, world, arena, meshPool );
                     }
                 }
             }
@@ -239,7 +254,7 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
                     // and put them in the live entities list
                     if( !IsInSimApron( pClusterCoords, world->pLastWorldOrigin ) )
                     {
-                        LoadEntitiesInCluster( pClusterCoords, world, arena );
+                        LoadEntitiesInCluster( pClusterCoords, world, arena, meshPool );
                     }
                 }
             }
@@ -319,6 +334,12 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
     ///// Update
 
 #if DEBUG
+    if( input->executableReloaded )
+    {
+        DEBUGClearAllClusters( world );
+        world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
+    }
+
     // Update player based on input
     if( !gameState->DEBUGglobalEditing )
 #endif
@@ -364,22 +385,47 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
     bool firstStepOnly = false;
 
 
-    UpdateWorldGeneration( input, firstStepOnly, world, &gameState->worldArena );
+    UpdateWorldGeneration( input, firstStepOnly, world, &gameState->worldArena,
+                           &world->meshPool );
 
 
 
 
     ///// Render
 
+    PushProgramChange( ShaderProgramName::FlatShaded, renderCommands );
+
     auto it = world->liveEntities.First();
     while( it )
     {
-        PushMesh( ((LiveEntity&)it).mesh, renderCommands );
+        PushMesh( *((LiveEntity&)it).mesh, renderCommands );
 
         it.Next();
     }
 
     PushRenderGroup( world->playerDude, renderCommands);
+
+    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
+
+    // Render current cluster limits
+    r32 s = CLUSTER_HALF_SIZE_METERS;
+    u32 red = Pack01ToRGBA( V4( 1, 0, 0, 1 ) );
+
+    // X
+    PushLine( V3( -s, s, s ), V3( s, s, s ), red, renderCommands );
+    PushLine( V3( -s, s, -s ), V3( s, s, -s ), red, renderCommands );
+    PushLine( V3( -s, -s, s ), V3( s, -s, s ), red, renderCommands );
+    PushLine( V3( -s, -s, -s ), V3( s, -s, -s ), red, renderCommands );
+    // Z
+    PushLine( V3( -s, s, s ), V3( -s, s, -s ), red, renderCommands );
+    PushLine( V3( s, s, s ), V3( s, s, -s ), red, renderCommands );
+    PushLine( V3( -s, -s, s ), V3( -s, -s, -s ), red, renderCommands );
+    PushLine( V3( s, -s, s ), V3( s, -s, -s ), red, renderCommands );
+    // Y
+    PushLine( V3( -s, -s, s ), V3( -s, s, s ), red, renderCommands );
+    PushLine( V3( -s, -s, -s ), V3( -s, s, -s ), red, renderCommands );
+    PushLine( V3( s, -s, s ), V3( s, s, s ), red, renderCommands );
+    PushLine( V3( s, -s, -s ), V3( s, s, -s ), red, renderCommands );
 
     {
         // Create a chasing camera
@@ -397,7 +443,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
     {
         if( ((i32)input->frameCounter - 180) % 300 == 0 )
         {
-            GeneratedMesh gen;
+            InflatedMesh gen;
             {
                 genVertices.count = testVertices.count;
                 for( u32 i = 0; i < genVertices.count; ++i )

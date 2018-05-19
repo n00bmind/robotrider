@@ -511,6 +511,17 @@ struct BucketArray
         count--;
     }
 
+    void BlitTo( T* buffer ) const
+    {
+        const Bucket* bucket = &first;
+        while( bucket )
+        {
+            memcpy( buffer, bucket->data, bucket->count * sizeof(T) );
+            buffer += bucket->count;
+            bucket = bucket->next;
+        }
+    }
+
     void Clear()
     {
         if( last != &first )

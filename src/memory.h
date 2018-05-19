@@ -24,6 +24,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MEMORY_H__
 #define __MEMORY_H__ 
 
+struct MemoryBlock
+{
+    sz size;
+    sz used;
+
+};
+
 struct MemoryArena
 {
     u8 *base;

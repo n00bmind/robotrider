@@ -70,10 +70,10 @@ struct LiveEntity
     StoredEntity stored;
 
     // NOTE Mesh translation is always relative to the current sim-region center
-    Mesh mesh;
+    Mesh *mesh;
 };
 
-#define CLUSTER_HALF_SIZE_METERS 25
+#define CLUSTER_HALF_SIZE_METERS 50
 
 struct Cluster
 {
@@ -120,6 +120,8 @@ struct World
 
     r32 marchingAreaSize;
     r32 marchingCubeSize;
+
+    MeshPool meshPool;
 };
 
 #endif /* __WORLD_H__ */

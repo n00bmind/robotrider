@@ -27,14 +27,22 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 struct Mesh
 {
     TexturedVertex* vertices;
-    u32* indices;
     u32 vertexCount;
+    u32* indices;
     u32 indexCount;
 
     m4 mTransform;
 };
 
-struct Vertex
+struct MeshPool
+{
+    BucketArray<TexturedVertex> scratchVertices;
+    BucketArray<u32> scratchIndices;
+
+    MemoryBlock* firstMemoryBlock;
+};
+
+struct InflatedVertex
 {
     v3 p;
     u32 refStart;
@@ -43,7 +51,7 @@ struct Vertex
     bool border;
 };
 
-struct Triangle
+struct InflatedTriangle
 {
     u32 v[3];
     r64 error[4];
@@ -53,16 +61,16 @@ struct Triangle
 };
 
 // Back-references from vertices to the triangles they belong to
-struct VertexRef
+struct InflatedVertexRef
 {
     u32 tId;        // Triangle index
     u32 tVertex;    // Vertex index (in triangle, so 0,1,2)
 };
 
-struct GeneratedMesh
+struct InflatedMesh
 {
-    Array<Vertex> vertices;
-    Array<Triangle> triangles;
+    Array<InflatedVertex> vertices;
+    Array<InflatedTriangle> triangles;
 };
 
 struct Metaball
@@ -84,9 +92,9 @@ enum class GeneratorType
     HullNode,
 };
 
-struct StoredEntity;
+struct Generator;
 #define GENERATOR_FUNC(name) \
-    Mesh name( const StoredEntity& storedEntity, const v3& p, MemoryArena* arena ) //Generator* generator
+    Mesh* name( Generator* generator, const v3& p, MemoryArena* arena, MeshPool* meshPool ) 
 typedef GENERATOR_FUNC(GeneratorFunc);
 
 struct Generator
@@ -123,10 +131,13 @@ struct GeneratorPath
     GeneratorPath* nextFork;
 };
 
+struct StoredEntity;
 struct GeneratorHullNode
 {
     Generator header;
 
+    StoredEntity* entity;
+    v3 pRelative;
 };
 
 #endif /* __MESHGEN_H__ */

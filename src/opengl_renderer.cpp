@@ -666,9 +666,9 @@ OpenGLInitImGui( OpenGLState &gl )
 }
 
 internal void
-OpenGLUseProgram( OpenGLProgramName programName, OpenGLState &gl )
+OpenGLUseProgram( ShaderProgramName programName, OpenGLState &gl )
 {
-    if( programName == OpenGLProgramName::None )
+    if( programName == ShaderProgramName::None )
     {
         for( int i = 0; i < MAX_SHADER_ATTRIBS; ++i )
             glDisableVertexAttribArray( i );
@@ -767,8 +767,6 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
                 // Why, maybe even be super scientific about it and implement the various paths with a key that can switch among them for A/B testing
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
-                OpenGLUseProgram( OpenGLProgramName::FlatShaded, gl );
-
                 //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
                 GLuint countBytes = entry->vertexCount * sizeof(TexturedVertex);
@@ -796,8 +794,6 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
             {
                 RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
 
-                OpenGLUseProgram( OpenGLProgramName::PlainColor, gl );
-
                 GLuint countBytes = entry->lineCount * 2 * sizeof(TexturedVertex);
                 glBufferData( GL_ARRAY_BUFFER,
                               countBytes,
@@ -808,6 +804,13 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 globalPlatform.totalDrawCalls++;
                 globalPlatform.totalPrimitiveCount += entry->lineCount;
+            } break;
+
+            case RenderEntryType::RenderEntryProgramChange:
+            {
+                RenderEntryProgramChange* entry = (RenderEntryProgramChange*)entryHeader;
+
+                OpenGLUseProgram( entry->programName, gl );
             } break;
 
             default:
@@ -821,5 +824,5 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
     }
 
     // Don't keep active program for next frame
-    OpenGLUseProgram( OpenGLProgramName::None, gl );
+    OpenGLUseProgram( ShaderProgramName::None, gl );
 }
