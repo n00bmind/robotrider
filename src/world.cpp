@@ -86,20 +86,20 @@ InitWorld( World* world, MemoryArena* worldArena )
     world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
     world->hullNodeGenerator = INIT_GENERATOR( HullNode );
 
-    Init( &world->meshPool, MEGABYTES(1), worldArena );
+    Init( &world->meshPool, worldArena, MEGABYTES(4) );
 }
 
 internal void
 CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, World* world, MemoryArena* arena )
 {
-    const r32 margin = 5.f;
+    const r32 margin = 0.f;
 
-    // TEST Place an entity every 5 meters, leaving some margin
-    for( r32 i = -CLUSTER_HALF_SIZE_METERS + margin; i <= CLUSTER_HALF_SIZE_METERS - margin; i += 10.f )
+    // TEST Place an entity every few meters, leaving some margin
+    for( r32 i = -CLUSTER_HALF_SIZE_METERS + margin; i <= CLUSTER_HALF_SIZE_METERS - margin; i += 20.f )
     {
-        for( r32 j = -CLUSTER_HALF_SIZE_METERS + margin; j <= CLUSTER_HALF_SIZE_METERS - margin; j += 10.f )
+        for( r32 j = -CLUSTER_HALF_SIZE_METERS + margin; j <= CLUSTER_HALF_SIZE_METERS - margin; j += 20.f )
         {
-            for( r32 k = -CLUSTER_HALF_SIZE_METERS + margin; k <= CLUSTER_HALF_SIZE_METERS - margin; k += 10.f )
+            for( r32 k = -CLUSTER_HALF_SIZE_METERS + margin; k <= CLUSTER_HALF_SIZE_METERS - margin; k += 20.f )
             {
                 cluster->entityStorage.Add(
                 {
@@ -182,15 +182,20 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
 
     cluster->entityStorage.Clear();
     v3 vClusterWorldOffset = GetClusterWorldOffset( clusterCoords, world );
+    // FIXME Not nice! Better float comparisons!
+    // http://floating-point-gui.de/errors/comparison/
+    // https://bitbashing.io/comparing-floats.html
+    // (although we may be ok for now?)
+    r32 augmentedHalfSize = CLUSTER_HALF_SIZE_METERS + 0.01f;
 
     BucketArray<LiveEntity>::Idx it = world->liveEntities.Last();
     while( it )
     {
         LiveEntity& liveEntity = ((LiveEntity&)it);
         v3 pClusterOffset = GetTranslation( liveEntity.mesh->mTransform ) - vClusterWorldOffset;
-        if( pClusterOffset.x > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.x < CLUSTER_HALF_SIZE_METERS &&
-            pClusterOffset.y > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.y < CLUSTER_HALF_SIZE_METERS &&
-            pClusterOffset.z > -CLUSTER_HALF_SIZE_METERS && pClusterOffset.z < CLUSTER_HALF_SIZE_METERS )
+        if( pClusterOffset.x > -augmentedHalfSize && pClusterOffset.x < augmentedHalfSize &&
+            pClusterOffset.y > -augmentedHalfSize && pClusterOffset.y < augmentedHalfSize &&
+            pClusterOffset.z > -augmentedHalfSize && pClusterOffset.z < augmentedHalfSize )
         {
             StoredEntity& storedEntity = liveEntity.stored;
             storedEntity.pCluster = clusterCoords;
@@ -225,6 +230,21 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
 
     if( world->pWorldOrigin != world->pLastWorldOrigin )
     {
+        v3 vWorldDelta = (world->pLastWorldOrigin - world->pWorldOrigin) * CLUSTER_HALF_SIZE_METERS * 2;
+
+        // Offset all live entities by the world delta
+        // NOTE This could be done more efficiently _after_ storing entities
+        // (but we'd have to account for the delta in StoreEntitiesInCluster)
+        auto it = world->liveEntities.First();
+        while( it )
+        {
+            Translate( ((LiveEntity&)it).mesh->mTransform, vWorldDelta );
+            it.Next();
+        }
+        // TODO Should we put the player(s) in the live entities table?
+        if( world->pLastWorldOrigin != INITIAL_CLUSTER_COORDS )
+            world->pPlayer += vWorldDelta;
+
         for( int i = -SIM_APRON_WIDTH; i <= SIM_APRON_WIDTH; ++i )
         {
             for( int j = -SIM_APRON_WIDTH; j <= SIM_APRON_WIDTH; ++j )
@@ -379,6 +399,27 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
         playerDude->mTransform = RotPos( mPlayerRot, pPlayer );
 
         world->pPlayer = pPlayer;
+
+        // Check if we moved to a different cluster
+        {
+            v3i pWorldOrigin = world->pWorldOrigin;
+
+            if( pPlayer.x > CLUSTER_HALF_SIZE_METERS )
+                pWorldOrigin.x++;
+            else if( pPlayer.x < -CLUSTER_HALF_SIZE_METERS )
+                pWorldOrigin.x--;
+            if( pPlayer.y > CLUSTER_HALF_SIZE_METERS )
+                pWorldOrigin.y++;
+            else if( pPlayer.y < -CLUSTER_HALF_SIZE_METERS )
+                pWorldOrigin.y--;
+            if( pPlayer.z > CLUSTER_HALF_SIZE_METERS )
+                pWorldOrigin.z++;
+            else if( pPlayer.z < -CLUSTER_HALF_SIZE_METERS )
+                pWorldOrigin.z--;
+
+            if( pWorldOrigin != world->pWorldOrigin )
+                world->pWorldOrigin = pWorldOrigin;
+        }
     }
 
 

@@ -1,4 +1,58 @@
 
+void
+Init( MeshPool* pool, MemoryArena* arena, sz size )
+{
+    new (&pool->scratchVertices) BucketArray<TexturedVertex>( 1024, arena );
+    new (&pool->scratchIndices) BucketArray<u32>( 1024, arena );
+
+    MemoryBlock* block = (MemoryBlock*)PUSH_SIZE( arena, size );
+    block->size = size - sizeof(MemoryBlock);
+    block->used = 0;
+
+    pool->firstMemoryBlock = block;
+}
+
+void
+ClearScratchMesh( MeshPool* pool )
+{
+    pool->scratchVertices.Clear();
+    pool->scratchIndices.Clear();
+}
+
+Mesh*
+AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
+{
+    sz vertexSize = sizeof(TexturedVertex) * vertexCount;
+    sz indexSize = sizeof(u32) * indexCount;
+    sz totalMeshSize = sizeof(Mesh) + vertexSize + indexSize;
+
+    MemoryBlock* block = pool->firstMemoryBlock;
+    ASSERT( block->used + totalMeshSize < block->size );
+    Mesh* result = (Mesh*)((u8*)(block + 1) + block->used);
+    block->used += totalMeshSize;
+
+    result->vertices = (TexturedVertex*)((u8*)result + sizeof(Mesh));
+    result->indices = (u32*)((u8*)result->vertices + vertexSize);
+    return result;
+}
+
+Mesh*
+AllocateScratchMesh( MeshPool* pool )
+{
+    Mesh* result = AllocateMesh( pool, pool->scratchVertices.count, pool->scratchIndices.count );
+    pool->scratchVertices.BlitTo( result->vertices );
+    result->vertexCount = pool->scratchVertices.count;
+    pool->scratchIndices.BlitTo( result->indices );
+    result->indexCount = pool->scratchIndices.count;
+    return result;
+}
+
+void
+ReleaseMesh( Mesh* mesh, MeshPool* pool )
+{
+
+}
+
 ///// MARCHING CUBES /////
 
 typedef float MarchedCubeSampleFunc( const void* sampleData, const v3& p );
@@ -82,10 +136,9 @@ MarchLayer( const v3& pCenter, r32 topH, r32 areaSideMeters, r32 cubeSizeMeters,
 
 Mesh*
 MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
-               MarchedCubeSampleFunc* sampleFunc, const void* sampleData, MemoryArena* arena, MeshPool* pool )
+               MarchedCubeSampleFunc* sampleFunc, const void* sampleData, MeshPool* meshPool )
 {
-    pool->scratchVertices.Clear();
-    pool->scratchIndices.Clear();
+    ClearScratchMesh( meshPool );
 
     // TODO Pre-sample top and bottom slices of values for each layer so we only sample one corner per cube instead of 8
     // TODO Eliminate all the duplicate vertices that marching cubes creates
@@ -93,9 +146,10 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
     r32 halfSideMeters = areaSideMeters / 2;
     for( float k = -halfSideMeters; k < halfSideMeters; k += cubeSizeMeters )
         MarchLayer( pCenter, k, areaSideMeters, cubeSizeMeters, sampleFunc, sampleData,
-                    &pool->scratchVertices, &pool->scratchIndices );
+                    &meshPool->scratchVertices, &meshPool->scratchIndices );
 
     // Write output mesh
+#if 0
     Mesh* result = PUSH_STRUCT( arena, Mesh );
     result->vertices = PUSH_ARRAY( arena, pool->scratchVertices.count, TexturedVertex );
     pool->scratchVertices.BlitTo( result->vertices );
@@ -104,10 +158,10 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
     result->indices = PUSH_ARRAY( arena, pool->scratchIndices.count, u32 );
     pool->scratchIndices.BlitTo( result->indices );
     result->indexCount = pool->scratchIndices.count;
-
-    result->mTransform = Translation( pCenter );
-
+#else
+    Mesh* result = AllocateScratchMesh( meshPool );
     return result;
+#endif
 }
 
 internal r32
@@ -156,8 +210,8 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT,
     }
     
     // Update mesh by sampling our cubic area centered at origin
-    Mesh* metaMesh = MarchAreaFast( V3Zero(), areaSideMeters, cubeSizeMeters, SampleMetaballs, &balls,
-                                    arena, meshPool );
+    Mesh* metaMesh = MarchAreaFast( V3Zero(), areaSideMeters, cubeSizeMeters,
+                                    SampleMetaballs, &balls, meshPool );
 
     //GenerateFaceNormals( metaMesh );
 
@@ -570,32 +624,6 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, r32 agressiven
 
 ///// MESH GENERATION /////
 
-void
-Init( MeshPool* pool, sz size, MemoryArena* arena )
-{
-    new (&pool->scratchVertices) BucketArray<TexturedVertex>( 1024, arena );
-    new (&pool->scratchIndices) BucketArray<u32>( 1024, arena );
-
-    MemoryBlock* block = (MemoryBlock*)PUSH_SIZE( arena, size );
-    block->size = size - sizeof(MemoryBlock);
-    block->used = 0;
-
-    pool->firstMemoryBlock = block;
-}
-
-Mesh*
-AquireMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
-{
-
-    return nullptr;
-}
-
-void
-ReleaseMesh( Mesh* mesh, MeshPool* pool )
-{
-
-}
-
 internal r32
 SampleCuboid( const void* sampleData, const v3& p )
 {
@@ -723,8 +751,8 @@ GenerateOnePathStep( GeneratorPath* path, r32 resolutionMeters, bool advancePosi
         path->nextFork = nextFork;
     }
 
-    *outMesh = MarchAreaFast( V3Zero(), path->areaSideMeters, resolutionMeters, SampleCuboid,
-                              path, arena, meshPool );
+    *outMesh = MarchAreaFast( V3Zero(), path->areaSideMeters, resolutionMeters,
+                              SampleCuboid, path, meshPool );
     (*outMesh)->mTransform = Translation( path->pCenter );
 
     // Advance to next chunk
@@ -755,7 +783,7 @@ SampleHullNode( const void* sampleData, const v3& p )
     GeneratorHullNode* generator = (GeneratorHullNode*)sampleData;
 
     // Just a sphere for now
-    r32 result = DistanceSq( p, generator->pRelative ) - 5;
+    r32 result = DistanceSq( p, V3Zero() ) - 5;
     return result;
 }
 
@@ -765,8 +793,9 @@ GENERATOR_FUNC(GeneratorHullNodeFunc)
     r32 areaSideMeters = 10;
     r32 resolutionMeters = 1;
 
-    Mesh* result = MarchAreaFast( p, areaSideMeters, resolutionMeters, SampleHullNode,
-                                  generator, arena, meshPool );
+    Mesh* result = MarchAreaFast( V3Zero(), areaSideMeters, resolutionMeters,
+                                  SampleHullNode, generator, meshPool );
+    result->mTransform = Translation( p );
 
     return result;
 }

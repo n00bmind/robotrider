@@ -455,10 +455,10 @@ struct BucketArray
     };
 
 
-    u32 count;
     Bucket first;
     Bucket* last;
     Bucket* firstFree;
+    u32 count;
 
     MemoryArena* arena;
 

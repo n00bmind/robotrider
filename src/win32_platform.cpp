@@ -1776,7 +1776,17 @@ main( int argC, char **argV )
                     // Main loop
                     while( globalRunning )
                     {
-                        totalElapsedSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
+#if DEBUG
+                        // Prevent huge skips in physics etc. while debugging
+                        if( lastDeltaTimeSecs > 1.f )
+                        {
+                            lastDeltaTimeSecs = targetElapsedPerFrameSecs;
+                            totalElapsedSeconds += lastDeltaTimeSecs;
+                        }
+                        else
+#endif
+                            totalElapsedSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
+
                         Win32PrepareInputData( oldInput, newInput,
                                                lastDeltaTimeSecs, totalElapsedSeconds, runningFrameCounter );
                         if( runningFrameCounter == 0 )

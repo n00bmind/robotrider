@@ -24,11 +24,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MEMORY_H__
 #define __MEMORY_H__ 
 
+enum MemoryBlockFlags
+{
+    Used = 0x01,
+};
+
 struct MemoryBlock
 {
     sz size;
     sz used;
 
+    //MemoryBlockFlags flags;
+
+    //MemoryBlock* prev;
+    //MemoryBlock* next;
 };
 
 struct MemoryArena

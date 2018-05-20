@@ -286,6 +286,13 @@ operator *=( v3& v, r32 s )
 }
 
 inline v3
+operator *( const v3i &v, r32 s )
+{
+    v3 result = { v.x * s, v.y * s, v.z * s };
+    return result;
+}
+
+inline v3
 operator *( r32 s, const v3 &v )
 {
     v3 result = { v.x * s, v.y * s, v.z * s };
