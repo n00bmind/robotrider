@@ -5,11 +5,13 @@ Init( MeshPool* pool, MemoryArena* arena, sz size )
     new (&pool->scratchVertices) BucketArray<TexturedVertex>( 1024, arena );
     new (&pool->scratchIndices) BucketArray<u32>( 1024, arena );
 
-    MemoryBlock* block = (MemoryBlock*)PUSH_SIZE( arena, size );
-    block->size = size - sizeof(MemoryBlock);
-    block->used = 0;
+    // Initialize empty sentinel
+    pool->memorySentinel.prev = &pool->memorySentinel;
+    pool->memorySentinel.next = &pool->memorySentinel;
+    pool->memorySentinel.size = 0;
+    pool->memorySentinel.flags = MemoryBlockFlags::None;
 
-    pool->firstMemoryBlock = block;
+    InsertBlock( &pool->memorySentinel, size, PUSH_SIZE( arena, size ) );
 }
 
 void
@@ -26,31 +28,46 @@ AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
     sz indexSize = sizeof(u32) * indexCount;
     sz totalMeshSize = sizeof(Mesh) + vertexSize + indexSize;
 
-    MemoryBlock* block = pool->firstMemoryBlock;
-    ASSERT( block->used + totalMeshSize < block->size );
-    Mesh* result = (Mesh*)((u8*)(block + 1) + block->used);
-    block->used += totalMeshSize;
+    Mesh* result = nullptr;
+    MemoryBlock* block = FindBlockForSize( &pool->memorySentinel, totalMeshSize );
+    if( block)
+    {
+        // TODO Tune this based on the smallest mesh size we will typically have
+        const sz blockSplitThreshold = 4096;
+        result = (Mesh*)UseBlock( block, totalMeshSize, blockSplitThreshold );
 
-    result->vertices = (TexturedVertex*)((u8*)result + sizeof(Mesh));
-    result->indices = (u32*)((u8*)result->vertices + vertexSize);
+        result->vertices = (TexturedVertex*)((u8*)result + sizeof(Mesh));
+        result->indices = (u32*)((u8*)result->vertices + vertexSize);
+    }
+    else
+    {
+        // TODO Here we could evict meshes in a loop based on LRU
+        // until we free the amount we need
+        INVALID_CODE_PATH
+    }
+
     return result;
 }
 
 Mesh*
-AllocateScratchMesh( MeshPool* pool )
+AllocateMeshFromScratchBuffers( MeshPool* pool )
 {
-    Mesh* result = AllocateMesh( pool, pool->scratchVertices.count, pool->scratchIndices.count );
+    Mesh* result = AllocateMesh( pool, pool->scratchVertices.count,
+                                 pool->scratchIndices.count );
+
     pool->scratchVertices.BlitTo( result->vertices );
     result->vertexCount = pool->scratchVertices.count;
+
     pool->scratchIndices.BlitTo( result->indices );
     result->indexCount = pool->scratchIndices.count;
+
     return result;
 }
 
 void
 ReleaseMesh( Mesh* mesh, MeshPool* pool )
 {
-
+    ReleaseBlockAt( mesh, &pool->memorySentinel );
 }
 
 ///// MARCHING CUBES /////
@@ -159,7 +176,7 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
     pool->scratchIndices.BlitTo( result->indices );
     result->indexCount = pool->scratchIndices.count;
 #else
-    Mesh* result = AllocateScratchMesh( meshPool );
+    Mesh* result = AllocateMeshFromScratchBuffers( meshPool );
     return result;
 #endif
 }

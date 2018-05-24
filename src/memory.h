@@ -24,21 +24,115 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MEMORY_H__
 #define __MEMORY_H__ 
 
-enum MemoryBlockFlags
+enum MemoryBlockFlags : u32
 {
+    None = 0,
     Used = 0x01,
 };
 
 struct MemoryBlock
 {
+    MemoryBlock* prev;
+    MemoryBlock* next;
+
     sz size;
-    sz used;
-
-    //MemoryBlockFlags flags;
-
-    //MemoryBlock* prev;
-    //MemoryBlock* next;
+    u32 flags;
 };
+
+inline MemoryBlock*
+InsertBlock( MemoryBlock* prev, sz size, void* memory )
+{
+    // TODO 'size' includes the MemoryBlock struct itself for now
+    // Are we sure we wanna do this??
+    ASSERT( size > sizeof(MemoryBlock) );
+    MemoryBlock* block = (MemoryBlock*)memory;
+    // TODO Are we sure this shouldn't be the other way around??
+    block->size = size - sizeof(MemoryBlock);
+    block->flags = MemoryBlockFlags::None;
+    block->prev = prev;
+    block->next = prev->next;
+    block->prev->next = block;
+    block->next->prev = block;
+
+    return block;
+}
+
+inline MemoryBlock*
+FindBlockForSize( MemoryBlock* sentinel, sz size )
+{
+    MemoryBlock* result = nullptr;
+
+    // TODO Best match block! (find smallest that fits)
+    for( MemoryBlock* block = sentinel->next; block != sentinel; block = block->next )
+    {
+        if( block->size >= size && !(block->flags & MemoryBlockFlags::Used) )
+        {
+            result = block;
+            break;
+        }
+    }
+
+    return result;
+}
+
+inline void*
+UseBlock( MemoryBlock* block, sz size, sz splitThreshold )
+{
+    ASSERT( size <= block->size );
+
+    block->flags |= MemoryBlockFlags::Used;
+    void* result = (block + 1);
+
+    sz remainingSize = block->size - size;
+    if( remainingSize > splitThreshold )
+    {
+        block->size -= remainingSize;
+        InsertBlock( block, remainingSize, (u8*)result + size );
+    }
+    else
+    {
+        // TODO Record the unused portion so that it can be merged with neighbours
+    }
+
+    return result;
+}
+
+inline bool
+MergeIfPossible( MemoryBlock* first, MemoryBlock* second, MemoryBlock* sentinel )
+{
+    bool result = false;
+
+    if( first != sentinel && second != sentinel &&
+        !(first->flags & MemoryBlockFlags::Used) &&
+        !(second->flags & MemoryBlockFlags::Used) )
+    {
+        // This check only needed so we can support discontiguous memory pools if needed
+        u8* expectedOffset = (u8*)first + sizeof(MemoryBlock) + first->size;
+        if( (u8*)second == expectedOffset )
+        {
+            second->next->prev = second->prev;
+            second->prev->next = second->next;
+
+            first->size += sizeof(MemoryBlock) + second->size;
+
+            result = true;
+        }
+    }
+
+    return result;
+}
+
+inline void
+ReleaseBlockAt( void* memory, MemoryBlock* sentinel )
+{
+    MemoryBlock* block = (MemoryBlock*)memory - 1;
+    block->flags &= ~MemoryBlockFlags::Used;
+
+    MergeIfPossible( block, block->next, sentinel );
+    MergeIfPossible( block->prev, block, sentinel );
+}
+
+
 
 struct MemoryArena
 {

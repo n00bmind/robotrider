@@ -39,7 +39,7 @@ struct MeshPool
     BucketArray<TexturedVertex> scratchVertices;
     BucketArray<u32> scratchIndices;
 
-    MemoryBlock* firstMemoryBlock;
+    MemoryBlock memorySentinel;
 };
 
 struct InflatedVertex

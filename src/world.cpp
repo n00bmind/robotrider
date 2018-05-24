@@ -86,7 +86,7 @@ InitWorld( World* world, MemoryArena* worldArena )
     world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
     world->hullNodeGenerator = INIT_GENERATOR( HullNode );
 
-    Init( &world->meshPool, worldArena, MEGABYTES(4) );
+    Init( &world->meshPool, worldArena, MEGABYTES(128) );
 }
 
 internal void
@@ -95,11 +95,11 @@ CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, World* worl
     const r32 margin = 0.f;
 
     // TEST Place an entity every few meters, leaving some margin
-    for( r32 i = -CLUSTER_HALF_SIZE_METERS + margin; i <= CLUSTER_HALF_SIZE_METERS - margin; i += 20.f )
+    for( r32 i = -CLUSTER_HALF_SIZE_METERS + margin; i <= CLUSTER_HALF_SIZE_METERS - margin; i += 30.f )
     {
-        for( r32 j = -CLUSTER_HALF_SIZE_METERS + margin; j <= CLUSTER_HALF_SIZE_METERS - margin; j += 20.f )
+        for( r32 j = -CLUSTER_HALF_SIZE_METERS + margin; j <= CLUSTER_HALF_SIZE_METERS - margin; j += 30.f )
         {
-            for( r32 k = -CLUSTER_HALF_SIZE_METERS + margin; k <= CLUSTER_HALF_SIZE_METERS - margin; k += 20.f )
+            for( r32 k = -CLUSTER_HALF_SIZE_METERS + margin; k <= CLUSTER_HALF_SIZE_METERS - margin; k += 30.f )
             {
                 cluster->entityStorage.Add(
                 {
@@ -176,7 +176,7 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
     if( !cluster )
     {
         // Should only happen on the very first iteration
-        ASSERT( clusterCoords == INITIAL_CLUSTER_COORDS );
+        ASSERT( world->clusterTable.count == 0 );
         return;
     }
 

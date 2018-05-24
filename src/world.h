@@ -82,7 +82,7 @@ struct Cluster
     BucketArray<StoredEntity> entityStorage;
 };
 
-#define SIM_APRON_WIDTH 0
+#define SIM_APRON_WIDTH 1
 
 struct World
 {
