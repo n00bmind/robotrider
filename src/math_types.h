@@ -940,6 +940,8 @@ operator *( const qn& a, const qn& b )
     r32 rx = b.w*a.x + b.x*a.w - b.y*a.z + b.z*a.y;
     r32 ry = b.w*a.y + b.x*a.z + b.y*a.w - b.z*a.x;
     r32 rz = b.w*a.z - b.x*a.y + b.y*a.x + b.z*a.w;
+    qn result = { rx, ry, rz, rw };
+    return result;
 }
 
 inline v3

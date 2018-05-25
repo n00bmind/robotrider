@@ -682,7 +682,7 @@ Win32ResetKeyMouseController( GameInput* oldInput, GameInput* newInput )
     newKeyMouseController->leftStick = oldKeyMouseController->leftStick;
     //newKeyMouseController->rightStick = oldKeyMouseController->rightStick;
 
-    for( int buttonIndex = 0;
+    for( u32 buttonIndex = 0;
          buttonIndex < ARRAYCOUNT( newKeyMouseController->buttons );
          ++buttonIndex )
     {
@@ -886,7 +886,7 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
     newInput->mouseX = oldInput->mouseX;
     newInput->mouseY = oldInput->mouseY;
     newInput->mouseZ = oldInput->mouseZ;
-    for( int i = 0; i < ARRAYCOUNT(newInput->mouseButtons); ++i )
+    for( u32 i = 0; i < ARRAYCOUNT(newInput->mouseButtons); ++i )
         newInput->mouseButtons[i] = oldInput->mouseButtons[i];
     newInput->frameElapsedSeconds = elapsedSeconds;
     newInput->totalElapsedSeconds = totalSeconds;
@@ -1230,9 +1230,9 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
 
             case WM_CHAR:
             {
-                u16 ch = (u16)message.wParam;
+                u32 ch = (u32)message.wParam;
                 if( ch > 0 && ch < 0x10000 )
-                    imGuiIO.AddInputCharacter( ch );
+                    imGuiIO.AddInputCharacter( (ImWchar)ch );
             } break;
 
 #define GET_SIGNED_LO(dw) ((int)(short)LOWORD(dw))
@@ -1557,7 +1557,7 @@ Win32InitOpenGL( HDC dc, const GameRenderCommands& commands, u32 frameVSyncSkipC
 #undef BINDGLPROC
 
 
-    OpenGLInfo info = OpenGLInit( globalOpenGLState, commands, true );
+    OpenGLInfo info = OpenGLInit( globalOpenGLState, true );
 
 
     // VSync
@@ -1588,10 +1588,10 @@ main( int argC, char **argV )
 
     Win32GetFilePaths( &globalNativeState );
 
-    char *sourceDLLName = "robotrider.dll";
+    const char *sourceDLLName = "robotrider.dll";
     char sourceDLLPath[MAX_PATH];
     sprintf_s( sourceDLLPath, ARRAYCOUNT(sourceDLLPath), "%s%s", globalNativeState.exeFilePath, sourceDLLName );
-    char *tempDLLName = "robotrider_temp.dll";
+    const char *tempDLLName = "robotrider_temp.dll";
     char tempDLLPath[MAX_PATH];
     sprintf_s( tempDLLPath, ARRAYCOUNT(tempDLLPath), "%s%s", globalNativeState.exeFilePath, tempDLLName );
 
@@ -1716,7 +1716,7 @@ main( int argC, char **argV )
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
 #if DEBUG
-                for( int replayIndex = 0; replayIndex < ARRAYCOUNT(globalNativeState.replayBuffers); ++replayIndex )
+                for( u32 replayIndex = 0; replayIndex < ARRAYCOUNT(globalNativeState.replayBuffers); ++replayIndex )
                 {
                     Win32ReplayBuffer *replayBuffer = &globalNativeState.replayBuffers[replayIndex];
 

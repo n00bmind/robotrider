@@ -94,7 +94,7 @@ OpenGLGetInfo( bool modernContext )
         GLint n, i;
         glGetIntegerv(GL_NUM_EXTENSIONS, &n);
         // FIXME Not safe
-        ASSERT( n < ARRAYCOUNT(result.extensions) );
+        ASSERT( (u32)n < ARRAYCOUNT(result.extensions) );
 
         for( i = 0; i < n; i++ )
         {
@@ -198,7 +198,7 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
 
     // NOTE Explicitly bind indices so that we don't need to conditionally bind shit later
     // only to avoid stupid fucking errors
-    for( int a = 0; a < ARRAYCOUNT(prg->attribs); ++a )
+    for( u32 a = 0; a < ARRAYCOUNT(prg->attribs); ++a )
     {
         OpenGLShaderAttribute &attr = prg->attribs[a];
         if( attr.name )
@@ -217,7 +217,7 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
     }
 
     // Check attribute & uniform locations
-    for( int u = 0; u < ARRAYCOUNT(prg->uniforms); ++u )
+    for( u32 u = 0; u < ARRAYCOUNT(prg->uniforms); ++u )
     {
         OpenGLShaderUniform &uniform = prg->uniforms[u];
         if( uniform.name )
@@ -228,7 +228,7 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
         }
     }
 
-    for( int a = 0; a < ARRAYCOUNT(prg->attribs); ++a )
+    for( u32 a = 0; a < ARRAYCOUNT(prg->attribs); ++a )
     {
         OpenGLShaderAttribute &attr = prg->attribs[a];
         if( attr.name )
@@ -246,7 +246,7 @@ internal void
 OpenGLHotswapShader( const char *filename, const char *shaderSource )
 {
     // Find which program definition(s) the file belongs to
-    for( int i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
+    for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
 
@@ -292,7 +292,7 @@ OpenGLHotswapShader( const char *filename, const char *shaderSource )
 }
 
 OpenGLInfo
-OpenGLInit( OpenGLState &gl, const GameRenderCommands& commands, bool modernContext )
+OpenGLInit( OpenGLState &gl, bool modernContext )
 {
     OpenGLInfo info = OpenGLGetInfo( modernContext );
 
@@ -320,7 +320,7 @@ OpenGLInit( OpenGLState &gl, const GameRenderCommands& commands, bool modernCont
     glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, gl.indexBuffer );
 
     // Compile all program definitions
-    for( int i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
+    for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
 
@@ -685,7 +685,7 @@ OpenGLUseProgram( OpenGLProgramName programName, OpenGLState &gl )
 
         int programIndex = -1;
 
-        for( int i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
+        for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
         {
             if( globalShaderPrograms[i].name == programName )
             {

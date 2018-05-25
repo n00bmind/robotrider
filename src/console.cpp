@@ -77,7 +77,7 @@ ConsoleExec( GameConsole *console, char *input )
         cmd++;
 
     // Extract command
-    char *argString = "";
+    const char *argString = "";
     cmd = strchr( input, ' ' );
     if( cmd )
     {
@@ -88,7 +88,7 @@ ConsoleExec( GameConsole *console, char *input )
 
     // Search in known commands array
     bool found = false;
-    for( int i = 0; i < ARRAYCOUNT(knownCommands); ++i )
+    for( u32 i = 0; i < ARRAYCOUNT(knownCommands); ++i )
     {
         if( strcmp( cmd, knownCommands[i].name ) == 0 )
         {

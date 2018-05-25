@@ -33,7 +33,7 @@ internal SArray<Vertex, 65536> genVertices;
 internal SArray<Triangle, 256*1024> genTriangles;
 #endif
 
-internal u32 clusterHashFunction( const v3i& keyValue, u32 bitCount )
+internal u32 clusterHashFunction( const v3i& keyValue )
 {
     // TODO Better hash function! x)
     u32 hashValue = (u32)(19*keyValue.x + 7*keyValue.y + 3*keyValue.z);

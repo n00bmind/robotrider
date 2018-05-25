@@ -32,8 +32,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if _MSC_VER
 #define COMPILER_MSVC 1
 #else
-// TODO Moar compilerz!!!
 #define COMPILER_LLVM 1
+// TODO Moar compilerz!!!
 #endif
 
 //
@@ -55,7 +55,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 #if DEBUG
-#define HALT() ( (*(int *)0 = 0) != 0 )
+#define HALT() ( (*(volatile int *)0 = 0) != 0 )
 #define ASSERT(expr) ((void)( !(expr) && (_assert_handler( #expr, __FILE__, __LINE__ ), 1) && HALT()))
 #define ASSERTM(expr, msg) ((void)( !(expr) && (_assert_handler( msg, __FILE__, __LINE__ ), 1) && HALT()))
 #else

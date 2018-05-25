@@ -173,7 +173,7 @@ struct GameInput
 };
 
 inline GameControllerInput *
-GetController( GameInput *input, int controllerIndex )
+GetController( GameInput *input, u32 controllerIndex )
 {
     ASSERT( controllerIndex < ARRAYCOUNT( input->_controllers ) );
     GameControllerInput *result = &input->_controllers[controllerIndex];

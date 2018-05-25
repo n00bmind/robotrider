@@ -95,11 +95,11 @@ struct SArray : public Array<T>
 {
     T storage[N];
 
-    SArray() : Array()
+    SArray()
     {
-        data = storage;
-        count = 0;
-        maxCount = N;
+        Array<T>::data = storage;
+        Array<T>::count = 0;
+        Array<T>::maxCount = N;
     }
 };
 
@@ -108,7 +108,7 @@ struct SArray : public Array<T>
 template <typename K, typename T>
 struct HashTable
 {
-    typedef u32 HashFunction( const K& key, u32 bitCount );
+    typedef u32 HashFunction( const K& key );
 
     struct HashSlot
     {
@@ -567,6 +567,8 @@ struct Dummy
 
 void TestDataTypes()
 {
+    // TODO 
+#if 0
     ConcurrentQueue<Dummy> q;
     Bucket<float> bucket;
 
@@ -577,6 +579,7 @@ void TestDataTypes()
 
     //dynArray.data = aLotOfVecs;
     //dynArray.maxCount = ARRAYCOUNT(aLotOfVecs);
+#endif
 }
 
 #endif /* __DATA_TYPES_H__ */

@@ -6,13 +6,20 @@ set RRSRC=src
 set RRBIN=bin
 
 set LIBS=user32.lib gdi32.lib winmm.lib ole32.lib opengl32.lib shlwapi.lib
-set WARNINGFLAGS=-wd4201 -wd4100 -wd4189 -wd4127 -wd4101 -wd4505
+set WARNINGFLAGS=-wd4201 -wd4100 -wd4189 -wd4101 -wd4505
 set COMMONFLAGS=-MTd -nologo -FC -W4 -WX -Oi -GR- -EHa- -D_HAS_EXCEPTIONS=0 %WARNINGFLAGS%
 set LINKERFLAGS=/opt:ref /incremental:no
 
+set CLANGFLAGS=-fdiagnostics-absolute-paths -Wno-missing-braces -Wno-unused-variable -Wno-unused-function -Wno-missing-field-initializers
+::set COMPILERFLAGS=%CLANGFLAGS%
+set COMPILERFLAGS=
+
+::set COMPILER=clang-cl
+set COMPILER=cl
+
 set DEBUGFLAGS=-DDEBUG=1 -Z7 -Od
 set RELEASEFLAGS=-O2
-set CFGFLAGS=%DEBUGFLAGS%
+set CFGFLAGS=-D_CRT_SECURE_NO_WARNINGS %DEBUGFLAGS%
 (echo ";r;rel;release;" | findstr /i ";%1;" 1>nul 2>nul) && (
     set CFGFLAGS=%RELEASEFLAGS%
 )
@@ -20,6 +27,6 @@ set CFGFLAGS=%DEBUGFLAGS%
 if not exist %RRBIN% mkdir %RRBIN%
 pushd %RRBIN%
 del *.pdb >NUL 2>NUL
-cl %COMMONFLAGS% %CFGFLAGS% ..\%RRSRC%\robotrider.cpp -Fmrobotrider.map -LD /link %LINKERFLAGS% /PDB:rr_%random%.pdb
-cl %COMMONFLAGS% %CFGFLAGS% ..\%RRSRC%\win32_platform.cpp -Fmwin32_platform.map -Ferr.exe /link %LINKERFLAGS% -subsystem:console,5.2 %LIBS%
+%COMPILER% %COMMONFLAGS% %CFGFLAGS% %COMPILERFLAGS% ..\%RRSRC%\robotrider.cpp -LD /link %LINKERFLAGS% /PDB:rr_dll_%random%.pdb
+%COMPILER% %COMMONFLAGS% %CFGFLAGS% %COMPILERFLAGS% ..\%RRSRC%\win32_platform.cpp -Ferr.exe /link %LINKERFLAGS% -subsystem:console,5.2 %LIBS%
 popd
