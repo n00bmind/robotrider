@@ -788,12 +788,13 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 
             newController->rightStick.endY = Win32ProcessXInputStickValue( pad->sThumbRY,
                                                                            XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE );
-            // TODO Left/right triggers
-
             newController->rightStick.avgY
                 = (newController->rightStick.startY + newController->rightStick.endY) / 2;
 
-            if( newController->leftStick.avgX != 0.0f || newController->leftStick.avgY != 0.0f )
+            // TODO Left/right triggers
+
+            if( newController->leftStick.avgX != 0.0f || newController->leftStick.avgY != 0.0f ||
+                newController->rightStick.avgX != 0.0f || newController->rightStick.avgY != 0.0f )
             {
                 newController->isAnalog = true;
             }
@@ -1775,7 +1776,17 @@ main( int argC, char **argV )
                     // Main loop
                     while( globalRunning )
                     {
-                        totalElapsedSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
+#if DEBUG
+                        // Prevent huge skips in physics etc. while debugging
+                        if( lastDeltaTimeSecs > 1.f )
+                        {
+                            lastDeltaTimeSecs = targetElapsedPerFrameSecs;
+                            totalElapsedSeconds += lastDeltaTimeSecs;
+                        }
+                        else
+#endif
+                            totalElapsedSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
+
                         Win32PrepareInputData( oldInput, newInput,
                                                lastDeltaTimeSecs, totalElapsedSeconds, runningFrameCounter );
                         if( runningFrameCounter == 0 )

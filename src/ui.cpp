@@ -72,6 +72,8 @@ DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool 
 void
 DrawAxisGizmos( GameRenderCommands *renderCommands )
 {
+    // FIXME Draw 4 quads per axis so they are always visible from any angle!
+
     const m4 &currentCamTransform = renderCommands->camera.mTransform;
     v3 vCamFwd = -GetRow( currentCamTransform, 2 ).xyz;
     v3 vCamX = GetRow( currentCamTransform, 0 ).xyz;

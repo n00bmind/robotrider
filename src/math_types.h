@@ -120,6 +120,60 @@ Round( const v2 &v )
     return result;
 }
 
+// Vector 3 integer
+
+union v3i
+{
+    struct
+    {
+        i32 x, y, z;
+    };
+    struct
+    {
+        v2i xy;
+        i32 _ignored0;
+    };
+    struct
+    {
+        i32 _ignored1;
+        v2i yz;
+    };
+    i32 e[3];
+};
+
+inline v3i
+V3I( i32 x, i32 y, i32 z )
+{
+    v3i result = { x, y, z };
+    return result;
+}
+
+inline bool
+operator ==( const v3i &a, const v3i &b )
+{
+    return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+inline bool
+operator !=( const v3i &a, const v3i &b )
+{
+    return a.x != b.x || a.y != b.y || a.z != b.z;
+}
+
+inline v3i
+operator +( const v3i &a, const v3i &b )
+{
+    v3i result = { a.x + b.x, a.y + b.y, a.z + b.z };
+    return result;
+}
+
+inline v3i
+operator -( const v3i &a, const v3i &b )
+{
+    v3i result = { a.x - b.x, a.y - b.y, a.z - b.z };
+    return result;
+}
+
 // Vector 3
 
 union v3
@@ -165,6 +219,13 @@ inline v3
 V3( const v2 &v, r32 z )
 {
     v3 result = { v.x, v.y, z };
+    return result;
+}
+
+inline v3
+V3( const v3i& v )
+{
+    v3 result = { (r32)v.x, (r32)v.y, (r32)v.z };
     return result;
 }
 
@@ -222,6 +283,13 @@ operator *=( v3& v, r32 s )
     v.x *= s;
     v.y *= s;
     v.z *= s;
+}
+
+inline v3
+operator *( const v3i &v, r32 s )
+{
+    v3 result = { v.x * s, v.y * s, v.z * s };
+    return result;
 }
 
 inline v3
@@ -331,27 +399,6 @@ V3Up()
     v3 result = { 0.0f, 0.0f, 1.0f };
     return result;
 }
-
-// Vector 3 integer
-
-union v3i
-{
-    struct
-    {
-        i32 x, y, z;
-    };
-    struct
-    {
-        v2i xy;
-        i32 _ignored0;
-    };
-    struct
-    {
-        i32 _ignored1;
-        v2i yz;
-    };
-    i32 e[3];
-};
 
 // Vector 4
 

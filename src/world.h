@@ -32,35 +32,6 @@ struct FlyingDude
     m4 mTransform;
 };
 
-struct CubeThing
-{
-    v3 vertices[4];
-    u32 indices[6];
-
-    m4 mTransform;
-};
-
-struct Mesh
-{
-    TexturedVertex* vertices;
-    u32* indices;
-    u32 vertexCount;
-    u32 indexCount;
-
-    m4 mTransform;
-};
-
-struct HullChunk
-{
-    Mesh mesh;
-    // TODO How're we gonna keep track of the generators so we can recreate everything
-    // whenever the chunks get evicted from the hi list (stored) because they're too far?
-    // Answer: We're not gonna generate using connected paths anymore. Instead, each chunk
-    // must be correctly and deterministically generated everytime just based on its coordinates.
-    HullChunk* prev;
-    GenPath* generator;
-};
-
 // NOTE
 //
 ///// HOW OUR UNIVERSE WILL WORK /////
@@ -88,25 +59,30 @@ struct StoredEntity
     v3i pCluster;
     v3 pClusterOffset;
 
+    // We're not gonna generate using connected paths anymore. Instead, each chunk must be
+    // correctly and deterministically generated everytime just based on its coordinates.
     // TODO Are we sure we want to have to regenerate the mesh?
-    //Generator generator;
+    Generator* generator;
 };
 
 struct LiveEntity
 {
     StoredEntity stored;
 
-    // Relative position (always relative to the current sim-region center)
-    v3 p;
+    // NOTE Mesh translation is always relative to the current sim-region center
+    Mesh *mesh;
 };
+
+#define CLUSTER_HALF_SIZE_METERS 50
 
 struct Cluster
 {
-    // Key into the hashtable
-    v3i pWorld;
+    bool populated;
     // TODO Determine what the bucket size should be so we have just one bucket most of the time
-    BucketArray<StoredEntity, 256> entityBuckets;
+    BucketArray<StoredEntity> entityStorage;
 };
+
+#define SIM_APRON_WIDTH 1
 
 struct World
 {
@@ -116,13 +92,15 @@ struct World
 
     FlyingDude *playerDude;
 
-    CubeThing *cubes;
-    u32 cubeCount;
-
+#if 0
     Array<Mesh> hullMeshes;
-    Array<GenPath> pathsBuffer;
+    Array<GeneratorPath> pathsBuffer;
+#endif
+
+    GeneratorHullNode hullNodeGenerator;
 
     // 'REAL' stuff
+    //
     // For now this will be the primary storage for (stored) entities
     HashTable<v3i, Cluster> clusterTable;
     // Scratch buffer for all the entities in the simulation region
@@ -131,7 +109,7 @@ struct World
     // TODO Is the previous sentence true?
     // TODO Investigate what a good bucket size is
     // TODO This would be a good thing to allocate in a transient arena (if we do the whole fetch-update-store cycle every frame)
-    BucketArray<LiveEntity, 4096> liveEntities;
+    BucketArray<LiveEntity> liveEntities;
     // Handles to stored entities to allow arbitrary entity cross-referencing even for entities that move
     // across clusters
     HashTable<u32, StoredEntity*> entityRefs;
@@ -142,6 +120,8 @@ struct World
 
     r32 marchingAreaSize;
     r32 marchingCubeSize;
+
+    MeshPool meshPool;
 };
 
 #endif /* __WORLD_H__ */

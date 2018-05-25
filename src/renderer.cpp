@@ -42,7 +42,8 @@ _PushRenderElement( GameRenderCommands *commands, u32 size, RenderEntryType type
         INVALID_CODE_PATH
     }
 
-    // Reset batched entries so they start over as needed
+    // NOTE Reset all batched entries so they start over as needed
+    // TODO We will probably need more control over this in the future
     commands->currentTris = nullptr;
     commands->currentLines = nullptr;
 
@@ -171,6 +172,7 @@ PushRenderGroup( FlyingDude *dude, GameRenderCommands *commands )
     }
 }
 
+/*
 void
 PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
 {
@@ -199,6 +201,7 @@ PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
         entry->indexCount += indexCount;
     }
 }
+*/
 
 void
 PushLine( v3 pStart, v3 pEnd, u32 color, GameRenderCommands *commands )
@@ -237,3 +240,14 @@ PushMesh( const Mesh& mesh, GameRenderCommands *commands )
         entry->indexCount += mesh.indexCount;
     }
 }
+
+void
+PushProgramChange( ShaderProgramName programName, GameRenderCommands *commands )
+{
+    RenderEntryProgramChange *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryProgramChange );
+    if( entry )
+    {
+        entry->programName = programName;
+    }
+}
+

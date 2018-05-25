@@ -23,7 +23,26 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MESHGEN_H__
 #define __MESHGEN_H__ 
 
-struct Vertex
+
+struct Mesh
+{
+    TexturedVertex* vertices;
+    u32 vertexCount;
+    u32* indices;
+    u32 indexCount;
+
+    m4 mTransform;
+};
+
+struct MeshPool
+{
+    BucketArray<TexturedVertex> scratchVertices;
+    BucketArray<u32> scratchIndices;
+
+    MemoryBlock memorySentinel;
+};
+
+struct InflatedVertex
 {
     v3 p;
     u32 refStart;
@@ -32,7 +51,7 @@ struct Vertex
     bool border;
 };
 
-struct Triangle
+struct InflatedTriangle
 {
     u32 v[3];
     r64 error[4];
@@ -42,16 +61,16 @@ struct Triangle
 };
 
 // Back-references from vertices to the triangles they belong to
-struct VertexRef
+struct InflatedVertexRef
 {
     u32 tId;        // Triangle index
     u32 tVertex;    // Vertex index (in triangle, so 0,1,2)
 };
 
-struct GeneratedMesh
+struct InflatedMesh
 {
-    Array<Vertex> vertices;
-    Array<Triangle> triangles;
+    Array<InflatedVertex> vertices;
+    Array<InflatedTriangle> triangles;
 };
 
 struct Metaball
@@ -67,13 +86,29 @@ enum class IsoSurfaceType
     Cylinder,
 };
 
-struct StoredGenPath
+enum class GeneratorType
 {
-
+    Path,
+    HullNode,
 };
 
-struct GenPath
+struct Generator;
+#define GENERATOR_FUNC(name) \
+    Mesh* name( Generator* generator, const v3& p, MemoryArena* arena, MeshPool* meshPool ) 
+typedef GENERATOR_FUNC(GeneratorFunc);
+
+struct Generator
 {
+    GeneratorType type;
+    GeneratorFunc* func;
+};
+
+#define INIT_GENERATOR(t) { { GeneratorType::t, Generator##t##Func } }
+
+struct GeneratorPath
+{
+    Generator header;
+
     // Center point and area around it for cube marching
     v3 pCenter;
     r32 areaSideMeters;
@@ -93,7 +128,16 @@ struct GenPath
     r32 distanceToNextFork;
     m4* nextBasis;
     // TODO Support multiple forks?
-    GenPath* nextFork;
+    GeneratorPath* nextFork;
+};
+
+struct StoredEntity;
+struct GeneratorHullNode
+{
+    Generator header;
+
+    StoredEntity* entity;
+    v3 pRelative;
 };
 
 #endif /* __MESHGEN_H__ */

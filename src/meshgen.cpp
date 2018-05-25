@@ -1,4 +1,76 @@
 
+void
+Init( MeshPool* pool, MemoryArena* arena, sz size )
+{
+    new (&pool->scratchVertices) BucketArray<TexturedVertex>( 1024, arena );
+    new (&pool->scratchIndices) BucketArray<u32>( 1024, arena );
+
+    // Initialize empty sentinel
+    pool->memorySentinel.prev = &pool->memorySentinel;
+    pool->memorySentinel.next = &pool->memorySentinel;
+    pool->memorySentinel.size = 0;
+    pool->memorySentinel.flags = MemoryBlockFlags::None;
+
+    InsertBlock( &pool->memorySentinel, size, PUSH_SIZE( arena, size ) );
+}
+
+void
+ClearScratchMesh( MeshPool* pool )
+{
+    pool->scratchVertices.Clear();
+    pool->scratchIndices.Clear();
+}
+
+Mesh*
+AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
+{
+    sz vertexSize = sizeof(TexturedVertex) * vertexCount;
+    sz indexSize = sizeof(u32) * indexCount;
+    sz totalMeshSize = sizeof(Mesh) + vertexSize + indexSize;
+
+    Mesh* result = nullptr;
+    MemoryBlock* block = FindBlockForSize( &pool->memorySentinel, totalMeshSize );
+    if( block)
+    {
+        // TODO Tune this based on the smallest mesh size we will typically have
+        const sz blockSplitThreshold = 4096;
+        result = (Mesh*)UseBlock( block, totalMeshSize, blockSplitThreshold );
+
+        result->vertices = (TexturedVertex*)((u8*)result + sizeof(Mesh));
+        result->indices = (u32*)((u8*)result->vertices + vertexSize);
+    }
+    else
+    {
+        // TODO Here we could evict meshes in a loop based on LRU
+        // until we free the amount we need
+        INVALID_CODE_PATH
+    }
+
+    return result;
+}
+
+Mesh*
+AllocateMeshFromScratchBuffers( MeshPool* pool )
+{
+    Mesh* result = AllocateMesh( pool, pool->scratchVertices.count,
+                                 pool->scratchIndices.count );
+
+    pool->scratchVertices.BlitTo( result->vertices );
+    result->vertexCount = pool->scratchVertices.count;
+
+    pool->scratchIndices.BlitTo( result->indices );
+    result->indexCount = pool->scratchIndices.count;
+
+    return result;
+}
+
+void
+ReleaseMesh( Mesh* mesh, MeshPool* pool )
+{
+    ReleaseBlockAt( mesh, &pool->memorySentinel );
+}
+
+///// MARCHING CUBES /////
 
 typedef float MarchedCubeSampleFunc( const void* sampleData, const v3& p );
 
@@ -13,7 +85,7 @@ namespace
 
 internal void
 MarchCube( const v3& pMinCorner, float cubeSize, MarchedCubeSampleFunc * sampleFunc, const void* sampledData, 
-           Array<TexturedVertex>* vertices, Array<u32>* indices )
+           BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
 {
     // Construct case mask from 8 corner samples
     int caseIndex = 0;
@@ -67,44 +139,46 @@ MarchCube( const v3& pMinCorner, float cubeSize, MarchedCubeSampleFunc * sampleF
 }
 
 internal void
-MarchLayer( const v3& pCenter, r32 topH, r32 areaSideMeters, r32 cubeSizeMeters, MarchedCubeSampleFunc* sampleFunc,
-            const void* sampleData, Array<TexturedVertex>* vertices, Array<u32>* indices )
+MarchLayer( const v3& pCenter, r32 topH, r32 areaSideMeters, r32 cubeSizeMeters,
+            MarchedCubeSampleFunc* sampleFunc, const void* sampleData,
+            BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
 {
     r32 halfSideMeters = areaSideMeters / 2;
     for( float i = -halfSideMeters; i < halfSideMeters; i += cubeSizeMeters )
         for( float j = -halfSideMeters; j < halfSideMeters; j += cubeSizeMeters )
             // TODO Maybe pass pCenter as a sampling offset to avoid float precision errors?
-            MarchCube( pCenter + V3( i, j, topH ), cubeSizeMeters, sampleFunc, sampleData, vertices, indices );
+            MarchCube( pCenter + V3( i, j, topH ), cubeSizeMeters, sampleFunc, sampleData,
+                       vertices, indices );
 }
 
-// TODO Think about how to minimize waste here
-internal SArray<TexturedVertex, 64*1024> scratchVertices;
-internal SArray<u32, 64*1024> scratchIndices;
-
-void
+Mesh*
 MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
-               MarchedCubeSampleFunc* sampleFunc, const void* sampleData, MemoryArena* arena, Mesh* outMesh )
+               MarchedCubeSampleFunc* sampleFunc, const void* sampleData, MeshPool* meshPool )
 {
-    scratchVertices.count = 0;
-    scratchIndices.count = 0;
+    ClearScratchMesh( meshPool );
 
-    // TODO Pre-sample top and bottom slices of values for each layer so we only sample one corner per cube
+    // TODO Pre-sample top and bottom slices of values for each layer so we only sample one corner per cube instead of 8
     // TODO Eliminate all the duplicate vertices that marching cubes creates
     // see http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng
     r32 halfSideMeters = areaSideMeters / 2;
     for( float k = -halfSideMeters; k < halfSideMeters; k += cubeSizeMeters )
-        MarchLayer( pCenter, k, areaSideMeters, cubeSizeMeters, sampleFunc, sampleData, &scratchVertices, &scratchIndices );
+        MarchLayer( pCenter, k, areaSideMeters, cubeSizeMeters, sampleFunc, sampleData,
+                    &meshPool->scratchVertices, &meshPool->scratchIndices );
 
     // Write output mesh
-    outMesh->vertices = PUSH_ARRAY( arena, scratchVertices.count, TexturedVertex );
-    scratchVertices.BlitTo( outMesh->vertices );
-    outMesh->vertexCount = scratchVertices.count;
+#if 0
+    Mesh* result = PUSH_STRUCT( arena, Mesh );
+    result->vertices = PUSH_ARRAY( arena, pool->scratchVertices.count, TexturedVertex );
+    pool->scratchVertices.BlitTo( result->vertices );
+    result->vertexCount = pool->scratchVertices.count;
 
-    outMesh->indices = PUSH_ARRAY( arena, scratchIndices.count, u32 );
-    scratchIndices.BlitTo( outMesh->indices );
-    outMesh->indexCount = scratchIndices.count;
-
-    outMesh->mTransform = Translation( pCenter );
+    result->indices = PUSH_ARRAY( arena, pool->scratchIndices.count, u32 );
+    pool->scratchIndices.BlitTo( result->indices );
+    result->indexCount = pool->scratchIndices.count;
+#else
+    Mesh* result = AllocateMeshFromScratchBuffers( meshPool );
+    return result;
+#endif
 }
 
 internal r32
@@ -124,8 +198,8 @@ SampleMetaballs( const void* sampleData, const v3& pos )
 }
 
 void
-TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, MemoryArena* arena,
-               GameRenderCommands *renderCommands )
+TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT,
+               MemoryArena* arena, MeshPool* meshPool, GameRenderCommands *renderCommands )
 {
     local_persistent SArray<Metaball, 10> balls;
 
@@ -153,12 +227,12 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, Memor
     }
     
     // Update mesh by sampling our cubic area centered at origin
-    Mesh metaMesh;
-    MarchAreaFast( V3Zero(), areaSideMeters, cubeSizeMeters, SampleMetaballs, &balls, arena, &metaMesh );
+    Mesh* metaMesh = MarchAreaFast( V3Zero(), areaSideMeters, cubeSizeMeters,
+                                    SampleMetaballs, &balls, meshPool );
 
     //GenerateFaceNormals( metaMesh );
 
-    PushMesh( metaMesh, renderCommands );
+    PushMesh( *metaMesh, renderCommands );
 }
 
 ///// MESH SIMPLIFICATION /////
@@ -175,10 +249,10 @@ VertexError( const m4Symmetric& q, r64 x, r64 y, r64 z )
 }
 
 internal r64
-CalculateError( GeneratedMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
+CalculateError( InflatedMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
 {
-    Vertex& v1 = mesh->vertices[v1Idx];
-    Vertex& v2 = mesh->vertices[v2Idx];
+    InflatedVertex& v1 = mesh->vertices[v1Idx];
+    InflatedVertex& v2 = mesh->vertices[v2Idx];
 
     // Compute interpolated vertex
     m4Symmetric q = v1.q + v2.q;
@@ -218,7 +292,7 @@ CalculateError( GeneratedMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
 }
 
 internal void
-UpdateMesh( GeneratedMesh* mesh, Array<VertexRef>* refs, u32 iteration )
+UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration )
 {
     if( iteration > 0 )
     {
@@ -246,7 +320,7 @@ UpdateMesh( GeneratedMesh* mesh, Array<VertexRef>* refs, u32 iteration )
 
         for( u32 i = 0; i < mesh->triangles.count; ++i )
         {
-            Triangle& tri = mesh->triangles[i];
+            InflatedTriangle& tri = mesh->triangles[i];
             v3 n;
             v3 p[3] =
             {
@@ -266,7 +340,7 @@ UpdateMesh( GeneratedMesh* mesh, Array<VertexRef>* refs, u32 iteration )
 
         for( u32 i = 0; i < mesh->triangles.count; ++i )
         {
-            Triangle& tri = mesh->triangles[i];
+            InflatedTriangle& tri = mesh->triangles[i];
             v3 p;
 
             for( int j = 0; j < 3; ++j )
@@ -284,7 +358,7 @@ UpdateMesh( GeneratedMesh* mesh, Array<VertexRef>* refs, u32 iteration )
     }
     for( u32 i = 0; i < mesh->triangles.count; ++i )
     {
-        Triangle& tri = mesh->triangles[i];
+        InflatedTriangle& tri = mesh->triangles[i];
         for( int j = 0; j < 3; ++j )
             mesh->vertices[tri.v[j]].refCount++;
     }
@@ -292,7 +366,7 @@ UpdateMesh( GeneratedMesh* mesh, Array<VertexRef>* refs, u32 iteration )
     u32 refStart = 0;
     for( u32 i = 0; i < mesh->vertices.count; ++i )
     {
-        Vertex& v = mesh->vertices[i];
+        InflatedVertex& v = mesh->vertices[i];
         v.refStart = refStart;
         refStart += v.refCount;
         v.refCount = 0;
@@ -301,11 +375,11 @@ UpdateMesh( GeneratedMesh* mesh, Array<VertexRef>* refs, u32 iteration )
     refs->count = mesh->triangles.count * 3;
     for( u32 i = 0; i < mesh->triangles.count; ++i )
     {
-        Triangle& tri = mesh->triangles[i];
+        InflatedTriangle& tri = mesh->triangles[i];
         for( int j = 0; j < 3; ++j )
         {
-            Vertex& v = mesh->vertices[tri.v[j]];
-            VertexRef& r = (*refs)[v.refStart + v.refCount];
+            InflatedVertex& v = mesh->vertices[tri.v[j]];
+            InflatedVertexRef& r = (*refs)[v.refStart + v.refCount];
 
             r.tId = i;
             r.tVertex = j;
@@ -327,12 +401,12 @@ UpdateMesh( GeneratedMesh* mesh, Array<VertexRef>* refs, u32 iteration )
             vCount.count = 0;
             vIds.count = 0;
 
-            Vertex& v = mesh->vertices[i];
+            InflatedVertex& v = mesh->vertices[i];
 
             for( u32 j = 0; j < v.refCount; ++j )
             {
                 u32 tId = (*refs)[v.refStart + j].tId;
-                Triangle& tri = mesh->triangles[tId];
+                InflatedTriangle& tri = mesh->triangles[tId];
 
                 for( int k = 0; k < 3; ++k )
                 {
@@ -365,12 +439,12 @@ UpdateMesh( GeneratedMesh* mesh, Array<VertexRef>* refs, u32 iteration )
 }
 
 internal bool
-Flipped( const GeneratedMesh& mesh, const Array<VertexRef>& refs,
-         const v3& p, u32 i0, u32 i1, const Vertex& v0, const Vertex& v1, Array<bool>* deleted )
+Flipped( const InflatedMesh& mesh, const Array<InflatedVertexRef>& refs,
+         const v3& p, u32 i0, u32 i1, const InflatedVertex& v0, const InflatedVertex& v1, Array<bool>* deleted )
 {
     for( u32 k = 0; k < v0.refCount; ++k )
     {
-        const Triangle& tri = mesh.triangles[refs[v0.refStart + k].tId];
+        const InflatedTriangle& tri = mesh.triangles[refs[v0.refStart + k].tId];
         if( tri.deleted )
             continue;
 
@@ -401,14 +475,14 @@ Flipped( const GeneratedMesh& mesh, const Array<VertexRef>& refs,
 
 // Update triangle connections and edge error after an edge is collapsed
 internal void
-UpdateTriangles( u32 i0, const Vertex& v, const Array<bool>& deleted,
-                 GeneratedMesh* mesh, Array<VertexRef>* refs, u32* deleteTriangleCount )
+UpdateTriangles( u32 i0, const InflatedVertex& v, const Array<bool>& deleted,
+                 InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32* deleteTriangleCount )
 {
     v3 p;
     for( u32 k = 0; k < v.refCount; ++k )
     {
-        VertexRef& ref = (*refs)[v.refStart + k];
-        Triangle& tri = mesh->triangles[ref.tId];
+        InflatedVertexRef& ref = (*refs)[v.refStart + k];
+        InflatedTriangle& tri = mesh->triangles[ref.tId];
 
         if( tri.deleted )
             continue;
@@ -430,7 +504,7 @@ UpdateTriangles( u32 i0, const Vertex& v, const Array<bool>& deleted,
 }
 
 internal void
-CompactMesh( GeneratedMesh* mesh )
+CompactMesh( InflatedMesh* mesh )
 {
     u32 dst = 0;
 
@@ -439,7 +513,7 @@ CompactMesh( GeneratedMesh* mesh )
 
     for( u32 i = 0; i < mesh->triangles.count; ++i )
     {
-        Triangle& tri = mesh->triangles[i];
+        InflatedTriangle& tri = mesh->triangles[i];
         if( !tri.deleted )
         {
             mesh->triangles[dst++] = tri;
@@ -453,7 +527,7 @@ CompactMesh( GeneratedMesh* mesh )
 
     for( u32 i = 0; i < mesh->vertices.count; ++i )
     {
-        Vertex& v = mesh->vertices[i];
+        InflatedVertex& v = mesh->vertices[i];
         if( v.refCount )
         {
             v.refStart = dst;
@@ -464,7 +538,7 @@ CompactMesh( GeneratedMesh* mesh )
 
     for( u32 i = 0; i < mesh->triangles.count; ++i )
     {
-        Triangle& tri = mesh->triangles[i];
+        InflatedTriangle& tri = mesh->triangles[i];
         for( int j = 0; j < 3; ++j )
             tri.v[j] = mesh->vertices[tri.v[j]].refStart;
     }
@@ -472,10 +546,10 @@ CompactMesh( GeneratedMesh* mesh )
 }
 
 // FIXME Put these in an arena
-SArray<VertexRef, 500000> refs;
+SArray<InflatedVertexRef, 500000> refs;
 
 // Taken from https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification
-void FastQuadricSimplify( GeneratedMesh* mesh, u32 targetTriCount, r32 agressiveness = 7 )
+void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, r32 agressiveness = 7 )
 {
     u32 triangleCount = mesh->triangles.count;
     u32 deletedTriangleCount = 0;
@@ -504,7 +578,7 @@ void FastQuadricSimplify( GeneratedMesh* mesh, u32 targetTriCount, r32 agressive
 
         for( u32 i = 0; i < mesh->triangles.count; ++i )
         {
-            Triangle& tri = mesh->triangles[i];
+            InflatedTriangle& tri = mesh->triangles[i];
             if( tri.error[3] > threshold || tri.deleted || tri.dirty )
                 continue;
 
@@ -515,8 +589,8 @@ void FastQuadricSimplify( GeneratedMesh* mesh, u32 targetTriCount, r32 agressive
                     SArray<bool, 1000> deleted0;
                     SArray<bool, 1000> deleted1;
 
-                    u32 i0 = tri.v[j];          Vertex& v0 = mesh->vertices[i0];
-                    u32 i1 = tri.v[(j+1)%3];    Vertex& v1 = mesh->vertices[i1];
+                    u32 i0 = tri.v[j];          InflatedVertex& v0 = mesh->vertices[i0];
+                    u32 i1 = tri.v[(j+1)%3];    InflatedVertex& v1 = mesh->vertices[i1];
 
                     if( v0.border != v1.border )
                         continue;
@@ -546,7 +620,7 @@ void FastQuadricSimplify( GeneratedMesh* mesh, u32 targetTriCount, r32 agressive
                     {
                         // Save ram (sic) !?
                         if( refCount )
-                            memcpy( &refs[v0.refStart], &refs[refStart], refCount * sizeof(VertexRef) );
+                            memcpy( &refs[v0.refStart], &refs[refStart], refCount * sizeof(InflatedVertexRef) );
                     }
                     else
                         v0.refStart = refStart;
@@ -565,12 +639,12 @@ void FastQuadricSimplify( GeneratedMesh* mesh, u32 targetTriCount, r32 agressive
 }
 
 
-///// PATH GENERATION /////
+///// MESH GENERATION /////
 
 internal r32
 SampleCuboid( const void* sampleData, const v3& p )
 {
-    GenPath* path = (GenPath*)sampleData;
+    GeneratorPath* path = (GeneratorPath*)sampleData;
     v3 vRight = GetXBasis( path->basis );
     v3 vForward = GetYBasis( path->basis );
     v3 vUp = GetZBasis( path->basis );
@@ -634,7 +708,7 @@ SampleCuboid( const void* sampleData, const v3& p )
 internal r32
 SampleCylinder( const void* sampleData, const v3& p )
 {
-    GenPath* path = (GenPath*)sampleData;
+    GeneratorPath* path = (GeneratorPath*)sampleData;
     v3 vForward = GetYBasis( path->basis );
 
     v3 vP = p - path->pCenter;
@@ -648,8 +722,8 @@ SampleCylinder( const void* sampleData, const v3& p )
 }
 
 u32
-GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, MemoryArena* arena,
-                     Mesh* outMesh, GenPath* nextFork )
+GenerateOnePathStep( GeneratorPath* path, r32 resolutionMeters, bool advancePosition,
+                     MemoryArena* arena, MeshPool* meshPool, Mesh** outMesh, GeneratorPath* nextFork )
 {
     bool turnInThisStep = path->distanceToNextTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToNextFork < path->areaSideMeters;
@@ -694,8 +768,9 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, 
         path->nextFork = nextFork;
     }
 
-    MarchAreaFast( V3Zero(), path->areaSideMeters, resolutionMeters, SampleCuboid, path, arena, outMesh );
-    outMesh->mTransform = Translation( path->pCenter );
+    *outMesh = MarchAreaFast( V3Zero(), path->areaSideMeters, resolutionMeters,
+                              SampleCuboid, path, meshPool );
+    (*outMesh)->mTransform = Translation( path->pCenter );
 
     // Advance to next chunk
     if( advancePosition )
@@ -719,6 +794,28 @@ GenerateOnePathStep( GenPath* path, r32 resolutionMeters, bool advancePosition, 
     return forkInThisStep ? 1 : 0;
 }
 
+internal r32
+SampleHullNode( const void* sampleData, const v3& p )
+{
+    GeneratorHullNode* generator = (GeneratorHullNode*)sampleData;
+
+    // Just a sphere for now
+    r32 result = DistanceSq( p, V3Zero() ) - 5;
+    return result;
+}
+
+GENERATOR_FUNC(GeneratorHullNodeFunc)
+{
+    // TODO These will probably come from the entity itself
+    r32 areaSideMeters = 10;
+    r32 resolutionMeters = 1;
+
+    Mesh* result = MarchAreaFast( V3Zero(), areaSideMeters, resolutionMeters,
+                                  SampleHullNode, generator, meshPool );
+    result->mTransform = Translation( p );
+
+    return result;
+}
 
 ///// MARCHING CUBES LUTs /////
 

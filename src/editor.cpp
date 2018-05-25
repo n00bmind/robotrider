@@ -22,42 +22,27 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 internal void
-DrawTestGrid( r32 areaSizeMeters, r32 resolutionMeters, GameRenderCommands* renderCommands )
+DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, GameRenderCommands* renderCommands )
 {
     const r32 areaHalf = areaSizeMeters / 2;
 
     u32 semiBlack = Pack01ToRGBA( V4( 0, 0, 0, 0.1f ) );
     v3 off = V3Zero();
 
-    r32 zStart = -areaHalf;
-    r32 zEnd = areaHalf;
-    for( float x = -areaHalf; x <= areaHalf; x += resolutionMeters )
-    {
-        for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
-        {
-            PushLine( V3( x, y, zStart ) + off, V3( x, y, zEnd ) + off, semiBlack, renderCommands );
-        }
-    }
     r32 yStart = -areaHalf;
     r32 yEnd = areaHalf;
     for( float x = -areaHalf; x <= areaHalf; x += resolutionMeters )
     {
-        for( float z = -areaHalf; z <= areaHalf; z += resolutionMeters )
-        {
-            PushLine( V3( x, yStart, z ) + off, V3( x, yEnd, z ) + off, semiBlack, renderCommands );
-        }
+        PushLine( V3( x, yStart, 0 ) + off, V3( x, yEnd, 0 ) + off, semiBlack, renderCommands );
     }
     r32 xStart = -areaHalf;
     r32 xEnd = areaHalf;
-    for( float z = -areaHalf; z <= areaHalf; z += resolutionMeters )
+    for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
     {
-        for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
-        {
-            PushLine( V3( xStart, y, z ) + off, V3( xEnd, y, z ) + off, semiBlack, renderCommands );
-        }
+        PushLine( V3( xStart, y, 0 ) + off, V3( xEnd, y, 0 ) + off, semiBlack, renderCommands );
     }
-
 }
+
 #if DEBUG
 void
 UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands *renderCommands, const char* statsText )
@@ -120,7 +105,9 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands 
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
 
-    DrawTestGrid( gameState->world->marchingAreaSize, gameState->world->marchingCubeSize, renderCommands );
+    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
+
+    DrawFloorGrid( CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands );
 
     // FIXME Draw this as plain color always
     DrawAxisGizmos( renderCommands );
