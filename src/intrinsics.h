@@ -24,6 +24,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __INTRINSICS_H__
 #define __INTRINSICS_H__ 
 
+#if _MSC_VER
+#include "intrin.h"
+#endif
+
+
 // TODO Convert all of these to the most platform-efficient versions
 
 

@@ -274,6 +274,9 @@ Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameMemory *gameMemor
         result.SetupAfterReload = (GameSetupAfterReloadFunc *)GetProcAddress( result.gameCodeDLL, "GameSetupAfterReload" );
         result.UpdateAndRender = (GameUpdateAndRenderFunc *)GetProcAddress( result.gameCodeDLL, "GameUpdateAndRender" );
         result.LogCallback = (GameLogCallbackFunc *)GetProcAddress( result.gameCodeDLL, "GameLogCallback" );
+#if DEBUG
+        result.GetStats = (DEBUGGameGetStatsFunc*)GetProcAddress( result.gameCodeDLL, "GameGetStats" );
+#endif
 
         result.isValid = result.SetupAfterReload != 0 && result.UpdateAndRender != 0;
     }
@@ -292,10 +295,9 @@ Win32UnloadGameCode( Win32GameCode *gameCode )
     if( gameCode->gameCodeDLL )
     {
         FreeLibrary( gameCode->gameCodeDLL );
-        gameCode->gameCodeDLL = 0;
     }
 
-    gameCode->isValid = false;
+    *gameCode = {0};
     gameCode->UpdateAndRender = GameUpdateAndRenderStub;
 }
 
@@ -1862,6 +1864,9 @@ main( int argC, char **argV )
 
                         ResetRenderCommands( &renderCommands );
 
+                        DebugGameStats* gameStats = globalNativeState.gameCode.GetStats();
+                        ResetFrameCounters( gameStats );
+
                         // Ask the game to render one frame
                         globalNativeState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
 
@@ -1920,6 +1925,24 @@ main( int argC, char **argV )
                                  1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed, audioPaddingFrames );
                         }
 #endif
+
+#if DEBUG
+                        // Print game debug statistics
+                        LOG( ":::Frame counters:" );
+                        for( u32 i = 0; i < ARRAYCOUNT(gameStats->counters); ++i )
+                        {
+                            DebugCycleCounter& c = gameStats->counters[i];
+                            if( c.frameHitCount > 0 )
+                            {
+                                LOG( "%s\t%lu fc  %u h  %u fc/h",
+                                     c.name,
+                                     c.frameCycles,
+                                     c.frameHitCount,
+                                     c.frameCycles/c.frameHitCount );
+                            }
+                        }
+#endif
+
                     }
                 }
                 else
@@ -1942,8 +1965,25 @@ main( int argC, char **argV )
         LOG( ".ERROR: Couldn't register window class!" );
     }
 
-    LOG( "\nFPS: %.1f imm. / %.1f avg.",
+    LOG( "\n\nFPS: %.1f imm. / %.1f avg.",
          ImGui::GetIO().Framerate, (r32)runningFrameCounter / totalElapsedSeconds );
+
+#if DEBUG
+    LOG( ":::Global counters:" );
+    DebugGameStats* gameStats = globalNativeState.gameCode.GetStats();
+    for( u32 i = 0; i < ARRAYCOUNT(gameStats->counters); ++i )
+    {
+        DebugCycleCounter& c = gameStats->counters[i];
+        if( c.totalHitCount > 0 )
+        {
+            LOG( "%s\t%lu tc  %u h  %u tc/h",
+                 c.name,
+                 c.totalCycles,
+                 c.totalHitCount,
+                 c.totalCycles/c.totalHitCount );
+        }
+    }
+#endif
 
     return 0;
 }

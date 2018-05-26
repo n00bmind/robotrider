@@ -32,6 +32,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <math.h>
 
 #include "platform.h"
+#include "intrinsics.h"
+#include "debugstats.h"
 #include "memory.h"
 #include "math.h"
 #include "data_types.h"
@@ -199,6 +201,7 @@ struct GameMemory
 };
 
 
+
 #ifndef GAME_SETUP_AFTER_RELOAD
 #define GAME_SETUP_AFTER_RELOAD(name) \
     void name( GameMemory *memory )
@@ -225,6 +228,14 @@ typedef GAME_ASSET_LOADED_CALLBACK(GameAssetLoadedCallbackFunc);
     void name( const char *msg )
 #endif
 typedef GAME_LOG_CALLBACK(GameLogCallbackFunc);
+
+#if DEBUG
+#ifndef GAME_GET_STATS
+#define GAME_GET_STATS(name) \
+    DebugGameStats* name()
+#endif
+typedef GAME_GET_STATS(DEBUGGameGetStatsFunc);
+#endif
 
 
 struct GameAssetMapping

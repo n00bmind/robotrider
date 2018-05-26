@@ -24,8 +24,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MATH_H__
 #define __MATH_H__ 
 
-#include "intrinsics.h"
 #include "math_types.h"
+
 #define PI32 3.141592653589f
 #define PI64 3.14159265358979323846
 

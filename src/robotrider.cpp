@@ -41,6 +41,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 PlatformAPI globalPlatform;
 internal GameConsole *gameConsole;
 
+#if DEBUG
+DebugGameStats DEBUGglobalStats;
+
+LIB_EXPORT
+GAME_GET_STATS(GameGetStats)
+{
+    return &DEBUGglobalStats;
+}
+#endif
 
 
 LIB_EXPORT
@@ -49,6 +58,7 @@ GAME_LOG_CALLBACK(GameLogCallback)
     ConsoleLog( gameConsole, msg );
 }
 
+// TODO Remove
 LIB_EXPORT
 GAME_SETUP_AFTER_RELOAD(GameSetupAfterReload)
 {
@@ -66,6 +76,8 @@ GAME_SETUP_AFTER_RELOAD(GameSetupAfterReload)
 LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
+    TIMED_BLOCK(GameUpdateAndRender);
+
     globalPlatform = *memory->platformAPI;
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
     GameState *gameState = (GameState *)memory->permanentStorage;

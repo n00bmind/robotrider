@@ -54,9 +54,12 @@ struct Win32GameCode
     HMODULE gameCodeDLL;
     FILETIME lastDLLWriteTime;
 
-    GameSetupAfterReloadFunc *SetupAfterReload;
-    GameUpdateAndRenderFunc *UpdateAndRender;
-    GameLogCallbackFunc *LogCallback;
+    GameSetupAfterReloadFunc* SetupAfterReload;
+    GameUpdateAndRenderFunc* UpdateAndRender;
+    GameLogCallbackFunc* LogCallback;
+#if DEBUG
+    DEBUGGameGetStatsFunc* GetStats;
+#endif
 
     bool isValid;
 };
