@@ -29,6 +29,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PI32 3.141592653589f
 #define PI64 3.14159265358979323846
 
+inline bool
+AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
+{
+    bool result = false;
+
+    if( absoluteEpsilon == 0 )
+    {
+        result = Abs( a - b ) < Max( a, b ) * FLT_EPSILON;
+    }
+    else
+    {
+        result = Abs( a - b ) < absoluteEpsilon;
+    }
+
+    return result;
+}
+
 inline r32
 Radians( r32 degrees )
 {

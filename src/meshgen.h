@@ -136,6 +136,11 @@ struct GeneratorHullNode
 {
     Generator header;
 
+    r32 areaSideMeters;
+    r32 resolutionMeters;
+    r32* bottomMCLayerBuffer;
+    r32* topMCLayerBuffer;
+
     StoredEntity* entity;
     v3 pRelative;
 };

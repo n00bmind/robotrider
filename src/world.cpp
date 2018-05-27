@@ -84,7 +84,15 @@ InitWorld( World* world, MemoryArena* worldArena )
 
     world->pWorldOrigin = { 0, 0, 0 };
     world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
-    world->hullNodeGenerator = INIT_GENERATOR( HullNode );
+
+    GeneratorHullNode hullGenerator = INIT_GENERATOR( HullNode );
+    hullGenerator.areaSideMeters = 10;
+    hullGenerator.resolutionMeters = 1;
+    u32 stepsPerSide = (u32)(hullGenerator.areaSideMeters / hullGenerator.resolutionMeters) + 1;
+    u32 layerNodeCount = stepsPerSide * stepsPerSide;
+    hullGenerator.bottomMCLayerBuffer = PUSH_ARRAY( worldArena, layerNodeCount, r32 );
+    hullGenerator.topMCLayerBuffer = PUSH_ARRAY( worldArena, layerNodeCount, r32 );
+    world->hullNodeGenerator = hullGenerator;
 
     Init( &world->meshPool, worldArena, MEGABYTES(128) );
 }
@@ -129,6 +137,8 @@ DEBUGClearAllClusters( World* world )
 internal void
 LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena, MeshPool* meshPool )
 {
+    TIMED_BLOCK( LoadEntitiesInCluster );
+
     Cluster* cluster = world->clusterTable.Find( clusterCoords );
 
     if( !cluster )
@@ -146,25 +156,29 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 
     v3 vClusterWorldOffset = GetClusterWorldOffset( clusterCoords, world );
 
-    BucketArray<StoredEntity>::Idx it = cluster->entityStorage.First();
-    while( it )
     {
-        StoredEntity& storedEntity = it;
-        v3 pEntity = vClusterWorldOffset + storedEntity.pClusterOffset; 
+        TIMED_BLOCK( GenerateEntities );
 
-        GeneratorHullNode* generator = (GeneratorHullNode*)storedEntity.generator;
-        generator->entity = &storedEntity;
-        generator->pRelative = pEntity;
-
-        // Make live entity from stored and put it in the world
-        LiveEntity* liveEntity = world->liveEntities.Reserve();
-        *liveEntity =
+        BucketArray<StoredEntity>::Idx it = cluster->entityStorage.First();
+        while( it )
         {
-            storedEntity,
-            storedEntity.generator->func( storedEntity.generator, pEntity, arena, meshPool ),
-        };
+            StoredEntity& storedEntity = it;
+            v3 pEntity = vClusterWorldOffset + storedEntity.pClusterOffset; 
 
-        it.Next();
+            GeneratorHullNode* generator = (GeneratorHullNode*)storedEntity.generator;
+            generator->entity = &storedEntity;
+            generator->pRelative = pEntity;
+
+            // Make live entity from stored and put it in the world
+            LiveEntity* liveEntity = world->liveEntities.Reserve();
+            *liveEntity =
+            {
+                storedEntity,
+                storedEntity.generator->func( storedEntity.generator, pEntity, arena, meshPool ),
+            };
+
+            it.Next();
+        }
     }
 }
 

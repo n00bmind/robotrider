@@ -1934,7 +1934,7 @@ main( int argC, char **argV )
                             DebugCycleCounter& c = gameStats->counters[i];
                             if( c.frameHitCount > 0 )
                             {
-                                LOG( "%s\t%lu fc  %u h  %u fc/h",
+                                LOG( "%s\t%llu fc  %u h  %u fc/h",
                                      c.name,
                                      c.frameCycles,
                                      c.frameHitCount,
@@ -1976,7 +1976,7 @@ main( int argC, char **argV )
         DebugCycleCounter& c = gameStats->counters[i];
         if( c.totalHitCount > 0 )
         {
-            LOG( "%s\t%lu tc  %u h  %u tc/h",
+            LOG( "%s\t%llu tc  %u h  %u tc/h",
                  c.name,
                  c.totalCycles,
                  c.totalHitCount,

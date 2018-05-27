@@ -78,22 +78,36 @@ typedef float MarchedCubeSampleFunc( const void* sampleData, const v3& p );
 // C++ is wonderful
 namespace
 {
-    extern v3 cornerOffsets[8];
-    extern v3 edgeVertexOffsets[12][2];
+    extern v3i cornerOffsets[8];
+    extern u32 edgeVertexOffsets[12][2];
     extern int triangleTable[][16];
 }
 
 internal void
-MarchCube( const v3& pMinCorner, float cubeSize, MarchedCubeSampleFunc * sampleFunc, const void* sampledData, 
+MarchCube( const v3& pOrigin, r32 cubeSize,
+           const v2i& pLayerOrigin, r32* bottomLayer, r32* topLayer, u32 layerStepsCount,
            BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
 {
+    TIMED_BLOCK( MarchCube );
+
+    v3i pLayerOrigin3D = V3I( pLayerOrigin.x, pLayerOrigin.y, 0 );
+
     // Construct case mask from 8 corner samples
-    int caseIndex = 0;
+    u32 caseIndex = 0;
+    r32 cornerSamples[8];
     for( int i = 0; i < 8; ++i )
     {
-        float sample = sampleFunc( sampledData, pMinCorner + cornerOffsets[i] * cubeSize );
+        v3i layerOffset = cornerOffsets[i];
+        v3i pLayer = pLayerOrigin3D + layerOffset;
+
+        r32 sample = layerOffset.z
+            ? topLayer[pLayer.x * layerStepsCount + pLayer.y]
+            : bottomLayer[pLayer.x * layerStepsCount + pLayer.y];
+
         if( sample >= 0 )
             caseIndex |= 1 << i;
+
+        cornerSamples[i] = sample;
     }
 
     // Early out if entirely inside or outside
@@ -109,22 +123,24 @@ MarchCube( const v3& pMinCorner, float cubeSize, MarchedCubeSampleFunc * sampleF
             if( edgeCaseIndex == -1 )
                 return;
 
-            v3 pA = pMinCorner + edgeVertexOffsets[edgeCaseIndex][0] * cubeSize;   // Edge start
-            v3 pB = pMinCorner + edgeVertexOffsets[edgeCaseIndex][1] * cubeSize;   // Edge end
+            u32 indexA = edgeVertexOffsets[edgeCaseIndex][0];   // Edge start
+            u32 indexB = edgeVertexOffsets[edgeCaseIndex][1];   // Edge end
+
+            v3 pA = pOrigin + V3( cornerOffsets[indexA] ) * cubeSize;
+            v3 pB = pOrigin + V3( cornerOffsets[indexB] ) * cubeSize;
 
 #if 0
             // Non interpolated version (DMC)
             v3 vPos = (pA + pB) / 2;
 #else
             // Interpolate along the edge
-            float sA = sampleFunc( sampledData, pA );
-            float sB = sampleFunc( sampledData, pB );
+            float sA = cornerSamples[indexA];
+            float sB = cornerSamples[indexB];
 
-            float dif = sA - sB;
-            // Check div by 0 since sampling function is external
-            float t = dif == 0.f ? 0.5f : sA / dif;
+            float diff = sA - sB;
+            // In case sampled function is the same, arbitrarily use midpoint
+            float t = AlmostEqual( diff, 0.f ) ? 0.5f : sA / diff;
             v3 vPos = pA + ((pB - pA) * t);
-            //v3 vPos = Lerp( pA, t, pB );
 #endif
 
             indices->Add( vertices->count );
@@ -138,32 +154,64 @@ MarchCube( const v3& pMinCorner, float cubeSize, MarchedCubeSampleFunc * sampleF
     }
 }
 
-internal void
-MarchLayer( const v3& pCenter, r32 topH, r32 areaSideMeters, r32 cubeSizeMeters,
-            MarchedCubeSampleFunc* sampleFunc, const void* sampleData,
-            BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
-{
-    r32 halfSideMeters = areaSideMeters / 2;
-    for( float i = -halfSideMeters; i < halfSideMeters; i += cubeSizeMeters )
-        for( float j = -halfSideMeters; j < halfSideMeters; j += cubeSizeMeters )
-            // TODO Maybe pass pCenter as a sampling offset to avoid float precision errors?
-            MarchCube( pCenter + V3( i, j, topH ), cubeSizeMeters, sampleFunc, sampleData,
-                       vertices, indices );
-}
-
 Mesh*
 MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
-               MarchedCubeSampleFunc* sampleFunc, const void* sampleData, MeshPool* meshPool )
+               MarchedCubeSampleFunc* sampleFunc, const void* sampleData,
+               r32* bottomLayerBuffer, r32* topLayerBuffer, MeshPool* meshPool )
 {
     ClearScratchMesh( meshPool );
 
-    // TODO Pre-sample top and bottom slices of values for each layer so we only sample one corner per cube instead of 8
-    // TODO Eliminate all the duplicate vertices that marching cubes creates
-    // see http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng
-    r32 halfSideMeters = areaSideMeters / 2;
-    for( float k = -halfSideMeters; k < halfSideMeters; k += cubeSizeMeters )
-        MarchLayer( pCenter, k, areaSideMeters, cubeSizeMeters, sampleFunc, sampleData,
-                    &meshPool->scratchVertices, &meshPool->scratchIndices );
+    {
+        TIMED_BLOCK( MarchAreaFast );
+
+        // TODO Eliminate all the duplicate vertices that marching cubes creates
+        // see http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng
+        r32 halfSideMeters = areaSideMeters / 2;
+        i32 numSteps = (i32)(areaSideMeters / cubeSizeMeters);
+        v3 centerOffset = { -halfSideMeters, -halfSideMeters, -halfSideMeters };
+
+        r32* layerBuffers[2] = { bottomLayerBuffer, topLayerBuffer };
+        bool firstPass = true;
+
+        int l = 0;
+        for( int k = 0; k < numSteps; ++k )
+        {
+            r32* bottomLayer = layerBuffers[l];
+            r32* topLayer = layerBuffers[(l+1) & 0x1];
+
+            // Pre-sample top and bottom slices of values for each layer so we only sample one corner per cube instead of 8
+            for( int n = 0; n < 2; ++n )
+            {
+                if( n == 0 && !firstPass )
+                    continue;
+
+                r32* sampledLayer = n ? topLayer : bottomLayer;
+
+                for( int i = 0; i < numSteps; ++i )
+                {
+                    for( int j = 0; j < numSteps; ++j )
+                    {
+                        v3 p = pCenter + V3I( i, j, k + n ) * cubeSizeMeters + centerOffset;
+                        sampledLayer[i*numSteps + j] = sampleFunc( sampleData, p );
+                    }
+                }
+            }
+
+            for( int i = 0; i < numSteps; ++i )
+            {
+                for( int j = 0; j < numSteps; ++j )
+                {
+                    v3 p = pCenter + V3I( i, j, k ) * cubeSizeMeters + centerOffset;
+                    MarchCube( p, cubeSizeMeters,
+                               V2I( i, j ), bottomLayer, topLayer, numSteps,
+                               &meshPool->scratchVertices, &meshPool->scratchIndices );
+                }
+            }
+
+            firstPass = false;
+            l = (l + 1) & 0x1;
+        }
+    }
 
     // Write output mesh
 #if 0
@@ -199,7 +247,8 @@ SampleMetaballs( const void* sampleData, const v3& pos )
 
 void
 TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT,
-               MemoryArena* arena, MeshPool* meshPool, GameRenderCommands *renderCommands )
+               r32* bottomLayerBuffer, r32* topLayerBuffer,
+               MeshPool* meshPool, GameRenderCommands *renderCommands )
 {
     local_persistent SArray<Metaball, 10> balls;
 
@@ -228,9 +277,8 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT,
     
     // Update mesh by sampling our cubic area centered at origin
     Mesh* metaMesh = MarchAreaFast( V3Zero(), areaSideMeters, cubeSizeMeters,
-                                    SampleMetaballs, &balls, meshPool );
-
-    //GenerateFaceNormals( metaMesh );
+                                    SampleMetaballs, &balls,
+                                    bottomLayerBuffer, topLayerBuffer, meshPool );
 
     PushMesh( *metaMesh, renderCommands );
 }
@@ -723,7 +771,8 @@ SampleCylinder( const void* sampleData, const v3& p )
 
 u32
 GenerateOnePathStep( GeneratorPath* path, r32 resolutionMeters, bool advancePosition,
-                     MemoryArena* arena, MeshPool* meshPool, Mesh** outMesh, GeneratorPath* nextFork )
+                     r32* bottomLayerBuffer, r32* topLayerBuffer,
+                     MeshPool* meshPool, Mesh** outMesh, GeneratorPath* nextFork )
 {
     bool turnInThisStep = path->distanceToNextTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToNextFork < path->areaSideMeters;
@@ -769,7 +818,8 @@ GenerateOnePathStep( GeneratorPath* path, r32 resolutionMeters, bool advancePosi
     }
 
     *outMesh = MarchAreaFast( V3Zero(), path->areaSideMeters, resolutionMeters,
-                              SampleCuboid, path, meshPool );
+                              SampleCuboid, path,
+                              bottomLayerBuffer, topLayerBuffer, meshPool );
     (*outMesh)->mTransform = Translation( path->pCenter );
 
     // Advance to next chunk
@@ -797,6 +847,8 @@ GenerateOnePathStep( GeneratorPath* path, r32 resolutionMeters, bool advancePosi
 internal r32
 SampleHullNode( const void* sampleData, const v3& p )
 {
+    TIMED_BLOCK( SampleFunc );
+
     GeneratorHullNode* generator = (GeneratorHullNode*)sampleData;
 
     // Just a sphere for now
@@ -806,12 +858,16 @@ SampleHullNode( const void* sampleData, const v3& p )
 
 GENERATOR_FUNC(GeneratorHullNodeFunc)
 {
-    // TODO These will probably come from the entity itself
-    r32 areaSideMeters = 10;
-    r32 resolutionMeters = 1;
+    GeneratorHullNode* hullGenerator = (GeneratorHullNode*)generator;
+
+    r32 areaSideMeters = hullGenerator->areaSideMeters;
+    r32 resolutionMeters = hullGenerator->resolutionMeters;
 
     Mesh* result = MarchAreaFast( V3Zero(), areaSideMeters, resolutionMeters,
-                                  SampleHullNode, generator, meshPool );
+                                  SampleHullNode, generator,
+                                  hullGenerator->bottomMCLayerBuffer,
+                                  hullGenerator->topMCLayerBuffer,
+                                  meshPool );
     result->mTransform = Translation( p );
 
     return result;
@@ -822,33 +878,34 @@ GENERATOR_FUNC(GeneratorHullNodeFunc)
 namespace
 {
     // Offsets from the minimal corner to other corners
-    v3 cornerOffsets[8] =
+    v3i cornerOffsets[8] =
     {
-        V3( 0.0f, 0.0f, 0.0f ),
-        V3( 1.0f, 0.0f, 0.0f ),
-        V3( 1.0f, 1.0f, 0.0f ),
-        V3( 0.0f, 1.0f, 0.0f ),
-        V3( 0.0f, 0.0f, 1.0f ),
-        V3( 1.0f, 0.0f, 1.0f ),
-        V3( 1.0f, 1.0f, 1.0f ),
-        V3( 0.0f, 1.0f, 1.0f )
+        V3I( 0, 0, 0 ),    // Bottom layer
+        V3I( 1, 0, 0 ),
+        V3I( 1, 1, 0 ),
+        V3I( 0, 1, 0 ),
+        V3I( 0, 0, 1 ),    // Top layer
+        V3I( 1, 0, 1 ),
+        V3I( 1, 1, 1 ),
+        V3I( 0, 1, 1 )
     };
 
     // Offsets from the minimal corner to 2 ends of the edges
-    v3 edgeVertexOffsets[12][2] =
+    // (each entry is an index to the previous table)
+    u32 edgeVertexOffsets[12][2] =
     {
-        { V3( 0.0f, 0.0f, 0.0f ), V3( 1.0f, 0.0f, 0.0f ) },
-        { V3( 1.0f, 0.0f, 0.0f ), V3( 1.0f, 1.0f, 0.0f ) },
-        { V3( 0.0f, 1.0f, 0.0f ), V3( 1.0f, 1.0f, 0.0f ) },
-        { V3( 0.0f, 0.0f, 0.0f ), V3( 0.0f, 1.0f, 0.0f ) },
-        { V3( 0.0f, 0.0f, 1.0f ), V3( 1.0f, 0.0f, 1.0f ) },
-        { V3( 1.0f, 0.0f, 1.0f ), V3( 1.0f, 1.0f, 1.0f ) },
-        { V3( 0.0f, 1.0f, 1.0f ), V3( 1.0f, 1.0f, 1.0f ) },
-        { V3( 0.0f, 0.0f, 1.0f ), V3( 0.0f, 1.0f, 1.0f ) },
-        { V3( 0.0f, 0.0f, 0.0f ), V3( 0.0f, 0.0f, 1.0f ) },
-        { V3( 1.0f, 0.0f, 0.0f ), V3( 1.0f, 0.0f, 1.0f ) },
-        { V3( 1.0f, 1.0f, 0.0f ), V3( 1.0f, 1.0f, 1.0f ) },
-        { V3( 0.0f, 1.0f, 0.0f ), V3( 0.0f, 1.0f, 1.0f ) }
+        { 0, 1 },
+        { 1, 2 },
+        { 3, 2 },
+        { 0, 3 },
+        { 4, 5 },
+        { 5, 6 },
+        { 7, 6 },
+        { 4, 7 },
+        { 0, 4 },
+        { 1, 5 },
+        { 2, 6 },
+        { 3, 7 }
     };
 
     // List of vertex indices for every triangle & for every possible case

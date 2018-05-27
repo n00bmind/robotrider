@@ -54,6 +54,13 @@ union v2i
 };
 
 inline v2i
+V2I( i32 x, i32 y )
+{
+    v2i result = { x, y };
+    return result;
+}
+
+inline v2i
 V2iZero()
 {
     return { 0, 0 };
@@ -288,7 +295,7 @@ operator *=( v3& v, r32 s )
 inline v3
 operator *( const v3i &v, r32 s )
 {
-    v3 result = { v.x * s, v.y * s, v.z * s };
+    v3 result = { (r32)v.x * s, (r32)v.y * s, (r32)v.z * s };
     return result;
 }
 

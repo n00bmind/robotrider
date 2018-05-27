@@ -29,7 +29,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 enum class DebugCycleCounterId : u32
 {
     GameUpdateAndRender,
-
+    LoadEntitiesInCluster,
+    GenerateEntities,
+    MarchAreaFast,
+    MarchCube,
+    SampleFunc,
 };
 
 struct DebugCycleCounter
