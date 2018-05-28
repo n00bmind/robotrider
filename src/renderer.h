@@ -127,4 +127,16 @@ struct IndexBuffer
     u32 maxCount;
 };
 
+
+
+inline u32
+Pack01ToRGBA( v4 unpacked )
+{
+    u32 result = (((Round(unpacked.a * 255) & 0xFF) << 24)
+                | ((Round(unpacked.b * 255) & 0xFF) << 16)
+                | ((Round(unpacked.g * 255) & 0xFF) << 8)
+                | ((Round(unpacked.r * 255) & 0xFF) << 0));
+    return result;
+}
+
 #endif /* __RENDERER_H__ */

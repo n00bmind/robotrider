@@ -37,6 +37,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "debugstats.h"
 #include "memory.h"
 #include "math.h"
+#include "math_types.h"
 #include "data_types.h"
 #include "renderer.h"
 #include "meshgen.h"

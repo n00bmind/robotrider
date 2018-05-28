@@ -248,6 +248,14 @@ operator ==( const v3 &a, const v3 &b )
     return a.x == b.x && a.y == b.y && a.z == b.z;
 }
 
+inline bool
+AlmostEqual( const v3& a, const v3& b, r32 absoluteEpsilon = 0 )
+{
+    return AlmostEqual( a.x, b.x, absoluteEpsilon )
+        && AlmostEqual( a.y, b.y, absoluteEpsilon )
+        && AlmostEqual( a.z, b.z, absoluteEpsilon );
+}
+
 inline v3
 operator -( const v3 &v )
 {

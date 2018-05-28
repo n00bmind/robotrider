@@ -24,8 +24,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MATH_H__
 #define __MATH_H__ 
 
-#include "math_types.h"
-
 #define PI32 3.141592653589f
 #define PI64 3.14159265358979323846
 
@@ -36,11 +34,11 @@ AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
 
     if( absoluteEpsilon == 0 )
     {
-        result = Abs( a - b ) < Max( a, b ) * FLT_EPSILON;
+        result = Abs( a - b ) <= Abs( Max( a, b ) ) * FLT_EPSILON;
     }
     else
     {
-        result = Abs( a - b ) < absoluteEpsilon;
+        result = Abs( a - b ) <= absoluteEpsilon;
     }
 
     return result;
@@ -50,16 +48,6 @@ inline r32
 Radians( r32 degrees )
 {
     r32 result = degrees * PI32 / 180;
-    return result;
-}
-
-inline u32
-Pack01ToRGBA( v4 unpacked )
-{
-    u32 result = (((Round(unpacked.a * 255) & 0xFF) << 24)
-                | ((Round(unpacked.b * 255) & 0xFF) << 16)
-                | ((Round(unpacked.g * 255) & 0xFF) << 8)
-                | ((Round(unpacked.r * 255) & 0xFF) << 0));
     return result;
 }
 

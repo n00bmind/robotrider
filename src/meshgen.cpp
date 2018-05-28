@@ -170,6 +170,9 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
         i32 numSteps = (i32)(areaSideMeters / cubeSizeMeters);
         v3 centerOffset = { -halfSideMeters, -halfSideMeters, -halfSideMeters };
 
+        v3 vXDelta = V3( cubeSizeMeters, 0, 0 );
+        v3 vYDelta = V3( 0, cubeSizeMeters, 0 );
+
         r32* layerBuffers[2] = { bottomLayerBuffer, topLayerBuffer };
         bool firstPass = true;
 
@@ -187,25 +190,34 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
 
                 r32* sampledLayer = n ? topLayer : bottomLayer;
 
+                v3 p = pCenter + centerOffset + V3I( 0, 0, k + n ) * cubeSizeMeters;
+
+                r32* sample = sampledLayer;
                 for( int i = 0; i < numSteps; ++i )
                 {
+                    v3 pAtRowStart = p;
                     for( int j = 0; j < numSteps; ++j )
                     {
-                        v3 p = pCenter + V3I( i, j, k + n ) * cubeSizeMeters + centerOffset;
-                        sampledLayer[i*numSteps + j] = sampleFunc( sampleData, p );
+                        *sample++ = sampleFunc( sampleData, p );
+                        p += vYDelta;
                     }
+                    p = pAtRowStart + vXDelta;
                 }
             }
 
+            v3 p = pCenter + centerOffset + V3I( 0, 0, k ) * cubeSizeMeters;
+
             for( int i = 0; i < numSteps; ++i )
             {
+                v3 pAtRowStart = p;
                 for( int j = 0; j < numSteps; ++j )
                 {
-                    v3 p = pCenter + V3I( i, j, k ) * cubeSizeMeters + centerOffset;
                     MarchCube( p, cubeSizeMeters,
                                V2I( i, j ), bottomLayer, topLayer, numSteps,
                                &meshPool->scratchVertices, &meshPool->scratchIndices );
+                    p += vYDelta;
                 }
+                p = pAtRowStart + vXDelta;
             }
 
             firstPass = false;
