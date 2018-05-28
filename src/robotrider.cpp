@@ -42,13 +42,7 @@ PlatformAPI globalPlatform;
 internal GameConsole *gameConsole;
 
 #if DEBUG
-DebugGameStats DEBUGglobalStats;
-
-LIB_EXPORT
-GAME_GET_STATS(GameGetStats)
-{
-    return &DEBUGglobalStats;
-}
+DebugGameStats* DEBUGglobalStats;
 #endif
 
 
@@ -79,6 +73,10 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     TIMED_BLOCK(GameUpdateAndRender);
 
     globalPlatform = *memory->platformAPI;
+#if DEBUG
+    DEBUGglobalStats = globalPlatform.DEBUGgameStats;
+#endif
+
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
     GameState *gameState = (GameState *)memory->permanentStorage;
     ASSERT( sizeof(TransientState) <= memory->transientStorageSize );
@@ -128,8 +126,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     float frameTime = 1000.f / fps;
     char statsText[1024];
     snprintf( statsText, ARRAYCOUNT(statsText),
-              "Frame ms.: %.3f (%.1f FPS)   DrawCalls %u   Primitives %u",
-              frameTime, fps, globalPlatform.totalDrawCalls, globalPlatform.totalPrimitiveCount );
+              "Frame ms.: %.3f (%.1f FPS)   DrawCalls %u   Primitives %u   Vertices %u",
+              frameTime, fps, DEBUGglobalStats->totalDrawCalls,
+              DEBUGglobalStats->totalPrimitiveCount, DEBUGglobalStats->totalVertexCount );
 
     if( gameState->DEBUGglobalEditing )
     {

@@ -231,14 +231,6 @@ typedef GAME_ASSET_LOADED_CALLBACK(GameAssetLoadedCallbackFunc);
 #endif
 typedef GAME_LOG_CALLBACK(GameLogCallbackFunc);
 
-#if DEBUG
-#ifndef GAME_GET_STATS
-#define GAME_GET_STATS(name) \
-    DebugGameStats* name()
-#endif
-typedef GAME_GET_STATS(DEBUGGameGetStatsFunc);
-#endif
-
 
 struct GameAssetMapping
 {

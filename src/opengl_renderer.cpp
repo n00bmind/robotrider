@@ -741,8 +741,11 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
     mProjView = mProjView * commands.camera.mTransform;
     gl.mCurrentProjView = mProjView;
 
-    globalPlatform.totalDrawCalls = 0;
-    globalPlatform.totalPrimitiveCount = 0;
+#if DEBUG
+    DEBUGglobalStats->totalDrawCalls = 0;
+    DEBUGglobalStats->totalPrimitiveCount = 0;
+    DEBUGglobalStats->totalVertexCount = 0;
+#endif
 
 
     RenderBuffer &buffer = commands.renderBuffer;
@@ -786,8 +789,11 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 glDrawElements( GL_TRIANGLES, entry->indexCount, GL_UNSIGNED_INT, (void *)0 );
 
-                globalPlatform.totalDrawCalls++;
-                globalPlatform.totalPrimitiveCount += (entry->indexCount / 3);
+#if DEBUG
+                DEBUGglobalStats->totalDrawCalls++;
+                DEBUGglobalStats->totalVertexCount += entry->vertexCount;
+                DEBUGglobalStats->totalPrimitiveCount += (entry->indexCount / 3);
+#endif
             } break;
 
             case RenderEntryType::RenderEntryLines:
@@ -802,8 +808,10 @@ OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
 
                 glDrawArrays( GL_LINES, 0, entry->lineCount * 2 );
 
-                globalPlatform.totalDrawCalls++;
-                globalPlatform.totalPrimitiveCount += entry->lineCount;
+#if DEBUG
+                DEBUGglobalStats->totalDrawCalls++;
+                DEBUGglobalStats->totalPrimitiveCount += entry->lineCount;
+#endif
             } break;
 
             case RenderEntryType::RenderEntryProgramChange:

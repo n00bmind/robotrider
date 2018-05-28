@@ -31,7 +31,7 @@ _PushRenderElement( GameRenderCommands *commands, u32 size, RenderEntryType type
     if( buffer.size + size < buffer.maxSize )
     {
         result = (RenderEntry *)(buffer.base + buffer.size);
-        memset( result, 0, size );
+        CLEAR0( result, size );
         result->type = type;
         result->size = size;
         buffer.size += size;

@@ -50,9 +50,12 @@ struct DebugGameStats
 {
     DebugCycleCounter counters[4096];
 
+    u32 totalDrawCalls;
+    u32 totalVertexCount;
+    u32 totalPrimitiveCount;
 };
 
-extern DebugGameStats DEBUGglobalStats;
+extern DebugGameStats* DEBUGglobalStats;
 
 inline void
 ResetFrameCounters( DebugGameStats* stats )
@@ -81,7 +84,7 @@ struct DebugTimedBlock
     ~DebugTimedBlock()
     {
         u64 cycleCount = __rdtsc() - startCycleCount;
-        DebugCycleCounter& c = DEBUGglobalStats.counters[(u32)id];
+        DebugCycleCounter& c = DEBUGglobalStats->counters[(u32)id];
         c.name = name;
         c.frameCycles += cycleCount;
         c.totalCycles += cycleCount;

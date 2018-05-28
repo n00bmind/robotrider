@@ -57,9 +57,6 @@ struct Win32GameCode
     GameSetupAfterReloadFunc* SetupAfterReload;
     GameUpdateAndRenderFunc* UpdateAndRender;
     GameLogCallbackFunc* LogCallback;
-#if DEBUG
-    DEBUGGameGetStatsFunc* GetStats;
-#endif
 
     bool isValid;
 };

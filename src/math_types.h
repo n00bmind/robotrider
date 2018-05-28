@@ -67,9 +67,16 @@ V2iZero()
 }
 
 inline bool
-operator ==( const v2i &a, const v2i &b )
+operator ==( const v2i& a, const v2i& b )
 {
     return a.x == b.x && a.y == b.y;
+}
+
+inline v2i
+operator +( const v2i& a, const v2i& b )
+{
+    v2i result = { a.x + b.x, a.y + b.y };
+    return result;
 }
 
 // Vector 2

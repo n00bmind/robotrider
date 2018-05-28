@@ -84,6 +84,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define MEGABYTES(value) (KILOBYTES(value)*1024)
 #define GIGABYTES(value) (MEGABYTES((u64)value)*1024)
 
+#define CLEAR(dest, size, value) memset( dest, value, size )
+#define CLEAR0(dest, size) memset( dest, 0, size )
 
 // NOTE Only use these where storage is important (i.e: structs)
 typedef int8_t i8;
@@ -101,8 +103,9 @@ typedef double r64;
 
 typedef size_t sz;
 
-#define I32MAX INT_MAX
-#define I32MIN INT_MIN
+#define I32MAX INT32_MAX
+#define I32MIN INT32_MIN
+#define U32MAX UINT32_MAX
 
 #define R32MAX FLT_MAX
 #define R32MIN FLT_MIN
@@ -133,6 +136,8 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
 typedef PLATFORM_LOG(PlatformLogFunc);
 
 
+struct DebugGameStats;
+
 struct PlatformAPI
 {
     DebugPlatformReadEntireFileFunc *DEBUGReadEntireFile;
@@ -141,9 +146,9 @@ struct PlatformAPI
 
     PlatformLogFunc *Log;
 
-    // Some stats for debugging (here until I find a better place for them)
-    u32 totalDrawCalls;
-    u32 totalPrimitiveCount;
+#if DEBUG
+    DebugGameStats* DEBUGgameStats;
+#endif
 };
 extern PlatformAPI globalPlatform;
 

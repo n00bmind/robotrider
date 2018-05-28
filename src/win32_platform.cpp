@@ -72,6 +72,9 @@ internal IAudioRenderClient* globalAudioRenderClient;
 internal i64 globalPerfCounterFrequency;
 #if DEBUG
 internal HCURSOR DEBUGglobalCursor;
+internal DebugGameStats DEBUGgameStats;
+
+DebugGameStats* DEBUGglobalStats = &DEBUGgameStats;
 #endif
 
 // Global switches
@@ -274,9 +277,6 @@ Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameMemory *gameMemor
         result.SetupAfterReload = (GameSetupAfterReloadFunc *)GetProcAddress( result.gameCodeDLL, "GameSetupAfterReload" );
         result.UpdateAndRender = (GameUpdateAndRenderFunc *)GetProcAddress( result.gameCodeDLL, "GameUpdateAndRender" );
         result.LogCallback = (GameLogCallbackFunc *)GetProcAddress( result.gameCodeDLL, "GameLogCallback" );
-#if DEBUG
-        result.GetStats = (DEBUGGameGetStatsFunc*)GetProcAddress( result.gameCodeDLL, "GameGetStats" );
-#endif
 
         result.isValid = result.SetupAfterReload != 0 && result.UpdateAndRender != 0;
     }
@@ -1583,11 +1583,9 @@ main( int argC, char **argV )
     globalPlatform.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
     globalPlatform.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
     globalPlatform.Log = PlatformLog;
-
-    GameMemory gameMemory = {};
-    gameMemory.permanentStorageSize = GIGABYTES(2);
-    gameMemory.transientStorageSize = GIGABYTES(1);
-    gameMemory.platformAPI = &globalPlatform;
+#if DEBUG
+    globalPlatform.DEBUGgameStats = DEBUGglobalStats;
+#endif
 
     Win32GetFilePaths( &globalNativeState );
 
@@ -1599,6 +1597,11 @@ main( int argC, char **argV )
     sprintf_s( tempDLLPath, ARRAYCOUNT(tempDLLPath), "%s%s", globalNativeState.exeFilePath, tempDLLName );
 
     LOG( "Initializing Win32 platform with game DLL at: %s", sourceDLLPath );
+    GameMemory gameMemory = {};
+    gameMemory.permanentStorageSize = GIGABYTES(2);
+    gameMemory.transientStorageSize = GIGABYTES(1);
+    gameMemory.platformAPI = &globalPlatform;
+
 
     // Init subsystems
     Win32InitXInput();
@@ -1833,6 +1836,8 @@ main( int argC, char **argV )
                         {
                             Win32PlayBackInput( &globalNativeState, newInput );
                         }
+
+                        ResetFrameCounters( DEBUGglobalStats );
 #endif
 
                         // Setup remaining stuff for the ImGui frame
@@ -1864,8 +1869,6 @@ main( int argC, char **argV )
 
                         ResetRenderCommands( &renderCommands );
 
-                        DebugGameStats* gameStats = globalNativeState.gameCode.GetStats();
-                        ResetFrameCounters( gameStats );
 
                         // Ask the game to render one frame
                         globalNativeState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
@@ -1929,9 +1932,9 @@ main( int argC, char **argV )
 #if DEBUG
                         // Print game debug statistics
                         LOG( ":::Frame counters:" );
-                        for( u32 i = 0; i < ARRAYCOUNT(gameStats->counters); ++i )
+                        for( u32 i = 0; i < ARRAYCOUNT(DEBUGglobalStats->counters); ++i )
                         {
-                            DebugCycleCounter& c = gameStats->counters[i];
+                            DebugCycleCounter& c = DEBUGglobalStats->counters[i];
                             if( c.frameHitCount > 0 )
                             {
                                 LOG( "%s\t%llu fc  %u h  %u fc/h",
@@ -1970,10 +1973,9 @@ main( int argC, char **argV )
 
 #if DEBUG
     LOG( ":::Global counters:" );
-    DebugGameStats* gameStats = globalNativeState.gameCode.GetStats();
-    for( u32 i = 0; i < ARRAYCOUNT(gameStats->counters); ++i )
+    for( u32 i = 0; i < ARRAYCOUNT(DEBUGglobalStats->counters); ++i )
     {
-        DebugCycleCounter& c = gameStats->counters[i];
+        DebugCycleCounter& c = DEBUGglobalStats->counters[i];
         if( c.totalHitCount > 0 )
         {
             LOG( "%s\t%llu tc  %u h  %u tc/h",

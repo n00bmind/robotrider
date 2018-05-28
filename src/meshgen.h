@@ -73,6 +73,19 @@ struct InflatedMesh
     Array<InflatedTriangle> triangles;
 };
 
+
+struct MarchingCacheBuffers
+{
+    r32* bottomLayerSamples;
+    r32* topLayerSamples;
+
+    u32* bottomLayerVertexIndices;
+    u32* middleLayerVertexIndices;
+    u32* topLayerVertexIndices;
+
+    u32 layerCellCount;
+};
+
 struct Metaball
 {
     v3 pCenter;
@@ -138,8 +151,7 @@ struct GeneratorHullNode
 
     r32 areaSideMeters;
     r32 resolutionMeters;
-    r32* bottomMCLayerBuffer;
-    r32* topMCLayerBuffer;
+    MarchingCacheBuffers marchingCacheBuffers;
 
     StoredEntity* entity;
     v3 pRelative;

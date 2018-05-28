@@ -88,10 +88,9 @@ InitWorld( World* world, MemoryArena* worldArena )
     GeneratorHullNode hullGenerator = INIT_GENERATOR( HullNode );
     hullGenerator.areaSideMeters = 10;
     hullGenerator.resolutionMeters = 1;
-    u32 stepsPerSide = (u32)(hullGenerator.areaSideMeters / hullGenerator.resolutionMeters) + 1;
-    u32 layerNodeCount = stepsPerSide * stepsPerSide;
-    hullGenerator.bottomMCLayerBuffer = PUSH_ARRAY( worldArena, layerNodeCount, r32 );
-    hullGenerator.topMCLayerBuffer = PUSH_ARRAY( worldArena, layerNodeCount, r32 );
+    hullGenerator.marchingCacheBuffers =
+        InitMarchingCacheBuffers( worldArena, hullGenerator.areaSideMeters,
+                                  hullGenerator.resolutionMeters );
     world->hullNodeGenerator = hullGenerator;
 
     Init( &world->meshPool, worldArena, MEGABYTES(128) );
