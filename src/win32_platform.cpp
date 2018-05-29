@@ -1570,6 +1570,8 @@ Win32InitOpenGL( HDC dc, const GameRenderCommands& commands, u32 frameVSyncSkipC
     ASSERT( wglSwapIntervalEXT );
     if( globalVSyncEnabled )
         wglSwapIntervalEXT( frameVSyncSkipCount );
+    else
+        wglSwapIntervalEXT( 0 );
 
     return true;
 }
