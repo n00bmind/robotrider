@@ -4,11 +4,7 @@
 
 
 WORLDGEN
-- Mesh simplication using Fast Quadric method
 - Procedural generation of some kind of infinite pipe-like world structure
-
-GAMEPLAY
-- Develop some kind of entity system with selective updating based on distance from player
 
 THREADING
 - Once the previous process is complex enough, develop worker threads that can do it in the background based on player distance
@@ -40,6 +36,7 @@ INPUT
 - Find a way to calibrate different relative movement amounts from the different input methods
 
 DEBUGGING
+- Habemus leak! Memory usage grows non-stop currently
 - Profiler
 - Profile & optimize the DEBUG build!
 - Live editable 'switches' data file (reloadable asset) that can overwrite generic game & platform variables

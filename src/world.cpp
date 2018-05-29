@@ -93,20 +93,20 @@ InitWorld( World* world, MemoryArena* worldArena )
                                   hullGenerator.resolutionMeters );
     world->hullNodeGenerator = hullGenerator;
 
-    Init( &world->meshPool, worldArena, MEGABYTES(128) );
+    Init( &world->meshPool, worldArena, MEGABYTES(256) );
 }
 
 internal void
 CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, World* world, MemoryArena* arena )
 {
-    const r32 margin = 0.f;
+    const r32 margin = 3.f;
 
     // TEST Place an entity every few meters, leaving some margin
-    for( r32 i = -CLUSTER_HALF_SIZE_METERS + margin; i <= CLUSTER_HALF_SIZE_METERS - margin; i += 30.f )
+    for( r32 i = -CLUSTER_HALF_SIZE_METERS + margin; i <= CLUSTER_HALF_SIZE_METERS - margin; i += 24.f )
     {
-        for( r32 j = -CLUSTER_HALF_SIZE_METERS + margin; j <= CLUSTER_HALF_SIZE_METERS - margin; j += 30.f )
+        for( r32 j = -CLUSTER_HALF_SIZE_METERS + margin; j <= CLUSTER_HALF_SIZE_METERS - margin; j += 24.f )
         {
-            for( r32 k = -CLUSTER_HALF_SIZE_METERS + margin; k <= CLUSTER_HALF_SIZE_METERS - margin; k += 30.f )
+            for( r32 k = -CLUSTER_HALF_SIZE_METERS + margin; k <= CLUSTER_HALF_SIZE_METERS - margin; k += 24.f )
             {
                 cluster->entityStorage.Add(
                 {

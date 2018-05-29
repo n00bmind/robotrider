@@ -1174,12 +1174,14 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                 // Respond to keyboard input
                 if( isDown )
                 {
-                    if( vkCode == VK_F4 && altKeyDown )
+#if !DEBUG
+                    if( vkCode == VK_ESCAPE ||
+                        (vkCode == VK_F4 && altKeyDown) )
                     {
                         globalRunning = false;
                     }
-#if DEBUG
-                    else if( vkCode == VK_RETURN && altKeyDown )
+#else
+                    if( vkCode == VK_RETURN && altKeyDown )
                     {
                         Win32ToggleFullscreen( platformState->mainWindow );
                     }
@@ -1204,7 +1206,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                         }
                     }
 
-                    // TODO This may only work in the spanish keyboard?
+                    // FIXME This only works on a spanish keyboard it seems
                     else if( vkCode == VK_OEM_5 )
                     {
                         if( ctrlKeyDown )
@@ -1691,7 +1693,7 @@ main( int argC, char **argV )
             u32 vertexBufferSize = 1024*1024;
             TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferSize * sizeof(TexturedVertex),
                                                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-            u32 indexBufferSize = vertexBufferSize;
+            u32 indexBufferSize = vertexBufferSize * 8;
             u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferSize * sizeof(u32),
                                                     MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
             GameRenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,

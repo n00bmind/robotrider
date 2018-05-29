@@ -95,6 +95,10 @@ struct DebugTimedBlock
 
 #define TIMED_BLOCK(id) DebugTimedBlock block##id( DebugCycleCounterId::id, #id );
 
+#else
+
+#define TIMED_BLOCK(id)
+
 #endif // DEBUG
 
 #endif /* __DEBUGSTATS_H__ */

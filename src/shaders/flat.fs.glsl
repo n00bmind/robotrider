@@ -68,14 +68,15 @@ void main()
     float d = dot( lightDirection, _in.faceNormal );
     vec4 lightColor = vec4( d, d, d, 1 );
 
-#if 0
-    // Do this in a second pass for simple fog'ing
-    float dMax = 20;
+#if 1 // Extremely simple fog
+    float dMax = 250;
     float dMin = 10;
-    float tFog = clamp( (dMax - gl_FragCoord.z) / (dMax - dMin), 0, 1 );
+    float dist = gl_FragCoord.z / gl_FragCoord.w;
+    float tFog = clamp( (dMax - dist) / (dMax - dMin), 0, 1 );
+
+    outColor = mix( vec4( 0.95, 0.95, 0.95, 1 ), lightColor, tFog );
 #endif
 
     //outColor = unpack( _in.color );
-    //outColor = mix( vec4( 0, 1, 0, 1 ), lightColor, tFog );
-    outColor = lightColor;
+    //outColor = lightColor;
 }

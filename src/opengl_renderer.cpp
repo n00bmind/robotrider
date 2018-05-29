@@ -72,7 +72,8 @@ GL_DEBUG_CALLBACK(OpenGLDebugCallback)
          "message\t\t:: %s\n",
          sourceStr, typeStr, id, severityStr, message );
 
-    if( severity != GL_DEBUG_SEVERITY_NOTIFICATION )
+    if( type != GL_DEBUG_TYPE_PERFORMANCE &&
+        severity != GL_DEBUG_SEVERITY_NOTIFICATION )
     {
         ASSERT( !"OpenGL error" );
     }

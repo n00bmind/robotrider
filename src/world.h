@@ -73,7 +73,7 @@ struct LiveEntity
     Mesh *mesh;
 };
 
-#define CLUSTER_HALF_SIZE_METERS 50
+#define CLUSTER_HALF_SIZE_METERS 75
 
 struct Cluster
 {
