@@ -70,7 +70,7 @@ DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool 
 }
 
 void
-DrawAxisGizmos( GameRenderCommands *renderCommands )
+DrawAxisGizmos( RenderCommands *renderCommands )
 {
     // FIXME Draw 4 quads per axis so they are always visible from any angle!
 

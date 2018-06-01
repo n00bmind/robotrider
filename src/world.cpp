@@ -358,7 +358,7 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
 }
 
 void
-UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands *renderCommands )
+UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *renderCommands )
 {
     float dT = input->frameElapsedSeconds;
     float elapsedT = input->totalElapsedSeconds;
@@ -372,10 +372,11 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, GameRenderCommands
         DEBUGClearAllClusters( world );
         world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
     }
+#endif
 
     // Update player based on input
-    if( !gameState->DEBUGglobalEditing )
-#endif
+    // FIXME Filter this at the parent level!
+    //if( !gameState->DEBUGglobalEditing )
     {
         GameControllerInput *input0 = GetController( input, 0 );
 

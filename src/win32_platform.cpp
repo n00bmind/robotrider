@@ -21,7 +21,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#include "robotrider.h"
+#include "game.h"
 
 #include <windows.h>
 
@@ -61,10 +61,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 PlatformAPI globalPlatform;
+#if DEBUG
+DebugGameStats DEBUGgameStats;
+DebugGameStats* DEBUGglobalStats = &DEBUGgameStats;
+#endif
 
 internal OpenGLState globalOpenGLState;
 internal Win32State globalNativeState;
-// TODO These probably don't need to be globals at all..
+
+
+// FIXME These probably don't need to be globals at all.. PRUNE!
 internal bool globalRunning;
 internal u32 globalMonitorRefreshHz;
 internal IAudioClient* globalAudioClient;
@@ -72,13 +78,12 @@ internal IAudioRenderClient* globalAudioRenderClient;
 internal i64 globalPerfCounterFrequency;
 #if DEBUG
 internal HCURSOR DEBUGglobalCursor;
-internal DebugGameStats DEBUGgameStats;
-
-DebugGameStats* DEBUGglobalStats = &DEBUGgameStats;
 #endif
+
 
 // Global switches
 internal bool globalVSyncEnabled = false;
+
 
 
 internal void
@@ -626,7 +631,7 @@ Win32AllocateBackBuffer( Win32OffscreenBuffer *buffer, int width, int height )
 }
 
 internal void
-Win32DisplayInWindow( GameRenderCommands &commands, HDC deviceContext, int windowWidth, int windowHeight )
+Win32DisplayInWindow( RenderCommands &commands, HDC deviceContext, int windowWidth, int windowHeight )
 {
     Renderer renderer = Renderer::OpenGL;
 
@@ -1067,27 +1072,27 @@ Win32HideWindow( HWND window )
 
 #if DEBUG
 void
-Win32ToggleGlobalDebugging( GameState *gameState, HWND window )
+Win32ToggleGlobalDebugging( GameMemory *gameMemory, HWND window )
 {
-    gameState->DEBUGglobalDebugging = !gameState->DEBUGglobalDebugging;
-    SetCursor( gameState->DEBUGglobalDebugging ? DEBUGglobalCursor : 0 );
+    gameMemory->DEBUGglobalDebugging = !gameMemory->DEBUGglobalDebugging;
+    SetCursor( gameMemory->DEBUGglobalDebugging ? DEBUGglobalCursor : 0 );
 
     LONG_PTR curStyle = GetWindowLongPtr( window,
                                           GWL_EXSTYLE );
-    LONG_PTR newStyle = gameState->DEBUGglobalDebugging
+    LONG_PTR newStyle = gameMemory->DEBUGglobalDebugging
         ? (curStyle | WS_EX_LAYERED)
         : (curStyle & ~WS_EX_LAYERED);
 
     SetWindowLongPtr( window, GWL_EXSTYLE,
                       newStyle );
-    SetWindowPos( window, gameState->DEBUGglobalDebugging
+    SetWindowPos( window, gameMemory->DEBUGglobalDebugging
                   ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
                   SWP_NOMOVE | SWP_NOSIZE );
 }
 #endif
 
 internal void
-Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
+Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                              GameInput *input, GameControllerInput *keyMouseController )
 {
     MSG message;
@@ -1192,13 +1197,13 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                             Win32EndInputPlayback( platformState );
                             Win32ResetController( keyMouseController );
                         }
-                        else if( gameState->DEBUGglobalDebugging )
+                        else if( gameMemory->DEBUGglobalDebugging )
                         {
-                            Win32ToggleGlobalDebugging( gameState, platformState->mainWindow );
+                            Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
                         }
-                        else if( gameState->DEBUGglobalEditing )
+                        else if( gameMemory->DEBUGglobalEditing )
                         {
-                            gameState->DEBUGglobalEditing = false;
+                            gameMemory->DEBUGglobalEditing = false;
                         }
                         else
                         {
@@ -1210,9 +1215,9 @@ Win32ProcessPendingMessages( Win32State *platformState, GameState *gameState,
                     else if( vkCode == VK_OEM_5 )
                     {
                         if( ctrlKeyDown )
-                            gameState->DEBUGglobalEditing = true;
-                        else if( !gameState->DEBUGglobalDebugging && !gameState->DEBUGglobalEditing )
-                            Win32ToggleGlobalDebugging( gameState, platformState->mainWindow );
+                            gameMemory->DEBUGglobalEditing = true;
+                        else if( !gameMemory->DEBUGglobalDebugging && !gameMemory->DEBUGglobalEditing )
+                            Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
                     }
                     else if( vkCode == VK_F1 )
                     {
@@ -1430,7 +1435,7 @@ Win32GetFilePaths( Win32State *state )
 
 
 internal bool
-Win32InitOpenGL( HDC dc, const GameRenderCommands& commands, u32 frameVSyncSkipCount )
+Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount )
 {
     LOG( ".Initializing OpenGL..." );
 
@@ -1587,9 +1592,6 @@ main( int argC, char **argV )
     globalPlatform.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
     globalPlatform.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
     globalPlatform.Log = PlatformLog;
-#if DEBUG
-    globalPlatform.DEBUGgameStats = DEBUGglobalStats;
-#endif
 
     Win32GetFilePaths( &globalNativeState );
 
@@ -1605,6 +1607,9 @@ main( int argC, char **argV )
     gameMemory.permanentStorageSize = GIGABYTES(2);
     gameMemory.transientStorageSize = GIGABYTES(1);
     gameMemory.platformAPI = &globalPlatform;
+#if DEBUG
+    gameMemory.DEBUGgameStats = DEBUGglobalStats;
+#endif
 
 
     // Init subsystems
@@ -1698,7 +1703,7 @@ main( int argC, char **argV )
             u32 indexBufferSize = vertexBufferSize * 8;
             u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferSize * sizeof(u32),
                                                     MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-            GameRenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
+            RenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
                                                                     vertexBuffer, vertexBufferSize,
                                                                     indexBuffer, indexBufferSize );
 
@@ -1719,8 +1724,6 @@ main( int argC, char **argV )
 
                 globalNativeState.gameMemoryBlock = gameMemory.permanentStorage;
                 globalNativeState.gameMemorySize = totalSize;
-
-                GameState *gameState = (GameState *)gameMemory.permanentStorage;
 
                 i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
@@ -1756,7 +1759,7 @@ main( int argC, char **argV )
                 }
 #endif
 
-                gameState->imGuiContext = Win32InitImGui( window );
+                gameMemory.imGuiContext = Win32InitImGui( window );
 
                 if( gameMemory.permanentStorage && gameMemory.transientStorage && soundSamples )
                 {
@@ -1822,11 +1825,11 @@ main( int argC, char **argV )
 
                         // Process input
                         GameControllerInput *newKeyMouseController = Win32ResetKeyMouseController( oldInput, newInput );
-                        Win32ProcessPendingMessages( &globalNativeState, gameState, newInput, newKeyMouseController );
+                        Win32ProcessPendingMessages( &globalNativeState, &gameMemory, newInput, newKeyMouseController );
                         Win32ProcessXInputControllers( oldInput, newInput );
 
 #if DEBUG
-                        if( gameState->DEBUGglobalDebugging )
+                        if( gameMemory.DEBUGglobalDebugging )
                         {
                             // Discard all input to the key&mouse controller
                             Win32ResetKeyMouseController( oldInput, newInput );

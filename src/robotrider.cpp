@@ -21,7 +21,19 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include <ctype.h>
+#include <stdarg.h>
+
+
+#include "game.h"
+
+#include "memory.h"
+#include "data_types.h"
+#include "meshgen.h"
+#include "world.h"
 #include "robotrider.h"
+
+
 #include "renderer.cpp"
 
 #include "imgui/imgui_draw.cpp"
@@ -74,7 +86,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     globalPlatform = *memory->platformAPI;
 #if DEBUG
-    DEBUGglobalStats = globalPlatform.DEBUGgameStats;
+    DEBUGglobalStats = memory->DEBUGgameStats;
 #endif
 
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
@@ -87,7 +99,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         // TODO Check if these are all ok here so that we can remove GAME_SETUP_AFTER_RELOAD
         gameConsole = &gameState->gameConsole;
         // Re-set platform's ImGui context
-        ImGui::SetCurrentContext( gameState->imGuiContext );
+        ImGui::SetCurrentContext( memory->imGuiContext );
     }
 
     // Init game arena & world state
@@ -130,11 +142,11 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
               frameTime, fps, DEBUGglobalStats->totalDrawCalls,
               DEBUGglobalStats->totalPrimitiveCount, DEBUGglobalStats->totalVertexCount );
 
-    if( gameState->DEBUGglobalEditing )
+    if( memory->DEBUGglobalEditing )
     {
         UpdateAndRenderEditor( input, memory, renderCommands, statsText );
     }
-    else if( gameState->DEBUGglobalDebugging )
+    else if( memory->DEBUGglobalDebugging )
     {
         DrawConsole( &gameState->gameConsole, width, height, statsText );
         ImGui::SetNextWindowPos( ImVec2( width - 500.f, height - 300.f ) );

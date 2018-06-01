@@ -27,7 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 enum class Renderer
 {
     OpenGL,
-    // TODO OpenGLES,
+    // OpenGLES,
     // Software?
 };
 
@@ -126,6 +126,55 @@ struct IndexBuffer
     u32 count;
     u32 maxCount;
 };
+
+
+
+struct RenderCommands
+{
+    u16 width;
+    u16 height;
+
+    Camera camera;
+
+    RenderBuffer renderBuffer;
+    VertexBuffer vertexBuffer;
+    IndexBuffer indexBuffer;
+
+    RenderEntryTexturedTris *currentTris;
+    RenderEntryLines *currentLines;
+};
+
+inline RenderCommands
+InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
+                    TexturedVertex *vertexBuffer, u32 vertexBufferMaxCount,
+                    u32 *indexBuffer, u32 indexBufferMaxCount )
+{
+    RenderCommands result;
+
+    result.renderBuffer.base = renderBuffer;
+    result.renderBuffer.size = 0;
+    result.renderBuffer.maxSize = renderBufferMaxSize;
+    result.vertexBuffer.base = vertexBuffer;
+    result.vertexBuffer.count = 0;
+    result.vertexBuffer.maxCount = vertexBufferMaxCount;
+    result.indexBuffer.base = indexBuffer;
+    result.indexBuffer.count = 0;
+    result.indexBuffer.maxCount = indexBufferMaxCount;
+
+    result.currentTris = nullptr;
+    result.currentLines = nullptr;
+
+    return result;
+}
+
+inline void
+ResetRenderCommands( RenderCommands *commands )
+{
+    commands->renderBuffer.size = 0;
+    commands->vertexBuffer.count = 0;
+    commands->indexBuffer.count = 0;
+    commands->currentTris = 0;
+}
 
 
 

@@ -730,7 +730,7 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState &gl )
 }
 
 internal void
-OpenGLRenderToOutput( OpenGLState &gl, GameRenderCommands &commands )
+OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
 {
     glViewport( 0, 0, commands.width, commands.height );
     

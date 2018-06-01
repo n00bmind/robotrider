@@ -342,7 +342,7 @@ SampleMetaballs( const void* sampleData, const v3& pos )
 void
 TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT,
                MarchingCacheBuffers cacheBuffers,
-               MeshPool* meshPool, GameRenderCommands *renderCommands )
+               MeshPool* meshPool, RenderCommands *renderCommands )
 {
     local_persistent SArray<Metaball, 10> balls;
 

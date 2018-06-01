@@ -23,7 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define PUSH_RENDER_ELEMENT(commands, type) (type *)_PushRenderElement( commands, sizeof(type), RenderEntryType::type )
 internal RenderEntry *
-_PushRenderElement( GameRenderCommands *commands, u32 size, RenderEntryType type )
+_PushRenderElement( RenderCommands *commands, u32 size, RenderEntryType type )
 {
     RenderEntry *result = 0;
     RenderBuffer &buffer = commands->renderBuffer;
@@ -51,7 +51,7 @@ _PushRenderElement( GameRenderCommands *commands, u32 size, RenderEntryType type
 }
 
 void
-PushClear( const v4& color, GameRenderCommands *commands )
+PushClear( const v4& color, RenderCommands *commands )
 {
     RenderEntryClear *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryClear );
     if( entry )
@@ -61,7 +61,7 @@ PushClear( const v4& color, GameRenderCommands *commands )
 }
 
 internal RenderEntryTexturedTris *
-GetOrCreateCurrentTris( GameRenderCommands *commands )
+GetOrCreateCurrentTris( RenderCommands *commands )
 {
     // FIXME Artificially break the current bundle when we get to an estimated "optimum size"
     // (I read somewhere that was 1 to 4 megs?)
@@ -79,7 +79,7 @@ GetOrCreateCurrentTris( GameRenderCommands *commands )
 }
 
 internal RenderEntryLines *
-GetOrCreateCurrentLines( GameRenderCommands *commands )
+GetOrCreateCurrentLines( RenderCommands *commands )
 {
     if( !commands->currentLines )
     {
@@ -93,7 +93,7 @@ GetOrCreateCurrentLines( GameRenderCommands *commands )
 }
 
 inline internal void
-PushVertex( const v3 &p, u32 color, const v2 &uv, GameRenderCommands *commands )
+PushVertex( const v3 &p, u32 color, const v2 &uv, RenderCommands *commands )
 {
     ASSERT( commands->vertexBuffer.count + 1 <= commands->vertexBuffer.maxCount );
 
@@ -106,7 +106,7 @@ PushVertex( const v3 &p, u32 color, const v2 &uv, GameRenderCommands *commands )
 }
 
 inline internal void
-PushIndex( u32 value, GameRenderCommands* commands )
+PushIndex( u32 value, RenderCommands* commands )
 {
     ASSERT( commands->indexBuffer.count + 1 <= commands->indexBuffer.maxCount );
 
@@ -117,7 +117,7 @@ PushIndex( u32 value, GameRenderCommands* commands )
 }
 
 void
-PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, GameRenderCommands *commands )
+PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, RenderCommands *commands )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
@@ -144,7 +144,7 @@ PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, Gam
 }
 
 void
-PushRenderGroup( FlyingDude *dude, GameRenderCommands *commands )
+PushRenderGroup( FlyingDude *dude, RenderCommands *commands )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
@@ -174,7 +174,7 @@ PushRenderGroup( FlyingDude *dude, GameRenderCommands *commands )
 
 /*
 void
-PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
+PushRenderGroup( CubeThing *cube, RenderCommands *commands )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
@@ -204,7 +204,7 @@ PushRenderGroup( CubeThing *cube, GameRenderCommands *commands )
 */
 
 void
-PushLine( v3 pStart, v3 pEnd, u32 color, GameRenderCommands *commands )
+PushLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )
 {
     RenderEntryLines *entry = GetOrCreateCurrentLines( commands );
     if( entry )
@@ -217,7 +217,7 @@ PushLine( v3 pStart, v3 pEnd, u32 color, GameRenderCommands *commands )
 }
 
 void
-PushMesh( const Mesh& mesh, GameRenderCommands *commands )
+PushMesh( const Mesh& mesh, RenderCommands *commands )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
@@ -242,7 +242,7 @@ PushMesh( const Mesh& mesh, GameRenderCommands *commands )
 }
 
 void
-PushProgramChange( ShaderProgramName programName, GameRenderCommands *commands )
+PushProgramChange( ShaderProgramName programName, RenderCommands *commands )
 {
     RenderEntryProgramChange *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryProgramChange );
     if( entry )

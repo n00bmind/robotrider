@@ -132,6 +132,19 @@ typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(DebugPlatformFreeFileMemoryFunc);
 #define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool name( const char *filename, u32 memorySize, void *memory )
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
 
+
+struct PlatformJobQueue;
+
+#define PLATFORM_JOB_QUEUE_CALLBACK(name) void name( void* userData )
+typedef PLATFORM_JOB_QUEUE_CALLBACK(PlatformJobQueueCallbackFunc);
+
+#define PLATFORM_ADD_JOB(name) void name( PlatformJobQueue* queue, PlatformJobQueueCallbackFunc* callback, void* userData )
+typedef PLATFORM_ADD_JOB(PlatformAddJobFunc);
+
+#define PLATFORM_COMPLETE_ALL_JOBS(name) void name( PlatformJobQueue* queue );
+typedef PLATFORM_COMPLETE_ALL_JOBS(PlatformCompleteAllJobsFunc);
+
+
 #define PLATFORM_LOG(name) void name( const char *fmt, ... )
 typedef PLATFORM_LOG(PlatformLogFunc);
 
@@ -140,15 +153,16 @@ struct DebugGameStats;
 
 struct PlatformAPI
 {
-    DebugPlatformReadEntireFileFunc *DEBUGReadEntireFile;
-    DebugPlatformFreeFileMemoryFunc *DEBUGFreeFileMemory;
-    DebugPlatformWriteEntireFileFunc *DEBUGWriteEntireFile;
+    DebugPlatformReadEntireFileFunc* DEBUGReadEntireFile;
+    DebugPlatformFreeFileMemoryFunc* DEBUGFreeFileMemory;
+    DebugPlatformWriteEntireFileFunc* DEBUGWriteEntireFile;
 
-    PlatformLogFunc *Log;
+    PlatformAddJobFunc* PlatformAddJob;
+    PlatformCompleteAllJobsFunc* PlatformCompleteAllJobs;
+    PlatformJobQueue* hiPriorityQueue;
+    //PlatformJobQueue* loPriorityQueue;
 
-#if DEBUG
-    DebugGameStats* DEBUGgameStats;
-#endif
+    PlatformLogFunc* Log;
 };
 extern PlatformAPI globalPlatform;
 

@@ -54,7 +54,6 @@ struct DebugGameStats
     u32 totalVertexCount;
     u32 totalPrimitiveCount;
 };
-
 extern DebugGameStats* DEBUGglobalStats;
 
 inline void

@@ -22,7 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 internal void
-DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, GameRenderCommands* renderCommands )
+DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands )
 {
     const r32 areaHalf = areaSizeMeters / 2;
 
@@ -45,7 +45,7 @@ DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, GameRenderCommands* ren
 
 #if DEBUG
 void
-UpdateAndRenderEditor( GameInput *input, GameMemory *memory, GameRenderCommands *renderCommands, const char* statsText )
+UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *renderCommands, const char* statsText )
 {
     float dT = input->frameElapsedSeconds;
     float elapsedT = input->totalElapsedSeconds;
