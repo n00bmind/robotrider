@@ -1,6 +1,8 @@
 @echo off
 setlocal ENABLEDELAYEDEXPANSION
 
+ctime -begin rr.time
+
 set RR="."
 set RRSRC=src
 set RRBIN=bin
@@ -30,3 +32,6 @@ del *.pdb >NUL 2>NUL
 %COMPILER% %COMMONFLAGS% %CFGFLAGS% %COMPILERFLAGS% ..\%RRSRC%\robotrider.cpp -LD /link %LINKERFLAGS% /PDB:rr_dll_%random%.pdb
 %COMPILER% %COMMONFLAGS% %CFGFLAGS% %COMPILERFLAGS% ..\%RRSRC%\win32_platform.cpp -Ferr.exe /link %LINKERFLAGS% -subsystem:console,5.2 %LIBS%
 popd
+
+ctime -end rr.time
+

@@ -7,3 +7,4 @@
 *.swo
 bin/
 LocMetrics*
+rr.time
