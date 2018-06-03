@@ -113,6 +113,12 @@ typedef size_t sz;
 #define R32NAN NAN
 
 
+#define MEMORY_READ_BARRIER         _mm_lfence();_ReadBarrier();
+#define MEMORY_WRITE_BARRIER        _mm_sfence();_WriteBarrier();
+#define MEMORY_READWRITE_BARRIER    _mm_mfence();_ReadWriteBarrier();
+
+
+
 //
 // Services that the platform layer provides to the game
 //
@@ -126,6 +132,7 @@ struct DEBUGReadFileResult
 #define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGReadFileResult name( const char *filename )
 typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(DebugPlatformReadEntireFileFunc);
 
+// TODO Remove
 #define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name( void *memory )
 typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(DebugPlatformFreeFileMemoryFunc);
 
@@ -138,10 +145,10 @@ struct PlatformJobQueue;
 #define PLATFORM_JOB_QUEUE_CALLBACK(name) void name( void* userData )
 typedef PLATFORM_JOB_QUEUE_CALLBACK(PlatformJobQueueCallbackFunc);
 
-#define PLATFORM_ADD_JOB(name) void name( PlatformJobQueue* queue, PlatformJobQueueCallbackFunc* callback, void* userData )
-typedef PLATFORM_ADD_JOB(PlatformAddJobFunc);
+#define PLATFORM_ADD_NEW_JOB(name) void name( PlatformJobQueue* queue, PlatformJobQueueCallbackFunc* callback, void* userData )
+typedef PLATFORM_ADD_NEW_JOB(PlatformAddNewJobFunc);
 
-#define PLATFORM_COMPLETE_ALL_JOBS(name) void name( PlatformJobQueue* queue );
+#define PLATFORM_COMPLETE_ALL_JOBS(name) void name( PlatformJobQueue* queue )
 typedef PLATFORM_COMPLETE_ALL_JOBS(PlatformCompleteAllJobsFunc);
 
 
@@ -154,11 +161,11 @@ struct DebugGameStats;
 struct PlatformAPI
 {
     DebugPlatformReadEntireFileFunc* DEBUGReadEntireFile;
-    DebugPlatformFreeFileMemoryFunc* DEBUGFreeFileMemory;
+    //DebugPlatformFreeFileMemoryFunc* DEBUGFreeFileMemory;
     DebugPlatformWriteEntireFileFunc* DEBUGWriteEntireFile;
 
-    PlatformAddJobFunc* PlatformAddJob;
-    PlatformCompleteAllJobsFunc* PlatformCompleteAllJobs;
+    PlatformAddNewJobFunc* AddNewJob;
+    PlatformCompleteAllJobsFunc* CompleteAllJobs;
     PlatformJobQueue* hiPriorityQueue;
     //PlatformJobQueue* loPriorityQueue;
 

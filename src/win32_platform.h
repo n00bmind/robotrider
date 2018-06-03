@@ -49,6 +49,24 @@ struct Win32AudioOutput
     u32 runningFrameCount;
 };
 
+struct PlatformJobQueueJob
+{
+    PlatformJobQueueCallbackFunc* callback;
+    void* userData;
+};
+
+struct PlatformJobQueue
+{
+    HANDLE semaphore;
+    volatile u32 nextJobToRead;
+    volatile u32 nextJobToWrite;
+
+    volatile u32 completionCount;
+    volatile u32 completionTarget;
+
+    PlatformJobQueueJob jobs[256];
+};
+
 struct Win32GameCode
 {
     HMODULE gameCodeDLL;

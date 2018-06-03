@@ -50,14 +50,19 @@ struct FlyingDude
 // Our RNG will be totally deterministic, so any given cluster can (must) be filled in a deterministic way.
 // (this implies getting rid of the always-connected pipes, at least in the way we do them now).
 
-// Minimal stored version of an entity
-// (for entities that have it)
-struct StoredEntity
+struct UniversalCoords
 {
     // Cluster coordinates wrap around with int32, so our space wraps around itself around every X,Y,Z cartesian coordinate
     // This is a... 3-thorus?? :: https://en.wikipedia.org/wiki/Three-torus_model_of_the_universe
     v3i pCluster;
     v3 pClusterOffset;
+};
+
+// Minimal stored version of an entity
+// (for entities that have it)
+struct StoredEntity
+{
+    UniversalCoords pUniverse;
 
     // We're not gonna generate using connected paths anymore. Instead, each chunk must be
     // correctly and deterministically generated everytime just based on its coordinates.
@@ -71,6 +76,13 @@ struct LiveEntity
 
     // NOTE Mesh translation is always relative to the current sim-region center
     Mesh *mesh;
+
+    // Newly generated entities are initially positioned relative to their root cluster
+    // by the thread that generates them. In order to avoid synchronizing world origin
+    // changes and weird concurrency glitches, their final position is recalculated
+    // by the main thread after they've been already built (they remain invisible until
+    // that happens). This flag marks that event.
+    bool active;
 };
 
 #define CLUSTER_HALF_SIZE_METERS 75
@@ -82,7 +94,8 @@ struct Cluster
     BucketArray<StoredEntity> entityStorage;
 };
 
-#define SIM_APRON_WIDTH 1
+// 'Thickness' in clusters of the sim region on each side of the origin cluster
+#define SIM_REGION_WIDTH 1
 
 struct World
 {
@@ -97,8 +110,6 @@ struct World
     Array<GeneratorPath> pathsBuffer;
 #endif
 
-    GeneratorHullNode hullNodeGenerator;
-
     // 'REAL' stuff
     //
     // For now this will be the primary storage for (stored) entities
@@ -108,7 +119,6 @@ struct World
     // (clusters around the player are always kept live)
     // TODO Is the previous sentence true?
     // TODO Investigate what a good bucket size is
-    // TODO This would be a good thing to allocate in a transient arena (if we do the whole fetch-update-store cycle every frame)
     BucketArray<LiveEntity> liveEntities;
     // Handles to stored entities to allow arbitrary entity cross-referencing even for entities that move
     // across clusters
@@ -121,7 +131,10 @@ struct World
     r32 marchingAreaSize;
     r32 marchingCubeSize;
 
-    MeshPool meshPool;
+    // TODO Create one of these per available worker thread
+    // (give threads an index they can use in the resulting array)
+    MarchingMeshPool meshPool;
+    Generator meshGenerators[16];
 };
 
 #endif /* __WORLD_H__ */

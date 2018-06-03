@@ -135,7 +135,7 @@ ExtractFileExtension( char *filename, char *destination, u32 destinationMaxLen )
     return lastDot;
 }
 
-DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGWin32FreeFileMemory)
 {
     if( memory )
     {
@@ -143,7 +143,7 @@ DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
     }
 }
 
-DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
 {
     DEBUGReadFileResult result = {};
 
@@ -177,7 +177,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
                 else
                 {
                     LOG( "ERROR: ReadFile failed" );
-                    DEBUGPlatformFreeFileMemory( result.contents );
+                    DEBUGWin32FreeFileMemory( result.contents );
                     result.contents = 0;
                 }
             }
@@ -201,7 +201,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
     return result;
 }
 
-DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGWin32WriteEntireFile)
 {
     bool result = false;
 
@@ -1583,14 +1583,108 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
     return true;
 }
 
+internal bool
+Win32DoNextQueuedJob( PlatformJobQueue* queue )
+{
+    bool didJob = false;
 
+    u32 observedValue = queue->nextJobToRead;
+    u32 desiredValue = (observedValue + 1) % ARRAYCOUNT(queue->jobs);
+
+    if( observedValue != queue->nextJobToWrite )
+    {
+        u32 index = InterlockedCompareExchange( (volatile LONG*)&queue->nextJobToRead,
+                                                desiredValue,
+                                                observedValue );
+        if( index == observedValue )
+        {
+            PlatformJobQueueJob job = queue->jobs[index];
+            job.callback( job.userData );
+            
+            InterlockedIncrement( (volatile LONG*)&queue->completionCount );
+            didJob = true;
+        }
+        // Try again if failed
+    }
+    return didJob;
+}
+
+internal DWORD WINAPI
+Win32WorkerThreadProc( LPVOID lpParam )
+{
+    PlatformJobQueue* queue = (PlatformJobQueue*)lpParam;
+
+    while( true )
+    {
+        if( !Win32DoNextQueuedJob( queue ) )
+        {
+            WaitForSingleObjectEx( queue->semaphore, INFINITE, FALSE );
+        }
+    }
+
+    return 0;
+}
+
+internal void
+Win32InitJobQueue( PlatformJobQueue* queue, u32 threadCount )
+{
+    *queue = {0};
+    queue->semaphore = CreateSemaphoreEx( 0, 0, threadCount,
+                                          0, 0, SEMAPHORE_ALL_ACCESS );
+
+    for( u32 i = 0; i < threadCount; ++i )
+    {
+        DWORD threadId;
+        HANDLE handle = CreateThread( 0, MEGABYTES(1),
+                                      Win32WorkerThreadProc,
+                                      queue, 0, &threadId );
+        CloseHandle( handle );
+    }
+}
+
+internal
+PLATFORM_ADD_NEW_JOB(Win32AddNewJob)
+{
+    // NOTE Single producer
+    ASSERT( queue->nextJobToWrite != queue->nextJobToRead );
+
+    PlatformJobQueueJob& job = queue->jobs[queue->nextJobToWrite];
+    job = { callback, userData };
+    ++queue->completionTarget;
+
+    MEMORY_WRITE_BARRIER;
+
+    queue->nextJobToWrite = (queue->nextJobToWrite + 1) % ARRAYCOUNT(queue->jobs);
+    ReleaseSemaphore( queue->semaphore, 1, 0 );
+}
+
+internal
+PLATFORM_COMPLETE_ALL_JOBS(Win32CompleteAllJobs)
+{
+    while( queue->completionCount < queue->completionTarget )
+    {
+        Win32DoNextQueuedJob( queue );
+    }
+
+    queue->completionTarget = 0;
+    queue->completionCount = 0;
+}
 
 int 
 main( int argC, char **argV )
 {
-    globalPlatform.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
-    globalPlatform.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
-    globalPlatform.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
+    SYSTEM_INFO systemInfo;
+    GetSystemInfo( &systemInfo );
+
+    // Init global platform
+    globalPlatform.DEBUGReadEntireFile = DEBUGWin32ReadEntireFile;
+    //globalPlatform.DEBUGFreeFileMemory = DEBUGWin32FreeFileMemory;
+    globalPlatform.DEBUGWriteEntireFile = DEBUGWin32WriteEntireFile;
+    globalPlatform.AddNewJob = Win32AddNewJob;
+    globalPlatform.CompleteAllJobs = Win32CompleteAllJobs;
+    PlatformJobQueue hiPriorityQueue;
+    Win32InitJobQueue( &hiPriorityQueue, systemInfo.dwNumberOfProcessors - 1 );
+    globalPlatform.hiPriorityQueue = &hiPriorityQueue;
     globalPlatform.Log = PlatformLog;
 
     Win32GetFilePaths( &globalNativeState );
@@ -1809,6 +1903,8 @@ main( int argC, char **argV )
                         FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
                         if( CompareFileTime( &dllWriteTime, &globalNativeState.gameCode.lastDLLWriteTime ) != 0 )
                         {
+                            Win32CompleteAllJobs( &hiPriorityQueue );
+
                             LOG( "Detected updated game DLL. Reloading.." );
                             Win32UnloadGameCode( &globalNativeState.gameCode );
                             globalNativeState.gameCode = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );

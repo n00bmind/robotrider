@@ -34,13 +34,29 @@ struct Mesh
     m4 mTransform;
 };
 
-struct MeshPool
+struct MarchingCacheBuffers
 {
+    r32* bottomLayerSamples;
+    r32* topLayerSamples;
+
+    u32* bottomLayerVertexIndices;
+    u32* middleLayerVertexIndices;
+    u32* topLayerVertexIndices;
+
+    u32 layerCellCount;
+};
+
+struct MarchingMeshPool
+{
+    MarchingCacheBuffers cacheBuffers;
+
     BucketArray<TexturedVertex> scratchVertices;
     BucketArray<u32> scratchIndices;
 
     MemoryBlock memorySentinel;
 };
+
+
 
 struct InflatedVertex
 {
@@ -74,18 +90,6 @@ struct InflatedMesh
 };
 
 
-struct MarchingCacheBuffers
-{
-    r32* bottomLayerSamples;
-    r32* topLayerSamples;
-
-    u32* bottomLayerVertexIndices;
-    u32* middleLayerVertexIndices;
-    u32* topLayerVertexIndices;
-
-    u32 layerCellCount;
-};
-
 struct Metaball
 {
     v3 pCenter;
@@ -99,28 +103,28 @@ enum class IsoSurfaceType
     Cylinder,
 };
 
-enum class GeneratorType
+
+// NOTE MUST be read only data, so that it can be used by multiple threads!
+struct GeneratorData
 {
-    Path,
-    HullNode,
+    // ...
 };
 
-struct Generator;
+struct UniversalCoords;
 #define GENERATOR_FUNC(name) \
-    Mesh* name( Generator* generator, const v3& p, MemoryArena* arena, MeshPool* meshPool ) 
+    Mesh* name( const GeneratorData* generatorData, const UniversalCoords& p, MarchingMeshPool* meshPool ) 
 typedef GENERATOR_FUNC(GeneratorFunc);
 
 struct Generator
 {
-    GeneratorType type;
     GeneratorFunc* func;
+    GeneratorData* data;
 };
 
-#define INIT_GENERATOR(t) { { GeneratorType::t, Generator##t##Func } }
 
-struct GeneratorPath
+struct GeneratorPathData
 {
-    Generator header;
+    GeneratorData header;
 
     // Center point and area around it for cube marching
     v3 pCenter;
@@ -141,20 +145,16 @@ struct GeneratorPath
     r32 distanceToNextFork;
     m4* nextBasis;
     // TODO Support multiple forks?
-    GeneratorPath* nextFork;
+    GeneratorPathData* nextFork;
 };
 
 struct StoredEntity;
-struct GeneratorHullNode
+struct GeneratorHullNodeData
 {
-    Generator header;
+    GeneratorData header;
 
     r32 areaSideMeters;
     r32 resolutionMeters;
-    MarchingCacheBuffers marchingCacheBuffers;
-
-    StoredEntity* entity;
-    v3 pRelative;
 };
 
 #endif /* __MESHGEN_H__ */

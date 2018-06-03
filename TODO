@@ -5,6 +5,7 @@
 
 WORLDGEN
 - Procedural generation of some kind of infinite pipe-like world structure
+  (look into Wave Function Collapse algorithms which should allow for tileable generation)
 
 THREADING
 - Once the previous process is complex enough, develop worker threads that can do it in the background based on player distance

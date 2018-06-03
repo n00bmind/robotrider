@@ -1,99 +1,3 @@
-
-void
-Init( MeshPool* pool, MemoryArena* arena, sz size )
-{
-    new (&pool->scratchVertices) BucketArray<TexturedVertex>( 1024, arena );
-    new (&pool->scratchIndices) BucketArray<u32>( 1024, arena );
-
-    // Initialize empty sentinel
-    pool->memorySentinel.prev = &pool->memorySentinel;
-    pool->memorySentinel.next = &pool->memorySentinel;
-    pool->memorySentinel.size = 0;
-    pool->memorySentinel.flags = MemoryBlockFlags::None;
-
-    InsertBlock( &pool->memorySentinel, size, PUSH_SIZE( arena, size ) );
-}
-
-void
-ClearScratchMesh( MeshPool* pool )
-{
-    pool->scratchVertices.Clear();
-    pool->scratchIndices.Clear();
-}
-
-Mesh*
-AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
-{
-    sz vertexSize = sizeof(TexturedVertex) * vertexCount;
-    sz indexSize = sizeof(u32) * indexCount;
-    sz totalMeshSize = sizeof(Mesh) + vertexSize + indexSize;
-
-    Mesh* result = nullptr;
-    MemoryBlock* block = FindBlockForSize( &pool->memorySentinel, totalMeshSize );
-    if( block)
-    {
-        // TODO Tune this based on the smallest mesh size we will typically have
-        const sz blockSplitThreshold = 4096;
-        result = (Mesh*)UseBlock( block, totalMeshSize, blockSplitThreshold );
-
-        result->vertices = (TexturedVertex*)((u8*)result + sizeof(Mesh));
-        result->indices = (u32*)((u8*)result->vertices + vertexSize);
-    }
-    else
-    {
-        // TODO Here we could evict meshes in a loop based on LRU
-        // until we free the amount we need
-        INVALID_CODE_PATH
-    }
-
-    return result;
-}
-
-Mesh*
-AllocateMeshFromScratchBuffers( MeshPool* pool )
-{
-    Mesh* result = AllocateMesh( pool, pool->scratchVertices.count,
-                                 pool->scratchIndices.count );
-
-    pool->scratchVertices.BlitTo( result->vertices );
-    result->vertexCount = pool->scratchVertices.count;
-
-    pool->scratchIndices.BlitTo( result->indices );
-    result->indexCount = pool->scratchIndices.count;
-
-    return result;
-}
-
-void
-ReleaseMesh( Mesh* mesh, MeshPool* pool )
-{
-    ReleaseBlockAt( mesh, &pool->memorySentinel );
-}
-
-///// MARCHING CUBES /////
-
-typedef float MarchedCubeSampleFunc( const void* sampleData, const v3& p );
-
-struct VertexCacheIndex
-{
-    // Offset to the cell entry 'owning' the corresponding edge
-    v2i vCellOffset;
-    // Which table, 0 - bottom, 1 - middle (vertical), 2 - top
-    u16 cacheTableIndex;
-    // Additional offset in table, for bottom & top only, 0 - X axis, 1 - Y axis
-    u16 cacheTableOffset;
-};
-
-// HACK To allow forward-declaring internal arrays while still keeping them internal
-// C++ is wonderful
-namespace
-{
-    extern v3i cornerOffsets[8];
-    extern u32 edgeVertexOffsets[12][2];
-    extern VertexCacheIndex vertexCacheIndices[12];
-    extern int triangleTable[][16];
-}
-
 MarchingCacheBuffers
 InitMarchingCacheBuffers( MemoryArena* arena, r32 areaSideMeters, r32 resolutionMeters )
 {
@@ -121,6 +25,105 @@ SwapTopAndBottomLayers( MarchingCacheBuffers* buffers )
     buffers->topLayerSamples = copy.bottomLayerSamples;
     buffers->bottomLayerVertexIndices = copy.topLayerVertexIndices;
     buffers->topLayerVertexIndices = copy.bottomLayerVertexIndices;
+}
+
+
+void
+Init( MarchingMeshPool* pool, r32 areaSideMeters, r32 resolutionMeters,
+      MemoryArena* arena, sz size )
+{
+    new (&pool->scratchVertices) BucketArray<TexturedVertex>( 1024, arena );
+    new (&pool->scratchIndices) BucketArray<u32>( 1024, arena );
+
+    pool->cacheBuffers =
+        InitMarchingCacheBuffers( arena, areaSideMeters, resolutionMeters );
+    // Initialize empty sentinel
+    pool->memorySentinel.prev = &pool->memorySentinel;
+    pool->memorySentinel.next = &pool->memorySentinel;
+    pool->memorySentinel.size = 0;
+    pool->memorySentinel.flags = MemoryBlockFlags::None;
+
+    InsertBlock( &pool->memorySentinel, size, PUSH_SIZE( arena, size ) );
+}
+
+void
+ClearScratchMesh( MarchingMeshPool* pool )
+{
+    pool->scratchVertices.Clear();
+    pool->scratchIndices.Clear();
+}
+
+Mesh*
+AllocateMesh( MarchingMeshPool* pool, u32 vertexCount, u32 indexCount )
+{
+    sz vertexSize = sizeof(TexturedVertex) * vertexCount;
+    sz indexSize = sizeof(u32) * indexCount;
+    sz totalMeshSize = sizeof(Mesh) + vertexSize + indexSize;
+
+    Mesh* result = nullptr;
+    MemoryBlock* block = FindBlockForSize( &pool->memorySentinel, totalMeshSize );
+    if( block)
+    {
+        // TODO Tune this based on the smallest mesh size we will typically have
+        const sz blockSplitThreshold = 4096;
+        result = (Mesh*)UseBlock( block, totalMeshSize, blockSplitThreshold );
+
+        result->vertices = (TexturedVertex*)((u8*)result + sizeof(Mesh));
+        result->indices = (u32*)((u8*)result->vertices + vertexSize);
+    }
+    else
+    {
+        // TODO Here we could evict meshes in a loop based on LRU
+        // until we free the amount we need
+        INVALID_CODE_PATH
+    }
+
+    return result;
+}
+
+Mesh*
+AllocateMeshFromScratchBuffers( MarchingMeshPool* pool )
+{
+    Mesh* result = AllocateMesh( pool, pool->scratchVertices.count,
+                                 pool->scratchIndices.count );
+
+    pool->scratchVertices.BlitTo( result->vertices );
+    result->vertexCount = pool->scratchVertices.count;
+
+    pool->scratchIndices.BlitTo( result->indices );
+    result->indexCount = pool->scratchIndices.count;
+
+    return result;
+}
+
+void
+ReleaseMesh( Mesh* mesh, MarchingMeshPool* pool )
+{
+    ReleaseBlockAt( mesh, &pool->memorySentinel );
+}
+
+///// MARCHING CUBES /////
+
+typedef float MarchedCubeSampleFunc( const void* sampleData, const v3& p );
+
+struct VertexCacheIndex
+{
+    // Offset to the cell entry 'owning' the corresponding edge
+    v2i vCellOffset;
+    // Which table, 0 - bottom, 1 - middle (vertical), 2 - top
+    u16 cacheTableIndex;
+    // Additional offset in table, for bottom & top only, 0 - X axis, 1 - Y axis
+    u16 cacheTableOffset;
+};
+
+// HACK To allow forward-declaring internal arrays while still keeping them internal
+// C++ is wonderful
+namespace
+{
+    extern v3i cornerOffsets[8];
+    extern u32 edgeVertexOffsets[12][2];
+    extern VertexCacheIndex vertexCacheIndices[12];
+    extern int triangleTable[][16];
 }
 
 internal void
@@ -233,7 +236,7 @@ MarchCube( const v3& pOrigin, r32 cubeSize,
 Mesh*
 MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
                MarchedCubeSampleFunc* sampleFunc, const void* sampleData,
-               MarchingCacheBuffers cacheBuffers, MeshPool* meshPool )
+               MarchingMeshPool* meshPool )
 {
     ClearScratchMesh( meshPool );
 
@@ -253,8 +256,8 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
 
         for( int k = 0; k < numSteps; ++k )
         {
-            r32* bottomSamples = cacheBuffers.bottomLayerSamples;
-            r32* topSamples = cacheBuffers.topLayerSamples;
+            r32* bottomSamples = meshPool->cacheBuffers.bottomLayerSamples;
+            r32* topSamples = meshPool->cacheBuffers.topLayerSamples;
 
             // Pre-sample top and bottom slices of values for each layer
             // so we only sample one corner per cube instead of 8
@@ -282,10 +285,13 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
 
             if( firstPass )
             {
-                CLEAR( cacheBuffers.bottomLayerVertexIndices, cacheBuffers.layerCellCount * 2 * sizeof(u32), U32MAX );
+                CLEAR( meshPool->cacheBuffers.bottomLayerVertexIndices,
+                       meshPool->cacheBuffers.layerCellCount * 2 * sizeof(u32), U32MAX );
             }
-            CLEAR( cacheBuffers.middleLayerVertexIndices, cacheBuffers.layerCellCount * sizeof(u32), U32MAX );
-            CLEAR( cacheBuffers.topLayerVertexIndices, cacheBuffers.layerCellCount * 2 * sizeof(u32), U32MAX );
+            CLEAR( meshPool->cacheBuffers.middleLayerVertexIndices,
+                   meshPool->cacheBuffers.layerCellCount * sizeof(u32), U32MAX );
+            CLEAR( meshPool->cacheBuffers.topLayerVertexIndices,
+                   meshPool->cacheBuffers.layerCellCount * 2 * sizeof(u32), U32MAX );
 
             v3 p = pCenter + centerOffset + V3I( 0, 0, k ) * cubeSizeMeters;
 
@@ -295,7 +301,7 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
                 for( int j = 0; j < numSteps; ++j )
                 {
                     MarchCube( p, cubeSizeMeters,
-                               V2I( i, j ), cacheBuffers, numSteps,
+                               V2I( i, j ), meshPool->cacheBuffers, numSteps,
                                &meshPool->scratchVertices, &meshPool->scratchIndices );
                     p += vYDelta;
                 }
@@ -303,7 +309,7 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
             }
 
             firstPass = false;
-            SwapTopAndBottomLayers( &cacheBuffers );
+            SwapTopAndBottomLayers( &meshPool->cacheBuffers );
         }
     }
 
@@ -342,7 +348,7 @@ SampleMetaballs( const void* sampleData, const v3& pos )
 void
 TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT,
                MarchingCacheBuffers cacheBuffers,
-               MeshPool* meshPool, RenderCommands *renderCommands )
+               MarchingMeshPool* meshPool, RenderCommands *renderCommands )
 {
     local_persistent SArray<Metaball, 10> balls;
 
@@ -372,7 +378,7 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT,
     // Update mesh by sampling our cubic area centered at origin
     Mesh* metaMesh = MarchAreaFast( V3Zero(), areaSideMeters, cubeSizeMeters,
                                     SampleMetaballs, &balls,
-                                    cacheBuffers, meshPool );
+                                    meshPool );
 
     PushMesh( *metaMesh, renderCommands );
 }
@@ -786,7 +792,7 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, r32 agressiven
 internal r32
 SampleCuboid( const void* sampleData, const v3& p )
 {
-    GeneratorPath* path = (GeneratorPath*)sampleData;
+    GeneratorPathData* path = (GeneratorPathData*)sampleData;
     v3 vRight = GetXBasis( path->basis );
     v3 vForward = GetYBasis( path->basis );
     v3 vUp = GetZBasis( path->basis );
@@ -850,7 +856,7 @@ SampleCuboid( const void* sampleData, const v3& p )
 internal r32
 SampleCylinder( const void* sampleData, const v3& p )
 {
-    GeneratorPath* path = (GeneratorPath*)sampleData;
+    GeneratorPathData* path = (GeneratorPathData*)sampleData;
     v3 vForward = GetYBasis( path->basis );
 
     v3 vP = p - path->pCenter;
@@ -864,9 +870,9 @@ SampleCylinder( const void* sampleData, const v3& p )
 }
 
 u32
-GenerateOnePathStep( GeneratorPath* path, r32 resolutionMeters, bool advancePosition,
+GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advancePosition,
                      MarchingCacheBuffers cacheBuffers,
-                     MeshPool* meshPool, Mesh** outMesh, GeneratorPath* nextFork )
+                     MarchingMeshPool* meshPool, Mesh** outMesh, GeneratorPathData* nextFork )
 {
     bool turnInThisStep = path->distanceToNextTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToNextFork < path->areaSideMeters;
@@ -912,7 +918,7 @@ GenerateOnePathStep( GeneratorPath* path, r32 resolutionMeters, bool advancePosi
     }
 
     *outMesh = MarchAreaFast( V3Zero(), path->areaSideMeters, resolutionMeters,
-                              SampleCuboid, path, cacheBuffers, meshPool );
+                              SampleCuboid, path, meshPool );
     (*outMesh)->mTransform = Translation( path->pCenter );
 
     // Advance to next chunk
@@ -942,7 +948,7 @@ SampleHullNode( const void* sampleData, const v3& p )
 {
     TIMED_BLOCK( SampleFunc );
 
-    GeneratorHullNode* generator = (GeneratorHullNode*)sampleData;
+    GeneratorHullNodeData* genData = (GeneratorHullNodeData*)sampleData;
 
     // Just a sphere for now
     r32 result = DistanceSq( p, V3Zero() ) - 5;
@@ -951,16 +957,15 @@ SampleHullNode( const void* sampleData, const v3& p )
 
 GENERATOR_FUNC(GeneratorHullNodeFunc)
 {
-    GeneratorHullNode* hullGenerator = (GeneratorHullNode*)generator;
+    const GeneratorHullNodeData* hullGenData = (const GeneratorHullNodeData*)generatorData;
 
-    r32 areaSideMeters = hullGenerator->areaSideMeters;
-    r32 resolutionMeters = hullGenerator->resolutionMeters;
+    r32 areaSideMeters = hullGenData->areaSideMeters;
+    r32 resolutionMeters = hullGenData->resolutionMeters;
 
     Mesh* result = MarchAreaFast( V3Zero(), areaSideMeters, resolutionMeters,
-                                  SampleHullNode, generator,
-                                  hullGenerator->marchingCacheBuffers,
+                                  SampleHullNode, generatorData,
                                   meshPool );
-    result->mTransform = Translation( p );
+    result->mTransform = Translation( p.pClusterOffset );
 
     return result;
 }

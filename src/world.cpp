@@ -85,35 +85,35 @@ InitWorld( World* world, MemoryArena* worldArena )
     world->pWorldOrigin = { 0, 0, 0 };
     world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
 
-    GeneratorHullNode hullGenerator = INIT_GENERATOR( HullNode );
-    hullGenerator.areaSideMeters = 10;
-    hullGenerator.resolutionMeters = 1;
-    hullGenerator.marchingCacheBuffers =
-        InitMarchingCacheBuffers( worldArena, hullGenerator.areaSideMeters,
-                                  hullGenerator.resolutionMeters );
-    world->hullNodeGenerator = hullGenerator;
+    GeneratorHullNodeData* hullGenData = PUSH_STRUCT( worldArena, GeneratorHullNodeData );
+    hullGenData->areaSideMeters = world->marchingAreaSize;
+    hullGenData->resolutionMeters = world->marchingCubeSize;
+    Generator hullGenerator = { GeneratorHullNodeFunc, &hullGenData->header };
+    world->meshGenerators[0] = hullGenerator;
 
-    Init( &world->meshPool, worldArena, MEGABYTES(256) );
+    Init( &world->meshPool, world->marchingAreaSize, world->marchingCubeSize,
+          worldArena, MEGABYTES(256) );
 }
 
 internal void
-CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, World* world, MemoryArena* arena )
+CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, Generator* meshGenerators )
 {
     const r32 margin = 3.f;
 
     // TEST Place an entity every few meters, leaving some margin
-    for( r32 i = -CLUSTER_HALF_SIZE_METERS + margin; i <= CLUSTER_HALF_SIZE_METERS - margin; i += 24.f )
+    for( r32 x = -CLUSTER_HALF_SIZE_METERS + margin; x <= CLUSTER_HALF_SIZE_METERS - margin; x += 24.f )
     {
-        for( r32 j = -CLUSTER_HALF_SIZE_METERS + margin; j <= CLUSTER_HALF_SIZE_METERS - margin; j += 24.f )
+        for( r32 y = -CLUSTER_HALF_SIZE_METERS + margin; y <= CLUSTER_HALF_SIZE_METERS - margin; y += 24.f )
         {
-            for( r32 k = -CLUSTER_HALF_SIZE_METERS + margin; k <= CLUSTER_HALF_SIZE_METERS - margin; k += 24.f )
+            for( r32 z = -CLUSTER_HALF_SIZE_METERS + margin; z <= CLUSTER_HALF_SIZE_METERS - margin; z += 24.f )
             {
-                cluster->entityStorage.Add(
+                StoredEntity newEntity =
                 {
-                    clusterCoords,
-                    V3( i, j, k ),
-                    (Generator*)&world->hullNodeGenerator,
-                } );
+                    { clusterCoords, V3( x, y, z ) },
+                    // TODO Think of how to assign specific generators to the created entities
+                    &meshGenerators[0],
+                };
+                cluster->entityStorage.Add( newEntity );
             }
         }
     }
@@ -133,8 +133,18 @@ DEBUGClearAllClusters( World* world )
     world->clusterTable.Clear();
 }
 
+internal bool
+IsInSimRegion( const v3i& pClusterCoords, const v3i& pWorldOrigin )
+{
+    v3i vRelativeCoords = pClusterCoords - pWorldOrigin;
+
+    return vRelativeCoords.x >= -SIM_REGION_WIDTH && vRelativeCoords.x <= SIM_REGION_WIDTH &&
+        vRelativeCoords.y >= -SIM_REGION_WIDTH && vRelativeCoords.y <= SIM_REGION_WIDTH &&
+        vRelativeCoords.z >= -SIM_REGION_WIDTH && vRelativeCoords.z <= SIM_REGION_WIDTH;
+}
+
 internal void
-LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena, MeshPool* meshPool )
+LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena, MarchingMeshPool* meshPool )
 {
     TIMED_BLOCK( LoadEntitiesInCluster );
 
@@ -149,11 +159,12 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 
     if( !cluster->populated )
     {
-        CreateEntitiesInCluster( clusterCoords, cluster, world, arena );
+        CreateEntitiesInCluster( clusterCoords, cluster, world->meshGenerators );
         cluster->populated = true;
     }
 
-    v3 vClusterWorldOffset = GetClusterWorldOffset( clusterCoords, world );
+
+
 
     {
         TIMED_BLOCK( GenerateEntities );
@@ -162,19 +173,37 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
         while( it )
         {
             StoredEntity& storedEntity = it;
-            v3 pEntity = vClusterWorldOffset + storedEntity.pClusterOffset; 
+            LiveEntity* outputEntity = world->liveEntities.Reserve();
 
-            GeneratorHullNode* generator = (GeneratorHullNode*)storedEntity.generator;
-            generator->entity = &storedEntity;
-            generator->pRelative = pEntity;
+            const v3i& pWorldOrigin = world->pWorldOrigin;
 
-            // Make live entity from stored and put it in the world
-            LiveEntity* liveEntity = world->liveEntities.Reserve();
-            *liveEntity =
+            // This is actually per-job data
+            //GenerationJob jobData;
+            //jobData.entity = &storedEntity;
+            //jobData.pRelative = storedEntity.pUniverse.pClusterOffset;
+
+
+
+    // TODO Rewrite all this as it'll need to be when paralellized
+    ////////// JOB START
+
+            if( IsInSimRegion( clusterCoords, pWorldOrigin ) )
             {
-                storedEntity,
-                storedEntity.generator->func( storedEntity.generator, pEntity, arena, meshPool ),
-            };
+                // Make live entity from stored and put it in the world
+                *outputEntity =
+                {
+                    // TODO Need a separate meshpool for each thread!
+                    storedEntity,
+                    storedEntity.generator->func( storedEntity.generator->data,
+                                                  storedEntity.pUniverse,
+                                                  meshPool ),
+                };
+            }
+
+
+    ////////// JOB END
+
+
 
             it.Next();
         }
@@ -182,7 +211,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 }
 
 internal void
-StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena, MeshPool* meshPool )
+StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena, MarchingMeshPool* meshPool )
 {
     Cluster* cluster = world->clusterTable.Find( clusterCoords );
 
@@ -211,8 +240,8 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
             pClusterOffset.z > -augmentedHalfSize && pClusterOffset.z < augmentedHalfSize )
         {
             StoredEntity& storedEntity = liveEntity.stored;
-            storedEntity.pCluster = clusterCoords;
-            storedEntity.pClusterOffset = pClusterOffset;
+            storedEntity.pUniverse.pCluster = clusterCoords;
+            storedEntity.pUniverse.pClusterOffset = pClusterOffset;
 
             cluster->entityStorage.Add( storedEntity );
 
@@ -224,18 +253,8 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
     }
 }
 
-internal bool
-IsInSimApron( const v3i& pClusterCoords, const v3i& pWorldOrigin )
-{
-    v3i vRelativeCoords = pClusterCoords - pWorldOrigin;
-
-    return vRelativeCoords.x >= -SIM_APRON_WIDTH && vRelativeCoords.x <= SIM_APRON_WIDTH &&
-        vRelativeCoords.y >= -SIM_APRON_WIDTH && vRelativeCoords.y <= SIM_APRON_WIDTH &&
-        vRelativeCoords.z >= -SIM_APRON_WIDTH && vRelativeCoords.z <= SIM_APRON_WIDTH;
-}
-
 internal void
-UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena, MeshPool* meshPool )
+UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena, MarchingMeshPool* meshPool )
 {
     // TODO Make an infinite connected 'cosmic grid structure'
     // so we can test for a good cluster size, evaluate current generation speeds,
@@ -258,16 +277,16 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
         if( world->pLastWorldOrigin != INITIAL_CLUSTER_COORDS )
             world->pPlayer += vWorldDelta;
 
-        for( int i = -SIM_APRON_WIDTH; i <= SIM_APRON_WIDTH; ++i )
+        for( int i = -SIM_REGION_WIDTH; i <= SIM_REGION_WIDTH; ++i )
         {
-            for( int j = -SIM_APRON_WIDTH; j <= SIM_APRON_WIDTH; ++j )
+            for( int j = -SIM_REGION_WIDTH; j <= SIM_REGION_WIDTH; ++j )
             {
-                for( int k = -SIM_APRON_WIDTH; k <= SIM_APRON_WIDTH; ++k )
+                for( int k = -SIM_REGION_WIDTH; k <= SIM_REGION_WIDTH; ++k )
                 {
                     v3i pLastClusterCoords = world->pLastWorldOrigin + V3I( i, j, k );
 
                     // Evict all entities contained in a cluster which is now out of bounds
-                    if( !IsInSimApron( pLastClusterCoords, world->pWorldOrigin ) )
+                    if( !IsInSimRegion( pLastClusterCoords, world->pWorldOrigin ) )
                     {
                         StoreEntitiesInCluster( pLastClusterCoords, world, arena, meshPool );
                     }
@@ -275,17 +294,17 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
             }
         }
 
-        for( int i = -SIM_APRON_WIDTH; i <= SIM_APRON_WIDTH; ++i )
+        for( int i = -SIM_REGION_WIDTH; i <= SIM_REGION_WIDTH; ++i )
         {
-            for( int j = -SIM_APRON_WIDTH; j <= SIM_APRON_WIDTH; ++j )
+            for( int j = -SIM_REGION_WIDTH; j <= SIM_REGION_WIDTH; ++j )
             {
-                for( int k = -SIM_APRON_WIDTH; k <= SIM_APRON_WIDTH; ++k )
+                for( int k = -SIM_REGION_WIDTH; k <= SIM_REGION_WIDTH; ++k )
                 {
                     v3i pClusterCoords = world->pWorldOrigin + V3I( i, j, k );
 
                     // Retrieve all entities contained in a cluster which is now inside bounds
                     // and put them in the live entities list
-                    if( !IsInSimApron( pClusterCoords, world->pLastWorldOrigin ) )
+                    if( !IsInSimRegion( pClusterCoords, world->pLastWorldOrigin ) )
                     {
                         LoadEntitiesInCluster( pClusterCoords, world, arena, meshPool );
                     }
@@ -294,6 +313,26 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
         }
     }
     world->pLastWorldOrigin = world->pWorldOrigin;
+
+
+    // Constantly monitor live entities array for inactive entities
+    auto it = world->liveEntities.First();
+    while( it )
+    {
+        LiveEntity& entity = ((LiveEntity&)it);
+        if( !entity.active )
+        {
+            v3 vClusterWorldOffset
+                = GetClusterWorldOffset( entity.stored.pUniverse.pCluster, world );
+            Translate( entity.mesh->mTransform, vClusterWorldOffset );
+
+            entity.active = true;
+        }
+        it.Next();
+    }
+
+
+
 
     // Connected paths test
 #if 0

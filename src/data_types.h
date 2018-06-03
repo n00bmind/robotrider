@@ -689,8 +689,9 @@ struct Queue
 
 
 /////     CONCURRENT QUEUE     /////
+// TODO Reimplement using ticket-taking
+// (https://hero.handmade.network/episode/code/day325/)
 // TODO Test!
-// TODO Speed up using (lock-free) intrinsics and get rid of the mutex/condition variable
 
 template <typename T>
 struct ConcurrentQueue
