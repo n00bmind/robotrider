@@ -151,7 +151,7 @@ typedef PLATFORM_ADD_NEW_JOB(PlatformAddNewJobFunc);
 #define PLATFORM_COMPLETE_ALL_JOBS(name) void name( PlatformJobQueue* queue )
 typedef PLATFORM_COMPLETE_ALL_JOBS(PlatformCompleteAllJobsFunc);
 
-#define PLATFORM_MAX_JOBQUEUE_JOBS 2048
+#define PLATFORM_MAX_JOBQUEUE_JOBS 16768
 
 
 #define PLATFORM_LOG(name) void name( const char *fmt, ... )

@@ -183,14 +183,18 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 
     if( IsInSimRegion( clusterCoords, *job->pWorldOrigin ) )
     {
+        // We only have pools for worker threads and worker thread indices start at 1
+        // TODO This is bad. Find a more explicity way to associated thread-job data like this
+        MarchingMeshPool* meshPool = &job->meshPools[workerThreadIndex - 1];
+
         // Make live entity from stored and put it in the world
         *job->outputEntity =
         {
-            // TODO Need a separate meshpool for each thread!
             *job->storedEntity,
             job->storedEntity->generator->func( job->storedEntity->generator->data,
                                                 job->storedEntity->pUniverse,
-                                                &job->meshPools[workerThreadIndex] ),
+                                                meshPool ),
+            EntityState::Loaded,
         };
     }
 
@@ -232,6 +236,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
         {
             StoredEntity& storedEntity = it;
             LiveEntity* outputEntity = world->liveEntities.Reserve();
+            outputEntity->state = EntityState::Invalid;
 
             const v3i& pWorldOrigin = world->pWorldOrigin;
 
@@ -250,11 +255,9 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
             };
             job->occupied = true;
 
-            //globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
-                                      //GenerateOneEntity,
-                                      //&job );
-
-            GenerateOneEntity( job, 0 );
+            globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
+                                      GenerateOneEntity,
+                                      job );
 
 
     ////////// JOB END
@@ -383,13 +386,13 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
     while( it )
     {
         LiveEntity& entity = ((LiveEntity&)it);
-        if( !entity.active )
+        if( entity.state == EntityState::Loaded )
         {
             v3 vClusterWorldOffset
                 = GetClusterWorldOffset( entity.stored.pUniverse.pCluster, world );
             Translate( entity.mesh->mTransform, vClusterWorldOffset );
 
-            entity.active = true;
+            entity.state = EntityState::Active;
         }
         it.Next();
     }
@@ -484,7 +487,8 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
 
         FlyingDude *playerDude = world->playerDude;
         v3 pPlayer = world->pPlayer;
-        r32 playerSpeed = 9.f;
+
+        r32 playerSpeed = input0->leftThumb.endedDown ? 18.f : 10.f;
         v3 vPlayerDelta = {};
 
         if( input0->dLeft.endedDown )
@@ -554,7 +558,11 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
     auto it = world->liveEntities.First();
     while( it )
     {
-        PushMesh( *((LiveEntity&)it).mesh, renderCommands );
+        LiveEntity& entity = (LiveEntity&)it;
+        if( entity.state == EntityState::Active )
+        {
+            PushMesh( *entity.mesh, renderCommands );
+        }
 
         it.Next();
     }

@@ -1148,11 +1148,19 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                         Win32SetButtonState( &keyMouseController->dRight, isDown );
                         keyMouseController->leftStick.avgX += isDown ? 0.5f : -0.5f;
                     }
-                    else if( vkCode == 'Q' )
+                    else if( vkCode == VK_LSHIFT )
+                    {
+                        Win32SetButtonState( &keyMouseController->leftThumb, isDown );
+                    }
+                    else if( vkCode == VK_RSHIFT )
+                    {
+                        Win32SetButtonState( &keyMouseController->rightThumb, isDown );
+                    }
+                    else if( vkCode == VK_LCONTROL )
                     {
                         Win32SetButtonState( &keyMouseController->leftShoulder, isDown );
                     }
-                    else if( vkCode == 'E' )
+                    else if( vkCode == VK_SPACE )
                     {
                         Win32SetButtonState( &keyMouseController->rightShoulder, isDown );
                     }
@@ -1166,9 +1174,6 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     {
                     }
                     else if( vkCode == VK_RIGHT )
-                    {
-                    }
-                    else if( vkCode == VK_SPACE )
                     {
                     }
                     else if( vkCode == VK_RETURN )
@@ -1655,7 +1660,8 @@ internal
 PLATFORM_ADD_NEW_JOB(Win32AddNewJob)
 {
     // NOTE Single producer
-    ASSERT( queue->nextJobToWrite != queue->nextJobToRead );
+    ASSERT( queue->nextJobToWrite != queue->nextJobToRead ||
+            queue->jobs[queue->nextJobToRead].callback == nullptr );
 
     PlatformJobQueueJob& job = queue->jobs[queue->nextJobToWrite];
     job = { callback, userData };
@@ -1684,6 +1690,8 @@ PLATFORM_COMPLETE_ALL_JOBS(Win32CompleteAllJobs)
     queue->completionCount = 0;
 }
 
+PlatformJobQueue TESThiPriorityQueue;
+
 int 
 main( int argC, char **argV )
 {
@@ -1703,9 +1711,8 @@ main( int argC, char **argV )
     u32 workerThreadsCount = systemInfo.dwNumberOfProcessors - 1;
     ASSERT( workerThreadsCount <= ARRAYCOUNT(threadContexts) );
 
-    PlatformJobQueue hiPriorityQueue;
-    Win32InitJobQueue( &hiPriorityQueue, threadContexts, workerThreadsCount );
-    globalPlatform.hiPriorityQueue = &hiPriorityQueue;
+    Win32InitJobQueue( &TESThiPriorityQueue, threadContexts, workerThreadsCount );
+    globalPlatform.hiPriorityQueue = &TESThiPriorityQueue;
     globalPlatform.workerThreadsCount = workerThreadsCount;
 
 
@@ -1925,7 +1932,7 @@ main( int argC, char **argV )
                         FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
                         if( CompareFileTime( &dllWriteTime, &globalNativeState.gameCode.lastDLLWriteTime ) != 0 )
                         {
-                            Win32CompleteAllJobs( &hiPriorityQueue );
+                            Win32CompleteAllJobs( globalPlatform.hiPriorityQueue );
 
                             LOG( "Detected updated game DLL. Reloading.." );
                             Win32UnloadGameCode( &globalNativeState.gameCode );

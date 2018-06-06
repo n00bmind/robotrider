@@ -70,6 +70,13 @@ struct StoredEntity
     Generator* generator;
 };
 
+enum class EntityState
+{
+    Invalid = 0,
+    Loaded,
+    Active,
+};
+
 struct LiveEntity
 {
     StoredEntity stored;
@@ -81,8 +88,8 @@ struct LiveEntity
     // by the thread that generates them. In order to avoid synchronizing world origin
     // changes and weird concurrency glitches, their final position is recalculated
     // by the main thread after they've been already built (they remain invisible until
-    // that happens). This flag marks that event.
-    bool active;
+    // that happens).
+    EntityState state;
 };
 
 #define CLUSTER_HALF_SIZE_METERS 75
