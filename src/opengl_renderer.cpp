@@ -339,6 +339,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
         prg.vsSource = (char *)result.contents;
 
         success = OpenGLCompileShader( GL_VERTEX_SHADER, prg.vsSource, &prg.vsId );
+        globalPlatform.DEBUGFreeFileMemory( result.contents );
         if( !success )
             continue;
 
@@ -352,6 +353,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
             prg.gsSource = (char *)result.contents;
 
             success = OpenGLCompileShader( GL_GEOMETRY_SHADER, prg.gsSource, &prg.gsId );
+            globalPlatform.DEBUGFreeFileMemory( result.contents );
             if( !success )
                 continue;
         }
@@ -364,6 +366,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
         prg.fsSource = (char *)result.contents;
 
         success = OpenGLCompileShader( GL_FRAGMENT_SHADER, prg.fsSource, &prg.fsId );
+        globalPlatform.DEBUGFreeFileMemory( result.contents );
         if( !success )
             continue;
 

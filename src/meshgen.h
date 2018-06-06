@@ -24,16 +24,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define __MESHGEN_H__ 
 
 
-struct Mesh
-{
-    TexturedVertex* vertices;
-    u32 vertexCount;
-    u32* indices;
-    u32 indexCount;
-
-    m4 mTransform;
-};
-
 struct MarchingCacheBuffers
 {
     r32* bottomLayerSamples;
@@ -54,6 +44,18 @@ struct MarchingMeshPool
     BucketArray<u32> scratchIndices;
 
     MemoryBlock memorySentinel;
+};
+
+struct Mesh
+{
+    TexturedVertex* vertices;
+    u32 vertexCount;
+    u32* indices;
+    u32 indexCount;
+
+    m4 mTransform;
+
+    MarchingMeshPool* ownerPool;
 };
 
 

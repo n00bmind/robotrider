@@ -368,6 +368,7 @@ Win32CheckAssetUpdates( Win32State *state )
                 DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( assetPath );
                 ASSERT( read.contents );
                 OpenGLHotswapShader( filename, (const char *)read.contents );
+                globalPlatform.DEBUGFreeFileMemory( read.contents );
             }
         }
 
@@ -1584,7 +1585,7 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
 }
 
 internal bool
-Win32DoNextQueuedJob( PlatformJobQueue* queue )
+Win32DoNextQueuedJob( PlatformJobQueue* queue, u32 workerThreadIndex )
 {
     bool didJob = false;
 
@@ -1599,7 +1600,7 @@ Win32DoNextQueuedJob( PlatformJobQueue* queue )
         if( index == observedValue )
         {
             PlatformJobQueueJob job = queue->jobs[index];
-            job.callback( job.userData );
+            job.callback( job.userData, workerThreadIndex );
             
             InterlockedIncrement( (volatile LONG*)&queue->completionCount );
             didJob = true;
@@ -1612,11 +1613,12 @@ Win32DoNextQueuedJob( PlatformJobQueue* queue )
 internal DWORD WINAPI
 Win32WorkerThreadProc( LPVOID lpParam )
 {
-    PlatformJobQueue* queue = (PlatformJobQueue*)lpParam;
+    Win32WorkerThreadContext* context = (Win32WorkerThreadContext*)lpParam;
+    PlatformJobQueue* queue = context->queue;
 
     while( true )
     {
-        if( !Win32DoNextQueuedJob( queue ) )
+        if( !Win32DoNextQueuedJob( queue, context->threadIndex ) )
         {
             WaitForSingleObjectEx( queue->semaphore, INFINITE, FALSE );
         }
@@ -1626,7 +1628,8 @@ Win32WorkerThreadProc( LPVOID lpParam )
 }
 
 internal void
-Win32InitJobQueue( PlatformJobQueue* queue, u32 threadCount )
+Win32InitJobQueue( PlatformJobQueue* queue,
+                   Win32WorkerThreadContext* threadContexts, u32 threadCount )
 {
     *queue = {0};
     queue->semaphore = CreateSemaphoreEx( 0, 0, threadCount,
@@ -1634,10 +1637,16 @@ Win32InitJobQueue( PlatformJobQueue* queue, u32 threadCount )
 
     for( u32 i = 0; i < threadCount; ++i )
     {
+        threadContexts[i] =
+        {
+            i + 1,      // Worker thread index 0 is reserved for the main thread!
+            queue,
+        };
+
         DWORD threadId;
         HANDLE handle = CreateThread( 0, MEGABYTES(1),
                                       Win32WorkerThreadProc,
-                                      queue, 0, &threadId );
+                                      &threadContexts[i], 0, &threadId );
         CloseHandle( handle );
     }
 }
@@ -1661,9 +1670,14 @@ PLATFORM_ADD_NEW_JOB(Win32AddNewJob)
 internal
 PLATFORM_COMPLETE_ALL_JOBS(Win32CompleteAllJobs)
 {
+    //
+    // FIXME Assert that this is only called from the main thread!
+    //
+    //
     while( queue->completionCount < queue->completionTarget )
     {
-        Win32DoNextQueuedJob( queue );
+        // Main thread 'worker' index is always 0
+        Win32DoNextQueuedJob( queue, 0 );
     }
 
     queue->completionTarget = 0;
@@ -1677,15 +1691,23 @@ main( int argC, char **argV )
     GetSystemInfo( &systemInfo );
 
     // Init global platform
+    globalPlatform.Log = PlatformLog;
     globalPlatform.DEBUGReadEntireFile = DEBUGWin32ReadEntireFile;
-    //globalPlatform.DEBUGFreeFileMemory = DEBUGWin32FreeFileMemory;
+    globalPlatform.DEBUGFreeFileMemory = DEBUGWin32FreeFileMemory;
     globalPlatform.DEBUGWriteEntireFile = DEBUGWin32WriteEntireFile;
     globalPlatform.AddNewJob = Win32AddNewJob;
     globalPlatform.CompleteAllJobs = Win32CompleteAllJobs;
+
+    // FIXME Should be dynamic, but can't be bothered!
+    Win32WorkerThreadContext threadContexts[32];
+    u32 workerThreadsCount = systemInfo.dwNumberOfProcessors - 1;
+    ASSERT( workerThreadsCount <= ARRAYCOUNT(threadContexts) );
+
     PlatformJobQueue hiPriorityQueue;
-    Win32InitJobQueue( &hiPriorityQueue, systemInfo.dwNumberOfProcessors - 1 );
+    Win32InitJobQueue( &hiPriorityQueue, threadContexts, workerThreadsCount );
     globalPlatform.hiPriorityQueue = &hiPriorityQueue;
-    globalPlatform.Log = PlatformLog;
+    globalPlatform.workerThreadsCount = workerThreadsCount;
+
 
     Win32GetFilePaths( &globalNativeState );
 

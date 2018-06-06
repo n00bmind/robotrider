@@ -94,6 +94,16 @@ struct Cluster
     BucketArray<StoredEntity> entityStorage;
 };
 
+struct GeneratorJob
+{
+    const StoredEntity* storedEntity;
+    const v3i*          pWorldOrigin;
+    MarchingMeshPool*   meshPools;
+    LiveEntity*         outputEntity;
+
+    bool occupied;
+};
+
 // 'Thickness' in clusters of the sim region on each side of the origin cluster
 #define SIM_REGION_WIDTH 1
 
@@ -131,10 +141,14 @@ struct World
     r32 marchingAreaSize;
     r32 marchingCubeSize;
 
+    Generator meshGenerators[16];
     // TODO Create one of these per available worker thread
     // (give threads an index they can use in the resulting array)
-    MarchingMeshPool meshPool;
-    Generator meshGenerators[16];
+    // TODO Should this be aligned and/or padded for cache niceness?
+    MarchingMeshPool* meshPools;
+
+    GeneratorJob generatorJobs[PLATFORM_MAX_JOBQUEUE_JOBS];
+    u32 lastAddedJob;
 };
 
 #endif /* __WORLD_H__ */

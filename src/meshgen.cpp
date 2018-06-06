@@ -70,6 +70,8 @@ AllocateMesh( MarchingMeshPool* pool, u32 vertexCount, u32 indexCount )
 
         result->vertices = (TexturedVertex*)((u8*)result + sizeof(Mesh));
         result->indices = (u32*)((u8*)result->vertices + vertexSize);
+
+        result->ownerPool = pool;
     }
     else
     {
@@ -97,9 +99,9 @@ AllocateMeshFromScratchBuffers( MarchingMeshPool* pool )
 }
 
 void
-ReleaseMesh( Mesh* mesh, MarchingMeshPool* pool )
+ReleaseMesh( Mesh* mesh )
 {
-    ReleaseBlockAt( mesh, &pool->memorySentinel );
+    ReleaseBlockAt( mesh, &mesh->ownerPool->memorySentinel );
 }
 
 ///// MARCHING CUBES /////

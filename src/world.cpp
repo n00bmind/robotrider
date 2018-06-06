@@ -91,8 +91,13 @@ InitWorld( World* world, MemoryArena* worldArena )
     Generator hullGenerator = { GeneratorHullNodeFunc, &hullGenData->header };
     world->meshGenerators[0] = hullGenerator;
 
-    Init( &world->meshPool, world->marchingAreaSize, world->marchingCubeSize,
-          worldArena, MEGABYTES(256) );
+    world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.workerThreadsCount, MarchingMeshPool );
+    for( u32 i = 0; i < globalPlatform.workerThreadsCount; ++i )
+    {
+        // TODO Re-evaluate size of each pool now that we have many
+        Init( &world->meshPools[i], world->marchingAreaSize, world->marchingCubeSize,
+              worldArena, MEGABYTES(256) );
+    }
 }
 
 internal void
@@ -143,8 +148,59 @@ IsInSimRegion( const v3i& pClusterCoords, const v3i& pWorldOrigin )
         vRelativeCoords.z >= -SIM_REGION_WIDTH && vRelativeCoords.z <= SIM_REGION_WIDTH;
 }
 
+inline GeneratorJob*
+FindFreeJob( World* world )
+{
+    bool found = false;
+    GeneratorJob* result = nullptr;
+
+    u32 index = world->lastAddedJob;
+
+    do
+    {
+        result = &world->generatorJobs[index];
+        if( !result->occupied )
+        {
+            found = true;
+            world->lastAddedJob = index;
+            break;
+        }
+
+        index = (index + 1) % PLATFORM_MAX_JOBQUEUE_JOBS;
+    }
+    while( index != world->lastAddedJob );
+
+    ASSERT( found );
+    return result;
+}
+
+internal
+PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
+{
+    GeneratorJob* job = (GeneratorJob*)userData;
+
+    const v3i& clusterCoords = job->storedEntity->pUniverse.pCluster;
+
+    if( IsInSimRegion( clusterCoords, *job->pWorldOrigin ) )
+    {
+        // Make live entity from stored and put it in the world
+        *job->outputEntity =
+        {
+            // TODO Need a separate meshpool for each thread!
+            *job->storedEntity,
+            job->storedEntity->generator->func( job->storedEntity->generator->data,
+                                                job->storedEntity->pUniverse,
+                                                &job->meshPools[workerThreadIndex] ),
+        };
+    }
+
+    MEMORY_WRITE_BARRIER    
+
+    job->occupied = false;
+}
+
 internal void
-LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena, MarchingMeshPool* meshPool )
+LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena )
 {
     TIMED_BLOCK( LoadEntitiesInCluster );
 
@@ -170,6 +226,8 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
         TIMED_BLOCK( GenerateEntities );
 
         BucketArray<StoredEntity>::Idx it = cluster->entityStorage.First();
+        // TODO Pre-reserve a bunch of slots and generate entities bundles and measure
+        // if there's any speed difference
         while( it )
         {
             StoredEntity& storedEntity = it;
@@ -177,28 +235,26 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 
             const v3i& pWorldOrigin = world->pWorldOrigin;
 
-            // This is actually per-job data
-            //GenerationJob jobData;
-            //jobData.entity = &storedEntity;
-            //jobData.pRelative = storedEntity.pUniverse.pClusterOffset;
-
 
 
     // TODO Rewrite all this as it'll need to be when paralellized
     ////////// JOB START
 
-            if( IsInSimRegion( clusterCoords, pWorldOrigin ) )
+            GeneratorJob* job = FindFreeJob( world );
+            *job =
             {
-                // Make live entity from stored and put it in the world
-                *outputEntity =
-                {
-                    // TODO Need a separate meshpool for each thread!
-                    storedEntity,
-                    storedEntity.generator->func( storedEntity.generator->data,
-                                                  storedEntity.pUniverse,
-                                                  meshPool ),
-                };
-            }
+                &storedEntity,
+                &world->pWorldOrigin,
+                world->meshPools,
+                outputEntity,
+            };
+            job->occupied = true;
+
+            //globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
+                                      //GenerateOneEntity,
+                                      //&job );
+
+            GenerateOneEntity( job, 0 );
 
 
     ////////// JOB END
@@ -211,7 +267,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 }
 
 internal void
-StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena, MarchingMeshPool* meshPool )
+StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena )
 {
     Cluster* cluster = world->clusterTable.Find( clusterCoords );
 
@@ -245,7 +301,7 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
 
             cluster->entityStorage.Add( storedEntity );
 
-            ReleaseMesh( liveEntity.mesh, meshPool );
+            ReleaseMesh( liveEntity.mesh );
             world->liveEntities.Remove( it );
         }
 
@@ -254,7 +310,7 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
 }
 
 internal void
-UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena, MarchingMeshPool* meshPool )
+UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena )
 {
     // TODO Make an infinite connected 'cosmic grid structure'
     // so we can test for a good cluster size, evaluate current generation speeds,
@@ -288,7 +344,14 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
                     // Evict all entities contained in a cluster which is now out of bounds
                     if( !IsInSimRegion( pLastClusterCoords, world->pWorldOrigin ) )
                     {
-                        StoreEntitiesInCluster( pLastClusterCoords, world, arena, meshPool );
+                        // FIXME This is very dumb!
+                        // We first iterate clusters and then iterate the whole liveEntities
+                        // filtering by that cluster.. ¬¬ Just iterate liveEntities once and discard
+                        // all which are not valid, and use the integer cluster coordinates to do so!
+                        // (Just call IsInSimRegion())
+                        // Also! Don't forget to check the cluster an entity belongs to
+                        // everytime you move them!
+                        StoreEntitiesInCluster( pLastClusterCoords, world, arena );
                     }
                 }
             }
@@ -306,7 +369,7 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
                     // and put them in the live entities list
                     if( !IsInSimRegion( pClusterCoords, world->pLastWorldOrigin ) )
                     {
-                        LoadEntitiesInCluster( pClusterCoords, world, arena, meshPool );
+                        LoadEntitiesInCluster( pClusterCoords, world, arena );
                     }
                 }
             }
@@ -479,8 +542,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
     bool firstStepOnly = false;
 
 
-    UpdateWorldGeneration( input, firstStepOnly, world, &gameState->worldArena,
-                           &world->meshPool );
+    UpdateWorldGeneration( input, firstStepOnly, world, &gameState->worldArena );
 
 
 

@@ -142,14 +142,16 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
 
 struct PlatformJobQueue;
 
-#define PLATFORM_JOB_QUEUE_CALLBACK(name) void name( void* userData )
-typedef PLATFORM_JOB_QUEUE_CALLBACK(PlatformJobQueueCallbackFunc);
+#define PLATFORM_JOBQUEUE_CALLBACK(name) void name( void* userData, u32 workerThreadIndex )
+typedef PLATFORM_JOBQUEUE_CALLBACK(PlatformJobQueueCallbackFunc);
 
 #define PLATFORM_ADD_NEW_JOB(name) void name( PlatformJobQueue* queue, PlatformJobQueueCallbackFunc* callback, void* userData )
 typedef PLATFORM_ADD_NEW_JOB(PlatformAddNewJobFunc);
 
 #define PLATFORM_COMPLETE_ALL_JOBS(name) void name( PlatformJobQueue* queue )
 typedef PLATFORM_COMPLETE_ALL_JOBS(PlatformCompleteAllJobsFunc);
+
+#define PLATFORM_MAX_JOBQUEUE_JOBS 2048
 
 
 #define PLATFORM_LOG(name) void name( const char *fmt, ... )
@@ -161,13 +163,14 @@ struct DebugGameStats;
 struct PlatformAPI
 {
     DebugPlatformReadEntireFileFunc* DEBUGReadEntireFile;
-    //DebugPlatformFreeFileMemoryFunc* DEBUGFreeFileMemory;
+    DebugPlatformFreeFileMemoryFunc* DEBUGFreeFileMemory;
     DebugPlatformWriteEntireFileFunc* DEBUGWriteEntireFile;
 
     PlatformAddNewJobFunc* AddNewJob;
     PlatformCompleteAllJobsFunc* CompleteAllJobs;
     PlatformJobQueue* hiPriorityQueue;
     //PlatformJobQueue* loPriorityQueue;
+    u32 workerThreadsCount;
 
     PlatformLogFunc* Log;
 };

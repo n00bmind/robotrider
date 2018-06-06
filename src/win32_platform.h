@@ -64,7 +64,13 @@ struct PlatformJobQueue
     volatile u32 completionCount;
     volatile u32 completionTarget;
 
-    PlatformJobQueueJob jobs[256];
+    PlatformJobQueueJob jobs[PLATFORM_MAX_JOBQUEUE_JOBS];
+};
+
+struct Win32WorkerThreadContext
+{
+    u32 threadIndex;
+    PlatformJobQueue* queue;
 };
 
 struct Win32GameCode

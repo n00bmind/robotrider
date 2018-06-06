@@ -160,4 +160,6 @@ LoadOBJ( const char* path, Array<TexturedVertex>* vertices, Array<u32>* indices 
             indices->Add( vertexIndex[2] );
         }
     }
+
+    globalPlatform.DEBUGFreeFileMemory( result.contents );
 }
