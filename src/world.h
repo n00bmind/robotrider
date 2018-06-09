@@ -107,7 +107,7 @@ struct GeneratorJob
     MarchingMeshPool*   meshPools;
     LiveEntity*         outputEntity;
 
-    bool occupied;
+    volatile bool occupied;
 };
 
 // 'Thickness' in clusters of the sim region on each side of the origin cluster

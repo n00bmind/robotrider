@@ -29,12 +29,33 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // Compiler stuff
 //
 
-#if _MSC_VER
-#define COMPILER_MSVC 1
-#else
+// TODO Properly test all this shiet
+
+#if defined(__clang__) || defined(__GNUC__)   // Put this first so we account for clang-cl too
+
 #define COMPILER_LLVM 1
-// TODO Moar compilerz!!!
+
+#if defined(__amd64__) || defined(__x86_64__)
+#define ARCH_X64 1
+#elif defined(__arm__)
+#define ARCH_ARM 1
 #endif
+
+#elif _MSC_VER
+
+#define COMPILER_MSVC 1
+
+#if defined(_M_X64) || defined(_M_AMD64)
+#define ARCH_X64 1
+#elif defined(_M_ARM)
+#define ARCH_ARM 1
+#endif
+
+#else
+
+#error Compiler not supported!
+
+#endif //__clang__
 
 //
 // Exports
@@ -113,10 +134,28 @@ typedef size_t sz;
 #define R32NAN NAN
 
 
-#define MEMORY_READ_BARRIER         _mm_lfence();_ReadBarrier();
-#define MEMORY_WRITE_BARRIER        _mm_sfence();_WriteBarrier();
-#define MEMORY_READWRITE_BARRIER    _mm_mfence();_ReadWriteBarrier();
+#if COMPILER_MSVC
+#define COMPILER_READ_BARRIER       _ReadBarrier();
+#define COMPILER_WRITE_BARRIER      _WriteBarrier();
+#define COMPILER_READWRITE_BARRIER  _ReadWriteBarrier();
 
+#elif COMPILER_LLVM
+#define COMPILER_READ_BARRIER       asm volatile("" ::: "memory");
+#define COMPILER_WRITE_BARRIER      asm volatile("" ::: "memory");
+#define COMPILER_READWRITE_BARRIER  asm volatile("" ::: "memory");
+
+#endif
+
+#if ARCH_X64
+#define MEMORY_READ_BARRIER         _mm_lfence();COMPILER_READ_BARRIER
+#define MEMORY_WRITE_BARRIER        _mm_sfence();COMPILER_WRITE_BARRIER
+#define MEMORY_READWRITE_BARRIER    _mm_mfence();COMPILER_READWRITE_BARRIER
+
+#elif ARCH_ARM
+
+// TODO 
+
+#endif
 
 
 //
