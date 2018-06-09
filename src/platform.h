@@ -179,9 +179,9 @@ extern PlatformAPI globalPlatform;
 
 typedef void (*AssertHandler)( const char *, const char *, int );
 
-void DefaultAssertHandler( const char *expr, const char *file, int line )
+void DefaultAssertHandler( const char *msg, const char *file, int line )
 {
-    LOG( "ASSERTION FAILED! :: '%s'\n", expr );
+    LOG( "ASSERTION FAILED! :: '%s' (%s@%d)\n", msg, file, line );
 }
 AssertHandler _assert_handler = DefaultAssertHandler;
 

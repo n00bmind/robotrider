@@ -102,19 +102,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         ImGui::SetCurrentContext( memory->imGuiContext );
     }
 
-    // Init game arena & world state
-    if( !memory->isInitialized )
-    {
-        InitializeArena( &gameState->worldArena,
-                         (u8 *)memory->permanentStorage + sizeof(GameState),
-                         memory->permanentStorageSize - sizeof(GameState) );
-
-        gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
-        InitWorld( gameState->world, &gameState->worldArena );
-
-        memory->isInitialized = true;
-    }
-
     // Init transient arena
     if( !tranState->isInitialized )
     {
@@ -127,11 +114,43 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     TemporaryMemory tempMemory = BeginTemporaryMemory( &tranState->transientArena );
 
+    // Init game arena & world state
+    if( !memory->isInitialized )
+    {
+        InitializeArena( &gameState->worldArena,
+                         (u8 *)memory->permanentStorage + sizeof(GameState),
+                         memory->permanentStorageSize - sizeof(GameState) );
+
+        gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
+        InitWorld( gameState->world, &gameState->worldArena, &tranState->transientArena );
+
+        memory->isInitialized = true;
+    }
+
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
 
-    PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
-    UpdateAndRenderWorld( input, gameState, renderCommands );
+    {
+        GameInput* gameInput = input;
+
+#if DEBUG
+        GameInput dummyInput;
+        if( memory->DEBUGglobalEditing )
+        {
+            dummyInput =
+            {
+                input->executableReloaded,
+                input->frameElapsedSeconds,
+                input->totalElapsedSeconds,
+                input->frameCounter,
+            };
+            gameInput = &dummyInput;
+        }
+#endif
+
+        PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
+        UpdateAndRenderWorld( gameInput, gameState, renderCommands );
+    }
 
 #if DEBUG
     float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;

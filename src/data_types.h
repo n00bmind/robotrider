@@ -90,6 +90,7 @@ protected:
 
 /////     STATIC ARRAY    /////
 
+// TODO Remove (substitute for tmp arena allocations)
 template <typename T, u32 N>
 struct SArray : public Array<T>
 {
@@ -230,8 +231,7 @@ struct String
     u32 size;
     u32 maxSize;
 
-    // NOTE For now we don't allow (const) string literals,
-    // otherwise we should make our own data const too. We'll see..
+    // NOTE For now we don't allow (const) string literals. We'll see..
     String( char *cString )
     {
         data = cString;
@@ -245,15 +245,20 @@ struct String
         maxSize = maxSize_;
     }
 
-    bool IsNullOrEmpty()
+    bool IsNullOrEmpty() const
     {
-        return data == nullptr || *data == '\0';
+        return data == nullptr || *data == '\0' || size == 0;
     }
 
-    bool IsEqual( const char* cString )
+    bool IsEqual( const char* cString ) const
     {
         return strncmp( data, cString, size ) == 0
             && cString[size] == '\0';
+    }
+
+    bool IsNewline() const
+    {
+        return *data == '\n' || (*data == '\r' && *(data + 1) == '\n');
     }
 
     bool StartsWith( const char* cString )
@@ -368,7 +373,7 @@ struct String
         va_list args;
         va_start( args, format );
 
-        // HACK Horrible, but it's what we have for now
+        // HACK Not pretty, but it's what we have until C gets a portable bounded vscanf
         char endChar = *(data + size);
         *(data + size) = '\0';
         int result = vsscanf( data, format, args );
@@ -376,6 +381,11 @@ struct String
 
         va_end( args );
         return result;
+    }
+
+    operator bool() const
+    {
+        return !IsNullOrEmpty();
     }
 };
 
@@ -544,6 +554,27 @@ struct BucketArray
     Idx Last()
     {
         return { last, last->count - 1 };
+    }
+
+    T& operator[]( u32 i )
+    {
+        ASSERT( i < count );
+
+        Bucket* base = &first;
+        u32 index = i;
+
+        while( index >= base->count )
+        {
+            index -= base->count;
+            base = base->next;
+        }
+
+        return base[index];
+    }
+
+    const T& operator[]( u32 i ) const
+    {
+        return (*this)[i];
     }
 
 private:

@@ -24,15 +24,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define DATA_RELATIVE_PATH "..\\data\\"
 
 
-#if 0
-// FIXME Put this in some arena
-internal SArray<TexturedVertex, 65536> testVertices;
-internal SArray<u32, 256*1024> testIndices;
-// FIXME
-internal SArray<InflatedVertex, 65536> genVertices;
-internal SArray<InflatedTriangle, 256*1024> genTriangles;
-#endif
-
 internal u32 clusterHashFunction( const v3i& keyValue )
 {
     // TODO Better hash function! x)
@@ -49,30 +40,16 @@ internal u32 entityHashFunction( const u32& keyValue )
 #define INITIAL_CLUSTER_COORDS V3I( I32MAX, I32MAX, I32MAX )
 
 void
-InitWorld( World* world, MemoryArena* worldArena )
+InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
 {
-    world->playerDude = PUSH_STRUCT( worldArena, FlyingDude );
-    FlyingDude &playerDude = *world->playerDude;
-    playerDude =
-    {
-        {
-            { -0.3f,   -0.5f,  0.0f, },
-            {  0.3f,   -0.5f,  0.0f, },
-            {  0.0f,    1.0f,  0.0f, },
-            //{  0.0f,     0.5f	 0.5f, },
-        },
-        {
-            0, 1, 2,
-            //2, 1, 3,
-            //2, 3, 0,
-            //3, 1, 0,
-        },
-    };
-    playerDude.mTransform = M4Identity();
-
 #if 0
     LoadOBJ( DATA_RELATIVE_PATH "bunny.obj", &testVertices, &testIndices );
 #endif
+
+    world->player = PUSH_STRUCT( worldArena, Player );
+    world->player->mesh =
+        LoadOBJ( DATA_RELATIVE_PATH "feisar/feisar_ship.obj", worldArena, tmpArena );
+    world->player->mesh.mTransform = M4Identity();
 
     world->marchingAreaSize = 10;
     world->marchingCubeSize = 1;
@@ -480,12 +457,11 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
 #endif
 
     // Update player based on input
-    // FIXME Filter this at the parent level!
-    //if( !gameState->DEBUGglobalEditing )
+    if( input )
     {
         GameControllerInput *input0 = GetController( input, 0 );
 
-        FlyingDude *playerDude = world->playerDude;
+        Player *player = world->player;
         v3 pPlayer = world->pPlayer;
 
         r32 playerSpeed = input0->leftThumb.endedDown ? 18.f : 10.f;
@@ -516,7 +492,8 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
 
         m4 mPlayerRot = ZRotation( world->playerYaw ) * XRotation( world->playerPitch );
         pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
-        playerDude->mTransform = RotPos( mPlayerRot, pPlayer );
+        player->mesh.mTransform = RotPos( mPlayerRot, pPlayer )
+            * Scale( V3( 0.1f, 0.1f, 0.1f ) );
 
         world->pPlayer = pPlayer;
 
@@ -567,7 +544,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
         it.Next();
     }
 
-    PushRenderGroup( world->playerDude, renderCommands);
+    PushMesh( world->player->mesh, renderCommands );
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
 
@@ -594,10 +571,10 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
     {
         // Create a chasing camera
         // TODO Use a PID controller
-        FlyingDude *playerDude = world->playerDude;
-        v3 pCam = playerDude->mTransform * V3( 0, -2, 1 );
-        v3 pLookAt = playerDude->mTransform * V3( 0, 1, 0 );
-        v3 vUp = GetColumn( playerDude->mTransform, 2 ).xyz;
+        Player *player = world->player;
+        v3 pCam = player->mesh.mTransform * V3( 0, -2, 1 );
+        v3 pLookAt = player->mesh.mTransform * V3( 0, 1, 0 );
+        v3 vUp = GetColumn( player->mesh.mTransform, 2 ).xyz;
         renderCommands->camera.mTransform = CameraLookAt( pCam, pLookAt, vUp );
     }
     

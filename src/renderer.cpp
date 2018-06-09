@@ -143,6 +143,7 @@ PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, Ren
     }
 }
 
+#if 0
 void
 PushRenderGroup( FlyingDude *dude, RenderCommands *commands )
 {
@@ -172,7 +173,6 @@ PushRenderGroup( FlyingDude *dude, RenderCommands *commands )
     }
 }
 
-/*
 void
 PushRenderGroup( CubeThing *cube, RenderCommands *commands )
 {
@@ -201,7 +201,7 @@ PushRenderGroup( CubeThing *cube, RenderCommands *commands )
         entry->indexCount += indexCount;
     }
 }
-*/
+#endif
 
 void
 PushLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )

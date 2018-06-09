@@ -21,26 +21,61 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-// FIXME
-internal SArray<v2, 65536> uvs;
-internal SArray<v3, 65536> normals;
-
-void
-LoadOBJ( const char* path, Array<TexturedVertex>* vertices, Array<u32>* indices )
+Mesh
+LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
 {
     // TODO Centralize asset loading in the platform layer (through a 'bundle' file),
     // so that temporary memory used while loading is reused and not allocated every time
-    DEBUGReadFileResult result = globalPlatform.DEBUGReadEntireFile( path );
-    ASSERT( result.contents );
+    DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
+    ASSERT( read.contents );
 
-    String contents( (char *)result.contents );
+    u32 vertexCount = 0, indexCount = 0, uvCount = 0, normalCount = 0;
+
+    String contents( (char *)read.contents );
     while( true )
     {
         String line = contents.ConsumeLine();
         if( line.IsNullOrEmpty() )
             break;
 
-        // This trims all whitespace
+        // This trims all initial whitespace
+        String firstWord = line.ConsumeWord();
+
+        // Do a quick first pass just to count everything
+        if( firstWord.StartsWith( "#" ) )
+            ;
+        else if( firstWord.IsEqual( "v" ) )
+            vertexCount++;
+        else if( firstWord.IsEqual( "vt" ) )
+            uvCount++;
+        else if( firstWord.IsEqual( "vn" ) )
+            normalCount++;
+        else if( firstWord.IsEqual( "f" ) )
+        {
+            u32 polyVertices = 0;
+            String word = line.ConsumeWord();
+            while( word )
+            {
+                polyVertices++;
+                word = line.ConsumeWord();
+            }
+            // Assume quads if more than 3 vertices
+            indexCount += (polyVertices == 3) ? 3 : 6;
+        }
+    }
+
+    Array<TexturedVertex> vertices( arena, vertexCount );
+    Array<u32> indices( arena, indexCount );
+    Array<v2> uvs( tmpArena, uvCount );
+    Array<v3> normals( tmpArena, normalCount );
+
+    contents = (char*)read.contents;
+    while( true )
+    {
+        String line = contents.ConsumeLine();
+        if( line.IsNullOrEmpty() )
+            break;
+
         String firstWord = line.ConsumeWord();
 
         if( firstWord.StartsWith( "#" ) )
@@ -54,7 +89,7 @@ LoadOBJ( const char* path, Array<TexturedVertex>* vertices, Array<u32>* indices 
 
             int matches = line.Scan( "%f %f %f", &vertex.p.x, &vertex.p.y, &vertex.p.z );
             ASSERT( matches == 3 );
-            vertices->Add( vertex );
+            vertices.Add( vertex );
         }
         else if( firstWord.IsEqual( "vt" ) )
         {
@@ -73,51 +108,78 @@ LoadOBJ( const char* path, Array<TexturedVertex>* vertices, Array<u32>* indices 
         }
         else if( firstWord.IsEqual( "f" ) )
         {
-            u32 matches;
-            i32 vertexIndex[3], uvIndex[3], normalIndex[3];
+            i32 vertexIndex[4], uvIndex[4], normalIndex[4];
             bool haveUVs = false, haveNormals = false;
 
+            u32 i = 0;
             // NOTE Since uvs and normals are not associated with vertices but with faces,
             // we need to do a de-indexing step. There's the open question of what to do
             // if/when indices don't have consistency...
-            if( (matches = line.Scan( "%d/%d/%d %d/%d/%d %d/%d/%d",
-                                      &vertexIndex[0], &uvIndex[0], &normalIndex[0],
-                                      &vertexIndex[1], &uvIndex[1], &normalIndex[1],
-                                      &vertexIndex[2], &uvIndex[2], &normalIndex[2] )) == 9 )
+            String word = line.ConsumeWord();
+            while( word )
             {
-                haveUVs = true;
-                haveNormals = true;
+                ASSERTM( i < 4, "Polys with more than 4 vertices are not supported!" );
+
+                if( word.Scan( "%d/%d/%d", &vertexIndex[i], &uvIndex[i], &normalIndex[i] ) == 3 )
+                {
+                    haveUVs = true;
+                    haveNormals = true;
+                }
+                else if( word.Scan( "%d/%d", &vertexIndex[i], &uvIndex[i] ) == 2 )
+                {
+                    haveUVs = true;
+                }
+                else if( word.Scan( "%d//%d", &vertexIndex[i], &normalIndex[i] ) == 2 )
+                {
+                    haveNormals = true;
+                }
+                else if( word.Scan( "%d", &vertexIndex[i] ) == 1 )
+                {
+                }
+
+                else
+                {
+                    ASSERTM( false, "I don't understand this OBJ file!" );
+                }
+
+                i++;
+                word = line.ConsumeWord();
             }
-            else if( (matches = line.Scan( "%d/%d %d/%d %d/%d",
-                                           &vertexIndex[0], &uvIndex[0],
-                                           &vertexIndex[1], &uvIndex[1],
-                                           &vertexIndex[2], &uvIndex[2] )) == 6 )
+
+            u32 polyVertices = i;
+            ASSERT( polyVertices == 3 || polyVertices == 4 );
+            
+            // Vertex indices could be in relative (negative) form
+            if( vertexIndex[0] > 0 )
             {
-                haveUVs = true;
-            }
-            else if( (matches = line.Scan( "%d//%d %d//%d %d//%d",
-                                           &vertexIndex[0], &normalIndex[0],
-                                           &vertexIndex[1], &normalIndex[1],
-                                           &vertexIndex[2], &normalIndex[2] )) == 6 )
-            {
-                haveNormals = true;
-            }
-            else if( (matches = line.Scan( "%d %d %d",
-                                           &vertexIndex[0],
-                                           &vertexIndex[1],
-                                           &vertexIndex[2] )) == 3 )
-            {
-                // Nothing else to do
+                // We assume if one is positive, all are, and vice-versa
+                vertexIndex[0]--;
+                vertexIndex[1]--;
+                vertexIndex[2]--;
+                vertexIndex[3]--;
             }
             else
             {
-                ASSERTM( false,
-                        "We need a better understanding of OBJ format!" );
+                vertexIndex[0] = vertices.count - vertexIndex[0];
+                vertexIndex[1] = vertices.count - vertexIndex[1];
+                vertexIndex[2] = vertices.count - vertexIndex[2];
+                vertexIndex[3] = vertices.count - vertexIndex[3];
             }
 
-            TexturedVertex& vert0 = (*vertices)[vertexIndex[0]];
-            TexturedVertex& vert1 = (*vertices)[vertexIndex[1]];
-            TexturedVertex& vert2 = (*vertices)[vertexIndex[2]];
+            indices.Add( vertexIndex[0] );
+            indices.Add( vertexIndex[1] );
+            indices.Add( vertexIndex[2] );
+
+            if( polyVertices == 4 )
+            {
+                indices.Add( vertexIndex[2] );
+                indices.Add( vertexIndex[3] );
+                indices.Add( vertexIndex[0] );
+            }
+
+            TexturedVertex& vert0 = vertices[vertexIndex[0]];
+            TexturedVertex& vert1 = vertices[vertexIndex[1]];
+            TexturedVertex& vert2 = vertices[vertexIndex[2]];
 
             if( haveUVs )
             {
@@ -125,6 +187,8 @@ LoadOBJ( const char* path, Array<TexturedVertex>* vertices, Array<u32>* indices 
                 uvIndex[0]--;
                 uvIndex[1]--;
                 uvIndex[2]--;
+                uvIndex[3]--;
+
                 vert0.uv = uvs[uvIndex[0]];
                 vert1.uv = uvs[uvIndex[1]];
                 vert2.uv = uvs[uvIndex[2]];
@@ -134,32 +198,32 @@ LoadOBJ( const char* path, Array<TexturedVertex>* vertices, Array<u32>* indices 
                 normalIndex[0]--;
                 normalIndex[1]--;
                 normalIndex[2]--;
+                normalIndex[3]--;
+
                 vert0.normal = normals[normalIndex[0]];
                 vert1.normal = normals[normalIndex[1]];
                 vert2.normal = normals[normalIndex[2]];
             }
 
-            u32 vertexCount = vertices->count;
-            // Vertex indices could be in relative (negative) form
-            if( vertexIndex[0] > 0 )
+            if( polyVertices == 4 )
             {
-                // We assume if one is positive, all are, and vice-versa
-                vertexIndex[0]--;
-                vertexIndex[1]--;
-                vertexIndex[2]--;
-            }
-            else
-            {
-                vertexIndex[0] = vertices->count - vertexIndex[0];
-                vertexIndex[1] = vertices->count - vertexIndex[1];
-                vertexIndex[2] = vertices->count - vertexIndex[2];
-            }
+                TexturedVertex& vert3 = vertices[vertexIndex[3]];
 
-            indices->Add( vertexIndex[0] );
-            indices->Add( vertexIndex[1] );
-            indices->Add( vertexIndex[2] );
+                if( haveUVs )
+                    vert3.uv = uvs[uvIndex[3]];
+                if( haveNormals )
+                    vert3.normal = normals[normalIndex[3]];
+            }
         }
     }
 
-    globalPlatform.DEBUGFreeFileMemory( result.contents );
+    globalPlatform.DEBUGFreeFileMemory( read.contents );
+
+    Mesh result = {};
+    result.vertices = vertices.data;
+    result.vertexCount = vertices.count;
+    result.indices = indices.data;
+    result.indexCount = indices.count;
+
+    return result;
 }

@@ -24,13 +24,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __WORLD_H__
 #define __WORLD_H__ 
 
-struct FlyingDude
-{
-    v3 vertices[3];
-    u32 indices[3];
 
-    m4 mTransform;
+struct Player
+{
+    Mesh mesh;
 };
+
 
 // NOTE
 //
@@ -116,11 +115,12 @@ struct GeneratorJob
 
 struct World
 {
+    // TODO Move to the player struct
     v3 pPlayer;
     r32 playerPitch;
     r32 playerYaw;
 
-    FlyingDude *playerDude;
+    Player *player;
 
 #if 0
     Array<Mesh> hullMeshes;
