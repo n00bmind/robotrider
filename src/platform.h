@@ -193,6 +193,13 @@ typedef PLATFORM_COMPLETE_ALL_JOBS(PlatformCompleteAllJobsFunc);
 #define PLATFORM_MAX_JOBQUEUE_JOBS 16768
 
 
+#define PLATFORM_ALLOCATE_TEXTURE(name) void* name( u8* data, u32 width, u32 height )
+typedef PLATFORM_ALLOCATE_TEXTURE(PlatformAllocateTextureFunc);
+
+#define PLATFORM_DEALLOCATE_TEXTURE(name) void name( void* handle )
+typedef PLATFORM_DEALLOCATE_TEXTURE(PlatformDeallocateTextureFunc);
+
+
 #define PLATFORM_LOG(name) void name( const char *fmt, ... )
 typedef PLATFORM_LOG(PlatformLogFunc);
 
@@ -210,6 +217,9 @@ struct PlatformAPI
     PlatformJobQueue* hiPriorityQueue;
     //PlatformJobQueue* loPriorityQueue;
     u32 workerThreadsCount;
+
+    PlatformAllocateTextureFunc* AllocateTexture;
+    PlatformDeallocateTextureFunc* DeallocateTexture;
 
     PlatformLogFunc* Log;
 };

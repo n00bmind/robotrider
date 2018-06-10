@@ -151,6 +151,7 @@ PFNGLBLENDEQUATIONPROC	                glBlendEquation;
 PFNGLUNIFORM1IPROC	                    glUniform1i;
 PFNGLBINDATTRIBLOCATIONPROC             glBindAttribLocation;
 PFNGLVERTEXATTRIBIPOINTERPROC           glVertexAttribIPointer;
+PFNGLGENERATEMIPMAPPROC                 glGenerateMipmap;
 
 
 #endif /* __OPENGL_RENDERER_H__ */

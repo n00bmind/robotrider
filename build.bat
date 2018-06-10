@@ -11,7 +11,7 @@ set COMPILER=cl
 ::set COMPILER=clang-cl
 
 set LIBS=user32.lib gdi32.lib winmm.lib ole32.lib opengl32.lib shlwapi.lib
-set WARNINGFLAGS=-wd4201 -wd4100 -wd4189 -wd4101 -wd4505
+set WARNINGFLAGS=-wd4201 -wd4100 -wd4189 -wd4101 -wd4505 -wd4312
 set COMMONFLAGS=-MTd -nologo -FC -W4 -WX -Oi -GR- -EHa- -D_HAS_EXCEPTIONS=0 -D_CRT_SECURE_NO_WARNINGS %WARNINGFLAGS%
 set LINKERFLAGS=/opt:ref /incremental:no
 

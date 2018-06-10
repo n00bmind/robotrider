@@ -62,12 +62,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 PlatformAPI globalPlatform;
 #if DEBUG
-DebugGameStats DEBUGgameStats;
+internal DebugGameStats DEBUGgameStats;
 DebugGameStats* DEBUGglobalStats = &DEBUGgameStats;
 #endif
 
 internal OpenGLState globalOpenGLState;
-internal Win32State globalNativeState;
+internal Win32State globalPlatformState;
 
 
 // FIXME These probably don't need to be globals at all.. PRUNE!
@@ -151,7 +151,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
     if( PathIsRelative( filename ) )
     {
         // If path is relative, use executable location to complete it
-        MakePathAbsolute( filename, globalNativeState.exeFilePath, absolutePath );
+        MakePathAbsolute( filename, globalPlatformState.exeFilePath, absolutePath );
         filename = absolutePath;
     }
 
@@ -209,7 +209,7 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGWin32WriteEntireFile)
     if( PathIsRelative( filename ) )
     {
         // If path is relative, use executable location to complete it
-        MakePathAbsolute( filename, globalNativeState.exeFilePath, absolutePath );
+        MakePathAbsolute( filename, globalPlatformState.exeFilePath, absolutePath );
         filename = absolutePath;
     }
 
@@ -250,8 +250,8 @@ PLATFORM_LOG(PlatformLog)
 
     printf( "%s\n", buffer );
 
-    if( globalNativeState.gameCode.LogCallback )
-        globalNativeState.gameCode.LogCallback( buffer );
+    if( globalPlatformState.gameCode.LogCallback )
+        globalPlatformState.gameCode.LogCallback( buffer );
 }
 
 
@@ -307,45 +307,46 @@ Win32UnloadGameCode( Win32GameCode *gameCode )
 }
 
 internal void
-Win32SetupAssetUpdateListener( Win32State *state )
+Win32SetupAssetUpdateListener( Win32State *platformState )
 {
     char absolutePath[MAX_PATH];
     // FIXME This part is OpenGL specific. Formalize how we get this for different renderers
-    MakePathAbsolute( SHADERS_RELATIVE_PATH, globalNativeState.exeFilePath, absolutePath );
+    MakePathAbsolute( SHADERS_RELATIVE_PATH, platformState->exeFilePath, absolutePath );
 
-    state->shadersDirHandle = CreateFile( absolutePath, FILE_LIST_DIRECTORY, FILE_SHARE_READ,
-                                          NULL, OPEN_EXISTING,
-                                          FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
-                                          NULL );
+    platformState->shadersDirHandle
+        = CreateFile( absolutePath, FILE_LIST_DIRECTORY, FILE_SHARE_READ, NULL,
+                      OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL );
 
-    if( state->shadersDirHandle == INVALID_HANDLE_VALUE )
+    if( platformState->shadersDirHandle == INVALID_HANDLE_VALUE )
     {
         LOG( "ERROR :: Could not open directory for reading (%s)", absolutePath );
         return;
     }
 
-    state->shadersOverlapped = {0};
-    state->shadersOverlapped.hEvent = CreateEvent( NULL, FALSE, FALSE, NULL );
+    platformState->shadersOverlapped = {0};
+    platformState->shadersOverlapped.hEvent = CreateEvent( NULL, FALSE, FALSE, NULL );
 
-    BOOL read = ReadDirectoryChangesW( state->shadersDirHandle,
-                                       state->shadersNotifyBuffer,
-                                       ARRAYCOUNT(state->shadersNotifyBuffer), TRUE,
-                                       FILE_NOTIFY_CHANGE_LAST_WRITE,
-                                       NULL, &state->shadersOverlapped, NULL );
+    BOOL read = ReadDirectoryChangesW( platformState->shadersDirHandle,
+                                       platformState->shadersNotifyBuffer,
+                                       ARRAYCOUNT(platformState->shadersNotifyBuffer),
+                                       TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE,
+                                       NULL, &platformState->shadersOverlapped, NULL );
     ASSERT( read );
 }
 
 internal void
-Win32CheckAssetUpdates( Win32State *state )
+Win32CheckAssetUpdates( Win32State *platformState )
 {
     DWORD bytesReturned;
     // Return immediately if no info ready
-    BOOL result = GetOverlappedResult( state->shadersDirHandle, &state->shadersOverlapped,
+    BOOL result = GetOverlappedResult( platformState->shadersDirHandle,
+                                       &platformState->shadersOverlapped,
                                        &bytesReturned, FALSE );
 
     if( result )
     {
-        FILE_NOTIFY_INFORMATION *notifyInfo = (FILE_NOTIFY_INFORMATION *)state->shadersNotifyBuffer;
+        FILE_NOTIFY_INFORMATION *notifyInfo
+            = (FILE_NOTIFY_INFORMATION *)platformState->shadersNotifyBuffer;
         if( notifyInfo->Action == FILE_ACTION_MODIFIED )
         {
             char filename[MAX_PATH];
@@ -376,11 +377,11 @@ Win32CheckAssetUpdates( Win32State *state )
         //LOG( "WARNING :: More data available in update listener" );
 
         // Restart monitorization
-        BOOL read = ReadDirectoryChangesW( state->shadersDirHandle,
-                                           state->shadersNotifyBuffer,
-                                           ARRAYCOUNT(state->shadersNotifyBuffer), TRUE,
-                                           FILE_NOTIFY_CHANGE_LAST_WRITE,
-                                           NULL, &state->shadersOverlapped, NULL );
+        BOOL read = ReadDirectoryChangesW( platformState->shadersDirHandle,
+                                           platformState->shadersNotifyBuffer,
+                                           ARRAYCOUNT(platformState->shadersNotifyBuffer),
+                                           TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE,
+                                           NULL, &platformState->shadersOverlapped, NULL );
         ASSERT( read );
     }
     else
@@ -566,7 +567,6 @@ Win32BlitAudioBuffer( GameAudioBuffer *sourceBuffer, u32 framesToWrite, Win32Aud
 internal ImGuiContext *
 Win32InitImGui( HWND window )
 {
-    // FIXME All direct calls to OpenGL will have to be done through an agnostic renderer interface
     ImGuiContext *result = OpenGLInitImGui( globalOpenGLState );
 
     ImGuiIO& io = ImGui::GetIO();
@@ -632,11 +632,10 @@ Win32AllocateBackBuffer( Win32OffscreenBuffer *buffer, int width, int height )
 }
 
 internal void
-Win32DisplayInWindow( RenderCommands &commands, HDC deviceContext, int windowWidth, int windowHeight )
+Win32DisplayInWindow( const Win32State& platformState, RenderCommands &commands,
+                      HDC deviceContext, int windowWidth, int windowHeight )
 {
-    Renderer renderer = Renderer::OpenGL;
-
-    switch( renderer )
+    switch( platformState.renderer )
     {
         case Renderer::OpenGL:
         {
@@ -904,15 +903,15 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
 
 
 internal void
-Win32GetInputFilePath( Win32State *platformState, u32 slotIndex, bool isInputStream,
+Win32GetInputFilePath( const Win32State& platformState, u32 slotIndex, bool isInputStream,
                        char* dest, u32 destCount )
 {
-    sprintf_s( dest, destCount, "%s%s%d%s%s", platformState->exeFilePath,
+    sprintf_s( dest, destCount, "%s%s%d%s%s", platformState.exeFilePath,
                "gamestate", slotIndex, isInputStream ? "_input" : "", ".in" );
 }
 
 internal Win32ReplayBuffer*
-Win32GetReplayBuffer( Win32State *platformState, u32 index )
+Win32GetReplayBuffer( Win32State* platformState, u32 index )
 {
     ASSERT( index < ARRAYCOUNT(platformState->replayBuffers) );
     Win32ReplayBuffer *replayBuffer = &platformState->replayBuffers[index];
@@ -932,7 +931,7 @@ Win32BeginInputRecording( Win32State *platformState, u32 inputRecordingIndex )
         platformState->inputRecordingIndex = inputRecordingIndex;
 
         char filename[MAX_PATH];
-        Win32GetInputFilePath( platformState, inputRecordingIndex, true,
+        Win32GetInputFilePath( *platformState, inputRecordingIndex, true,
                                filename, ARRAYCOUNT(filename) );
         platformState->recordingHandle = CreateFile( filename,
                                                      GENERIC_WRITE, 0, 0,
@@ -953,11 +952,11 @@ Win32EndInputRecording( Win32State *platformState )
 }
 
 internal void
-Win32RecordInput( Win32State *platformState, GameInput *newInput )
+Win32RecordInput( const Win32State& platformState, GameInput *newInput )
 {
     DWORD bytesWritten;
-    WriteFile( platformState->recordingHandle, newInput, sizeof(*newInput),
-                                  &bytesWritten, 0 );
+    WriteFile( platformState.recordingHandle, newInput, sizeof(*newInput),
+               &bytesWritten, 0 );
 }
 
 internal void
@@ -972,7 +971,7 @@ Win32BeginInputPlayback( Win32State *platformState, u32 inputPlaybackIndex )
         platformState->inputPlaybackIndex = inputPlaybackIndex;
 
         char filename[MAX_PATH];
-        Win32GetInputFilePath( platformState, inputPlaybackIndex, true,
+        Win32GetInputFilePath( *platformState, inputPlaybackIndex, true,
                                filename, ARRAYCOUNT(filename) );
         platformState->playbackHandle = CreateFile( filename,
                                                     GENERIC_READ, 0, 0,
@@ -1493,7 +1492,8 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
         return false;
     }
 
-    int flags = WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
+    int flags = 0;
+    //flags |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
 #if DEBUG
     flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
 #endif
@@ -1503,8 +1503,9 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
         WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
         WGL_CONTEXT_MINOR_VERSION_ARB, 3,
         WGL_CONTEXT_FLAGS_ARB, flags,
-        //WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        WGL_CONTEXT_PROFILE_MASK_ARB,
+        WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+        //WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
         0
     };
 
@@ -1570,6 +1571,7 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
     BINDGLPROC( glUniform1i, PFNGLUNIFORM1IPROC );
     BINDGLPROC( glBindAttribLocation, PFNGLBINDATTRIBLOCATIONPROC );
     BINDGLPROC( glVertexAttribIPointer, PFNGLVERTEXATTRIBIPOINTERPROC );
+    BINDGLPROC( glGenerateMipmap, PFNGLGENERATEMIPMAPPROC );
 #undef BINDGLPROC
 
 
@@ -1690,7 +1692,37 @@ PLATFORM_COMPLETE_ALL_JOBS(Win32CompleteAllJobs)
     queue->completionCount = 0;
 }
 
-PlatformJobQueue TESThiPriorityQueue;
+
+internal
+PLATFORM_ALLOCATE_TEXTURE(Win32AllocateTexture)
+{
+    void* result = nullptr;
+
+    switch( globalPlatformState.renderer )
+    {
+        case Renderer::OpenGL:
+            result = OpenGLAllocateTexture( data, width, height );
+            break;
+
+        INVALID_DEFAULT_CASE
+    }
+
+    return result;
+}
+
+internal
+PLATFORM_DEALLOCATE_TEXTURE(Win32DeallocateTexture)
+{
+    switch( globalPlatformState.renderer )
+    {
+        case Renderer::OpenGL:
+            OpenGLDeallocateTexture( handle );
+            break;
+
+        INVALID_DEFAULT_CASE
+    }
+}
+
 
 int 
 main( int argC, char **argV )
@@ -1705,25 +1737,29 @@ main( int argC, char **argV )
     globalPlatform.DEBUGWriteEntireFile = DEBUGWin32WriteEntireFile;
     globalPlatform.AddNewJob = Win32AddNewJob;
     globalPlatform.CompleteAllJobs = Win32CompleteAllJobs;
+    globalPlatform.AllocateTexture = Win32AllocateTexture;
+    globalPlatform.DeallocateTexture = Win32DeallocateTexture;
 
     // FIXME Should be dynamic, but can't be bothered!
     Win32WorkerThreadContext threadContexts[32];
     u32 workerThreadsCount = systemInfo.dwNumberOfProcessors - 1;
     ASSERT( workerThreadsCount <= ARRAYCOUNT(threadContexts) );
 
-    Win32InitJobQueue( &TESThiPriorityQueue, threadContexts, workerThreadsCount );
-    globalPlatform.hiPriorityQueue = &TESThiPriorityQueue;
+    Win32InitJobQueue( &globalPlatformState.hiPriorityQueue, threadContexts, workerThreadsCount );
+    globalPlatform.hiPriorityQueue = &globalPlatformState.hiPriorityQueue;
     globalPlatform.workerThreadsCount = workerThreadsCount;
 
+    globalPlatformState.renderer = Renderer::OpenGL;
 
-    Win32GetFilePaths( &globalNativeState );
+
+    Win32GetFilePaths( &globalPlatformState );
 
     const char *sourceDLLName = "robotrider.dll";
     char sourceDLLPath[MAX_PATH];
-    sprintf_s( sourceDLLPath, ARRAYCOUNT(sourceDLLPath), "%s%s", globalNativeState.exeFilePath, sourceDLLName );
+    sprintf_s( sourceDLLPath, ARRAYCOUNT(sourceDLLPath), "%s%s", globalPlatformState.exeFilePath, sourceDLLName );
     const char *tempDLLName = "robotrider_temp.dll";
     char tempDLLPath[MAX_PATH];
-    sprintf_s( tempDLLPath, ARRAYCOUNT(tempDLLPath), "%s%s", globalNativeState.exeFilePath, tempDLLName );
+    sprintf_s( tempDLLPath, ARRAYCOUNT(tempDLLPath), "%s%s", globalPlatformState.exeFilePath, tempDLLName );
 
     LOG( "Initializing Win32 platform with game DLL at: %s", sourceDLLPath );
     GameMemory gameMemory = {};
@@ -1813,7 +1849,7 @@ main( int argC, char **argV )
             Win32ToggleFullscreen( window );
 #endif
 
-            globalNativeState.mainWindow = window;
+            globalPlatformState.mainWindow = window;
             Win32RegisterRawMouseInput( window );
 
             // TODO Decide a proper size for this
@@ -1845,36 +1881,36 @@ main( int argC, char **argV )
                 gameMemory.transientStorage = (u8 *)gameMemory.permanentStorage
                     + gameMemory.permanentStorageSize;
 
-                globalNativeState.gameMemoryBlock = gameMemory.permanentStorage;
-                globalNativeState.gameMemorySize = totalSize;
+                globalPlatformState.gameMemoryBlock = gameMemory.permanentStorage;
+                globalPlatformState.gameMemorySize = totalSize;
 
                 i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
 #if DEBUG
-                for( u32 replayIndex = 0; replayIndex < ARRAYCOUNT(globalNativeState.replayBuffers); ++replayIndex )
+                for( u32 replayIndex = 0; replayIndex < ARRAYCOUNT(globalPlatformState.replayBuffers); ++replayIndex )
                 {
-                    Win32ReplayBuffer *replayBuffer = &globalNativeState.replayBuffers[replayIndex];
+                    Win32ReplayBuffer *replayBuffer = &globalPlatformState.replayBuffers[replayIndex];
 
                     // Since we use an index value of 0 as an off flag, slot filenames start at 1
-                    Win32GetInputFilePath( &globalNativeState, replayIndex + 1, false,
+                    Win32GetInputFilePath( globalPlatformState, replayIndex + 1, false,
                                            replayBuffer->filename,
                                            ARRAYCOUNT(replayBuffer->filename) );
                     replayBuffer->fileHandle = CreateFile( replayBuffer->filename,
                                                            GENERIC_READ|GENERIC_WRITE, 0, 0,
                                                            CREATE_ALWAYS, 0, 0 );
                     DWORD ignored;
-                    DeviceIoControl( globalNativeState.recordingHandle, FSCTL_SET_SPARSE, 0, 0, 0, 0, &ignored, 0 );
+                    DeviceIoControl( globalPlatformState.recordingHandle, FSCTL_SET_SPARSE, 0, 0, 0, 0, &ignored, 0 );
 
                     replayBuffer->memoryMap = CreateFileMapping( replayBuffer->fileHandle,
                                                                  0, PAGE_READWRITE,
-                                                                 (globalNativeState.gameMemorySize >> 32),
-                                                                 globalNativeState.gameMemorySize & 0xFFFFFFFF,
+                                                                 (globalPlatformState.gameMemorySize >> 32),
+                                                                 globalPlatformState.gameMemorySize & 0xFFFFFFFF,
                                                                  0 );
 
                     replayBuffer->memoryBlock = MapViewOfFile( replayBuffer->memoryMap,
                                                                FILE_MAP_ALL_ACCESS,
-                                                               0, 0, globalNativeState.gameMemorySize );
+                                                               0, 0, globalPlatformState.gameMemorySize );
                     if( !replayBuffer->memoryBlock )
                     {
                         // TODO Diagnostic
@@ -1905,8 +1941,8 @@ main( int argC, char **argV )
                     LARGE_INTEGER lastCounter = firstCounter;
                     i64 lastCycleCounter = __rdtsc();
 
-                    globalNativeState.gameCode = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );
-                    Win32SetupAssetUpdateListener( &globalNativeState );
+                    globalPlatformState.gameCode = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );
+                    Win32SetupAssetUpdateListener( &globalPlatformState );
 
                     // Main loop
                     while( globalRunning )
@@ -1930,18 +1966,18 @@ main( int argC, char **argV )
 #if DEBUG
                         // Check for game code updates
                         FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
-                        if( CompareFileTime( &dllWriteTime, &globalNativeState.gameCode.lastDLLWriteTime ) != 0 )
+                        if( CompareFileTime( &dllWriteTime, &globalPlatformState.gameCode.lastDLLWriteTime ) != 0 )
                         {
                             Win32CompleteAllJobs( globalPlatform.hiPriorityQueue );
 
                             LOG( "Detected updated game DLL. Reloading.." );
-                            Win32UnloadGameCode( &globalNativeState.gameCode );
-                            globalNativeState.gameCode = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );
+                            Win32UnloadGameCode( &globalPlatformState.gameCode );
+                            globalPlatformState.gameCode = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );
                             newInput->executableReloaded = true;
                         }
 
                         // Check for asset updates
-                        Win32CheckAssetUpdates( &globalNativeState );
+                        Win32CheckAssetUpdates( &globalPlatformState );
 #endif
 
                         Win32WindowDimension windowDim = Win32GetWindowDimension( window );
@@ -1950,7 +1986,7 @@ main( int argC, char **argV )
 
                         // Process input
                         GameControllerInput *newKeyMouseController = Win32ResetKeyMouseController( oldInput, newInput );
-                        Win32ProcessPendingMessages( &globalNativeState, &gameMemory, newInput, newKeyMouseController );
+                        Win32ProcessPendingMessages( &globalPlatformState, &gameMemory, newInput, newKeyMouseController );
                         Win32ProcessXInputControllers( oldInput, newInput );
 
 #if DEBUG
@@ -1960,13 +1996,13 @@ main( int argC, char **argV )
                             Win32ResetKeyMouseController( oldInput, newInput );
                         }
 
-                        if( globalNativeState.inputRecordingIndex )
+                        if( globalPlatformState.inputRecordingIndex )
                         {
-                            Win32RecordInput( &globalNativeState, newInput );
+                            Win32RecordInput( globalPlatformState, newInput );
                         }
-                        if( globalNativeState.inputPlaybackIndex )
+                        if( globalPlatformState.inputPlaybackIndex )
                         {
-                            Win32PlayBackInput( &globalNativeState, newInput );
+                            Win32PlayBackInput( &globalPlatformState, newInput );
                         }
 
                         ResetFrameCounters( DEBUGglobalStats );
@@ -2003,7 +2039,7 @@ main( int argC, char **argV )
 
 
                         // Ask the game to render one frame
-                        globalNativeState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
+                        globalPlatformState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
 
                         // Blit audio buffer to output
                         Win32BlitAudioBuffer( &audioBuffer, audioFramesToWrite, &audioOutput );
@@ -2045,7 +2081,8 @@ main( int argC, char **argV )
 #endif
 
                         // Blit video to output
-                        Win32DisplayInWindow( renderCommands, deviceContext, windowDim.width, windowDim.height );
+                        Win32DisplayInWindow( globalPlatformState, renderCommands, deviceContext,
+                                              windowDim.width, windowDim.height );
 
                         LARGE_INTEGER endCounter = Win32GetWallClock();
                         lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );

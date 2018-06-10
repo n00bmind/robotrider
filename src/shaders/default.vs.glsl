@@ -30,6 +30,7 @@ layout(location = 2) in uint inColor;
 out VertexData
 {
     flat uint color;
+    vec2 texCoords;
 } _out;
 
 // TODO Consider using interface block for uniforms in the future too
@@ -40,5 +41,6 @@ void main()
 {
     gl_Position = mTransform * vec4( inPosition, 1.0 );
     _out.color = inColor;
+    _out.texCoords = inTexCoords;
 }
 

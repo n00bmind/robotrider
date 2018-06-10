@@ -29,11 +29,13 @@ layout(triangle_strip, max_vertices=3) out;
 in VertexData
 {
     flat uint color;
+    vec2 texCoords;
 } _in[];
 
 out VertexData
 {
     flat uint color;
+    vec2 texCoords;
     flat vec3 faceNormal;
 } _out;
 

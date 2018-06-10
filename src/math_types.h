@@ -501,6 +501,16 @@ union m4
     r32 e[4][4];
 };
 
+inline bool
+AlmostEqual( const m4& a, const m4& b )
+{
+    for( int i = 0; i < 4; ++i )
+        for( int j = 0; i < 4; ++j )
+            if( !AlmostEqual( a.e[i][j], b.e[i][j] ) )
+                return false;
+    return true;
+}
+
 inline m4
 M4Identity()
 {

@@ -61,7 +61,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
         editorState.camPitch = 0;
         //v3 pLookAt = gameState->pPlayer;
         //m4 mInitialRot = CameraLookAt( editorState.pCamera, pLookAt, V3Up() );
-        editorState.camPitch = -PI32 / 4.f;
+        editorState.camPitch = -PI / 4.f;
     }
 
     // Update camera based on input

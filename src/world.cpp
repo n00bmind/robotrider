@@ -48,8 +48,11 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
 
     world->player = PUSH_STRUCT( worldArena, Player );
     world->player->mesh =
-        LoadOBJ( DATA_RELATIVE_PATH "feisar/feisar_ship.obj", worldArena, tmpArena );
+        LoadOBJ( DATA_RELATIVE_PATH "feisar/feisar_ship.obj", worldArena, tmpArena,
+                 ZRotation( PI ) * XRotation( PI/2 ) * Scale( V3( 0.02f, 0.02f, 0.02f ) ) );
     world->player->mesh.mTransform = M4Identity();
+
+    void* textureHandle = LoadTexture( DATA_RELATIVE_PATH "feisar/maps/diffuse.bmp" );
 
     world->marchingAreaSize = 10;
     world->marchingCubeSize = 1;
@@ -457,10 +460,9 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
 #endif
 
     // Update player based on input
-    if( input )
+    GameControllerInput *input0 = GetController( input, 0 );
+    if( input0->isConnected )
     {
-        GameControllerInput *input0 = GetController( input, 0 );
-
         Player *player = world->player;
         v3 pPlayer = world->pPlayer;
 
@@ -492,8 +494,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
 
         m4 mPlayerRot = ZRotation( world->playerYaw ) * XRotation( world->playerPitch );
         pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
-        player->mesh.mTransform = RotPos( mPlayerRot, pPlayer )
-            * Scale( V3( 0.1f, 0.1f, 0.1f ) );
+        player->mesh.mTransform = RotPos( mPlayerRot, pPlayer );
 
         world->pPlayer = pPlayer;
 
@@ -538,15 +539,15 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
         LiveEntity& entity = (LiveEntity&)it;
         if( entity.state == EntityState::Active )
         {
-            PushMesh( *entity.mesh, renderCommands );
+            //PushMesh( *entity.mesh, renderCommands );
         }
 
         it.Next();
     }
 
+    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMesh( world->player->mesh, renderCommands );
 
-    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
 
     // Render current cluster limits
     r32 s = CLUSTER_HALF_SIZE_METERS;
@@ -572,7 +573,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
         // Create a chasing camera
         // TODO Use a PID controller
         Player *player = world->player;
-        v3 pCam = player->mesh.mTransform * V3( 0, -2, 1 );
+        v3 pCam = player->mesh.mTransform * V3( 0, -5, 3 );
         v3 pLookAt = player->mesh.mTransform * V3( 0, 1, 0 );
         v3 vUp = GetColumn( player->mesh.mTransform, 2 ).xyz;
         renderCommands->camera.mTransform = CameraLookAt( pCam, pLookAt, vUp );

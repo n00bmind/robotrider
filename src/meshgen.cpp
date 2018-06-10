@@ -879,7 +879,7 @@ GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advance
     bool turnInThisStep = path->distanceToNextTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToNextFork < path->areaSideMeters;
 
-    r32 pi2 = PI32 / 2;
+    r32 pi2 = PI / 2;
     m4 rotations[4] =
     {
         // Expressed as if +Y == 'forward'

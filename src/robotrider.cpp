@@ -40,6 +40,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "imgui/imgui.cpp"
 // TODO Remove!
 #include "imgui/imgui_demo.cpp"
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ASSERT(x) ASSERT(x)
+// TODO Define STBI_MALLOC, STBI_REALLOC, STBI_FREE
+#define STBI_ONLY_BMP
+#define STBI_NO_STDIO
+#define STB_IMAGE_STATIC
+#include "stb/stb_image.h"
 
 #include "ui.cpp"
 #include "console.cpp"

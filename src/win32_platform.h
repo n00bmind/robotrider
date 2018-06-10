@@ -101,6 +101,7 @@ struct Win32State
     char currentDirectory[MAX_PATH];
 
     Win32GameCode gameCode;
+    Renderer renderer;
 
     void *gameMemoryBlock;
     u64 gameMemorySize;
@@ -114,6 +115,8 @@ struct Win32State
     HANDLE shadersDirHandle;
     OVERLAPPED shadersOverlapped;
     u8 shadersNotifyBuffer[8192];
+
+    PlatformJobQueue hiPriorityQueue;
 };
 
 #endif /* __WIN32_PLATFORM_H__ */

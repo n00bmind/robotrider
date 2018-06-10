@@ -26,7 +26,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 in VertexData
 {
     flat uint color;
+    vec2 texCoords;
 } _in;
+
+uniform sampler2D diffuseMap;
 
 out vec4 outColor;
 
@@ -61,5 +64,6 @@ vec4 unpack( uint value )
 
 void main()
 {
-    outColor = unpack( _in.color );
+    //outColor = unpack( _in.color );
+    outColor = texture( diffuseMap, _in.texCoords );
 }

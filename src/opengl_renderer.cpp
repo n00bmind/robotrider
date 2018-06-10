@@ -732,6 +732,38 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState &gl )
     }
 }
 
+GLuint testTexture;
+
+internal
+PLATFORM_ALLOCATE_TEXTURE(OpenGLAllocateTexture)
+{
+    void* result = nullptr;
+
+    GLuint textureHandle;
+    glGenTextures( 1, &textureHandle );
+    glBindTexture( GL_TEXTURE_2D, textureHandle );
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+    // Use GL_LINEAR_MIPMAP_LINEAR?
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                  data );
+    glGenerateMipmap( GL_TEXTURE_2D );
+
+    testTexture = textureHandle;
+    result = (void*)textureHandle;
+    return result;
+}
+
+internal
+PLATFORM_DEALLOCATE_TEXTURE(OpenGLDeallocateTexture)
+{
+    // TODO 
+}
+
 internal void
 OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
 {
@@ -772,14 +804,18 @@ OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
                 // TODO Try out some of the approaches mentioned in http://www.seas.upenn.edu/~pcozzi/OpenGLInsights/OpenGLInsights-AsynchronousBufferTransfers.pdf
                 // (specially example 28.4 - unsynchronized mapping - seems to be the most performant)
                 // Why, maybe even be super scientific about it and implement the various paths with a key that can switch among them for A/B testing
+                //
+                // Also, weigh whether we may want to track mesh changes in our buffers so that buffer data doesn't have to be resubmitted for more static stuff
+                // (that all will depend on whether we really end up having much static or not, but maybe for the 'hull chunks' it could be worth it?
+
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
                 //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+                glBindTexture( GL_TEXTURE_2D, testTexture );
 
                 GLuint countBytes = entry->vertexCount * sizeof(TexturedVertex);
-                // Tried orphaning the buffers previously, but it seems slower
-                // (the driver is probably doing something sneaky as they like to do)
-                // We'll have to test again when we are actually using multiple draw calls / subsections of the buffers, etc.
+                // TODO Our current slowness is not due to this, contrary to what you assumed!
+                // Just comment this out and see for yourself x')
                 glBufferData( GL_ARRAY_BUFFER,
                               countBytes,
                               commands.vertexBuffer.base + entry->vertexBufferOffset,
@@ -792,7 +828,6 @@ OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
                               GL_STREAM_DRAW );
 
                 glDrawElements( GL_TRIANGLES, entry->indexCount, GL_UNSIGNED_INT, (void *)0 );
-
 #if DEBUG
                 DEBUGglobalStats->totalDrawCalls++;
                 DEBUGglobalStats->totalVertexCount += entry->vertexCount;

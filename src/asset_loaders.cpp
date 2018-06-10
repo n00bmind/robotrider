@@ -22,7 +22,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 Mesh
-LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
+LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
+         const m4& appliedTransform = M4Identity() )
 {
     // TODO Centralize asset loading in the platform layer (through a 'bundle' file),
     // so that temporary memory used while loading is reused and not allocated every time
@@ -219,6 +220,13 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
 
     globalPlatform.DEBUGFreeFileMemory( read.contents );
 
+    // Pre apply transform
+    if( !AlmostEqual( appliedTransform, M4Identity() ) )
+    {
+        for( u32 i = 0; i < vertices.count; ++i )
+            vertices.data[i].p = appliedTransform * vertices.data[i].p;
+    }
+
     Mesh result = {};
     result.vertices = vertices.data;
     result.vertexCount = vertices.count;
@@ -226,4 +234,24 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
     result.indexCount = indices.count;
 
     return result;
+}
+
+void*
+LoadTexture( const char* path )
+{
+    DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
+
+    i32 imageWidth = 0, imageHeight = 0, imageChannels = 0;
+
+    u8* imageBuffer =
+        stbi_load_from_memory( (u8*)read.contents, read.contentSize,
+                               &imageWidth, &imageHeight, &imageChannels, 4 );
+
+    // TODO Async texture uploads (and unload)
+    globalPlatform.AllocateTexture( imageBuffer, imageWidth, imageHeight );
+
+    stbi_image_free( imageBuffer );
+    globalPlatform.DEBUGFreeFileMemory( read.contents );
+
+    return imageBuffer;
 }
