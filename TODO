@@ -3,6 +3,9 @@
 :::::::::::::::::::::::::::
 
 
+FIX
+- Hot reloading is broken
+
 WORLDGEN
 - Procedural generation of some kind of infinite pipe-like world structure
   (look into Wave Function Collapse algorithms which should allow for tileable generation)

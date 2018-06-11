@@ -116,6 +116,7 @@ PushIndex( u32 value, RenderCommands* commands )
     commands->indexBuffer.count++;
 }
 
+// Push 4 vertices (1st vertex is "top-left" and counter-clockwise from there)
 void
 PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, RenderCommands *commands )
 {
@@ -124,11 +125,10 @@ PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, Ren
     {
         int indexOffsetStart = entry->vertexCount;
 
-        // Push 4 vertices (1st vertex is "top-left" and counter-clockwise from there)
         PushVertex( p1, color, { 0, 0 }, commands );
-        PushVertex( p2, color, { 0, 0 }, commands );
-        PushVertex( p3, color, { 0, 0 }, commands );
-        PushVertex( p4, color, { 0, 0 }, commands );
+        PushVertex( p2, color, { 0, 1 }, commands );
+        PushVertex( p3, color, { 1, 1 }, commands );
+        PushVertex( p4, color, { 1, 0 }, commands );
         entry->vertexCount += 4;
 
         // Push 6 indices for vertices 0-1-2 & 2-3-0

@@ -530,7 +530,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
 
 
     ///// Render
-
+#if 0
     PushProgramChange( ShaderProgramName::FlatShaded, renderCommands );
 
     auto it = world->liveEntities.First();
@@ -539,11 +539,12 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
         LiveEntity& entity = (LiveEntity&)it;
         if( entity.state == EntityState::Active )
         {
-            //PushMesh( *entity.mesh, renderCommands );
+            PushMesh( *entity.mesh, renderCommands );
         }
 
         it.Next();
     }
+#endif
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMesh( world->player->mesh, renderCommands );
