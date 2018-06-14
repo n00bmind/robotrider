@@ -55,6 +55,27 @@ struct TexturedVertex
 };
 
 
+struct Material
+{
+    void* diffuseMap;
+};
+
+struct MarchingMeshPool;
+
+struct Mesh
+{
+    TexturedVertex* vertices;
+    u32 vertexCount;
+    u32* indices;
+    u32 indexCount;
+
+    m4 mTransform;
+
+    Material* material;
+
+    MarchingMeshPool* ownerPool;
+};
+
 
 enum class RenderEntryType
 {
@@ -62,6 +83,7 @@ enum class RenderEntryType
     RenderEntryTexturedTris,
     RenderEntryLines,
     RenderEntryProgramChange,
+    RenderEntryMaterial,
 };
 
 struct RenderEntry
@@ -102,6 +124,13 @@ struct RenderEntryProgramChange
     RenderEntry header;
 
     ShaderProgramName programName;
+};
+
+struct RenderEntryMaterial
+{
+    RenderEntry header;
+
+    Material* material;
 };
 
 

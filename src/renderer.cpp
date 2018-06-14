@@ -251,3 +251,12 @@ PushProgramChange( ShaderProgramName programName, RenderCommands *commands )
     }
 }
 
+void
+PushMaterial( Material* material, RenderCommands* commands )
+{
+    RenderEntryMaterial *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryMaterial );
+    if( entry )
+    {
+        entry->material = material;
+    }
+}

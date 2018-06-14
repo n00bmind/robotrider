@@ -46,18 +46,6 @@ struct MarchingMeshPool
     MemoryBlock memorySentinel;
 };
 
-struct Mesh
-{
-    TexturedVertex* vertices;
-    u32 vertexCount;
-    u32* indices;
-    u32 indexCount;
-
-    m4 mTransform;
-
-    MarchingMeshPool* ownerPool;
-};
-
 
 
 struct InflatedVertex

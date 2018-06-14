@@ -264,7 +264,7 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
     return result;
 }
 
-void*
+LoadTextureResult
 LoadTexture( const char* path )
 {
     DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
@@ -274,15 +274,19 @@ LoadTexture( const char* path )
     // OpenGL has weird coords!
     stbi_set_flip_vertically_on_load( true );
 
+    // TODO Use our allocators!
     u8* imageBuffer =
         stbi_load_from_memory( (u8*)read.contents, read.contentSize,
                                &imageWidth, &imageHeight, &imageChannels, 4 );
-
     // TODO Async texture uploads (and unload)
-    globalPlatform.AllocateTexture( imageBuffer, imageWidth, imageHeight );
+    void* textureHandle
+        = globalPlatform.AllocateTexture( imageBuffer, imageWidth, imageHeight );
 
-    stbi_image_free( imageBuffer );
     globalPlatform.DEBUGFreeFileMemory( read.contents );
 
-    return imageBuffer;
+    LoadTextureResult result;
+    result.textureHandle = textureHandle;
+    result.imageBuffer = imageBuffer;
+
+    return result;
 }

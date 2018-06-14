@@ -732,8 +732,6 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState &gl )
     }
 }
 
-GLuint testTexture;
-
 internal
 PLATFORM_ALLOCATE_TEXTURE(OpenGLAllocateTexture)
 {
@@ -753,7 +751,6 @@ PLATFORM_ALLOCATE_TEXTURE(OpenGLAllocateTexture)
                   data );
     glGenerateMipmap( GL_TEXTURE_2D );
 
-    testTexture = textureHandle;
     result = (void*)textureHandle;
     return result;
 }
@@ -765,13 +762,23 @@ PLATFORM_DEALLOCATE_TEXTURE(OpenGLDeallocateTexture)
 }
 
 internal void
-OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
+OpenGLNewFrame( u32 viewportWidth, u32 viewportHeight )
 {
-    glViewport( 0, 0, commands.width, commands.height );
+    glViewport( 0, 0, viewportWidth, viewportHeight );
     
     glDisable( GL_SCISSOR_TEST );
     glEnable( GL_CULL_FACE );
     glEnable( GL_DEPTH_TEST );
+
+    // TODO Create a 1x1 white texture to bind here so that shaders that use samplers
+    // don't have to check whether there's a 'valid' texture or not
+    glBindTexture( GL_TEXTURE_2D, 0 );
+}
+
+internal void
+OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
+{
+    OpenGLNewFrame( commands.width, commands.height );
 
     m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
     mProjView = mProjView * commands.camera.mTransform;
@@ -811,7 +818,6 @@ OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
                 //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-                glBindTexture( GL_TEXTURE_2D, testTexture );
 
                 GLuint countBytes = entry->vertexCount * sizeof(TexturedVertex);
                 // TODO Our current slowness is not due to this, contrary to what you assumed!
@@ -858,6 +864,14 @@ OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
                 RenderEntryProgramChange* entry = (RenderEntryProgramChange*)entryHeader;
 
                 OpenGLUseProgram( entry->programName, gl );
+            } break;
+
+            case RenderEntryType::RenderEntryMaterial:
+            {
+                RenderEntryMaterial* entry = (RenderEntryMaterial*)entryHeader;
+                Material* material = entry->material;
+
+                glBindTexture( GL_TEXTURE_2D, (GLuint)(sz)material->diffuseMap );
             } break;
 
             default:

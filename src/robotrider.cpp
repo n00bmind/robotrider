@@ -32,7 +32,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "meshgen.h"
 #include "world.h"
 #include "robotrider.h"
-
+#include "asset_loaders.h"
 
 #include "renderer.cpp"
 

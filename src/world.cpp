@@ -52,7 +52,11 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
                  ZRotation( PI ) * XRotation( PI/2 ) * Scale( V3( 0.02f, 0.02f, 0.02f ) ) );
     world->player->mesh.mTransform = M4Identity();
 
-    void* textureHandle = LoadTexture( DATA_RELATIVE_PATH "feisar/maps/diffuse.bmp" );
+    LoadTextureResult textureResult
+        = LoadTexture( DATA_RELATIVE_PATH "feisar/maps/diffuse.bmp" );
+    Material* playerMaterial = PUSH_STRUCT( worldArena, Material );
+    playerMaterial->diffuseMap = textureResult.textureHandle;
+    world->player->mesh.material = playerMaterial;
 
     world->marchingAreaSize = 10;
     world->marchingCubeSize = 1;
@@ -547,6 +551,8 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
 #endif
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
+
+    PushMaterial( world->player->mesh.material, renderCommands );
     PushMesh( world->player->mesh, renderCommands );
 
 
