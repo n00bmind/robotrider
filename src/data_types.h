@@ -106,6 +106,7 @@ struct SArray : public Array<T>
 
 /////     HASH TABLE    /////
 
+// NOTE Type K must support/overload == comparison
 template <typename K, typename T>
 struct HashTable
 {
@@ -162,7 +163,6 @@ struct HashTable
         {
             do
             {
-                // TODO Allow key comparisons different from bit-equality if needed
                 if( slot->key == key )
                     return &slot->value;
 
@@ -171,6 +171,11 @@ struct HashTable
         }
 
         return nullptr;
+    }
+
+    T& operator[]( const K& key )
+    {
+        return *Find( key );
     }
 
     T* Reserve( const K& key, MemoryArena* arena )
@@ -556,6 +561,17 @@ struct BucketArray
         return { last, last->count - 1 };
     }
 
+    T& operator[]( const Idx& idx )
+    {
+        ASSERT( idx.IsValid() );
+        return (T&)idx;
+    }
+
+    const T& operator[]( const Idx& idx ) const
+    {
+        return (*this)[idx];
+    }
+
     T& operator[]( u32 i )
     {
         ASSERT( i < count );
@@ -569,7 +585,7 @@ struct BucketArray
             base = base->next;
         }
 
-        return base[index];
+        return base->data[index];
     }
 
     const T& operator[]( u32 i ) const

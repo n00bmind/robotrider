@@ -21,6 +21,26 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+struct VertexKey
+{
+    u32 pIdx;
+    u32 uvIdx;
+    u32 nIdx;
+
+    bool operator==( const VertexKey& other ) const
+    {
+        return this->pIdx == other.pIdx &&
+            this->uvIdx == other.uvIdx &&
+            this->nIdx == other.nIdx;
+    }
+};
+
+internal u32
+VertexHash( const VertexKey& key )
+{
+    return key.pIdx;
+}
+
 Mesh
 LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
          const m4& appliedTransform = M4Identity() )
@@ -65,10 +85,19 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
         }
     }
 
-    Array<TexturedVertex> vertices( arena, vertexCount );
     Array<u32> indices( arena, indexCount );
+
+    Array<v3> positions( tmpArena, vertexCount );
     Array<v2> uvs( tmpArena, uvCount );
     Array<v3> normals( tmpArena, normalCount );
+
+    // Map vertex pos+uv+normal to final vertex index
+    // Initially every vertex would map to exactly one entry in the table, but due to
+    // the way face data is specified, we may need to spawn additional vertices
+    // that will share the same position but differ in tex coord and/or normal
+    u32 tableSize = GetNextPowerOf2( vertexCount );
+    HashTable<VertexKey, u32> cachedVertices( tmpArena, tableSize, VertexHash );
+    BucketArray<TexturedVertex> vertices( 1024, tmpArena );
 
     contents = (char*)read.contents;
     while( true )
@@ -85,12 +114,10 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
         }
         else if( firstWord.IsEqual( "v" ) )
         {
-            TexturedVertex vertex = {};
-            vertex.color = Pack01ToRGBA( { 0, 0, 0, 1 } );
-
-            int matches = line.Scan( "%f %f %f", &vertex.p.x, &vertex.p.y, &vertex.p.z );
+            v3 p;
+            int matches = line.Scan( "%f %f %f", &p.x, &p.y, &p.z );
             ASSERT( matches == 3 );
-            vertices.Add( vertex );
+            positions.Add( p );
         }
         else if( firstWord.IsEqual( "vt" ) )
         {
@@ -101,46 +128,98 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
         }
         else if( firstWord.IsEqual( "vn" ) )
         {
-            v3 normal;
-            int matches = line.Scan( "%f %f %f", &normal.x, &normal.y, &normal.z );
+            v3 n;
+            int matches = line.Scan( "%f %f %f", &n.x, &n.y, &n.z );
             ASSERT( matches == 3 );
-            Normalize( normal );
-            normals.Add( normal );
+            Normalize( n );
+            normals.Add( n );
         }
         else if( firstWord.IsEqual( "f" ) )
         {
-            i32 vertexIndex[4], uvIndex[4], normalIndex[4];
+            u32 vertexIndex[4] = {};
+            i32 pIndex[4] = {}, uvIndex[4] = {}, nIndex[4] = {};
             bool haveUVs = false, haveNormals = false;
 
             u32 i = 0;
+
             // NOTE Since uvs and normals are not associated with vertices but with faces,
-            // we need to do a de-indexing step. There's the open question of what to do
-            // if/when indices don't have consistency...
+            // we cache constructed vertices in the hash table to know whether future
+            // vertices with the same position can be reused or will need a new entry
+            // in the final vertex array
             String word = line.ConsumeWord();
             while( word )
             {
                 ASSERTM( i < 4, "Polys with more than 4 vertices are not supported!" );
 
-                if( word.Scan( "%d/%d/%d", &vertexIndex[i], &uvIndex[i], &normalIndex[i] ) == 3 )
+                if( word.Scan( "%d/%d/%d", &pIndex[i], &uvIndex[i], &nIndex[i] ) == 3 )
                 {
                     haveUVs = true;
                     haveNormals = true;
                 }
-                else if( word.Scan( "%d/%d", &vertexIndex[i], &uvIndex[i] ) == 2 )
+                else if( word.Scan( "%d/%d", &pIndex[i], &uvIndex[i] ) == 2 )
                 {
                     haveUVs = true;
                 }
-                else if( word.Scan( "%d//%d", &vertexIndex[i], &normalIndex[i] ) == 2 )
+                else if( word.Scan( "%d//%d", &pIndex[i], &nIndex[i] ) == 2 )
                 {
                     haveNormals = true;
                 }
-                else if( word.Scan( "%d", &vertexIndex[i] ) == 1 )
+                else if( word.Scan( "%d", &pIndex[i] ) == 1 )
                 {
                 }
-
                 else
                 {
                     ASSERTM( false, "I don't understand this OBJ file!" );
+                }
+
+                // All indices start at 1
+                // Vertex indices could be in relative (negative) form
+                if( pIndex[i] > 0 )
+                    pIndex[i]--;
+                else
+                    pIndex[i] = vertices.count - pIndex[i];
+
+                if( haveUVs )
+                    uvIndex[i]--;
+                if( haveNormals )
+                    nIndex[i]--;
+
+                // Try to fetch an existing vertex from the table
+                VertexKey key = { (u32)pIndex[i], (u32)uvIndex[i], (u32)nIndex[i] };
+                u32* cachedIndex = cachedVertices.Find( key );
+
+                if( cachedIndex )
+                {
+#if DEBUG
+                    TexturedVertex& vertex = vertices[*cachedIndex];
+                    ASSERT( vertex.p == positions[key.pIdx] );
+                    if( haveUVs )
+                        ASSERT( vertex.uv == uvs[key.uvIdx] );
+                    if( haveNormals )
+                        ASSERT( vertex.n == normals[key.nIdx] );
+#endif
+                    vertexIndex[i] = *cachedIndex;
+                }
+                else
+                {
+                    v2 uv = {};
+                    v3 n = {};
+
+                    if( haveUVs )
+                        uv = uvs[key.uvIdx];
+                    if( haveNormals )
+                        n = normals[key.nIdx];
+
+                    TexturedVertex newVertex =
+                    {
+                        positions[key.pIdx],
+                        Pack01ToRGBA( 0, 0, 0, 1 ),
+                        uv,
+                        n,
+                    };
+                    vertexIndex[i] = vertices.count;
+                    vertices.Add( newVertex );
+                    cachedVertices.Add( key, vertexIndex[i], tmpArena );
                 }
 
                 i++;
@@ -150,23 +229,6 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
             u32 polyVertices = i;
             ASSERT( polyVertices == 3 || polyVertices == 4 );
             
-            // Vertex indices could be in relative (negative) form
-            if( vertexIndex[0] > 0 )
-            {
-                // We assume if one is positive, all are, and vice-versa
-                vertexIndex[0]--;
-                vertexIndex[1]--;
-                vertexIndex[2]--;
-                vertexIndex[3]--;
-            }
-            else
-            {
-                vertexIndex[0] = vertices.count - vertexIndex[0];
-                vertexIndex[1] = vertices.count - vertexIndex[1];
-                vertexIndex[2] = vertices.count - vertexIndex[2];
-                vertexIndex[3] = vertices.count - vertexIndex[3];
-            }
-
             indices.Add( vertexIndex[0] );
             indices.Add( vertexIndex[1] );
             indices.Add( vertexIndex[2] );
@@ -177,59 +239,25 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
                 indices.Add( vertexIndex[3] );
                 indices.Add( vertexIndex[0] );
             }
-
-            TexturedVertex& vert0 = vertices[vertexIndex[0]];
-            TexturedVertex& vert1 = vertices[vertexIndex[1]];
-            TexturedVertex& vert2 = vertices[vertexIndex[2]];
-
-            if( haveUVs )
-            {
-                // All indices start at 1
-                uvIndex[0]--;
-                uvIndex[1]--;
-                uvIndex[2]--;
-                uvIndex[3]--;
-
-                vert0.uv = uvs[uvIndex[0]];
-                vert1.uv = uvs[uvIndex[1]];
-                vert2.uv = uvs[uvIndex[2]];
-            }
-            if( haveNormals )
-            {
-                normalIndex[0]--;
-                normalIndex[1]--;
-                normalIndex[2]--;
-                normalIndex[3]--;
-
-                vert0.normal = normals[normalIndex[0]];
-                vert1.normal = normals[normalIndex[1]];
-                vert2.normal = normals[normalIndex[2]];
-            }
-
-            if( polyVertices == 4 )
-            {
-                TexturedVertex& vert3 = vertices[vertexIndex[3]];
-
-                if( haveUVs )
-                    vert3.uv = uvs[uvIndex[3]];
-                if( haveNormals )
-                    vert3.normal = normals[normalIndex[3]];
-            }
         }
     }
 
     globalPlatform.DEBUGFreeFileMemory( read.contents );
 
+    Array<TexturedVertex> packedVertices( arena, vertices.count );
+    vertices.BlitTo( packedVertices.data );
+    packedVertices.count = vertices.count;
+
     // Pre apply transform
     if( !AlmostEqual( appliedTransform, M4Identity() ) )
     {
-        for( u32 i = 0; i < vertices.count; ++i )
-            vertices.data[i].p = appliedTransform * vertices.data[i].p;
+        for( u32 i = 0; i < packedVertices.count; ++i )
+            packedVertices.data[i].p = appliedTransform * packedVertices.data[i].p;
     }
 
     Mesh result = {};
-    result.vertices = vertices.data;
-    result.vertexCount = vertices.count;
+    result.vertices = packedVertices.data;
+    result.vertexCount = packedVertices.count;
     result.indices = indices.data;
     result.indexCount = indices.count;
 
@@ -242,6 +270,9 @@ LoadTexture( const char* path )
     DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
 
     i32 imageWidth = 0, imageHeight = 0, imageChannels = 0;
+
+    // OpenGL has weird coords!
+    stbi_set_flip_vertically_on_load( true );
 
     u8* imageBuffer =
         stbi_load_from_memory( (u8*)read.contents, read.contentSize,

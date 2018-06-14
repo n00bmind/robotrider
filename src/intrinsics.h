@@ -30,7 +30,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 // TODO Convert all of these to the most platform-efficient versions
-
+// for all supported compilers & platforms
 
 inline u32
 SafeTruncToU32( u64 value )
@@ -123,6 +123,20 @@ inline r32
 Abs( r32 value )
 {
     return value >= 0.f ? value : -value;
+}
+
+inline u32
+GetNextPowerOf2( u32 value )
+{
+    u32 result = 0;
+
+    unsigned long msbPosition;
+    if( _BitScanReverse( &msbPosition, value ) )
+    {
+        result = 1 << (msbPosition + 1);
+    }
+
+    return result;
 }
 
 #endif /* __INTRINSICS_H__ */
