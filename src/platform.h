@@ -147,8 +147,9 @@ typedef size_t sz;
 #endif
 
 #if ARCH_X64
-#define MEMORY_READ_BARRIER         _mm_lfence();COMPILER_READ_BARRIER
-#define MEMORY_WRITE_BARRIER        _mm_sfence();COMPILER_WRITE_BARRIER
+
+#define MEMORY_READ_BARRIER         /*_mm_lfence();*/COMPILER_READ_BARRIER      // Only store-load can be out of order in x64
+#define MEMORY_WRITE_BARRIER        /*_mm_sfence();*/COMPILER_WRITE_BARRIER
 #define MEMORY_READWRITE_BARRIER    _mm_mfence();COMPILER_READWRITE_BARRIER
 
 #elif ARCH_ARM

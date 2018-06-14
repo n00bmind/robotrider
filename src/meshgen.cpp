@@ -212,6 +212,9 @@ MarchCube( const v3& pOrigin, r32 cubeSize,
                 float sA = cornerSamples[indexA];
                 float sB = cornerSamples[indexB];
 
+                // TODO Look into implementing SnapMC to eliminate any degenerate and weird triangles
+                // which also means less tris to render!
+                // http://web.cse.ohio-state.edu/~wenger.4/publications/isomesh.pdf
                 float diff = sA - sB;
                 // In case sampled function is the same, arbitrarily use midpoint
                 float t = AlmostEqual( diff, 0.f ) ? 0.5f : sA / diff;
