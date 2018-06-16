@@ -1,14 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.2026
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "rr", "bin\rr.exe", "{1CE09621-F5B6-4ACD-9B82-9F75A8BE60CA}"
 	ProjectSection(DebuggerProjectSystem) = preProject
 		PortSupplier = 00000000-0000-0000-0000-000000000000
-		Executable = bin\rr.exe
+		Executable = bin\launcher.exe
 		RemoteMachine = WORKSH0P
-		StartingDirectory = ..
+		StartingDirectory = .
 		Environment = Default
 		LaunchingEngine = 00000000-0000-0000-0000-000000000000
 		UseLegacyDebugEngines = No
@@ -21,9 +21,12 @@ Global
 		Debug|x64 = Debug|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1CE09621-F5B6-4ACD-9B82-9F75A8BE60CA}.Debug|x64.ActiveCfg = Debug|x64
+		{1CE09621-F5B6-4ACD-9B82-9F75A8BE60CA}.Debug|x64.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0672AE5C-BDDA-4883-9EB9-1504EC05DE19}
 	EndGlobalSection
 EndGlobal

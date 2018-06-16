@@ -86,12 +86,36 @@ internal bool globalVSyncEnabled = false;
 
 
 
-internal void
-MakePathAbsolute( const char *relativePath, const char *pathBase, char *destination )
+internal sz
+Win32JoinPaths( const char *pathBase, const char *relativePath, char *destination, bool addTrailingSlash = true )
 {
-    strcpy( destination, pathBase );
-    // TODO Check there's a trailing backslash or insert it
-    strcat( destination, relativePath );
+    char buffer[MAX_PATH];
+
+    sz len = Min( strlen( pathBase ) + 1, MAX_PATH );
+    strncpy( buffer, pathBase, len );
+    len = MAX_PATH - len;
+    strncat( buffer, relativePath, len );
+    
+    if( addTrailingSlash )
+    {
+        len = strlen( buffer );
+        if( buffer[len-1] != '/' )
+        {
+            if( len < MAX_PATH )
+                buffer[len++] = '/';
+            if( len < MAX_PATH )
+                buffer[len++] = 0;
+        }
+    }
+
+    GetFullPathName( buffer, MAX_PATH, destination, nullptr );
+    return strlen( destination );
+}
+
+internal void
+Win32GetFullPathToFile( const char* rootPath, const char* filename, char* destination )
+{
+    Win32JoinPaths( rootPath, filename, destination, false );
 }
 
 internal bool
@@ -116,7 +140,7 @@ RemoveFilenameFromPath( char *path )
     return result;
 }
 
-internal const char *
+internal char *
 ExtractFileExtension( char *filename, char *destination, u32 destinationMaxLen )
 {
     char *lastDot = filename;
@@ -127,13 +151,21 @@ ExtractFileExtension( char *filename, char *destination, u32 destinationMaxLen )
             lastDot = scanChar;
         }
     }
-    if( lastDot != filename )
+    if( lastDot != filename && destination )
     {
         strncpy( destination, lastDot + 1, destinationMaxLen );
     }
 
     return lastDot;
 }
+
+internal void
+TrimFileExtension( char* filename )
+{
+    char* extensionPos = ExtractFileExtension( filename, nullptr, 0 );
+    *extensionPos = 0;
+}
+
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGWin32FreeFileMemory)
 {
@@ -151,7 +183,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
     if( PathIsRelative( filename ) )
     {
         // If path is relative, use executable location to complete it
-        MakePathAbsolute( filename, globalPlatformState.exeFilePath, absolutePath );
+        Win32GetFullPathToFile( globalPlatformState.assetDataPath, filename, absolutePath );
         filename = absolutePath;
     }
 
@@ -209,7 +241,7 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGWin32WriteEntireFile)
     if( PathIsRelative( filename ) )
     {
         // If path is relative, use executable location to complete it
-        MakePathAbsolute( filename, globalPlatformState.exeFilePath, absolutePath );
+        Win32GetFullPathToFile( globalPlatformState.assetDataPath, filename, absolutePath );
         filename = absolutePath;
     }
 
@@ -311,7 +343,7 @@ Win32SetupAssetUpdateListener( Win32State *platformState )
 {
     char absolutePath[MAX_PATH];
     // FIXME This part is OpenGL specific. Formalize how we get this for different renderers
-    MakePathAbsolute( SHADERS_RELATIVE_PATH, platformState->exeFilePath, absolutePath );
+    Win32JoinPaths( platformState->assetDataPath, SHADERS_RELATIVE_PATH, absolutePath );
 
     platformState->shadersDirHandle
         = CreateFile( absolutePath, FILE_LIST_DIRECTORY, FILE_SHARE_READ, NULL,
@@ -1429,13 +1461,72 @@ Win32WindowProc( HWND hwnd, UINT  uMsg, WPARAM wParam, LPARAM lParam )
 
 
 internal void
-Win32GetFilePaths( Win32State *state )
+Win32ResolvePaths( Win32State *state )
 {
     DWORD pathLen = GetCurrentDirectory( ARRAYCOUNT(state->currentDirectory), state->currentDirectory );
     LOG( state->currentDirectory );
 
     pathLen = GetModuleFileName( 0, state->exeFilePath, ARRAYCOUNT(state->exeFilePath) );
     RemoveFilenameFromPath( state->exeFilePath );
+
+    {
+        bool result = false;
+
+        char buffer[] = "robotrider.dll";
+        char *sourceDLLName = buffer;
+        sprintf_s( state->sourceDLLPath, ARRAYCOUNT(state->sourceDLLPath), "%s%s", globalPlatformState.exeFilePath, sourceDLLName );
+        if( PathFileExists( state->sourceDLLPath ) )
+        {
+            result = true;
+        }
+#if DEBUG
+        // This is just to support the dist mechanism
+        else
+        {
+            sourceDLLName = "robotrider.debug.dll";
+            sprintf_s( state->sourceDLLPath, ARRAYCOUNT(state->sourceDLLPath), "%s%s", globalPlatformState.exeFilePath, sourceDLLName );
+            if( PathFileExists( state->sourceDLLPath ) )
+            {
+                result = true;
+            }
+        }
+#endif
+
+        if( result )
+        {
+            TrimFileExtension( sourceDLLName );
+            char tempDLLPath[MAX_PATH];
+            sprintf_s( state->tempDLLPath, ARRAYCOUNT(state->tempDLLPath), "%s%s.temp.dll", globalPlatformState.exeFilePath, sourceDLLName );
+        }
+
+        ASSERT( result );
+        if( !result )
+            LOG( ".FATAL: Could not find game DLL!" );
+    }
+
+    {
+        bool result = false;
+
+        const char* supportedDataPaths[] =
+        {
+            "data",
+            "../data",
+        };
+
+        for( int i = 0; i < ARRAYCOUNT( supportedDataPaths ); ++i )
+        {
+            Win32JoinPaths( state->exeFilePath, supportedDataPaths[i], state->assetDataPath );
+            if( PathFileExists( state->assetDataPath ) )
+            {
+                result = true;
+                break;
+            }
+        }
+
+        ASSERT( result );
+        if( !result )
+            LOG( ".FATAL: Could not find game DLL!" );
+    }
 }
 
 
@@ -1752,16 +1843,9 @@ main( int argC, char **argV )
     globalPlatformState.renderer = Renderer::OpenGL;
 
 
-    Win32GetFilePaths( &globalPlatformState );
+    Win32ResolvePaths( &globalPlatformState );
 
-    const char *sourceDLLName = "robotrider.dll";
-    char sourceDLLPath[MAX_PATH];
-    sprintf_s( sourceDLLPath, ARRAYCOUNT(sourceDLLPath), "%s%s", globalPlatformState.exeFilePath, sourceDLLName );
-    const char *tempDLLName = "robotrider_temp.dll";
-    char tempDLLPath[MAX_PATH];
-    sprintf_s( tempDLLPath, ARRAYCOUNT(tempDLLPath), "%s%s", globalPlatformState.exeFilePath, tempDLLName );
-
-    LOG( "Initializing Win32 platform with game DLL at: %s", sourceDLLPath );
+    LOG( "Initializing Win32 platform with game DLL at: %s", globalPlatformState.sourceDLLPath );
     GameMemory gameMemory = {};
     gameMemory.permanentStorageSize = GIGABYTES(2);
     gameMemory.transientStorageSize = GIGABYTES(1);
@@ -1769,7 +1853,6 @@ main( int argC, char **argV )
 #if DEBUG
     gameMemory.DEBUGgameStats = DEBUGglobalStats;
 #endif
-
 
     // Init subsystems
     Win32InitXInput();
@@ -1941,7 +2024,8 @@ main( int argC, char **argV )
                     LARGE_INTEGER lastCounter = firstCounter;
                     i64 lastCycleCounter = __rdtsc();
 
-                    globalPlatformState.gameCode = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );
+                    globalPlatformState.gameCode
+                        = Win32LoadGameCode( globalPlatformState.sourceDLLPath, globalPlatformState.tempDLLPath, &gameMemory );
                     Win32SetupAssetUpdateListener( &globalPlatformState );
 
                     // Main loop
@@ -1965,14 +2049,15 @@ main( int argC, char **argV )
 
 #if DEBUG
                         // Check for game code updates
-                        FILETIME dllWriteTime = Win32GetLastWriteTime( sourceDLLPath );
+                        FILETIME dllWriteTime = Win32GetLastWriteTime( globalPlatformState.sourceDLLPath );
                         if( CompareFileTime( &dllWriteTime, &globalPlatformState.gameCode.lastDLLWriteTime ) != 0 )
                         {
                             Win32CompleteAllJobs( globalPlatform.hiPriorityQueue );
 
                             LOG( "Detected updated game DLL. Reloading.." );
                             Win32UnloadGameCode( &globalPlatformState.gameCode );
-                            globalPlatformState.gameCode = Win32LoadGameCode( sourceDLLPath, tempDLLPath, &gameMemory );
+                            globalPlatformState.gameCode
+                                = Win32LoadGameCode( globalPlatformState.sourceDLLPath, globalPlatformState.tempDLLPath, &gameMemory );
                             newInput->executableReloaded = true;
                         }
 

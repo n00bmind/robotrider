@@ -32,7 +32,7 @@ if not exist %RRBIN% mkdir %RRBIN%
 pushd %RRBIN%
 del *.pdb >NUL 2>NUL
 %COMPILER% %COMMONFLAGS% %CFGFLAGS% %COMPILERFLAGS% ..\%RRSRC%\robotrider.cpp -LD /link %LINKERFLAGS% /PDB:rr_dll_%random%.pdb
-%COMPILER% %COMMONFLAGS% %CFGFLAGS% %COMPILERFLAGS% ..\%RRSRC%\win32_platform.cpp -Ferr.exe /link %LINKERFLAGS% -subsystem:console,5.2 %LIBS%
+%COMPILER% %COMMONFLAGS% %CFGFLAGS% %COMPILERFLAGS% ..\%RRSRC%\win32_platform.cpp -Felauncher.exe /link %LINKERFLAGS% -subsystem:console,5.2 %LIBS%
 popd
 
 ctime -end rr.time

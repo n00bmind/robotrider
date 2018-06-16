@@ -1,6 +1,8 @@
 @echo off
 call build
-cp bin\rr.exe dist\rr_debug.exe
+cp bin\launcher.exe dist\launcher.debug.exe
+cp bin\robotrider.dll dist\robotrider.debug.dll
 call build release
-cp bin\rr.exe dist\rr_release.exe
+cp bin\launcher.exe dist\launcher.exe
+cp bin\robotrider.dll dist\robotrider.dll
 

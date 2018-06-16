@@ -21,8 +21,6 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#define DATA_RELATIVE_PATH "..\\data\\"
-
 
 internal u32 clusterHashFunction( const v3i& keyValue )
 {
@@ -43,17 +41,17 @@ void
 InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
 {
 #if 0
-    LoadOBJ( DATA_RELATIVE_PATH "bunny.obj", &testVertices, &testIndices );
+    LoadOBJ( "bunny.obj", &testVertices, &testIndices );
 #endif
 
     world->player = PUSH_STRUCT( worldArena, Player );
     world->player->mesh =
-        LoadOBJ( DATA_RELATIVE_PATH "feisar/feisar_ship.obj", worldArena, tmpArena,
+        LoadOBJ( "feisar/feisar_ship.obj", worldArena, tmpArena,
                  ZRotation( PI ) * XRotation( PI/2 ) * Scale( V3( 0.02f, 0.02f, 0.02f ) ) );
     world->player->mesh.mTransform = M4Identity();
 
     LoadTextureResult textureResult
-        = LoadTexture( DATA_RELATIVE_PATH "feisar/maps/diffuse.bmp" );
+        = LoadTexture( "feisar/maps/diffuse.bmp" );
     Material* playerMaterial = PUSH_STRUCT( worldArena, Material );
     playerMaterial->diffuseMap = textureResult.textureHandle;
     world->player->mesh.material = playerMaterial;

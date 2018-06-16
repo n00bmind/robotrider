@@ -97,8 +97,12 @@ struct Win32ReplayBuffer
 struct Win32State
 {
     HWND mainWindow;
-    char exeFilePath[MAX_PATH];
+
     char currentDirectory[MAX_PATH];
+    char exeFilePath[MAX_PATH];
+    char sourceDLLPath[MAX_PATH];
+    char tempDLLPath[MAX_PATH];
+    char assetDataPath[MAX_PATH];
 
     Win32GameCode gameCode;
     Renderer renderer;
