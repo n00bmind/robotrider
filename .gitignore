@@ -11,3 +11,5 @@ LocMetrics*
 rr.time
 last_session.vim
 rr.cap
+/dist/*.temp.dll
+/dist/*.in

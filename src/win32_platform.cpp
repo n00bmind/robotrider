@@ -1471,19 +1471,12 @@ Win32ResolvePaths( Win32State *state )
 
     {
         bool result = false;
-
         char buffer[] = "robotrider.dll";
-        char *sourceDLLName = buffer;
-        sprintf_s( state->sourceDLLPath, ARRAYCOUNT(state->sourceDLLPath), "%s%s", globalPlatformState.exeFilePath, sourceDLLName );
-        if( PathFileExists( state->sourceDLLPath ) )
-        {
-            result = true;
-        }
+
 #if DEBUG
         // This is just to support the dist mechanism
-        else
         {
-            sourceDLLName = "robotrider.debug.dll";
+            char* sourceDLLName = "robotrider.debug.dll";
             sprintf_s( state->sourceDLLPath, ARRAYCOUNT(state->sourceDLLPath), "%s%s", globalPlatformState.exeFilePath, sourceDLLName );
             if( PathFileExists( state->sourceDLLPath ) )
             {
@@ -1491,6 +1484,16 @@ Win32ResolvePaths( Win32State *state )
             }
         }
 #endif
+
+        char *sourceDLLName = buffer;
+        if( !result )
+        {
+            sprintf_s( state->sourceDLLPath, ARRAYCOUNT(state->sourceDLLPath), "%s%s", globalPlatformState.exeFilePath, sourceDLLName );
+            if( PathFileExists( state->sourceDLLPath ) )
+            {
+                result = true;
+            }
+        }
 
         if( result )
         {
