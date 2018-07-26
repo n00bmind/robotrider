@@ -38,8 +38,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "imgui/imgui_draw.cpp"
 #include "imgui/imgui.cpp"
-// TODO Remove!
-#include "imgui/imgui_demo.cpp"
+#include "imgui/imgui_demo.cpp"     // TODO Remove!
+
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ASSERT(x) ASSERT(x)
 // TODO Define STBI_MALLOC, STBI_REALLOC, STBI_FREE
@@ -62,6 +62,8 @@ internal GameConsole *gameConsole;
 
 #if DEBUG
 DebugGameStats* DEBUGglobalStats;
+extern DebugCycleCounter DEBUGglobalGameCounters[];
+static void CountGameCounters();
 #endif
 
 
@@ -89,11 +91,12 @@ GAME_SETUP_AFTER_RELOAD(GameSetupAfterReload)
 LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
-    TIMED_BLOCK(GameUpdateAndRender);
+    TIMED_BLOCK;
 
     globalPlatform = *memory->platformAPI;
 #if DEBUG
     DEBUGglobalStats = memory->DEBUGgameStats;
+    DEBUGglobalStats->gameCounters = DEBUGglobalGameCounters;
 #endif
 
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
@@ -186,5 +189,17 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     CheckArena( &gameState->worldArena );
     CheckArena( &tranState->transientArena );
+
+    // HACK Find a less horrible way to do this
+    CountGameCounters();
 }
 
+
+#if DEBUG
+DebugCycleCounter DEBUGglobalGameCounters[__COUNTER__];
+
+static void CountGameCounters()
+{
+    DEBUGglobalStats->gameCountersCount = ARRAYCOUNT(DEBUGglobalGameCounters);
+}
+#endif

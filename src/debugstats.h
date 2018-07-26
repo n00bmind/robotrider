@@ -26,19 +26,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #if DEBUG
 
-enum class DebugCycleCounterId : u32
-{
-    GameUpdateAndRender,
-    LoadEntitiesInCluster,
-    GenerateEntities,
-    MarchAreaFast,
-    MarchCube,
-    SampleFunc,
-};
-
 struct DebugCycleCounter
 {
-    const char* name;
+    u32 lineNumber;
+    const char* filename;
+    const char* function;
 
     u64 frameCycles;
     u64 totalCycles;
@@ -48,7 +40,9 @@ struct DebugCycleCounter
 
 struct DebugGameStats
 {
-    DebugCycleCounter counters[4096];
+    // NOTE Since we use __COUNTER__ for indexing, we'd need a separate array for platform counters
+    DebugCycleCounter *gameCounters;
+    u32 gameCountersCount;
 
     u32 totalDrawCalls;
     u32 totalVertexCount;
@@ -59,9 +53,9 @@ extern DebugGameStats* DEBUGglobalStats;
 inline void
 ResetFrameCounters( DebugGameStats* stats )
 {
-    for( u32 i = 0; i < ARRAYCOUNT(stats->counters); ++i )
+    for( u32 i = 0; i < stats->gameCountersCount; ++i )
     {
-        DebugCycleCounter& c = stats->counters[i];
+        DebugCycleCounter& c = stats->gameCounters[i];
         c.frameCycles = 0;
         c.frameHitCount = 0;
     }
@@ -69,22 +63,31 @@ ResetFrameCounters( DebugGameStats* stats )
 
 struct DebugTimedBlock
 {
-    DebugCycleCounterId id;
-    const char* name;
+    u32 index;
+    u32 lineNumber;
+    const char* filename;
+    const char* function;
     u64 startCycleCount;
 
-    DebugTimedBlock( DebugCycleCounterId id_, const char* name_ )
+    DebugTimedBlock( u32 index_, u32 lineNumber_, const char* filename_, const char* function_ )
     {
-        id = id_;
-        name = name_;
+        index = index_;
+        lineNumber = lineNumber_;
+        filename = filename_;
+        function = function_;
+
         startCycleCount = __rdtsc();
     }
 
     ~DebugTimedBlock()
     {
         u64 cycleCount = __rdtsc() - startCycleCount;
-        DebugCycleCounter& c = DEBUGglobalStats->counters[(u32)id];
-        c.name = name;
+
+        DebugCycleCounter& c = DEBUGglobalStats->gameCounters[index];
+        c.lineNumber = lineNumber;
+        c.filename = filename;
+        c.function = function;
+
         c.frameCycles += cycleCount;
         c.totalCycles += cycleCount;
         ++c.frameHitCount;
@@ -92,11 +95,11 @@ struct DebugTimedBlock
     }
 };
 
-#define TIMED_BLOCK(id) DebugTimedBlock block##id( DebugCycleCounterId::id, #id );
+#define TIMED_BLOCK DebugTimedBlock __timedBlock( __COUNTER__, __LINE__, __FILE__, __FUNCTION__ );
 
 #else
 
-#define TIMED_BLOCK(id)
+#define TIMED_BLOCK
 
 #endif // DEBUG
 

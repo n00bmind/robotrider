@@ -188,7 +188,7 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 internal void
 LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena )
 {
-    TIMED_BLOCK( LoadEntitiesInCluster );
+    TIMED_BLOCK;
 
     Cluster* cluster = world->clusterTable.Find( clusterCoords );
 
@@ -209,7 +209,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 
 
     {
-        TIMED_BLOCK( GenerateEntities );
+        TIMED_BLOCK;
 
         BucketArray<StoredEntity>::Idx it = cluster->entityStorage.First();
         // TODO Pre-reserve a bunch of slots and generate entities bundles and measure
@@ -532,7 +532,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
 
 
     ///// Render
-#if 0
+#if 1
     PushProgramChange( ShaderProgramName::FlatShaded, renderCommands );
 
     auto it = world->liveEntities.First();
@@ -578,7 +578,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
         // Create a chasing camera
         // TODO Use a PID controller
         Player *player = world->player;
-        v3 pCam = player->mesh.mTransform * V3( 0, -5, 3 );
+        v3 pCam = player->mesh.mTransform * V3( 0, -8, 5 );
         v3 pLookAt = player->mesh.mTransform * V3( 0, 1, 0 );
         v3 vUp = GetColumn( player->mesh.mTransform, 2 ).xyz;
         renderCommands->camera.mTransform = CameraLookAt( pCam, pLookAt, vUp );

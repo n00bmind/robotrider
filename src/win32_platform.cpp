@@ -2189,13 +2189,14 @@ main( int argC, char **argV )
 #if DEBUG
                         // Print game debug statistics
                         LOG( ":::Frame counters:" );
-                        for( u32 i = 0; i < ARRAYCOUNT(DEBUGglobalStats->counters); ++i )
+                        for( u32 i = 0; i < DEBUGglobalStats->gameCountersCount; ++i )
                         {
-                            DebugCycleCounter& c = DEBUGglobalStats->counters[i];
+                            DebugCycleCounter& c = DEBUGglobalStats->gameCounters[i];
                             if( c.frameHitCount > 0 )
                             {
-                                LOG( "%s\t%llu fc  %u h  %u fc/h",
-                                     c.name,
+                                LOG( "%s@%u\t%llu fc  %u h  %u fc/h",
+                                     c.function,
+                                     c.lineNumber,
                                      c.frameCycles,
                                      c.frameHitCount,
                                      c.frameCycles/c.frameHitCount );
@@ -2230,13 +2231,14 @@ main( int argC, char **argV )
 
 #if DEBUG
     LOG( ":::Global counters:" );
-    for( u32 i = 0; i < ARRAYCOUNT(DEBUGglobalStats->counters); ++i )
+    for( u32 i = 0; i < DEBUGglobalStats->gameCountersCount; ++i )
     {
-        DebugCycleCounter& c = DEBUGglobalStats->counters[i];
+        DebugCycleCounter& c = DEBUGglobalStats->gameCounters[i];
         if( c.totalHitCount > 0 )
         {
-            LOG( "%s\t%llu tc  %u h  %u tc/h",
-                 c.name,
+            LOG( "%s@%u\t%llu tc  %u h  %u tc/h",
+                 c.function,
+                 c.lineNumber,
                  c.totalCycles,
                  c.totalHitCount,
                  c.totalCycles/c.totalHitCount );
