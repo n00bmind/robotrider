@@ -133,7 +133,7 @@ MarchCube( const v3& pOrigin, r32 cubeSize,
            const v2i& pLayerOrigin, const MarchingCacheBuffers& cacheBuffers, u32 layerStepsCount,
            BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
 {
-    TIMED_BLOCK( MarchCube );
+    TIMED_BLOCK;
 
     v3i pLayerOrigin3D = V3I( pLayerOrigin.x, pLayerOrigin.y, 0 );
 
@@ -246,7 +246,7 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
     ClearScratchMesh( meshPool );
 
     {
-        TIMED_BLOCK( MarchAreaFast );
+        TIMED_BLOCK;
 
         // TODO Eliminate all the duplicate vertices that marching cubes creates
         // see http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng
@@ -951,7 +951,7 @@ GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advance
 internal r32
 SampleHullNode( const void* sampleData, const v3& p )
 {
-    TIMED_BLOCK( SampleFunc );
+    TIMED_BLOCK;
 
     GeneratorHullNodeData* genData = (GeneratorHullNodeData*)sampleData;
 
