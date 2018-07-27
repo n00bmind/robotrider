@@ -13,3 +13,6 @@ last_session.vim
 rr.cap
 /dist/*.temp.dll
 /dist/*.in
+*.user
+*.log
+*.lastbuildstate
