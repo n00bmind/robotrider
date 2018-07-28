@@ -91,13 +91,13 @@ GAME_SETUP_AFTER_RELOAD(GameSetupAfterReload)
 LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
-    TIMED_BLOCK;
-
     globalPlatform = *memory->platformAPI;
 #if DEBUG
     DEBUGglobalStats = memory->DEBUGgameStats;
     DEBUGglobalStats->gameCounters = DEBUGglobalGameCounters;
 #endif
+
+    TIMED_BLOCK;
 
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
     GameState *gameState = (GameState *)memory->permanentStorage;

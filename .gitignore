@@ -16,3 +16,4 @@ rr.cap
 *.user
 *.log
 *.lastbuildstate
+.vs/

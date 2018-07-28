@@ -1695,18 +1695,17 @@ Win32DoNextQueuedJob( PlatformJobQueue* queue, u32 workerThreadIndex )
 
     if( observedValue != queue->nextJobToWrite )
     {
-        u32 index = InterlockedCompareExchange( (volatile LONG*)&queue->nextJobToRead,
-                                                desiredValue,
-                                                observedValue );
+        u32 index = AtomicCompareExchangeU32( &queue->nextJobToRead,
+                                              desiredValue,
+                                              observedValue );
         if( index == observedValue )
         {
             PlatformJobQueueJob job = queue->jobs[index];
             job.callback( job.userData, workerThreadIndex );
             
-            InterlockedIncrement( (volatile LONG*)&queue->completionCount );
+            AtomicAddU32( &queue->completionCount, 1 );
             didJob = true;
         }
-        // Try again if failed
     }
     return didJob;
 }
@@ -2092,8 +2091,6 @@ main( int argC, char **argV )
                         {
                             Win32PlayBackInput( &globalPlatformState, newInput );
                         }
-
-                        ResetFrameCounters( DEBUGglobalStats );
 #endif
 
                         // Setup remaining stuff for the ImGui frame
@@ -2192,14 +2189,19 @@ main( int argC, char **argV )
                         for( u32 i = 0; i < DEBUGglobalStats->gameCountersCount; ++i )
                         {
                             DebugCycleCounter& c = DEBUGglobalStats->gameCounters[i];
-                            if( c.frameHitCount > 0 )
+
+                            u32 frameHitCount = 0;
+                            u64 frameCycleCount = 0;
+                            UnpackAndResetFrameCounter( c, &frameCycleCount, &frameHitCount );
+
+                            if( frameHitCount > 0 )
                             {
                                 LOG( "%s@%u\t%llu fc  %u h  %u fc/h",
                                      c.function,
                                      c.lineNumber,
-                                     c.frameCycles,
-                                     c.frameHitCount,
-                                     c.frameCycles/c.frameHitCount );
+                                     frameCycleCount,
+                                     frameHitCount,
+                                     frameCycleCount/frameHitCount );
                             }
                         }
 #endif
@@ -2239,9 +2241,9 @@ main( int argC, char **argV )
             LOG( "%s@%u\t%llu tc  %u h  %u tc/h",
                  c.function,
                  c.lineNumber,
-                 c.totalCycles,
+                 c.totalCycleCount,
                  c.totalHitCount,
-                 c.totalCycles/c.totalHitCount );
+                 c.totalCycleCount/c.totalHitCount );
         }
     }
 #endif

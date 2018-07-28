@@ -145,4 +145,33 @@ GetNextPowerOf2( u32 value )
     return result;
 }
 
+inline u32
+AtomicCompareExchangeU32( volatile u32* value, u32 newValue, u32 expectedValue )
+{
+    u32 previousValue = _InterlockedCompareExchange( (volatile long*)value,
+                                                     newValue, expectedValue );
+    return previousValue;
+}
+
+inline u64
+AtomicExchangeU64( volatile u64* value, u64 newValue )
+{
+    u64 previousValue = _InterlockedExchange64( (volatile __int64*)value, newValue );
+    return previousValue;
+}
+
+inline u32
+AtomicAddU32( volatile u32* value, u32 addend )
+{
+    u32 previousValue = _InterlockedExchangeAdd( (volatile long*)value, addend );
+    return previousValue;
+}
+
+inline u64
+AtomicAddU64( volatile u64* value, u64 addend )
+{
+    u64 previousValue = _InterlockedExchangeAdd64( (volatile __int64*)value, addend );
+    return previousValue;
+}
+
 #endif /* __INTRINSICS_H__ */

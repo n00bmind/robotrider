@@ -28,14 +28,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 struct DebugCycleCounter
 {
-    u32 lineNumber;
     const char* filename;
     const char* function;
+    u32 lineNumber;
 
-    u64 frameCycles;
-    u64 totalCycles;
-    u32 frameHitCount;
-    u32 totalHitCount;
+    volatile u32 totalHitCount;
+    volatile u64 totalCycleCount;
+    volatile u64 frameHitCount24CycleCount40;
 };
 
 struct DebugGameStats
@@ -51,30 +50,28 @@ struct DebugGameStats
 extern DebugGameStats* DEBUGglobalStats;
 
 inline void
-ResetFrameCounters( DebugGameStats* stats )
+UnpackAndResetFrameCounter( DebugCycleCounter& c, u64* frameCycleCount, u32* frameHitCount )
 {
-    for( u32 i = 0; i < stats->gameCountersCount; ++i )
-    {
-        DebugCycleCounter& c = stats->gameCounters[i];
-        c.frameCycles = 0;
-        c.frameHitCount = 0;
-    }
+    u64 result = AtomicExchangeU64( &c.frameHitCount24CycleCount40, 0 );
+    
+    *frameHitCount = (u32)(result >> 40);
+    *frameCycleCount = (result & 0xFFFFFFFFFF);
+
+    AtomicAddU32( &c.totalHitCount, *frameHitCount );
+    AtomicAddU64( &c.totalCycleCount, *frameCycleCount );
 }
 
 struct DebugTimedBlock
 {
-    u32 index;
-    u32 lineNumber;
-    const char* filename;
-    const char* function;
+    DebugCycleCounter& counter;
     u64 startCycleCount;
 
     DebugTimedBlock( u32 index_, u32 lineNumber_, const char* filename_, const char* function_ )
+        : counter( DEBUGglobalStats->gameCounters[index_] )
     {
-        index = index_;
-        lineNumber = lineNumber_;
-        filename = filename_;
-        function = function_;
+        counter.lineNumber = lineNumber_;
+        counter.filename = filename_;
+        counter.function = function_;
 
         startCycleCount = __rdtsc();
     }
@@ -83,15 +80,8 @@ struct DebugTimedBlock
     {
         u64 cycleCount = __rdtsc() - startCycleCount;
 
-        DebugCycleCounter& c = DEBUGglobalStats->gameCounters[index];
-        c.lineNumber = lineNumber;
-        c.filename = filename;
-        c.function = function;
-
-        c.frameCycles += cycleCount;
-        c.totalCycles += cycleCount;
-        ++c.frameHitCount;
-        ++c.totalHitCount;
+        u64 frameDelta = ((u64)1 << 40) | (cycleCount & 0xFFFFFFFFFF);
+        AtomicAddU64( &counter.frameHitCount24CycleCount40, frameDelta );
     }
 };
 
