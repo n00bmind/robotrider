@@ -204,7 +204,6 @@ DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char
     ImGui::End();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
-
 }
 
 

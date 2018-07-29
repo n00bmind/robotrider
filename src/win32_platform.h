@@ -81,6 +81,7 @@ struct Win32GameCode
     GameSetupAfterReloadFunc* SetupAfterReload;
     GameUpdateAndRenderFunc* UpdateAndRender;
     GameLogCallbackFunc* LogCallback;
+    DebugGameFrameEndFunc* DebugFrameEnd;
 
     bool isValid;
 };

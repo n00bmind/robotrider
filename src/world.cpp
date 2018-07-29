@@ -254,6 +254,8 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 internal void
 StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena )
 {
+    TIMED_BLOCK;
+
     Cluster* cluster = world->clusterTable.Find( clusterCoords );
 
     if( !cluster )
@@ -297,6 +299,8 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
 internal void
 UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena )
 {
+    TIMED_BLOCK;
+
     // TODO Make an infinite connected 'cosmic grid structure'
     // so we can test for a good cluster size, evaluate current generation speeds,
     // debug moving across clusters, etc.
@@ -363,20 +367,24 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
     world->pLastWorldOrigin = world->pWorldOrigin;
 
 
-    // Constantly monitor live entities array for inactive entities
-    auto it = world->liveEntities.First();
-    while( it )
     {
-        LiveEntity& entity = ((LiveEntity&)it);
-        if( entity.state == EntityState::Loaded )
-        {
-            v3 vClusterWorldOffset
-                = GetClusterWorldOffset( entity.stored.pUniverse.pCluster, world );
-            Translate( entity.mesh->mTransform, vClusterWorldOffset );
+        TIMED_BLOCK;
 
-            entity.state = EntityState::Active;
+        // Constantly monitor live entities array for inactive entities
+        auto it = world->liveEntities.First();
+        while( it )
+        {
+            LiveEntity& entity = ((LiveEntity&)it);
+            if( entity.state == EntityState::Loaded )
+            {
+                v3 vClusterWorldOffset
+                    = GetClusterWorldOffset( entity.stored.pUniverse.pCluster, world );
+                Translate( entity.mesh->mTransform, vClusterWorldOffset );
+
+                entity.state = EntityState::Active;
+            }
+            it.Next();
         }
-        it.Next();
     }
 
 
@@ -445,8 +453,12 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
 }
 
 void
-UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *renderCommands )
+UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *renderCommands )
 {
+    TIMED_BLOCK;
+
+    GameState *gameState = (GameState*)gameMemory->permanentStorage;
+
     float dT = input->frameElapsedSeconds;
     float elapsedT = input->totalElapsedSeconds;
     World* world = gameState->world;
@@ -454,6 +466,7 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
     ///// Update
 
 #if DEBUG
+    DebugState* debugState = (DebugState*)gameMemory->debugStorage;
     if( input->executableReloaded )
     {
         DEBUGClearAllClusters( world );
@@ -532,12 +545,13 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
 
 
     ///// Render
-#if 1
     PushProgramChange( ShaderProgramName::FlatShaded, renderCommands );
 
     auto it = world->liveEntities.First();
     while( it )
     {
+        TIMED_BLOCK;
+
         LiveEntity& entity = (LiveEntity&)it;
         if( entity.state == EntityState::Active )
         {
@@ -546,6 +560,8 @@ UpdateAndRenderWorld( GameInput *input, GameState *gameState, RenderCommands *re
 
         it.Next();
     }
+#if DEBUG
+    debugState->totalEntities = world->liveEntities.count;
 #endif
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );

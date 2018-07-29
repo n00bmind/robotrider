@@ -138,60 +138,49 @@ struct GameMemory
     bool isInitialized;
 
     u64 permanentStorageSize;
-    // NOTE Required to be cleared to zero at startup
-    void *permanentStorage;
+    void *permanentStorage;         // NOTE Required to be cleared to zero at startup
 
     u64 transientStorageSize;
-    // NOTE Required to be cleared to zero at startup
-    void *transientStorage;
-
-
-    PlatformAPI* platformAPI;
-    ImGuiContext* imGuiContext;
+    void *transientStorage;         // NOTE Required to be cleared to zero at startup
 
 #if DEBUG
-    DebugGameStats* DEBUGgameStats;
+    u64 debugStorageSize;
+    void *debugStorage;             // NOTE Required to be cleared to zero at startup
 
     bool DEBUGglobalDebugging;
     bool DEBUGglobalEditing;
 #endif
+
+    PlatformAPI* platformAPI;
+    ImGuiContext* imGuiContext;
 };
 
 
 
-#ifndef GAME_SETUP_AFTER_RELOAD
-#define GAME_SETUP_AFTER_RELOAD(name) \
-    void name( GameMemory *memory )
-#endif
+#define GAME_SETUP_AFTER_RELOAD(name) void name( GameMemory *memory )
 typedef GAME_SETUP_AFTER_RELOAD(GameSetupAfterReloadFunc);
 
-#ifndef GAME_UPDATE_AND_RENDER
 #define GAME_UPDATE_AND_RENDER(name) \
-    void name( GameMemory *memory, GameInput *input, \
-               RenderCommands *renderCommands, GameAudioBuffer *audioBuffer )
-#endif
+    void name( GameMemory *memory, GameInput *input, RenderCommands *renderCommands, GameAudioBuffer *audioBuffer )
 typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
 GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
 { }
 
-#ifndef GAME_ASSET_LOADED_CALLBACK
-#define GAME_ASSET_LOADED_CALLBACK(name) \
-    void name( const char *assetName, const u8 *contents, u32 len )
-#endif
+#define GAME_ASSET_LOADED_CALLBACK(name) void name( const char *assetName, const u8 *contents, u32 len )
 typedef GAME_ASSET_LOADED_CALLBACK(GameAssetLoadedCallbackFunc);
 
-#ifndef GAME_LOG_CALLBACK
-#define GAME_LOG_CALLBACK(name) \
-    void name( const char *msg )
-#endif
+#define GAME_LOG_CALLBACK(name) void name( const char *msg )
 typedef GAME_LOG_CALLBACK(GameLogCallbackFunc);
 
-
-struct GameAssetMapping
+struct DebugFrameInfo
 {
-    const char *relativePath;
-    const char *extension;
-    GameAssetLoadedCallbackFunc *callback;
+    r32 inputProcessedSeconds;
+    r32 gameUpdatedSeconds;
+    r32 audioUpdatedSeconds;
+    r32 endOfFrameSeconds;
 };
+
+#define DEBUG_GAME_FRAME_END(name) void name( GameMemory* memory, const DebugFrameInfo* frameInfo )
+typedef DEBUG_GAME_FRAME_END(DebugGameFrameEndFunc);
 
 #endif /* __GAME_H__ */

@@ -776,7 +776,7 @@ OpenGLNewFrame( u32 viewportWidth, u32 viewportHeight )
 }
 
 internal void
-OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
+OpenGLRenderToOutput( OpenGLState &gl, const RenderCommands &commands, GameMemory* gameMemory )
 {
     OpenGLNewFrame( commands.width, commands.height );
 
@@ -785,13 +785,14 @@ OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
     gl.mCurrentProjView = mProjView;
 
 #if DEBUG
-    DEBUGglobalStats->totalDrawCalls = 0;
-    DEBUGglobalStats->totalPrimitiveCount = 0;
-    DEBUGglobalStats->totalVertexCount = 0;
+    DebugState* debugState = (DebugState*)gameMemory->debugStorage;
+    debugState->totalDrawCalls = 0;
+    debugState->totalPrimitiveCount = 0;
+    debugState->totalVertexCount = 0;
 #endif
 
 
-    RenderBuffer &buffer = commands.renderBuffer;
+    const RenderBuffer &buffer = commands.renderBuffer;
     for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
     {
         RenderEntry *entryHeader = (RenderEntry *)(buffer.base + baseAddress);
@@ -835,9 +836,9 @@ OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
 
                 glDrawElements( GL_TRIANGLES, entry->indexCount, GL_UNSIGNED_INT, (void *)0 );
 #if DEBUG
-                DEBUGglobalStats->totalDrawCalls++;
-                DEBUGglobalStats->totalVertexCount += entry->vertexCount;
-                DEBUGglobalStats->totalPrimitiveCount += (entry->indexCount / 3);
+                debugState->totalDrawCalls++;
+                debugState->totalVertexCount += entry->vertexCount;
+                debugState->totalPrimitiveCount += (entry->indexCount / 3);
 #endif
             } break;
 
@@ -854,8 +855,8 @@ OpenGLRenderToOutput( OpenGLState &gl, RenderCommands &commands )
                 glDrawArrays( GL_LINES, 0, entry->lineCount * 2 );
 
 #if DEBUG
-                DEBUGglobalStats->totalDrawCalls++;
-                DEBUGglobalStats->totalPrimitiveCount += entry->lineCount;
+                debugState->totalDrawCalls++;
+                debugState->totalPrimitiveCount += entry->lineCount;
 #endif
             } break;
 

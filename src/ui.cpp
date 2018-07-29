@@ -42,6 +42,10 @@ DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
                   ImGuiWindowFlags_NoMove |
                   ImGuiWindowFlags_NoInputs );
     ImGui::TextColored( UIdarkTextColor, statsText );
+#if DEBUG
+    ImGui::SameLine( (r32)windowWidth - 100 );
+    ImGui::TextColored( UIdarkTextColor, "DEBUG BUILD" );
+#endif
     ImGui::End();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
@@ -138,4 +142,44 @@ DrawAxisGizmos( RenderCommands *renderCommands )
     p3 = startPos + vL * len + vD * 0.f;
     p4 = startPos + vL * len + vD * thick;
     PushQuad( p1, p2, p3, p4, color, renderCommands );
+}
+
+void
+DrawPerformanceCounters( const GameMemory* gameMemory, u32 windowWidth, u32 windowHeight )
+{
+    ImGui::SetNextWindowPos( ImVec2( 100.f, windowHeight * 0.25f + 100 ), ImGuiCond_FirstUseEver );
+    ImGui::SetNextWindowSize( ImVec2( 500.f, windowHeight * 0.25f ), ImGuiCond_Appearing );
+    ImGui::SetNextWindowSizeConstraints( ImVec2( -1, 100 ), ImVec2( -1, FLT_MAX ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 3.f );
+    ImGui::PushStyleColor( ImGuiCol_WindowBg, UItoolWindowBgColor );
+    ImGui::Begin( "window_performance_counters", NULL,
+                  ImGuiWindowFlags_NoTitleBar |
+                  ImGuiWindowFlags_NoMove );
+
+    ImGui::PushStyleColor( ImGuiCol_Text, UInormalTextColor );
+
+    // TODO Counter stats
+    DebugState* debugState = (DebugState*)gameMemory->debugStorage;
+    for( u32 i = 0; i < debugState->counterLogsCount; ++i )
+    {
+        DebugCounterLog &log = debugState->counterLogs[i];
+
+        u32 frameHitCount = log.snapshots[0].hitCount;
+        u64 frameCycleCount = log.snapshots[0].cycleCount;
+
+        if( frameHitCount > 0 )
+        {
+            ImGui::Text( "%s@%u\t%llu fc  %u h  %u fc/h",
+                         log.function,
+                         log.lineNumber,
+                         frameCycleCount,
+                         frameHitCount,
+                         frameCycleCount/frameHitCount );
+        }
+    }
+    ImGui::PopStyleColor();        
+
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
 }

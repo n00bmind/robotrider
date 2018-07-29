@@ -60,12 +60,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 PlatformAPI globalPlatform;
 internal GameConsole *gameConsole;
 
-#if DEBUG
-DebugGameStats* DEBUGglobalStats;
-extern DebugCycleCounter DEBUGglobalGameCounters[];
-static void CountGameCounters();
-#endif
-
 
 LIB_EXPORT
 GAME_LOG_CALLBACK(GameLogCallback)
@@ -93,8 +87,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     globalPlatform = *memory->platformAPI;
 #if DEBUG
-    DEBUGglobalStats = memory->DEBUGgameStats;
-    DEBUGglobalStats->gameCounters = DEBUGglobalGameCounters;
+    DebugState* debugState = (DebugState*)memory->debugStorage;
 #endif
 
     TIMED_BLOCK;
@@ -159,7 +152,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #endif
 
         PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
-        UpdateAndRenderWorld( gameInput, gameState, renderCommands );
+        UpdateAndRenderWorld( gameInput, memory, renderCommands );
     }
 
 #if DEBUG
@@ -167,9 +160,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     float frameTime = 1000.f / fps;
     char statsText[1024];
     snprintf( statsText, ARRAYCOUNT(statsText),
-              "Frame ms.: %.3f (%.1f FPS)   DrawCalls %u   Primitives %u   Vertices %u",
-              frameTime, fps, DEBUGglobalStats->totalDrawCalls,
-              DEBUGglobalStats->totalPrimitiveCount, DEBUGglobalStats->totalVertexCount );
+              "Frame ms.: %.3f (%.1f FPS)   Live entitites %u   Primitives %u   Vertices %u   DrawCalls %u",
+              frameTime, fps, debugState->totalEntities,
+              debugState->totalPrimitiveCount, debugState->totalVertexCount, debugState->totalDrawCalls );
 
     if( memory->DEBUGglobalEditing )
     {
@@ -178,8 +171,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     else if( memory->DEBUGglobalDebugging )
     {
         DrawConsole( &gameState->gameConsole, width, height, statsText );
-        ImGui::SetNextWindowPos( ImVec2( width - 500.f, height - 300.f ) );
-        ImGui::ShowUserGuide();
+        DrawPerformanceCounters( memory, width, height );
     }
     else
         DrawStats( width, height, statsText );
@@ -189,17 +181,36 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     CheckArena( &gameState->worldArena );
     CheckArena( &tranState->transientArena );
-
-    // HACK Find a less horrible way to do this
-    CountGameCounters();
 }
 
 
 #if DEBUG
-DebugCycleCounter DEBUGglobalGameCounters[__COUNTER__];
-
-static void CountGameCounters()
-{
-    DEBUGglobalStats->gameCountersCount = ARRAYCOUNT(DEBUGglobalGameCounters);
-}
+//const u32 DEBUGglobalCountersCount = __COUNTER__;
+DebugCycleCounter DEBUGglobalCounters[__COUNTER__];
 #endif
+
+LIB_EXPORT
+DEBUG_GAME_FRAME_END(DebugGameFrameEnd)
+{
+    ASSERT( ARRAYCOUNT(DEBUGglobalCounters) < ARRAYCOUNT(DebugState::counterLogs) );
+
+    DebugState* debugState = (DebugState*)memory->debugStorage;
+    debugState->counterLogsCount = 0;
+
+    // TODO Counter stats
+    u32 snapshotIndex = 0; //debugState->snapshotIndex;
+    for( u32 i = 0; i < ARRAYCOUNT(DEBUGglobalCounters); ++i )
+    {
+        DebugCycleCounter& source = DEBUGglobalCounters[i];
+        DebugCounterLog& dest = debugState->counterLogs[debugState->counterLogsCount++];
+
+        dest.filename = source.filename;
+        dest.function = source.function;
+        dest.lineNumber = source.lineNumber;
+        UnpackAndResetFrameCounter( source, &dest.snapshots[snapshotIndex].cycleCount, &dest.snapshots[snapshotIndex].hitCount );
+    }
+
+    debugState->snapshotIndex++;
+    if( debugState->snapshotIndex >= ARRAYCOUNT(DebugCounterLog::snapshots) )
+        debugState->snapshotIndex = 0;
+}

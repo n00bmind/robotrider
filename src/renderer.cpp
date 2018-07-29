@@ -63,8 +63,8 @@ PushClear( const v4& color, RenderCommands *commands )
 internal RenderEntryTexturedTris *
 GetOrCreateCurrentTris( RenderCommands *commands )
 {
-    // FIXME Artificially break the current bundle when we get to an estimated "optimum size"
-    // (I read somewhere that was 1 to 4 megs?)
+    // TODO Artificially break the current bundle when we get to an estimated "optimum size"
+    // (if there is such a thing.. I read somewhere that was 1 to 4 megs?)
     if( !commands->currentTris )
     {
         commands->currentTris = PUSH_RENDER_ELEMENT( commands, RenderEntryTexturedTris );
@@ -219,6 +219,8 @@ PushLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )
 void
 PushMesh( const Mesh& mesh, RenderCommands *commands )
 {
+    TIMED_BLOCK;
+
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {

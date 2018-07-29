@@ -45,6 +45,8 @@ struct ConsoleEntry
 struct GameConsole
 {
     // FIXME This is absurd and we should allocate this as needed in the gameArena
+    // TODO Think how to pack this into a fixed size ring buffer for the text,
+    // maybe indexed by a fixed sized ring buffer of ConsoleEntry's with a String in it
     ConsoleEntry entries[4096];
     char inputBuffer[CONSOLE_LINE_MAXLEN];
 
@@ -79,6 +81,5 @@ struct TransientState
     bool isInitialized;
     MemoryArena transientArena;
 };
-
 
 #endif /* __ROBOTRIDER_H__ */

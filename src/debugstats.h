@@ -37,18 +37,6 @@ struct DebugCycleCounter
     volatile u64 frameHitCount24CycleCount40;
 };
 
-struct DebugGameStats
-{
-    // NOTE Since we use __COUNTER__ for indexing, we'd need a separate array for platform counters
-    DebugCycleCounter *gameCounters;
-    u32 gameCountersCount;
-
-    u32 totalDrawCalls;
-    u32 totalVertexCount;
-    u32 totalPrimitiveCount;
-};
-extern DebugGameStats* DEBUGglobalStats;
-
 inline void
 UnpackAndResetFrameCounter( DebugCycleCounter& c, u64* frameCycleCount, u32* frameHitCount )
 {
@@ -61,13 +49,49 @@ UnpackAndResetFrameCounter( DebugCycleCounter& c, u64* frameCycleCount, u32* fra
     AtomicAddU64( &c.totalCycleCount, *frameCycleCount );
 }
 
+
+struct DebugCounterSnapshot
+{
+    u32 hitCount;
+    u64 cycleCount;
+};
+
+struct DebugCounterLog
+{
+    const char* filename;
+    const char* function;
+    u32 lineNumber;
+
+    u32 totalHitCount;
+    u64 totalCycleCount;
+
+    DebugCounterSnapshot snapshots[300];
+};
+
+struct DebugState
+{
+    // NOTE Since we use __COUNTER__ for indexing, we'd need a separate array for platform counters
+    DebugCounterLog counterLogs[1024];
+    u32 counterLogsCount;
+
+    u32 snapshotIndex;
+
+    u32 totalDrawCalls;
+    u32 totalVertexCount;
+    u32 totalPrimitiveCount;
+    u32 totalEntities;
+};
+
+
+extern DebugCycleCounter DEBUGglobalCounters[];
+
 struct DebugTimedBlock
 {
     DebugCycleCounter& counter;
     u64 startCycleCount;
 
     DebugTimedBlock( u32 index_, u32 lineNumber_, const char* filename_, const char* function_ )
-        : counter( DEBUGglobalStats->gameCounters[index_] )
+        : counter( DEBUGglobalCounters[index_] )
     {
         counter.lineNumber = lineNumber_;
         counter.filename = filename_;

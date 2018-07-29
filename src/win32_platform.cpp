@@ -61,10 +61,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 PlatformAPI globalPlatform;
-#if DEBUG
-internal DebugGameStats DEBUGgameStats;
-DebugGameStats* DEBUGglobalStats = &DEBUGgameStats;
-#endif
 
 internal OpenGLState globalOpenGLState;
 internal Win32State globalPlatformState;
@@ -314,13 +310,15 @@ Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameMemory *gameMemor
         result.SetupAfterReload = (GameSetupAfterReloadFunc *)GetProcAddress( result.gameCodeDLL, "GameSetupAfterReload" );
         result.UpdateAndRender = (GameUpdateAndRenderFunc *)GetProcAddress( result.gameCodeDLL, "GameUpdateAndRender" );
         result.LogCallback = (GameLogCallbackFunc *)GetProcAddress( result.gameCodeDLL, "GameLogCallback" );
+        result.DebugFrameEnd = (DebugGameFrameEndFunc *)GetProcAddress( result.gameCodeDLL, "DebugGameFrameEnd" );
 
-        result.isValid = result.SetupAfterReload != 0 && result.UpdateAndRender != 0;
+        result.isValid = result.UpdateAndRender != 0;
     }
 
-    if( result.isValid )
+    if( result.SetupAfterReload )
         result.SetupAfterReload( gameMemory );
-    else
+
+    if( !result.UpdateAndRender )
         result.UpdateAndRender = GameUpdateAndRenderStub;
 
     return result;
@@ -664,14 +662,14 @@ Win32AllocateBackBuffer( Win32OffscreenBuffer *buffer, int width, int height )
 }
 
 internal void
-Win32DisplayInWindow( const Win32State& platformState, RenderCommands &commands,
-                      HDC deviceContext, int windowWidth, int windowHeight )
+Win32DisplayInWindow( const Win32State& platformState, const RenderCommands &commands,
+                      HDC deviceContext, int windowWidth, int windowHeight, GameMemory* gameMemory )
 {
     switch( platformState.renderer )
     {
         case Renderer::OpenGL:
         {
-            OpenGLRenderToOutput( globalOpenGLState, commands );
+            OpenGLRenderToOutput( globalOpenGLState, commands, gameMemory );
             ImGui::Render();
             SwapBuffers( deviceContext );
         } break;
@@ -1851,10 +1849,10 @@ main( int argC, char **argV )
     GameMemory gameMemory = {};
     gameMemory.permanentStorageSize = GIGABYTES(2);
     gameMemory.transientStorageSize = GIGABYTES(1);
-    gameMemory.platformAPI = &globalPlatform;
 #if DEBUG
-    gameMemory.DEBUGgameStats = DEBUGglobalStats;
+    gameMemory.debugStorageSize = MEGABYTES(64);
 #endif
+    gameMemory.platformAPI = &globalPlatform;
 
     // Init subsystems
     Win32InitXInput();
@@ -1959,15 +1957,17 @@ main( int argC, char **argV )
 #endif
 
                 // Allocate game memory pools
-                u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
+                u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize + gameMemory.debugStorageSize;
                 // TODO Use MEM_LARGE_PAGES and call AdjustTokenPrivileges when not in XP
-                gameMemory.permanentStorage = VirtualAlloc( baseAddress, totalSize,
-                                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-                gameMemory.transientStorage = (u8 *)gameMemory.permanentStorage
-                    + gameMemory.permanentStorageSize;
-
-                globalPlatformState.gameMemoryBlock = gameMemory.permanentStorage;
+                globalPlatformState.gameMemoryBlock = VirtualAlloc( baseAddress, totalSize,
+                                                                    MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
                 globalPlatformState.gameMemorySize = totalSize;
+
+                gameMemory.permanentStorage = globalPlatformState.gameMemoryBlock;
+                gameMemory.transientStorage = (u8 *)gameMemory.permanentStorage + gameMemory.permanentStorageSize;
+#if DEBUG
+                gameMemory.debugStorage = (u8*)gameMemory.transientStorage + gameMemory.transientStorageSize;
+#endif
 
                 i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
@@ -2034,6 +2034,8 @@ main( int argC, char **argV )
                     while( globalRunning )
                     {
 #if DEBUG
+                        DebugFrameInfo DEBUGframeInfo = {};
+                        
                         // Prevent huge skips in physics etc. while debugging
                         if( lastDeltaTimeSecs > 1.f )
                         {
@@ -2077,6 +2079,8 @@ main( int argC, char **argV )
                         Win32ProcessXInputControllers( oldInput, newInput );
 
 #if DEBUG
+                        DEBUGframeInfo.inputProcessedSeconds = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
+
                         if( gameMemory.DEBUGglobalDebugging )
                         {
                             // Discard all input to the key&mouse controller
@@ -2126,14 +2130,22 @@ main( int argC, char **argV )
                         // Ask the game to render one frame
                         globalPlatformState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
 
+#if DEBUG
+                        DEBUGframeInfo.gameUpdatedSeconds = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
+#endif
+
                         // Blit audio buffer to output
                         Win32BlitAudioBuffer( &audioBuffer, audioFramesToWrite, &audioOutput );
 
+#if DEBUG
+                        DEBUGframeInfo.audioUpdatedSeconds = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
+#endif
+
+#if 0
                         i64 endCycleCounter = __rdtsc();
                         u64 cyclesElapsed = endCycleCounter - lastCycleCounter;
                         u32 kCyclesElapsed = (u32)(cyclesElapsed / 1000);
 
-#if 0
                         // Artificially increase wait time from 0 to 20ms.
                         int r = rand() % 20;
                         targetElapsedPerFrameSecs = (1.0f / videoTargetFramerateHz) + ((r32)r / 1000.0f);
@@ -2167,41 +2179,49 @@ main( int argC, char **argV )
 
                         // Blit video to output
                         Win32DisplayInWindow( globalPlatformState, renderCommands, deviceContext,
-                                              windowDim.width, windowDim.height );
+                                              windowDim.width, windowDim.height, &gameMemory );
 
                         LARGE_INTEGER endCounter = Win32GetWallClock();
                         lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
                         lastCounter = endCounter;
 
-                        lastCycleCounter = endCycleCounter;
                         ++runningFrameCounter;
+
+#if DEBUG
+                        DEBUGframeInfo.endOfFrameSeconds = lastDeltaTimeSecs;
+
+                        if( globalPlatformState.gameCode.DebugFrameEnd )
+                            globalPlatformState.gameCode.DebugFrameEnd( &gameMemory, &DEBUGframeInfo );
+#endif
+
 #if 0
+                        lastCycleCounter = endCycleCounter;
                         {
                             r32 fps = 1.0f / lastDeltaTimeSecs;
                             LOG( "ms: %.02f - FPS: %.02f (%d Kcycles) - audio padding: %d\n",
                                  1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed, audioPaddingFrames );
                         }
-#endif
 
-#if DEBUG
-                        // Print game debug statistics
-                        LOG( ":::Frame counters:" );
-                        for( u32 i = 0; i < DEBUGglobalStats->gameCountersCount; ++i )
                         {
-                            DebugCycleCounter& c = DEBUGglobalStats->gameCounters[i];
-
-                            u32 frameHitCount = 0;
-                            u64 frameCycleCount = 0;
-                            UnpackAndResetFrameCounter( c, &frameCycleCount, &frameHitCount );
-
-                            if( frameHitCount > 0 )
+                            // Print game debug statistics
+                            LOG( ":::Frame counters:" );
+                            for( u32 i = 0; i < DEBUGglobalStats->gameCountersCount; ++i )
                             {
-                                LOG( "%s@%u\t%llu fc  %u h  %u fc/h",
-                                     c.function,
-                                     c.lineNumber,
-                                     frameCycleCount,
-                                     frameHitCount,
-                                     frameCycleCount/frameHitCount );
+                                DebugCycleCounter& c = DEBUGglobalStats->gameCounters[i];
+
+                                u32 frameHitCount = 0;
+                                u64 frameCycleCount = 0;
+                                UnpackAndResetFrameCounter( c, &frameCycleCount, &frameHitCount );
+
+                                if( frameHitCount > 0 )
+                                {
+                                    LOG( "%s@%u\t%llu fc  %u h  %u fc/h",
+                                         c.function,
+                                         c.lineNumber,
+                                         frameCycleCount,
+                                         frameHitCount,
+                                         frameCycleCount/frameHitCount );
+                                }
                             }
                         }
 #endif
@@ -2232,18 +2252,20 @@ main( int argC, char **argV )
          ImGui::GetIO().Framerate, (r32)runningFrameCounter / totalElapsedSeconds );
 
 #if DEBUG
+    DebugState* debugState = (DebugState*)gameMemory.debugStorage;
+
     LOG( ":::Global counters:" );
-    for( u32 i = 0; i < DEBUGglobalStats->gameCountersCount; ++i )
+    for( u32 i = 0; i < debugState->counterLogsCount; ++i )
     {
-        DebugCycleCounter& c = DEBUGglobalStats->gameCounters[i];
-        if( c.totalHitCount > 0 )
+        DebugCounterLog &log = debugState->counterLogs[i];
+        if( log.totalHitCount > 0 )
         {
             LOG( "%s@%u\t%llu tc  %u h  %u tc/h",
-                 c.function,
-                 c.lineNumber,
-                 c.totalCycleCount,
-                 c.totalHitCount,
-                 c.totalCycleCount/c.totalHitCount );
+                 log.function,
+                 log.lineNumber,
+                 log.totalCycleCount,
+                 log.totalHitCount,
+                 log.totalCycleCount/log.totalHitCount );
         }
     }
 #endif

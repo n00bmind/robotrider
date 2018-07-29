@@ -205,8 +205,6 @@ typedef PLATFORM_DEALLOCATE_TEXTURE(PlatformDeallocateTextureFunc);
 typedef PLATFORM_LOG(PlatformLogFunc);
 
 
-struct DebugGameStats;
-
 struct PlatformAPI
 {
     DebugPlatformReadEntireFileFunc* DEBUGReadEntireFile;
