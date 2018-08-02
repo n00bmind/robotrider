@@ -174,7 +174,7 @@ DrawPerformanceCounters( const GameMemory* gameMemory, u32 windowWidth, u32 wind
                          log.lineNumber,
                          frameCycleCount,
                          frameHitCount,
-                         frameCycleCount/frameHitCount );
+                         (u32)(frameCycleCount/frameHitCount) );
         }
     }
     ImGui::PopStyleColor();        

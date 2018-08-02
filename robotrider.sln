@@ -3,42 +3,58 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "rr", "bin\rr.exe", "{1CE09621-F5B6-4ACD-9B82-9F75A8BE60CA}"
-	ProjectSection(DebuggerProjectSystem) = preProject
-		PortSupplier = 00000000-0000-0000-0000-000000000000
-		Executable = bin\launcher.exe
-		RemoteMachine = 
-		StartingDirectory = 
-		Environment = Default
-		LaunchingEngine = 00000000-0000-0000-0000-000000000000
-		UseLegacyDebugEngines = No
-		LaunchSQLEngine = No
-		AttachLaunchAction = No
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "win32_debugonly", "prj\win32_debugonly\win32_debugonly.vcxproj", "{893BC5EC-C91A-44E2-A901-CBDA63DC4818}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ps4_platform", "prj\ps4\ps4.vcxproj", "{9B42C6B7-EB84-4ED3-85C0-705236566B37}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F666B7AD-9201-4460-AD2D-5618FF4F33D3} = {F666B7AD-9201-4460-AD2D-5618FF4F33D3}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "win32_debugonly", "prj\win32_debugonly\win32_debugonly.vcxproj", "{893BC5EC-C91A-44E2-A901-CBDA63DC4818}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ps4_game", "prj\ps4\ps4_game.vcxproj", "{F666B7AD-9201-4460-AD2D-5618FF4F33D3}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PS4", "PS4", "{0CD33044-8102-4E30-A044-3DF73524EAFC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ORBIS = Debug|ORBIS
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
+		Release|ORBIS = Release|ORBIS
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1CE09621-F5B6-4ACD-9B82-9F75A8BE60CA}.Debug|x64.ActiveCfg = Release
-		{1CE09621-F5B6-4ACD-9B82-9F75A8BE60CA}.Debug|x86.ActiveCfg = Release
-		{1CE09621-F5B6-4ACD-9B82-9F75A8BE60CA}.Release|x64.ActiveCfg = Release
-		{1CE09621-F5B6-4ACD-9B82-9F75A8BE60CA}.Release|x86.ActiveCfg = Release
+		{893BC5EC-C91A-44E2-A901-CBDA63DC4818}.Debug|ORBIS.ActiveCfg = Debug|Win32
 		{893BC5EC-C91A-44E2-A901-CBDA63DC4818}.Debug|x64.ActiveCfg = Debug|x64
 		{893BC5EC-C91A-44E2-A901-CBDA63DC4818}.Debug|x86.ActiveCfg = Debug|Win32
 		{893BC5EC-C91A-44E2-A901-CBDA63DC4818}.Debug|x86.Build.0 = Debug|Win32
+		{893BC5EC-C91A-44E2-A901-CBDA63DC4818}.Release|ORBIS.ActiveCfg = Release|Win32
 		{893BC5EC-C91A-44E2-A901-CBDA63DC4818}.Release|x64.ActiveCfg = Release|x64
 		{893BC5EC-C91A-44E2-A901-CBDA63DC4818}.Release|x86.ActiveCfg = Release|Win32
 		{893BC5EC-C91A-44E2-A901-CBDA63DC4818}.Release|x86.Build.0 = Release|Win32
+		{9B42C6B7-EB84-4ED3-85C0-705236566B37}.Debug|ORBIS.ActiveCfg = Debug|ORBIS
+		{9B42C6B7-EB84-4ED3-85C0-705236566B37}.Debug|ORBIS.Build.0 = Debug|ORBIS
+		{9B42C6B7-EB84-4ED3-85C0-705236566B37}.Debug|x64.ActiveCfg = Debug|ORBIS
+		{9B42C6B7-EB84-4ED3-85C0-705236566B37}.Debug|x86.ActiveCfg = Debug|ORBIS
+		{9B42C6B7-EB84-4ED3-85C0-705236566B37}.Release|ORBIS.ActiveCfg = Release|ORBIS
+		{9B42C6B7-EB84-4ED3-85C0-705236566B37}.Release|ORBIS.Build.0 = Release|ORBIS
+		{9B42C6B7-EB84-4ED3-85C0-705236566B37}.Release|x64.ActiveCfg = Release|ORBIS
+		{9B42C6B7-EB84-4ED3-85C0-705236566B37}.Release|x86.ActiveCfg = Release|ORBIS
+		{F666B7AD-9201-4460-AD2D-5618FF4F33D3}.Debug|ORBIS.ActiveCfg = Debug|ORBIS
+		{F666B7AD-9201-4460-AD2D-5618FF4F33D3}.Debug|ORBIS.Build.0 = Debug|ORBIS
+		{F666B7AD-9201-4460-AD2D-5618FF4F33D3}.Debug|x64.ActiveCfg = Debug|ORBIS
+		{F666B7AD-9201-4460-AD2D-5618FF4F33D3}.Debug|x86.ActiveCfg = Debug|ORBIS
+		{F666B7AD-9201-4460-AD2D-5618FF4F33D3}.Release|ORBIS.ActiveCfg = Release|ORBIS
+		{F666B7AD-9201-4460-AD2D-5618FF4F33D3}.Release|ORBIS.Build.0 = Release|ORBIS
+		{F666B7AD-9201-4460-AD2D-5618FF4F33D3}.Release|x64.ActiveCfg = Release|ORBIS
+		{F666B7AD-9201-4460-AD2D-5618FF4F33D3}.Release|x86.ActiveCfg = Release|ORBIS
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{9B42C6B7-EB84-4ED3-85C0-705236566B37} = {0CD33044-8102-4E30-A044-3DF73524EAFC}
+		{F666B7AD-9201-4460-AD2D-5618FF4F33D3} = {0CD33044-8102-4E30-A044-3DF73524EAFC}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {0672AE5C-BDDA-4883-9EB9-1504EC05DE19}

@@ -25,12 +25,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define __INTRINSICS_H__ 
 
 #if _MSC_VER
-#include "intrin.h"
+#include <intrin.h>
+#else
+#include <x86intrin.h>
 #endif
 
 
 // TODO Convert all of these to the most platform-efficient versions
 // for all supported compilers & platforms
+// TODO Examine disassemblies for all compilers and compare!
 
 inline u32
 SafeTruncToU32( u64 value )
@@ -136,11 +139,19 @@ GetNextPowerOf2( u32 value )
 {
     u32 result = 0;
 
+#if _MSC_VER
     unsigned long msbPosition;
     if( _BitScanReverse( &msbPosition, value ) )
     {
         result = 1 << (msbPosition + 1);
     }
+#else
+    u32 leadingZeros = _lzcnt_u32( value );
+    if( leadingZeros < 32 )
+    {
+        result = 1 << (32 - leadingZeros);
+    }
+#endif
 
     return result;
 }
@@ -148,29 +159,56 @@ GetNextPowerOf2( u32 value )
 inline u32
 AtomicCompareExchangeU32( volatile u32* value, u32 newValue, u32 expectedValue )
 {
-    u32 previousValue = _InterlockedCompareExchange( (volatile long*)value,
-                                                     newValue, expectedValue );
+    u32 previousValue = 0;
+#if _MSC_VER
+    previousValue = _InterlockedCompareExchange( (volatile long*)value,
+                                                 newValue, expectedValue );
+#else
+    __atomic_compare_exchange_n( value, &expectedValue, newValue, false,
+                                 __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST );
+    // The (copy of) expectedValue will be overwritten with the actual value if they were different
+    previousValue = expectedValue;
+#endif
+
     return previousValue;
 }
 
 inline u64
 AtomicExchangeU64( volatile u64* value, u64 newValue )
 {
-    u64 previousValue = _InterlockedExchange64( (volatile __int64*)value, newValue );
+    u64 previousValue = 0;
+#if _MSC_VER
+    previousValue = _InterlockedExchange64( (volatile i64*)value, newValue );
+#else
+    previousValue = __atomic_exchange_n( value, newValue, __ATOMIC_SEQ_CST );
+#endif
+
     return previousValue;
 }
 
 inline u32
 AtomicAddU32( volatile u32* value, u32 addend )
 {
-    u32 previousValue = _InterlockedExchangeAdd( (volatile long*)value, addend );
+    u32 previousValue = 0;
+#if _MSC_VER
+    previousValue = _InterlockedExchangeAdd( (volatile long*)value, addend );
+#else
+    previousValue = __atomic_fetch_add( value, addend, __ATOMIC_SEQ_CST );
+#endif
+
     return previousValue;
 }
 
 inline u64
 AtomicAddU64( volatile u64* value, u64 addend )
 {
-    u64 previousValue = _InterlockedExchangeAdd64( (volatile __int64*)value, addend );
+    u64 previousValue = 0;
+#if _MSC_VER
+    previousValue = _InterlockedExchangeAdd64( (volatile i64*)value, addend );
+#else
+    previousValue = __atomic_fetch_add( value, addend, __ATOMIC_SEQ_CST );
+#endif
+
     return previousValue;
 }
 
