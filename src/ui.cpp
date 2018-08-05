@@ -144,6 +144,7 @@ DrawAxisGizmos( RenderCommands *renderCommands )
     PushQuad( p1, p2, p3, p4, color, renderCommands );
 }
 
+#if !RELEASE
 void
 DrawPerformanceCounters( const GameMemory* gameMemory, u32 windowWidth, u32 windowHeight )
 {
@@ -183,3 +184,4 @@ DrawPerformanceCounters( const GameMemory* gameMemory, u32 windowWidth, u32 wind
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
 }
+#endif

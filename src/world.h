@@ -91,7 +91,7 @@ struct LiveEntity
     EntityState state;
 };
 
-#define CLUSTER_HALF_SIZE_METERS 75
+#define CLUSTER_HALF_SIZE_METERS 200
 
 struct Cluster
 {

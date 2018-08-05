@@ -86,13 +86,14 @@ internal void
 CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, Generator* meshGenerators )
 {
     const r32 margin = 3.f;
+    const r32 step = 50.f;
 
     // TEST Place an entity every few meters, leaving some margin
-    for( r32 x = -CLUSTER_HALF_SIZE_METERS + margin; x <= CLUSTER_HALF_SIZE_METERS - margin; x += 24.f )
+    for( r32 x = -CLUSTER_HALF_SIZE_METERS + margin; x <= CLUSTER_HALF_SIZE_METERS - margin; x += step )
     {
-        for( r32 y = -CLUSTER_HALF_SIZE_METERS + margin; y <= CLUSTER_HALF_SIZE_METERS - margin; y += 24.f )
+        for( r32 y = -CLUSTER_HALF_SIZE_METERS + margin; y <= CLUSTER_HALF_SIZE_METERS - margin; y += step )
         {
-            for( r32 z = -CLUSTER_HALF_SIZE_METERS + margin; z <= CLUSTER_HALF_SIZE_METERS - margin; z += 24.f )
+            for( r32 z = -CLUSTER_HALF_SIZE_METERS + margin; z <= CLUSTER_HALF_SIZE_METERS - margin; z += step )
             {
                 StoredEntity newEntity =
                 {
@@ -481,7 +482,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         Player *player = world->player;
         v3 pPlayer = world->pPlayer;
 
-        r32 playerSpeed = input0->leftThumb.endedDown ? 18.f : 10.f;
+        r32 playerSpeed = input0->leftThumb.endedDown ? 30.f : 15.f;
         v3 vPlayerDelta = {};
 
         if( input0->dLeft.endedDown )

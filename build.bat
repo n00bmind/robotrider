@@ -22,7 +22,7 @@ if %COMPILER%==clang-cl (
 )
 
 set DEBUGFLAGS=-DDEBUG=1 -Z7 -Od
-set RELEASEFLAGS=-O2
+set RELEASEFLAGS=-DRELEASE=1 -O2
 set CFGFLAGS=%DEBUGFLAGS%
 (echo ";r;rel;release;" | findstr /i ";%1;" 1>nul 2>nul) && (
     set CFGFLAGS=%RELEASEFLAGS%

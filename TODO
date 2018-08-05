@@ -5,16 +5,26 @@
 
 FIX
 - Hot reloading is broken
+- Rendering of the axis gizmos and cluster lines is wrong
+- Shift key does not trigger "left shoulder" button
+- There's a big glitch right when entering a new cluster
 
 WORLDGEN
 - Procedural generation of some kind of infinite pipe-like world structure
   (look into Wave Function Collapse algorithms which should allow for tileable generation)
 
-THREADING
-- Once the previous process is complex enough, develop worker threads that can do it in the background based on player distance
-
 EDITOR
 - Entity selection mode and showing debug data about them
+
+GRAPHICS
+- Decent chasing camera
+- Start working on surfaces & lighting
+- Aspect ratio independece using black bars as needed (also, allow the game to vary output resolution at will)
+- Edge detection shader
+  From reddit: "If you have a deferred renderer and it can write triangle IDs to a texture, then you can render a wireframe
+  by just doing a simple edge detect on the triangle ID texture. Google for "edge detection" and/or "Sobel filter" for details.
+  The nice things about this are that (a) you get hidden surface removal for free; and (b) it's a fixed cost to render, no matter how much geometry you have."
+  (http://williamchyr.com/2014/03/development-update-edge-detection/)
 
 AUDIO
 - Win32: switch WASAPI to callback mode to reduce buffer size and improve latency.
@@ -26,14 +36,6 @@ AUDIO
   https://msdn.microsoft.com/en-us/library/windows/desktop/dd370875(v=vs.85).aspx
   https://msdn.microsoft.com/en-us/library/windows/desktop/dd370844(v=vs.85).aspx
   https://github.com/pauldotknopf/WindowsSDK7-Samples/blob/master/multimedia/audio/RenderExclusiveEventDriven/WASAPIRenderer.cpp
-
-GRAPHICS
-- Aspect ratio independece using black bars as needed (also, allow the game to vary output resolution at will)
-- Edge detection shader
-  From reddit: "If you have a deferred renderer and it can write triangle IDs to a texture, then you can render a wireframe
-  by just doing a simple edge detect on the triangle ID texture. Google for "edge detection" and/or "Sobel filter" for details.
-  The nice things about this are that (a) you get hidden surface removal for free; and (b) it's a fixed cost to render, no matter how much geometry you have."
-  (http://williamchyr.com/2014/03/development-update-edge-detection/)
 
 INPUT
 - Implement a platform-independent keyboard representation (use tables from https://github.com/depp/keycode)

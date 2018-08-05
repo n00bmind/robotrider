@@ -236,9 +236,8 @@ PushMesh( const Mesh& mesh, RenderCommands *commands )
             // Transform to world coordinates so this can all be rendered in big chunks
             PushVertex( mesh.mTransform * v.p, v.color, v.uv, commands );
         }
-        entry->vertexCount += mesh.vertexCount;
-
         int indexOffsetStart = entry->vertexCount;
+        entry->vertexCount += mesh.vertexCount;
 
         for( u32 i = 0; i < mesh.indexCount; ++i )
         {
@@ -271,9 +270,9 @@ PushMesh( const Mesh& mesh, RenderCommands *commands )
 
             commands->vertexBuffer.count++;
         }
+        int indexOffsetStart = entry->vertexCount;
         entry->vertexCount += mesh.vertexCount;
 
-        int indexOffsetStart = entry->vertexCount;
         ASSERT( commands->indexBuffer.count + mesh.indexCount <= commands->indexBuffer.maxCount );
 
         for( u32 i = 0; i < mesh.indexCount; ++i )

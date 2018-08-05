@@ -24,7 +24,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __DEBUGSTATS_H__
 #define __DEBUGSTATS_H__ 
 
-#if DEBUG
 
 struct DebugCycleCounter
 {
@@ -109,12 +108,11 @@ struct DebugTimedBlock
     }
 };
 
-#define TIMED_BLOCK DebugTimedBlock __timedBlock( __COUNTER__, __LINE__, __FILE__, __FUNCTION__ );
-
-#else
-
+#if RELEASE
 #define TIMED_BLOCK
+#else
+#define TIMED_BLOCK DebugTimedBlock __timedBlock( __COUNTER__, __LINE__, __FILE__, __FUNCTION__ );
+#endif
 
-#endif // DEBUG
 
 #endif /* __DEBUGSTATS_H__ */

@@ -70,7 +70,7 @@ void main()
     vec4 lightColor = vec4( d, d, d, 1 );
 
 #if 1 // Extremely simple fog
-    float dMax = 250;
+    float dMax = 400;
     float dMin = 10;
     float dist = gl_FragCoord.z / gl_FragCoord.w;
     float tFog = clamp( (dMax - dist) / (dMax - dMin), 0, 1 );

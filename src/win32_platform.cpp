@@ -1939,25 +1939,26 @@ main( int argC, char **argV )
             u32 renderBufferSize = MEGABYTES( 4 );
             u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize,
                                                    MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-            u32 vertexBufferSize = 1024*1024;
-            TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferSize * sizeof(TexturedVertex),
+            u32 vertexBufferMaxCount = 2*1024*1024;
+            TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferMaxCount * sizeof(TexturedVertex),
                                                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-            u32 indexBufferSize = vertexBufferSize * 8;
-            u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferSize * sizeof(u32),
+            u32 indexBufferMaxCount = vertexBufferMaxCount * 8;
+            u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferMaxCount * sizeof(u32),
                                                     MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
             RenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
-                                                                    vertexBuffer, vertexBufferSize,
-                                                                    indexBuffer, indexBufferSize );
+                                                                    vertexBuffer, vertexBufferMaxCount,
+                                                                    indexBuffer, indexBufferMaxCount );
 
             if( Win32InitOpenGL( deviceContext, renderCommands, frameVSyncSkipCount ) )
             {
                 LPVOID baseAddress = 0;
-#if DEBUG
-                baseAddress = (LPVOID)GIGABYTES(2048);
-#endif
 
                 // Allocate game memory pools
-                u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize + gameMemory.debugStorageSize;
+                u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
+#if DEBUG
+                baseAddress = (LPVOID)GIGABYTES(2048);
+                totalSize += gameMemory.debugStorageSize;
+#endif
                 // TODO Use MEM_LARGE_PAGES and call AdjustTokenPrivileges when not in XP
                 globalPlatformState.gameMemoryBlock = VirtualAlloc( baseAddress, totalSize,
                                                                     MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );

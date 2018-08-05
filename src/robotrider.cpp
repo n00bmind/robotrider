@@ -187,7 +187,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if DEBUG
 //const u32 DEBUGglobalCountersCount = __COUNTER__;
 DebugCycleCounter DEBUGglobalCounters[__COUNTER__];
-#endif
 
 LIB_EXPORT
 DEBUG_GAME_FRAME_END(DebugGameFrameEnd)
@@ -214,3 +213,4 @@ DEBUG_GAME_FRAME_END(DebugGameFrameEnd)
     if( debugState->snapshotIndex >= ARRAYCOUNT(DebugCounterLog::snapshots) )
         debugState->snapshotIndex = 0;
 }
+#endif
