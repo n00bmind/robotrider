@@ -30,11 +30,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "platform.h"
 #include "intrinsics.h"
+#include "debugstats.h"
 #include "math.h"
 #include "math_types.h"
 #include "renderer.h"
 
-#include "debugstats.h"
 
 
 //

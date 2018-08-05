@@ -17,3 +17,4 @@ rr.cap
 *.log
 *.lastbuildstate
 .vs/
+*.vim

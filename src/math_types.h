@@ -728,6 +728,21 @@ Transposed( const m4 &m )
     return result;
 }
 
+// TODO SIMD this! (and most of the other stuff!)
+inline v3
+Transform( const m4 &m, const v3 &v )
+{
+    // FIXME This seems to take a good chunk of time!
+    //TIMED_BLOCK;
+
+    v3 r;
+    r.x = v.x*m.e[0][0] + v.y*m.e[0][1] + v.z*m.e[0][2] + m.e[0][3];
+    r.y = v.x*m.e[1][0] + v.y*m.e[1][1] + v.z*m.e[1][2] + m.e[1][3];
+    r.z = v.x*m.e[2][0] + v.y*m.e[2][1] + v.z*m.e[2][2] + m.e[2][3];
+    
+    return r;
+}
+
 inline v4
 Transform( const m4 &m, const v4 &v )
 {
@@ -740,11 +755,10 @@ Transform( const m4 &m, const v4 &v )
     return r;
 }
 
-// TODO SIMD this! (and most of the other stuff!)
 inline v3
 operator*( const m4 &m, const v3 &v )
 {
-    v3 r = Transform( m, V4( v, 1.0f ) ).xyz;
+    v3 r = Transform( m, v );
     return r;
 }
 

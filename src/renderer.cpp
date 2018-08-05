@@ -95,6 +95,8 @@ GetOrCreateCurrentLines( RenderCommands *commands )
 inline internal void
 PushVertex( const v3 &p, u32 color, const v2 &uv, RenderCommands *commands )
 {
+    TIMED_BLOCK;
+
     ASSERT( commands->vertexBuffer.count + 1 <= commands->vertexBuffer.maxCount );
 
     TexturedVertex *vert = commands->vertexBuffer.base + commands->vertexBuffer.count;
@@ -108,6 +110,8 @@ PushVertex( const v3 &p, u32 color, const v2 &uv, RenderCommands *commands )
 inline internal void
 PushIndex( u32 value, RenderCommands* commands )
 {
+    TIMED_BLOCK;
+
     ASSERT( commands->indexBuffer.count + 1 <= commands->indexBuffer.maxCount );
 
     u32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
@@ -224,8 +228,7 @@ PushMesh( const Mesh& mesh, RenderCommands *commands )
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {
-        int indexOffsetStart = entry->vertexCount;
-
+#if 0
         for( u32 i = 0; i < mesh.vertexCount; ++i )
         {
             TexturedVertex& v = mesh.vertices[i];
@@ -235,11 +238,53 @@ PushMesh( const Mesh& mesh, RenderCommands *commands )
         }
         entry->vertexCount += mesh.vertexCount;
 
+        int indexOffsetStart = entry->vertexCount;
+
         for( u32 i = 0; i < mesh.indexCount; ++i )
         {
             PushIndex( indexOffsetStart + mesh.indices[i], commands );
         }
         entry->indexCount += mesh.indexCount;
+#else
+        ASSERT( commands->vertexBuffer.count + mesh.vertexCount <= commands->vertexBuffer.maxCount );
+
+        //const __m128 r0 = _mm_loadu_ps( ((r32*)&mesh.mTransform) + 0 );
+        //const __m128 r1 = _mm_loadu_ps( ((r32*)&mesh.mTransform) + 4 );
+        //const __m128 r2 = _mm_loadu_ps( ((r32*)&mesh.mTransform) + 8 );
+        for( u32 i = 0; i < mesh.vertexCount; ++i )
+        {
+            TexturedVertex& src = mesh.vertices[i];
+            TexturedVertex *dst = commands->vertexBuffer.base + commands->vertexBuffer.count;
+
+            dst->p = Transform( mesh.mTransform, src.p );
+            //v4 pSrc = V4( src.p, 1 );
+            //__m128 xyz1 = _mm_loadu_ps( (r32*)&pSrc );
+            //__m128 x___ = _mm_dp_ps( r0, xyz1, 0xF1 );
+            //__m128 _y__ = _mm_dp_ps( r1, xyz1, 0xF2 );
+            //__m128 __z_ = _mm_dp_ps( r2, xyz1, 0xF4 );
+            //__m128 xy__ = _mm_add_ps( x___, _y__ );
+            //__m128 xyz_ = _mm_add_ps( xy__, __z_ );
+            //_mm_storeu_ps( (r32*)&dst->p, xyz_ );
+
+            dst->color = src.color;
+            dst->uv = src.uv;
+
+            commands->vertexBuffer.count++;
+        }
+        entry->vertexCount += mesh.vertexCount;
+
+        int indexOffsetStart = entry->vertexCount;
+        ASSERT( commands->indexBuffer.count + mesh.indexCount <= commands->indexBuffer.maxCount );
+
+        for( u32 i = 0; i < mesh.indexCount; ++i )
+        {
+            u32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
+            *index = indexOffsetStart + mesh.indices[i];
+
+            commands->indexBuffer.count++;
+        }
+        entry->indexCount += mesh.indexCount;
+#endif
     }
 }
 
