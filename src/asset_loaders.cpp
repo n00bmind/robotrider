@@ -190,7 +190,7 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
 
                 if( cachedIndex )
                 {
-#if DEBUG
+#if !RELEASE
                     TexturedVertex& vertex = vertices[*cachedIndex];
                     ASSERT( vertex.p == positions[key.pIdx] );
                     if( haveUVs )
