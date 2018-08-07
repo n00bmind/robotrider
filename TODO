@@ -3,12 +3,6 @@
 :::::::::::::::::::::::::::
 
 
-FIX
-- Hot reloading is broken
-- Rendering of the axis gizmos and cluster lines is wrong
-- Shift key does not trigger "left shoulder" button
-- There's a big glitch right when entering a new cluster
-
 WORLDGEN
 - Procedural generation of some kind of infinite pipe-like world structure
   (look into Wave Function Collapse algorithms which should allow for tileable generation)

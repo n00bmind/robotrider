@@ -1,4 +1,8 @@
 KNOWN ISSUES
 
-- There's a fantastic megaglitch in the framerate every second or so! (actually the framerate is all over the place quite often -> only on laptop?)
+- Hot reloading is broken
+- Rendering of the axis gizmos and cluster lines is wrong
+- Shift key does not trigger "left shoulder" button
+- There's a big glitch right when entering a new cluster
+
 
