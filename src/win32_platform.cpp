@@ -72,7 +72,7 @@ internal u32 globalMonitorRefreshHz;
 internal IAudioClient* globalAudioClient;
 internal IAudioRenderClient* globalAudioRenderClient;
 internal i64 globalPerfCounterFrequency;
-#if DEBUG
+#if !RELEASE
 internal HCURSOR DEBUGglobalCursor;
 #endif
 
@@ -1100,7 +1100,7 @@ Win32HideWindow( HWND window )
     SetWindowPlacement( window, &wp );
 }
 
-#if DEBUG
+#if !RELEASE
 void
 Win32ToggleGlobalDebugging( GameMemory *gameMemory, HWND window )
 {
@@ -1214,7 +1214,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 // Respond to keyboard input
                 if( isDown )
                 {
-#if !DEBUG
+#if RELEASE
                     if( vkCode == VK_ESCAPE ||
                         (vkCode == VK_F4 && altKeyDown) )
                     {
@@ -1471,7 +1471,7 @@ Win32ResolvePaths( Win32State *state )
         bool result = false;
         char buffer[] = "robotrider.dll";
 
-#if DEBUG
+#if !RELEASE
         // This is just to support the dist mechanism
         {
             char* sourceDLLName = "robotrider.debug.dll";
@@ -1586,7 +1586,7 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
 
     int flags = 0;
     //flags |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
-#if DEBUG
+#if !RELEASE
     flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
 #endif
 
@@ -1849,7 +1849,7 @@ main( int argC, char **argV )
     GameMemory gameMemory = {};
     gameMemory.permanentStorageSize = GIGABYTES(2);
     gameMemory.transientStorageSize = GIGABYTES(1);
-#if DEBUG
+#if !RELEASE
     gameMemory.debugStorageSize = MEGABYTES(64);
 #endif
     gameMemory.platformAPI = &globalPlatform;
@@ -1925,7 +1925,7 @@ main( int argC, char **argV )
             audioOutput.systemLatencyFrames = (u16)Ceil( (u64)latency * audioOutput.samplingRate / 10000000.0 );
             u32 audioLatencyFrames = audioOutput.samplingRate / videoTargetFramerateHz;
 
-#if DEBUG
+#if !RELEASE
             DEBUGglobalCursor = LoadCursor( 0, IDC_CROSS );
             ShowWindow( window, SW_MAXIMIZE );
 #else
@@ -1955,7 +1955,7 @@ main( int argC, char **argV )
 
                 // Allocate game memory pools
                 u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
-#if DEBUG
+#if !RELEASE
                 baseAddress = (LPVOID)GIGABYTES(2048);
                 totalSize += gameMemory.debugStorageSize;
 #endif
@@ -1966,14 +1966,14 @@ main( int argC, char **argV )
 
                 gameMemory.permanentStorage = globalPlatformState.gameMemoryBlock;
                 gameMemory.transientStorage = (u8 *)gameMemory.permanentStorage + gameMemory.permanentStorageSize;
-#if DEBUG
+#if !RELEASE
                 gameMemory.debugStorage = (u8*)gameMemory.transientStorage + gameMemory.transientStorageSize;
 #endif
 
                 i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
-#if DEBUG
+#if !RELEASE
                 for( u32 replayIndex = 0; replayIndex < ARRAYCOUNT(globalPlatformState.replayBuffers); ++replayIndex )
                 {
                     Win32ReplayBuffer *replayBuffer = &globalPlatformState.replayBuffers[replayIndex];
@@ -2034,7 +2034,7 @@ main( int argC, char **argV )
                     // Main loop
                     while( globalRunning )
                     {
-#if DEBUG
+#if !RELEASE
                         DebugFrameInfo DEBUGframeInfo = {};
                         
                         // Prevent huge skips in physics etc. while debugging
@@ -2052,7 +2052,7 @@ main( int argC, char **argV )
                         if( runningFrameCounter == 0 )
                             newInput->executableReloaded = true;
 
-#if DEBUG
+#if !RELEASE
                         // Check for game code updates
                         FILETIME dllWriteTime = Win32GetLastWriteTime( globalPlatformState.sourceDLLPath );
                         if( CompareFileTime( &dllWriteTime, &globalPlatformState.gameCode.lastDLLWriteTime ) != 0 )
@@ -2079,7 +2079,7 @@ main( int argC, char **argV )
                         Win32ProcessPendingMessages( &globalPlatformState, &gameMemory, newInput, newKeyMouseController );
                         Win32ProcessXInputControllers( oldInput, newInput );
 
-#if DEBUG
+#if !RELEASE
                         DEBUGframeInfo.inputProcessedSeconds = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
 
                         if( gameMemory.DEBUGglobalDebugging )
@@ -2131,14 +2131,14 @@ main( int argC, char **argV )
                         // Ask the game to render one frame
                         globalPlatformState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
 
-#if DEBUG
+#if !RELEASE
                         DEBUGframeInfo.gameUpdatedSeconds = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
 #endif
 
                         // Blit audio buffer to output
                         Win32BlitAudioBuffer( &audioBuffer, audioFramesToWrite, &audioOutput );
 
-#if DEBUG
+#if !RELEASE
                         DEBUGframeInfo.audioUpdatedSeconds = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
 #endif
 
@@ -2188,7 +2188,7 @@ main( int argC, char **argV )
 
                         ++runningFrameCounter;
 
-#if DEBUG
+#if !RELEASE
                         DEBUGframeInfo.endOfFrameSeconds = lastDeltaTimeSecs;
 
                         if( globalPlatformState.gameCode.DebugFrameEnd )
@@ -2252,7 +2252,7 @@ main( int argC, char **argV )
     LOG( "\n\nFPS: %.1f imm. / %.1f avg.",
          ImGui::GetIO().Framerate, (r32)runningFrameCounter / totalElapsedSeconds );
 
-#if DEBUG
+#if !RELEASE
     DebugState* debugState = (DebugState*)gameMemory.debugStorage;
 
     LOG( ":::Global counters:" );

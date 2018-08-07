@@ -43,7 +43,7 @@ DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderC
     }
 }
 
-#if DEBUG
+#if !RELEASE
 void
 UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *renderCommands, const char* statsText )
 {

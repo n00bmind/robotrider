@@ -466,7 +466,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
     ///// Update
 
-#if DEBUG
+#if !RELEASE
     DebugState* debugState = (DebugState*)gameMemory->debugStorage;
     if( input->executableReloaded )
     {
@@ -561,7 +561,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
         it.Next();
     }
-#if DEBUG
+#if !RELEASE
     debugState->totalEntities = world->liveEntities.count;
 #endif
 

@@ -297,7 +297,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
 {
     OpenGLInfo info = OpenGLGetInfo( modernContext );
 
-#if DEBUG
+#if !RELEASE
     if( glDebugMessageCallbackARB )
     {
         glEnable( GL_DEBUG_OUTPUT_SYNCHRONOUS );
@@ -784,7 +784,7 @@ OpenGLRenderToOutput( OpenGLState &gl, const RenderCommands &commands, GameMemor
     mProjView = mProjView * commands.camera.mTransform;
     gl.mCurrentProjView = mProjView;
 
-#if DEBUG
+#if !RELEASE
     DebugState* debugState = (DebugState*)gameMemory->debugStorage;
     debugState->totalDrawCalls = 0;
     debugState->totalPrimitiveCount = 0;
@@ -835,7 +835,7 @@ OpenGLRenderToOutput( OpenGLState &gl, const RenderCommands &commands, GameMemor
                               GL_STREAM_DRAW );
 
                 glDrawElements( GL_TRIANGLES, entry->indexCount, GL_UNSIGNED_INT, (void *)0 );
-#if DEBUG
+#if !RELEASE
                 debugState->totalDrawCalls++;
                 debugState->totalVertexCount += entry->vertexCount;
                 debugState->totalPrimitiveCount += (entry->indexCount / 3);
@@ -854,7 +854,7 @@ OpenGLRenderToOutput( OpenGLState &gl, const RenderCommands &commands, GameMemor
 
                 glDrawArrays( GL_LINES, 0, entry->lineCount * 2 );
 
-#if DEBUG
+#if !RELEASE
                 debugState->totalDrawCalls++;
                 debugState->totalPrimitiveCount += entry->lineCount;
 #endif

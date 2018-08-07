@@ -86,7 +86,7 @@ LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     globalPlatform = *memory->platformAPI;
-#if DEBUG
+#if !RELEASE
     DebugState* debugState = (DebugState*)memory->debugStorage;
 #endif
 
@@ -136,7 +136,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         GameInput* gameInput = input;
 
-#if DEBUG
+#if !RELEASE
         GameInput dummyInput;
         if( memory->DEBUGglobalEditing )
         {
@@ -155,7 +155,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         UpdateAndRenderWorld( gameInput, memory, renderCommands );
     }
 
-#if DEBUG
+#if !RELEASE
     float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
     float frameTime = 1000.f / fps;
     char statsText[1024];
@@ -184,7 +184,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 }
 
 
-#if DEBUG
+#if !RELEASE
 //const u32 DEBUGglobalCountersCount = __COUNTER__;
 DebugCycleCounter DEBUGglobalCounters[__COUNTER__];
 

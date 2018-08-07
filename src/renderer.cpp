@@ -255,6 +255,8 @@ PushMesh( const Mesh& mesh, RenderCommands *commands )
             TexturedVertex& src = mesh.vertices[i];
             TexturedVertex *dst = commands->vertexBuffer.base + commands->vertexBuffer.count;
 
+            // TODO Redesign Mesh structure as a SOA so that we can apply more efficient copies and transforms like
+            // http://fastcpp.blogspot.com/2011/07/fast-3d-vector-matrix-transformation.html
             dst->p = Transform( mesh.mTransform, src.p );
             //v4 pSrc = V4( src.p, 1 );
             //__m128 xyz1 = _mm_loadu_ps( (r32*)&pSrc );

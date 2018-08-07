@@ -143,7 +143,7 @@ struct GameMemory
     u64 transientStorageSize;
     void *transientStorage;         // NOTE Required to be cleared to zero at startup
 
-#if DEBUG
+#if !RELEASE
     u64 debugStorageSize;
     void *debugStorage;             // NOTE Required to be cleared to zero at startup
 

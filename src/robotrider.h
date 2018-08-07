@@ -71,7 +71,7 @@ struct GameState
     MemoryArena worldArena;
     World *world;
 
-#if DEBUG
+#if !RELEASE
     EditorState DEBUGeditorState;
 #endif
 };

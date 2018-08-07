@@ -75,7 +75,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define local_persistent static
 
 
-#if DEBUG
+#if !RELEASE
 #define HALT() ( (*(volatile int *)0 = 0) != 0 )
 #define ASSERT(expr) ((void)( !(expr) && (_assert_handler( #expr, __FILE__, __LINE__ ), 1) && HALT()))
 #define ASSERTM(expr, msg) ((void)( !(expr) && (_assert_handler( msg, __FILE__, __LINE__ ), 1) && HALT()))
@@ -84,7 +84,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define ASSERTM(expr, msg) ((void)0)
 #endif
 
-#if DEBUG
+#if !RELEASE
 #define NOT_IMPLEMENTED ASSERT(!"NotImplemented")
 #else
 #define NOT_IMPLEMENTED NotImplemented!!!

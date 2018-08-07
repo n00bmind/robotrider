@@ -42,7 +42,7 @@ DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
                   ImGuiWindowFlags_NoMove |
                   ImGuiWindowFlags_NoInputs );
     ImGui::TextColored( UIdarkTextColor, statsText );
-#if DEBUG
+#if !RELEASE
     ImGui::SameLine( (r32)windowWidth - 100 );
     ImGui::TextColored( UIdarkTextColor, "DEBUG BUILD" );
 #endif
