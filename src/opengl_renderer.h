@@ -116,6 +116,8 @@ struct OpenGLState
     OpenGLImGuiState imGui;
 
     OpenGLShaderProgram *activeProgram;
+    u32 white;
+    void* whiteTexture;
 };
 
 // Pointers to extension functions setup natively by the platform

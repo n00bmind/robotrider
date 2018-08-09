@@ -570,6 +570,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     PushMaterial( world->player->mesh.material, renderCommands );
     PushMesh( world->player->mesh, renderCommands );
 
+    PushMaterial( nullptr, renderCommands );
 
     // Render current cluster limits
     r32 s = CLUSTER_HALF_SIZE_METERS;

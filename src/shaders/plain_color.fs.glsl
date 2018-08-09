@@ -64,6 +64,5 @@ vec4 unpack( uint value )
 
 void main()
 {
-    //outColor = unpack( _in.color );
-    outColor = texture( diffuseMap, _in.texCoords );
+    outColor = texture( diffuseMap, _in.texCoords ) * unpack( _in.color );
 }

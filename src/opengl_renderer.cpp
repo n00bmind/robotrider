@@ -292,6 +292,35 @@ OpenGLHotswapShader( const char *filename, const char *shaderSource )
     }
 }
 
+internal
+PLATFORM_ALLOCATE_TEXTURE(OpenGLAllocateTexture)
+{
+    void* result = nullptr;
+
+    GLuint textureHandle;
+    glGenTextures( 1, &textureHandle );
+    glBindTexture( GL_TEXTURE_2D, textureHandle );
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+    // Use GL_LINEAR_MIPMAP_LINEAR?
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                  data );
+    glGenerateMipmap( GL_TEXTURE_2D );
+
+    result = (void*)textureHandle;
+    return result;
+}
+
+internal
+PLATFORM_DEALLOCATE_TEXTURE(OpenGLDeallocateTexture)
+{
+    // TODO 
+}
+
 OpenGLInfo
 OpenGLInit( OpenGLState &gl, bool modernContext )
 {
@@ -374,6 +403,10 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
         success = OpenGLLinkProgram( &prg );
         
     }
+
+    // Create a white texture
+    gl.white = 0xFFFFFFFF;
+    gl.whiteTexture = OpenGLAllocateTexture( (u8*)&gl.white, 1, 1 );
 
     ASSERT_GL_STATE;
     return info;
@@ -732,35 +765,6 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState &gl )
     }
 }
 
-internal
-PLATFORM_ALLOCATE_TEXTURE(OpenGLAllocateTexture)
-{
-    void* result = nullptr;
-
-    GLuint textureHandle;
-    glGenTextures( 1, &textureHandle );
-    glBindTexture( GL_TEXTURE_2D, textureHandle );
-
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-    // Use GL_LINEAR_MIPMAP_LINEAR?
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-
-    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                  data );
-    glGenerateMipmap( GL_TEXTURE_2D );
-
-    result = (void*)textureHandle;
-    return result;
-}
-
-internal
-PLATFORM_DEALLOCATE_TEXTURE(OpenGLDeallocateTexture)
-{
-    // TODO 
-}
-
 internal void
 OpenGLNewFrame( u32 viewportWidth, u32 viewportHeight )
 {
@@ -872,7 +876,8 @@ OpenGLRenderToOutput( OpenGLState &gl, const RenderCommands &commands, GameMemor
                 RenderEntryMaterial* entry = (RenderEntryMaterial*)entryHeader;
                 Material* material = entry->material;
 
-                glBindTexture( GL_TEXTURE_2D, (GLuint)(sz)material->diffuseMap );
+                GLuint materialId = (GLuint)(sz)(material ? material->diffuseMap : gl.whiteTexture);
+                glBindTexture( GL_TEXTURE_2D, materialId );
             } break;
 
             default:
