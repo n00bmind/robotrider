@@ -106,6 +106,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     u16 height = renderCommands->height;
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
+    PushMaterial( nullptr, renderCommands );
 
     DrawFloorGrid( CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands );
 

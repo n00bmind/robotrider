@@ -73,11 +73,20 @@ DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool 
     ImGui::PopStyleVar();
 }
 
+inline void
+DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, r32 xLen, const v3& yAxis, r32 yLen, u32 color,
+                                 RenderCommands *renderCommands )
+{
+    v3 p1 = origin + xAxis * 0.f  + yAxis * 0.f;
+    v3 p2 = origin + xAxis * xLen + yAxis * 0.f;
+    v3 p3 = origin + xAxis * xLen + yAxis * yLen;
+    v3 p4 = origin + xAxis * 0.f  + yAxis * yLen;
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
+}
+
 void
 DrawAxisGizmos( RenderCommands *renderCommands )
 {
-    // FIXME Draw 4 quads per axis so they are always visible from any angle!
-
     const m4 &currentCamTransform = renderCommands->camera.mTransform;
     v3 vCamFwd = -GetRow( currentCamTransform, 2 ).xyz;
     v3 vCamX = GetRow( currentCamTransform, 0 ).xyz;
@@ -86,62 +95,34 @@ DrawAxisGizmos( RenderCommands *renderCommands )
     v3 p = GetTranslation( currentCamTransform );
     v3 pCamera = Transposed( currentCamTransform ) * (-p);
 
-    float aspect = (r32)renderCommands->width / renderCommands->height;
-    float fovYHalfRads = Radians( renderCommands->camera.fovYDeg ) / 2;
-    float z = 1.0f;
-    float h2 = (r32)(tan( fovYHalfRads ) * z);
-	float w2 = h2 * aspect;
+    r32 aspect = (r32)renderCommands->width / renderCommands->height;
+    r32 fovYHalfRads = Radians( renderCommands->camera.fovYDeg ) / 2;
+    r32 z = 1.0f;
+    r32 h2 = (r32)(tan( fovYHalfRads ) * z);
+	r32 w2 = h2 * aspect;
 
-    float margin = 0.2f;
-    float len = 0.1f;
-    float thick = 0.005f;
-    v3 startPos = pCamera + z * vCamFwd - (w2-margin) * vCamX - (h2-margin) * vCamY;
+    r32 margin = 0.2f;
+    r32 len = 0.1f;
+    r32 w = 0.005f;
+    v3 origin = pCamera + z * vCamFwd - (w2-margin) * vCamX - (h2-margin) * vCamY;
 
-    v3 p1, p2, p3, p4;
-    u32 color = Pack01ToRGBA( V4( 1, 0, 0, 1 ) );
-    v3 vL = V3X();
-    v3 vD = V3Z();
-    p1 = startPos + vL * 0.f + vD * thick;
-    p2 = startPos + vL * 0.f + vD * 0.f;
-    p3 = startPos + vL * len + vD * 0.f;
-    p4 = startPos + vL * len + vD * thick;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
-    vD = V3Y();
-    p1 = startPos + vL * 0.f + vD * thick;
-    p2 = startPos + vL * 0.f + vD * 0.f;
-    p3 = startPos + vL * len + vD * 0.f;
-    p4 = startPos + vL * len + vD * thick;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    u32 color = Pack01ToRGBA( V4( 1, 0, 1, 1 ) );
+    DrawAlignedQuadWithBasis( origin,                           V3X(), len,  V3Z(), w, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin + V3Z() * w,               V3X(), len,  V3Y(), w, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin + V3Z() * w + V3Y() * w,   V3X(), len, -V3Z(), w, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin + V3Y() * w,               V3X(), len, -V3Y(), w, color, renderCommands );
 
-    vL = V3Y();
-    vD = V3X();
     color = Pack01ToRGBA( V4( 0, 1, 0, 1 ) );
-    p1 = startPos + vL * 0.f + vD * thick;
-    p2 = startPos + vL * 0.f + vD * 0.f;
-    p3 = startPos + vL * len + vD * 0.f;
-    p4 = startPos + vL * len + vD * thick;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
-    vD = V3Z();
-    p1 = startPos + vL * 0.f + vD * thick;
-    p2 = startPos + vL * 0.f + vD * 0.f;
-    p3 = startPos + vL * len + vD * 0.f;
-    p4 = startPos + vL * len + vD * thick;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin,                           V3Y(), len,  V3Z(), w, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin + V3Z() * w,               V3Y(), len, -V3X(), w, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin + V3Z() * w - V3X() * w,   V3Y(), len, -V3Z(), w, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin - V3X() * w,               V3Y(), len,  V3X(), w, color, renderCommands );
 
-    vL = V3Z();
-    vD = V3X();
     color = Pack01ToRGBA( V4( 0, 0, 1, 1 ) );
-    p1 = startPos + vL * 0.f + vD * thick;
-    p2 = startPos + vL * 0.f + vD * 0.f;
-    p3 = startPos + vL * len + vD * 0.f;
-    p4 = startPos + vL * len + vD * thick;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
-    vD = V3Y();
-    p1 = startPos + vL * 0.f + vD * thick;
-    p2 = startPos + vL * 0.f + vD * 0.f;
-    p3 = startPos + vL * len + vD * 0.f;
-    p4 = startPos + vL * len + vD * thick;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin,                           V3Z(), len, -V3X(), w, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin - V3X() * w,               V3Z(), len,  V3Y(), w, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin - V3X() * w + V3Y() * w,   V3Z(), len,  V3X(), w, color, renderCommands );
+    DrawAlignedQuadWithBasis( origin + V3Y() * w,               V3Z(), len, -V3Y(), w, color, renderCommands );
 }
 
 #if !RELEASE

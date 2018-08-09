@@ -151,7 +151,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
 #endif
 
-        PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
         UpdateAndRenderWorld( gameInput, memory, renderCommands );
     }
 

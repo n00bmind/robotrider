@@ -1,7 +1,6 @@
 KNOWN ISSUES
 
 - Hot reloading is broken
-- Rendering of the axis gizmos is broken
 - Shift key does not trigger "left shoulder" button
 - There's a big glitch right when entering a new cluster
 

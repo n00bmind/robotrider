@@ -546,6 +546,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
 
     ///// Render
+    PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
     PushProgramChange( ShaderProgramName::FlatShaded, renderCommands );
 
     auto it = world->liveEntities.First();
