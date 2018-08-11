@@ -107,11 +107,9 @@ struct SArray : public Array<T>
 /////     HASH TABLE    /////
 
 // NOTE Type K must support/overload == comparison
-template <typename K, typename T>
+template <typename K, typename T, u32 (*H)( const K& )>
 struct HashTable
 {
-    typedef u32 HashFunction( const K& key );
-
     struct HashSlot
     {
         bool occupied;
@@ -124,9 +122,8 @@ struct HashTable
     HashSlot* table;
     u32 tableSize;
     u32 count;
-    HashFunction* hashFunction;
 
-    HashTable( MemoryArena* arena, u32 size, HashFunction* hashFunction_ )
+    HashTable( MemoryArena* arena, u32 size )
     {
         // Check size is a power of 2
         ASSERT( size && ((size & (size - 1)) == 0) );
@@ -134,7 +131,6 @@ struct HashTable
         table = PUSH_ARRAY( arena, size, HashSlot );
         tableSize = size;
         count = 0;
-        hashFunction = hashFunction_;
 
         Clear();
     }
@@ -143,13 +139,13 @@ struct HashTable
     {
         for( u32 i = 0; i < tableSize; ++i )
             table[i].occupied = false;
-        // TODO Add existing externally chained elements to a free list like in BucketArray
+        // FIXME Add existing externally chained elements to a free list like in BucketArray
         count = 0;
     }
 
     u32 IndexFromKey( const K& key )
     {
-        u32 hashValue = hashFunction( key );
+        u32 hashValue = H( key );
         u32 result = hashValue & (tableSize - 1);
         return result;
     }

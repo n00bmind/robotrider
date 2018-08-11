@@ -215,6 +215,7 @@ struct PlatformAPI
     PlatformCompleteAllJobsFunc* CompleteAllJobs;
     PlatformJobQueue* hiPriorityQueue;
     //PlatformJobQueue* loPriorityQueue;
+    // NOTE Includes the main thread! (0)
     u32 workerThreadsCount;
 
     PlatformAllocateTextureFunc* AllocateTexture;

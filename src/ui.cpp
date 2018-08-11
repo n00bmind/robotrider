@@ -106,7 +106,7 @@ DrawAxisGizmos( RenderCommands *renderCommands )
     r32 w = 0.005f;
     v3 origin = pCamera + z * vCamFwd - (w2-margin) * vCamX - (h2-margin) * vCamY;
 
-    u32 color = Pack01ToRGBA( V4( 1, 0, 1, 1 ) );
+    u32 color = Pack01ToRGBA( V4( 1, 0, 0, 1 ) );
     DrawAlignedQuadWithBasis( origin,                           V3X(), len,  V3Z(), w, color, renderCommands );
     DrawAlignedQuadWithBasis( origin + V3Z() * w,               V3X(), len,  V3Y(), w, color, renderCommands );
     DrawAlignedQuadWithBasis( origin + V3Z() * w + V3Y() * w,   V3X(), len, -V3Z(), w, color, renderCommands );

@@ -35,7 +35,7 @@ struct VertexKey
     }
 };
 
-internal u32
+u32
 VertexHash( const VertexKey& key )
 {
     return key.pIdx;
@@ -96,7 +96,7 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
     // the way face data is specified, we may need to spawn additional vertices
     // that will share the same position but differ in tex coord and/or normal
     u32 tableSize = GetNextPowerOf2( vertexCount );
-    HashTable<VertexKey, u32> cachedVertices( tmpArena, tableSize, VertexHash );
+    HashTable<VertexKey, u32, VertexHash> cachedVertices( tmpArena, tableSize );
     BucketArray<TexturedVertex> vertices( 1024, tmpArena );
 
     contents = (char*)read.contents;

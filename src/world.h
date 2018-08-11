@@ -110,6 +110,9 @@ struct GeneratorJob
     volatile bool occupied;
 };
 
+u32 ClusterHashFunction( const v3i& keyValue );
+u32 EntityHashFunction( const u32& keyValue );
+
 // 'Thickness' in clusters of the sim region on each side of the origin cluster
 #define SIM_REGION_WIDTH 1
 
@@ -130,7 +133,7 @@ struct World
     // 'REAL' stuff
     //
     // For now this will be the primary storage for (stored) entities
-    HashTable<v3i, Cluster> clusterTable;
+    HashTable<v3i, Cluster, ClusterHashFunction> clusterTable;
     // Scratch buffer for all the entities in the simulation region
     // (we take the clusters we want to simulate, expand the entities stored there to their live version, and then store them back)
     // (clusters around the player are always kept live)
@@ -139,7 +142,7 @@ struct World
     BucketArray<LiveEntity> liveEntities;
     // Handles to stored entities to allow arbitrary entity cross-referencing even for entities that move
     // across clusters
-    HashTable<u32, StoredEntity*> entityRefs;
+    HashTable<u32, StoredEntity*, EntityHashFunction> entityRefs;
 
     // Coordinates of the current cluster
     v3i pWorldOrigin;

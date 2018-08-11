@@ -11,6 +11,7 @@ EDITOR
 - Entity selection mode and showing debug data about them
 
 GRAPHICS
+- Frustum culling
 - Decent chasing camera
 - Start working on surfaces & lighting
 - Aspect ratio independece using black bars as needed (also, allow the game to vary output resolution at will)

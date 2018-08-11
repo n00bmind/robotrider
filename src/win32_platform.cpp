@@ -1725,6 +1725,8 @@ Win32WorkerThreadProc( LPVOID lpParam )
     return 0;
 }
 
+#define MAIN_THREAD_WORKER_INDEX 0
+
 internal void
 Win32InitJobQueue( PlatformJobQueue* queue,
                    Win32WorkerThreadContext* threadContexts, u32 threadCount )
@@ -1735,17 +1737,17 @@ Win32InitJobQueue( PlatformJobQueue* queue,
 
     for( u32 i = 0; i < threadCount; ++i )
     {
-        threadContexts[i] =
-        {
-            i + 1,      // Worker thread index 0 is reserved for the main thread!
-            queue,
-        };
+        threadContexts[i] = { i, queue };
 
-        DWORD threadId;
-        HANDLE handle = CreateThread( 0, MEGABYTES(1),
-                                      Win32WorkerThreadProc,
-                                      &threadContexts[i], 0, &threadId );
-        CloseHandle( handle );
+        // Worker thread index 0 is reserved for the main thread!
+        if( i > MAIN_THREAD_WORKER_INDEX )
+        {
+            DWORD threadId;
+            HANDLE handle = CreateThread( 0, MEGABYTES(1),
+                                          Win32WorkerThreadProc,
+                                          &threadContexts[i], 0, &threadId );
+            CloseHandle( handle );
+        }
     }
 }
 
@@ -1753,8 +1755,7 @@ internal
 PLATFORM_ADD_NEW_JOB(Win32AddNewJob)
 {
     // NOTE Single producer
-    ASSERT( queue->nextJobToWrite != queue->nextJobToRead ||
-            queue->jobs[queue->nextJobToRead].callback == nullptr );
+    ASSERT( (queue->nextJobToWrite + 1) % ARRAYCOUNT(queue->jobs) != queue->nextJobToRead );
 
     PlatformJobQueueJob& job = queue->jobs[queue->nextJobToWrite];
     job = { callback, userData };
@@ -1775,8 +1776,7 @@ PLATFORM_COMPLETE_ALL_JOBS(Win32CompleteAllJobs)
     //
     while( queue->completionCount < queue->completionTarget )
     {
-        // Main thread 'worker' index is always 0
-        Win32DoNextQueuedJob( queue, 0 );
+        Win32DoNextQueuedJob( queue, MAIN_THREAD_WORKER_INDEX );
     }
 
     queue->completionTarget = 0;
@@ -1833,7 +1833,7 @@ main( int argC, char **argV )
 
     // FIXME Should be dynamic, but can't be bothered!
     Win32WorkerThreadContext threadContexts[32];
-    u32 workerThreadsCount = systemInfo.dwNumberOfProcessors - 1;
+    u32 workerThreadsCount = systemInfo.dwNumberOfProcessors;
     ASSERT( workerThreadsCount <= ARRAYCOUNT(threadContexts) );
 
     Win32InitJobQueue( &globalPlatformState.hiPriorityQueue, threadContexts, workerThreadsCount );

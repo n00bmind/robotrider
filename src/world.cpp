@@ -22,14 +22,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 
-internal u32 clusterHashFunction( const v3i& keyValue )
+u32 ClusterHashFunction( const v3i& keyValue )
 {
     // TODO Better hash function! x)
     u32 hashValue = (u32)(19*keyValue.x + 7*keyValue.y + 3*keyValue.z);
     return hashValue;
 }
 
-internal u32 entityHashFunction( const u32& keyValue )
+u32 EntityHashFunction( const u32& keyValue )
 {
     // TODO Better hash function! x)
     return keyValue;
@@ -60,9 +60,9 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
     world->marchingCubeSize = 1;
     srand( 1234 );
 
-    new (&world->clusterTable) HashTable<v3i, Cluster>( worldArena, 256*1024, clusterHashFunction );
+    new (&world->clusterTable) HashTable<v3i, Cluster, ClusterHashFunction>( worldArena, 256*1024 );
     new (&world->liveEntities) BucketArray<LiveEntity>( 256, worldArena );
-    new (&world->entityRefs) HashTable<u32, StoredEntity *>( worldArena, 1024, entityHashFunction );
+    new (&world->entityRefs) HashTable<u32, StoredEntity *, EntityHashFunction>( worldArena, 1024 );
 
     world->pWorldOrigin = { 0, 0, 0 };
     world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
@@ -119,6 +119,7 @@ DEBUGClearAllClusters( World* world )
 {
     // NOTE This very likely leaks
     world->clusterTable.Clear();
+    world->liveEntities.Clear();
 }
 
 internal bool
@@ -166,9 +167,8 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 
     if( IsInSimRegion( clusterCoords, *job->pWorldOrigin ) )
     {
-        // We only have pools for worker threads and worker thread indices start at 1
-        // TODO This is bad. Find a more explicity way to associated thread-job data like this
-        MarchingMeshPool* meshPool = &job->meshPools[workerThreadIndex - 1];
+        // TODO Find a much more explicit and general way to associate thread-job data like this
+        MarchingMeshPool* meshPool = &job->meshPools[workerThreadIndex];
 
         // Make live entity from stored and put it in the world
         *job->outputEntity =
