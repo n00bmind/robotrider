@@ -216,7 +216,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
         }
         else
         {
-                LOG( "ERROR: Failed querying file size" );
+            LOG( "ERROR: Failed querying file size" );
         }
 
         CloseHandle( fileHandle );
@@ -267,7 +267,7 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGWin32WriteEntireFile)
 
 // TODO Cache all platform logs in some buffer and bulk dump them to game console when it's first available
 // Another solution could be externalizing the console entry buffer to the platform?
-PLATFORM_LOG(PlatformLog)
+PLATFORM_LOG(Win32Log)
 {
     char buffer[1024];
 
@@ -1822,7 +1822,7 @@ main( int argC, char **argV )
     GetSystemInfo( &systemInfo );
 
     // Init global platform
-    globalPlatform.Log = PlatformLog;
+    globalPlatform.Log = Win32Log;
     globalPlatform.DEBUGReadEntireFile = DEBUGWin32ReadEntireFile;
     globalPlatform.DEBUGFreeFileMemory = DEBUGWin32FreeFileMemory;
     globalPlatform.DEBUGWriteEntireFile = DEBUGWin32WriteEntireFile;
@@ -1970,7 +1970,7 @@ main( int argC, char **argV )
                 gameMemory.debugStorage = (u8*)gameMemory.transientStorage + gameMemory.transientStorageSize;
 #endif
 
-                i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames*audioOutput.bytesPerFrame,
+                i16 *soundSamples = (i16 *)VirtualAlloc( 0, audioOutput.bufferSizeFrames * audioOutput.bytesPerFrame,
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
 #if !RELEASE
@@ -2006,7 +2006,7 @@ main( int argC, char **argV )
 
                 gameMemory.imGuiContext = Win32InitImGui( window );
 
-                if( gameMemory.permanentStorage && gameMemory.transientStorage && soundSamples )
+                if( gameMemory.permanentStorage && renderCommands.isValid && soundSamples )
                 {
                     LOG( ".Allocated game memory with base address: %p", baseAddress );
 

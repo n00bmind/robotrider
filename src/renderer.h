@@ -27,6 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 enum class Renderer
 {
     OpenGL,
+    Gnmx,
     // OpenGLES,
     // Software?
 };
@@ -171,6 +172,8 @@ struct RenderCommands
 
     RenderEntryTexturedTris *currentTris;
     RenderEntryLines *currentLines;
+
+    bool isValid;
 };
 
 inline RenderCommands
@@ -192,6 +195,8 @@ InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
 
     result.currentTris = nullptr;
     result.currentLines = nullptr;
+
+    result.isValid = renderBuffer && vertexBuffer && indexBuffer;
 
     return result;
 }

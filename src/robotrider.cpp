@@ -42,7 +42,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ASSERT(x) ASSERT(x)
-// TODO Define STBI_MALLOC, STBI_REALLOC, STBI_FREE
+void* LibMalloc( sz size );
+void* LibRealloc( void* p, sz newSize );
+void  LibFree( void* p );
+#define STBI_MALLOC(sz)           LibMalloc( sz )
+#define STBI_REALLOC(p,newsz)     LibRealloc( p, newsz )
+#define STBI_FREE(p)              LibFree( p )
 #define STBI_ONLY_BMP
 #define STBI_NO_STDIO
 #define STB_IMAGE_STATIC
@@ -59,6 +64,31 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 PlatformAPI globalPlatform;
 internal GameConsole *gameConsole;
+// TODO Remove
+internal MemoryArena* auxArena;
+
+
+// FIXME Put these in some kind of more general pool (similar to the MeshPool)
+void*
+LibMalloc( sz size )
+{
+    void* result = PUSH_SIZE( auxArena, size );
+    return result;
+}
+
+void*
+LibRealloc( void* p, sz newSize )
+{
+    // FIXME Just leak for now
+    void* result = LibMalloc( newSize );
+    return result;
+}
+
+void
+LibFree( void* p )
+{
+    return;
+}
 
 
 LIB_EXPORT
@@ -124,6 +154,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                          (u8 *)memory->permanentStorage + sizeof(GameState),
                          memory->permanentStorageSize - sizeof(GameState) );
 
+        auxArena = &gameState->worldArena;
         gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
         InitWorld( gameState->world, &gameState->worldArena, &tranState->transientArena );
 
@@ -172,8 +203,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         DrawConsole( &gameState->gameConsole, width, height, statsText );
         DrawPerformanceCounters( memory, width, height );
     }
-    else
-        DrawStats( width, height, statsText );
+    // FIXME
+//     else
+//         DrawStats( width, height, statsText );
 #endif
 
     EndTemporaryMemory( tempMemory );

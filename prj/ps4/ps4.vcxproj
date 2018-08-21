@@ -10,6 +10,9 @@
       <Platform>ORBIS</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\ps4_platform.cpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{9B42C6B7-EB84-4ED3-85C0-705236566B37}</ProjectGuid>
     <ProjectName>ps4_platform</ProjectName>
@@ -47,20 +50,22 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ORBIS'">
-    <OutDir>$(SolutionDir)bin\$(Platform)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)bin\$(Platform)_$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)bin\$(Platform)\</OutDir>
+    <IntDir>$(SolutionDir)bin\$(Platform)\</IntDir>
     <TargetName>launcher</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ORBIS'">
-    <OutDir>$(SolutionDir)bin\$(Platform)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)bin\$(Platform)_$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)bin\$(Platform)\</OutDir>
+    <IntDir>$(SolutionDir)bin\$(Platform)\</IntDir>
     <TargetName>launcher</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ORBIS'">
     <ClCompile>
-      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions);</PreprocessorDefinitions>
+      <PreprocessorDefinitions>DEBUG;%(PreprocessorDefinitions);</PreprocessorDefinitions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <DisableSpecificWarnings>missing-braces; unused-variable; unused-function; missing-field-initializers</DisableSpecificWarnings>
+      <WarningsAsErrors>true</WarningsAsErrors>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ORBIS'">
@@ -68,6 +73,8 @@
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions);</PreprocessorDefinitions>
       <OptimizationLevel>Level2</OptimizationLevel>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <DisableSpecificWarnings>missing-braces; unused-variable; unused-function; missing-field-initializers</DisableSpecificWarnings>
+      <WarningsAsErrors>true</WarningsAsErrors>
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Condition="'$(ConfigurationType)' == 'Makefile' and Exists('$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets')" Project="$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets" />

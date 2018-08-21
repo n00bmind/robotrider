@@ -64,7 +64,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifdef _WIN32
 #define LIB_EXPORT extern "C" __declspec(dllexport)
 #else
-#define LIB_EXPORT extern "C"
+#define LIB_EXPORT extern "C" __declspec(dllexport)
 #endif
 
 //

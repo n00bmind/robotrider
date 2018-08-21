@@ -46,13 +46,13 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ORBIS'">
-    <OutDir>$(SolutionDir)bin\$(Platform)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)bin\$(Platform)_$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)bin\$(Platform)\</OutDir>
+    <IntDir>$(SolutionDir)bin\$(Platform)\</IntDir>
     <TargetName>robotrider</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ORBIS'">
-    <OutDir>$(SolutionDir)bin\$(Platform)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)bin\$(Platform)_$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)bin\$(Platform)\</OutDir>
+    <IntDir>$(SolutionDir)bin\$(Platform)\</IntDir>
     <TargetName>robotrider</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ORBIS'">
