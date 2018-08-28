@@ -31,6 +31,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "data_types.h"
 #include "meshgen.h"
 #include "world.h"
+#include "editor.h"
 #include "robotrider.h"
 #include "asset_loaders.h"
 
@@ -124,8 +125,27 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
     GameState *gameState = (GameState *)memory->permanentStorage;
-    ASSERT( sizeof(TransientState) <= memory->transientStorageSize );
-    TransientState *tranState = (TransientState *)memory->transientStorage;
+
+    // Init game arenas & world state
+    if( !memory->isInitialized )
+    {
+        InitializeArena( &gameState->worldArena,
+                         (u8 *)memory->permanentStorage + sizeof(GameState),
+                         memory->permanentStorageSize - sizeof(GameState) );
+
+        InitializeArena( &gameState->transientArena,
+                         (u8 *)memory->transientStorage,
+                         memory->transientStorageSize );
+
+        auxArena = &gameState->worldArena;
+
+        gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
+        InitWorld( gameState->world, &gameState->worldArena, &gameState->transientArena );
+
+        memory->isInitialized = true;
+    }
+
+    TemporaryMemory tempMemory = BeginTemporaryMemory( &gameState->transientArena );
 
     if( input->executableReloaded )
     {
@@ -133,36 +153,12 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         gameConsole = &gameState->gameConsole;
         // Re-set platform's ImGui context
         ImGui::SetCurrentContext( memory->imGuiContext );
+
+#if !RELEASE
+        InitEditor( &gameState->DEBUGeditorState, gameState->world, &gameState->worldArena, &gameState->transientArena );
+        memory->DEBUGglobalEditing = true;
+#endif
     }
-
-    // Init transient arena
-    if( !tranState->isInitialized )
-    {
-        InitializeArena( &tranState->transientArena,
-                         (u8 *)memory->transientStorage + sizeof(TransientState),
-                         memory->transientStorageSize - sizeof(TransientState));
-
-        tranState->isInitialized = true;
-    }
-
-    TemporaryMemory tempMemory = BeginTemporaryMemory( &tranState->transientArena );
-
-    // Init game arena & world state
-    if( !memory->isInitialized )
-    {
-        InitializeArena( &gameState->worldArena,
-                         (u8 *)memory->permanentStorage + sizeof(GameState),
-                         memory->permanentStorageSize - sizeof(GameState) );
-
-        auxArena = &gameState->worldArena;
-        gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
-        InitWorld( gameState->world, &gameState->worldArena, &tranState->transientArena );
-
-        memory->isInitialized = true;
-    }
-
-    u16 width = renderCommands->width;
-    u16 height = renderCommands->height;
 
     {
         GameInput* gameInput = input;
@@ -185,6 +181,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         UpdateAndRenderWorld( gameInput, memory, renderCommands );
     }
 
+    u16 width = renderCommands->width;
+    u16 height = renderCommands->height;
+
 #if !RELEASE
     float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
     float frameTime = 1000.f / fps;
@@ -196,22 +195,21 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     if( memory->DEBUGglobalEditing )
     {
-        UpdateAndRenderEditor( input, memory, renderCommands, statsText );
+        UpdateAndRenderEditor( input, memory, renderCommands, statsText, &gameState->transientArena );
     }
     else if( memory->DEBUGglobalDebugging )
     {
         DrawConsole( &gameState->gameConsole, width, height, statsText );
         DrawPerformanceCounters( memory, width, height );
     }
-    // FIXME
-//     else
-//         DrawStats( width, height, statsText );
+    else
+        DrawStats( width, height, statsText );
 #endif
 
     EndTemporaryMemory( tempMemory );
 
     CheckArena( &gameState->worldArena );
-    CheckArena( &tranState->transientArena );
+    CheckArena( &gameState->transientArena );
 }
 
 

@@ -6,9 +6,12 @@
 WORLDGEN
 - Procedural generation of some kind of infinite pipe-like world structure
   (look into Wave Function Collapse algorithms which should allow for tileable generation)
+- Unify all mesh pools and put them behind a ticket mutex so they can be shared by threads. Remember to _first_ do the mesh generation
+  in the thread, then copying it to the mesh pool _afterwards_
 
 EDITOR
 - Entity selection mode and showing debug data about them
+- Orbiting camera around selected entity (with progressive zoom)
 
 GRAPHICS
 - Frustum culling
@@ -37,6 +40,7 @@ INPUT
 - Find a way to calibrate different relative movement amounts from the different input methods
 
 DEBUGGING
+- Memory stats for arenas and pools
 - Habemus leak! Memory usage grows non-stop currently
 - Profiler
 - Profile & optimize the DEBUG build!

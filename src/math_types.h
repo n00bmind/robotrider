@@ -53,17 +53,13 @@ union v2i
     i32 e[2];
 };
 
+const v2i V2iZero = { 0, 0 };
+
 inline v2i
 V2I( i32 x, i32 y )
 {
     v2i result = { x, y };
     return result;
-}
-
-inline v2i
-V2iZero()
-{
-    return { 0, 0 };
 }
 
 inline bool
@@ -94,17 +90,13 @@ union v2
     r32 e[2];
 };
 
+const v2 V2Zero = { 0, 0 };
+
 inline v2
 V2( const v2i &v )
 {
     v2 result = { (r32)v.x, (r32)v.y };
     return result;
-}
-
-inline v2
-V2Zero()
-{
-    return { 0.0f, 0.0f };
 }
 
 inline bool
@@ -222,6 +214,18 @@ union v3
     r32 e[3];
 };
 
+const v3 V3Zero = { 0.0f, 0.0f, 0.0f };
+const v3 V3Undefined = { R32NAN, R32NAN, R32NAN };
+// Canonical world orientations
+// We define our right-handed game world as having the positive Z axis pointing up
+// (consequently the positive Y axis points 'forward')
+const v3 V3X = { 1.0f, 0.0f, 0.0f };
+const v3 V3Y = { 0.0f, 1.0f, 0.0f };
+const v3 V3Z = { 0.0f, 0.0f, 1.0f };
+const v3 V3Right   = { 1.0f, 0.0f, 0.0f };
+const v3 V3Forward = { 0.0f, 1.0f, 0.0f };
+const v3 V3Up      = { 0.0f, 0.0f, 1.0f };
+
 inline v3
 V3( r32 x, r32 y, r32 z )
 {
@@ -241,12 +245,6 @@ V3( const v3i& v )
 {
     v3 result = { (r32)v.x, (r32)v.y, (r32)v.z };
     return result;
-}
-
-inline v3
-V3Zero()
-{
-    return { 0.0f, 0.0f, 0.0f };
 }
 
 inline bool
@@ -363,6 +361,13 @@ Normalized( const v3 &v )
 }
 
 inline r32
+Length( const v3& v )
+{
+    r32 result = Sqrt( Dot( v, v ) );
+    return result;
+}
+
+inline r32
 LengthSq( const v3& v )
 {
     r32 result = Dot( v, v );
@@ -370,55 +375,16 @@ LengthSq( const v3& v )
 }
 
 inline r32
+Distance( const v3& a, const v3& b )
+{
+    r32 result = Length(a - b);
+    return result;
+}
+
+inline r32
 DistanceSq( const v3& a, const v3& b )
 {
     r32 result = LengthSq(a - b);
-    return result;
-}
-
-// Canonical world orientations
-// We define our game world as having the positive Z axis pointing up
-// (consequently the positive Y axis points 'forward')
-
-inline v3
-V3X()
-{
-    v3 result = { 1.0f, 0.0f, 0.0f };
-    return result;
-}
-
-inline v3
-V3Right()
-{
-    v3 result = { 1.0f, 0.0f, 0.0f };
-    return result;
-}
-
-inline v3
-V3Y()
-{
-    v3 result = { 0.0f, 1.0f, 0.0f };
-    return result;
-}
-
-inline v3
-V3Forward()
-{
-    v3 result = { 0.0f, 1.0f, 0.0f };
-    return result;
-}
-
-inline v3
-V3Z()
-{
-    v3 result = { 0.0f, 0.0f, 1.0f };
-    return result;
-}
-
-inline v3
-V3Up()
-{
-    v3 result = { 0.0f, 0.0f, 1.0f };
     return result;
 }
 
@@ -501,6 +467,14 @@ union m4
     r32 e[4][4];
 };
 
+const m4 M4Identity =
+{{
+    { 1, 0, 0, 0 },
+    { 0, 1, 0, 0 },
+    { 0, 0, 1, 0 },
+    { 0, 0, 0, 1 }
+}};
+
 inline bool
 AlmostEqual( const m4& a, const m4& b )
 {
@@ -509,20 +483,6 @@ AlmostEqual( const m4& a, const m4& b )
             if( !AlmostEqual( a.e[i][j], b.e[i][j] ) )
                 return false;
     return true;
-}
-
-inline m4
-M4Identity()
-{
-    m4 result =
-    {{
-         { 1, 0, 0, 0 },
-         { 0, 1, 0, 0 },
-         { 0, 0, 1, 0 },
-         { 0, 0, 0, 1 }
-    }};
-
-    return result;
 }
 
 inline m4
@@ -856,15 +816,7 @@ union m4Symmetric
     r64 e[10];
 };
 
-inline m4Symmetric
-M4SymmetricZero()
-{
-    m4Symmetric result;
-    for( int i = 0; i < 10; ++i )
-        result.e[i] = 0;
-
-    return result;
-}
+const m4Symmetric M4SymmetricZero = {0};
 
 // Make plane
 inline m4Symmetric
@@ -916,7 +868,7 @@ Determinant3x3( const m4Symmetric& m,
     return result;
 }
 
-// Quaternions
+// Quaternion
 
 union qn
 {
@@ -936,7 +888,7 @@ union qn
     r32 e[4];
 };
 
-// TODO Test from here on
+// TODO (Unit) Test everything quaternion related
 inline qn
 QN( const m4 &m )
 {
@@ -1044,6 +996,121 @@ Rotate( const v3& v, const qn& q )
     qn vPure = { v.x, v.y, v.z, 0 };
     qn qResult = q * vPure * Conjugate( q );
     return qResult.xyz;
+}
+
+
+
+// Triangle
+
+struct tri
+{
+    union
+    {
+        struct
+        {
+            v3 v0, v1, v2;
+        };
+        v3 v[3];
+    };
+    v3 n;
+};
+
+inline tri
+Tri( const v3& v0, const v3& v1, const v3& v2, bool findNormal = false )
+{
+    tri result = { v0, v1, v2 };
+
+    if( findNormal )
+        result.n = Normalized( Cross( v1 - v0, v2 - v0 ) );
+
+    return result;
+}
+
+
+// AABB
+
+struct aabb
+{
+    r32 xMin, xMax;
+    r32 yMin, yMax;
+    r32 zMin, zMax;
+};
+
+
+// Ray
+
+struct ray
+{
+    v3 p;
+    v3 dir;
+};
+
+inline bool
+Intersects( const ray& r, tri& t, v3* pI = nullptr, r32 absoluteEpsilon = 0 )
+{
+    bool result = false;
+
+    v3 u = t.v1 - t.v0;
+    v3 v = t.v2 - t.v0;
+
+    if( t.n == V3Zero )
+        t.n = Normalized( Cross( u, v ) );
+    ASSERT( !AlmostEqual( t.n, V3Zero ) );
+
+    r32 denom = Dot( t.n, r.dir );
+    if( AlmostEqual( denom, 0 ) )
+    {
+        // Check if ray is coplanar
+        if( AlmostEqual( Distance( r.p, t.v0 ), 0 ) )
+        {
+            if( pI )
+                *pI = V3Undefined;
+            result = true;
+        }
+    }
+    else
+    {
+        v3 dist = t.v0 - r.p;
+        r32 num = Dot( t.n, dist );
+        r32 rDist = num / denom;
+
+        if( AlmostEqual( rDist, 0 ) )
+        {
+            // Super edge case
+            if( pI )
+                *pI = r.p;
+            result = true;
+        }
+        else if( rDist > 0 )
+        {
+            v3 i = r.p + rDist * r.dir;
+
+            if( pI )
+                *pI = i;
+
+            // Is it inside?
+            r32 uu = Dot( u, u );
+            r32 vv = Dot( v, v );
+            r32 uv = Dot( u, v );
+            denom = uv * uv - uu * vv;
+
+            v3 w = i - t.v0;
+            r32 wu = Dot( w, u );
+            r32 wv = Dot( w, v );
+
+            r32 sI = (uv * wv - vv * wu) / denom;
+            if( GreaterOrAlmostEqual( sI, 0, absoluteEpsilon ) && LessOrAlmostEqual( sI, 1, absoluteEpsilon ) )
+            {
+                r32 tI = (uv * wu - uu * wv) / denom;
+                if( GreaterOrAlmostEqual( tI, 0, absoluteEpsilon ) && LessOrAlmostEqual( sI + tI, 1, absoluteEpsilon ) )
+                {
+                    result = true;
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 #endif /* __MATH_TYPES_H__ */

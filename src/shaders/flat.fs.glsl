@@ -63,11 +63,14 @@ vec4 unpack( uint value )
 
 void main()
 {
+    vec4 vertexColor = unpack( _in.color );
+
     // FIXME This is relative to the view,
     // make the light always come from a 'sun' at -Z inf. (so a directional light pointing to +Z)
     vec3 lightDirection = vec3( 0.0, 0.0, 1.0 );
     float d = dot( lightDirection, _in.faceNormal );
-    vec4 lightColor = vec4( d, d, d, 1 );
+    vec4 lightColor = vertexColor * d;
+    lightColor.a = vertexColor.a;
 
 #if 1 // Extremely simple fog
     float dMax = 400;
@@ -78,6 +81,5 @@ void main()
     outColor = mix( vec4( 0.95, 0.95, 0.95, 1 ), lightColor, tFog );
 #endif
 
-    //outColor = unpack( _in.color );
     //outColor = lightColor;
 }

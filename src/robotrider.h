@@ -56,30 +56,18 @@ struct GameConsole
 };
 
 
-
-struct EditorState
-{
-    v3 pCamera;
-    r32 camPitch;
-    r32 camYaw;
-};
-
 struct GameState
 {
-    GameConsole gameConsole;
-
     MemoryArena worldArena;
+    MemoryArena transientArena;
+
     World *world;
 
 #if !RELEASE
     EditorState DEBUGeditorState;
 #endif
-};
 
-struct TransientState
-{
-    bool isInitialized;
-    MemoryArena transientArena;
+    GameConsole gameConsole;
 };
 
 #endif /* __ROBOTRIDER_H__ */

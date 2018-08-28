@@ -31,7 +31,7 @@ _PushRenderElement( RenderCommands *commands, u32 size, RenderEntryType type )
     if( buffer.size + size < buffer.maxSize )
     {
         result = (RenderEntry *)(buffer.base + buffer.size);
-        CLEAR0( result, size );
+        ZERO( result, size );
         result->type = type;
         result->size = size;
         buffer.size += size;
@@ -308,3 +308,88 @@ PushMaterial( Material* material, RenderCommands* commands )
         entry->material = material;
     }
 }
+
+internal void
+DrawBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
+{
+    PushLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMin ), color, renderCommands );
+    PushLine( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMin ), color, renderCommands );
+    PushLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMax, box.zMin ), color, renderCommands );
+    PushLine( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMax, box.zMin ), color, renderCommands );
+
+    PushLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMin, box.zMax ), color, renderCommands );
+    PushLine( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMax ), color, renderCommands );
+    PushLine( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMin, box.yMax, box.zMax ), color, renderCommands );
+    PushLine( V3( box.xMax, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
+
+    PushLine( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMax, box.yMin, box.zMax ), color, renderCommands );
+    PushLine( V3( box.xMin, box.yMax, box.zMax ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
+    PushLine( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMin, box.yMax, box.zMax ), color, renderCommands );
+    PushLine( V3( box.xMax, box.yMin, box.zMax ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
+}
+
+internal void
+DrawBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
+{
+    aabb box =
+    {
+        p.x - size / 2, p.x + size / 2,
+        p.y - size / 2, p.y + size / 2,
+        p.z - size / 2, p.z + size / 2,
+    };
+    DrawBounds( box, color, renderCommands );
+}
+
+internal void
+DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands )
+{
+    const r32 areaHalf = areaSizeMeters / 2;
+
+    u32 semiBlack = Pack01ToRGBA( V4( 0, 0, 0, 0.1f ) );
+    v3 off = V3Zero;
+
+    r32 yStart = -areaHalf;
+    r32 yEnd = areaHalf;
+    for( float x = -areaHalf; x <= areaHalf; x += resolutionMeters )
+    {
+        PushLine( V3( x, yStart, 0 ) + off, V3( x, yEnd, 0 ) + off, semiBlack, renderCommands );
+    }
+    r32 xStart = -areaHalf;
+    r32 xEnd = areaHalf;
+    for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
+    {
+        PushLine( V3( xStart, y, 0 ) + off, V3( xEnd, y, 0 ) + off, semiBlack, renderCommands );
+    }
+}
+
+internal void
+DrawCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands )
+{
+    ASSERT( step > 0.f );
+
+    r32 xMin = boundingBox.xMin;
+    r32 xMax = boundingBox.xMax;
+    r32 yMin = boundingBox.yMin;
+    r32 yMax = boundingBox.yMax;
+    r32 zMin = boundingBox.zMin;
+    r32 zMax = boundingBox.zMax;
+
+    for( r32 z = zMin; z <= zMax; z += step )
+    {
+        for( r32 y = yMin; y <= yMax; y += step )
+            PushLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );
+
+        for( r32 x = xMin; x <= xMax; x += step )
+            PushLine( { x, yMin, z }, { x, yMax, z }, color, renderCommands );
+    }
+
+    if( drawZAxis )
+    {
+        for( r32 y = yMin; y <= yMax; y += step )
+        {
+            for( r32 x = xMin; x <= xMax; x += step )
+                PushLine( { x, y, zMin }, { x, y, zMax }, color, renderCommands );
+        }
+    }
+}
+

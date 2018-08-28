@@ -44,6 +44,13 @@ struct Array
         maxCount = maxCount_;
     }
 
+    Array( T* data_, u32 maxCount_ )
+    {
+        data = data_;
+        count = 0;
+        maxCount = maxCount_;
+    }
+
     T& operator[]( u32 i )
     {
         ASSERT( i < maxCount );
@@ -78,6 +85,11 @@ struct Array
         memcpy( buffer, data, count * sizeof(T) );
     }
 
+    void Clear()
+    {
+        count = 0;
+    }
+
 protected:
 
     Array()
@@ -107,28 +119,27 @@ struct SArray : public Array<T>
 /////     HASH TABLE    /////
 
 // NOTE Type K must support/overload == comparison
-template <typename K, typename T, u32 (*H)( const K& )>
+template <typename K, typename V,
+         u32 (*H)( const K&, u32 ),
+         bool (*S)( const K&, const K& ) = nullptr>
 struct HashTable
 {
-    struct HashSlot
+    struct Slot
     {
         bool occupied;
         K key;
-        T value;
-        HashSlot* nextInHash;
+        V value;
+        Slot* nextInHash;
     };
 
 
-    HashSlot* table;
+    Slot* table;
     u32 tableSize;
     u32 count;
 
     HashTable( MemoryArena* arena, u32 size )
     {
-        // Check size is a power of 2
-        ASSERT( size && ((size & (size - 1)) == 0) );
-
-        table = PUSH_ARRAY( arena, size, HashSlot );
+        table = PUSH_ARRAY( arena, size, Slot );
         tableSize = size;
         count = 0;
 
@@ -145,16 +156,16 @@ struct HashTable
 
     u32 IndexFromKey( const K& key )
     {
-        u32 hashValue = H( key );
-        u32 result = hashValue & (tableSize - 1);
+        u32 hashValue = H( key, tableSize );
+        u32 result = hashValue % tableSize;
         return result;
     }
 
-    T* Find( const K& key )
+    V* Find( const K& key )
     {
         u32 idx = IndexFromKey( key );
 
-        HashSlot* slot = &table[idx];
+        Slot* slot = &table[idx];
         if( slot->occupied )
         {
             do
@@ -169,45 +180,93 @@ struct HashTable
         return nullptr;
     }
 
-    T& operator[]( const K& key )
+#if 0
+    V& operator[]( const K& key )
     {
         return *Find( key );
     }
+#endif
 
-    T* Reserve( const K& key, MemoryArena* arena )
+    Slot* FindAllSlots( const K& key )
     {
         u32 idx = IndexFromKey( key );
 
-        HashSlot* prev = nullptr;
-        HashSlot* slot = &table[idx];
-        if( slot->occupied )
+        Slot* result = &table[idx];
+        if( !result->occupied )
+            result = nullptr;
+
+        return result;
+    }
+
+    V* Reserve( const K& key, MemoryArena* arena )
+    {
+        u32 idx = IndexFromKey( key );
+
+        Slot* last = nullptr;
+        Slot* next = nullptr;
+        Slot* slot = &table[idx];
+        while( slot && slot->occupied )
         {
-            do
+            // TODO Allow key comparisons different from bit-equality if needed
+            if( slot->key == key )
+                return nullptr;
+
+            bool insertHere = false;
+            constexpr bool sorted = (S != nullptr);
+            if( sorted )
+                insertHere = S( key, slot->key );
+
+            if( insertHere )
             {
-                // TODO Allow key comparisons different from bit-equality if needed
-                if( slot->key == key )
-                    return nullptr;
+                next = PUSH_STRUCT( arena, Slot );
+                next->occupied = true;
+                next->key = slot->key;
+                next->nextInHash = slot->nextInHash;
+                COPY( &slot->value, &next->value, sizeof(V) );
 
-                prev = slot;
+                break;
+            }
+            else
+            {
+                last = slot;
                 slot = slot->nextInHash;
-            } while( slot );
+            }
+        }
 
-            slot = PUSH_STRUCT( arena, HashSlot );
-            prev->nextInHash = slot;
+        if( slot )
+        {
+            ZERO( &slot->value, sizeof(V) );
+            slot->occupied = true;
+            slot->key = key;
+            slot->nextInHash = next;
+        }
+        else
+        {
+            // We're at the end
+            slot = PUSH_STRUCT( arena, Slot );
+            ZERO( slot, sizeof(Slot) );
+            slot->occupied = true;
+            slot->key = key;
+
+            last->nextInHash = slot;
         }
 
         count++;
-        slot->occupied = true;
-        slot->key = key;
-        slot->nextInHash = nullptr;
-
         return &slot->value;
     }
 
-    void Add( const K& key, const T& value, MemoryArena* arena )
+    bool Add( const K& key, const V& value, MemoryArena* arena )
     {
-        T* slotValue = Reserve( key, arena );
-        *slotValue = value;
+        bool result = false;
+
+        V* slotValue = Reserve( key, arena );
+        if( slotValue )
+        {
+            *slotValue = value;
+            result = true;
+        }
+
+        return result;
     }
 
 private:
@@ -617,7 +676,7 @@ private:
 };
 
 
-/////     LINKED LIST    /////
+/////     (intrusive) LINKED LIST    /////
 
 template <typename T>
 struct LinkedList

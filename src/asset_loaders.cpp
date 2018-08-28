@@ -35,15 +35,15 @@ struct VertexKey
     }
 };
 
-u32
-VertexHash( const VertexKey& key )
+inline u32
+VertexHash( const VertexKey& key, u32 tableSize )
 {
     return key.pIdx;
 }
 
 Mesh
 LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
-         const m4& appliedTransform = M4Identity() )
+         const m4& appliedTransform = M4Identity )
 {
     // TODO Centralize asset loading in the platform layer (through a 'bundle' file),
     // so that temporary memory used while loading is reused and not allocated every time
@@ -249,17 +249,19 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
     packedVertices.count = vertices.count;
 
     // Pre apply transform
-    if( !AlmostEqual( appliedTransform, M4Identity() ) )
+    if( !AlmostEqual( appliedTransform, M4Identity ) )
     {
         for( u32 i = 0; i < packedVertices.count; ++i )
             packedVertices.data[i].p = appliedTransform * packedVertices.data[i].p;
     }
 
-    Mesh result = {};
+    Mesh result;
+    Init( &result );
     result.vertices = packedVertices.data;
     result.vertexCount = packedVertices.count;
     result.indices = indices.data;
     result.indexCount = indices.count;
+    CalcBounds( &result );
 
     return result;
 }

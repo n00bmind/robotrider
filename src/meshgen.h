@@ -33,17 +33,16 @@ struct MarchingCacheBuffers
     u32* middleLayerVertexIndices;
     u32* topLayerVertexIndices;
 
-    u32 layerCellCount;
+    u32 cellsPerAxis;
 };
 
-struct MarchingMeshPool
+struct MeshPool
 {
-    MarchingCacheBuffers cacheBuffers;
-
     BucketArray<TexturedVertex> scratchVertices;
     BucketArray<u32> scratchIndices;
 
     MemoryBlock memorySentinel;
+    u32 meshCount; 
 };
 
 
@@ -80,6 +79,8 @@ struct InflatedMesh
 };
 
 
+
+
 struct Metaball
 {
     v3 pCenter;
@@ -102,7 +103,7 @@ struct GeneratorData
 
 struct UniversalCoords;
 #define GENERATOR_FUNC(name) \
-    Mesh* name( const GeneratorData* generatorData, const UniversalCoords& p, MarchingMeshPool* meshPool ) 
+    Mesh* name( const GeneratorData* generatorData, const UniversalCoords& p, MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool ) 
 typedef GENERATOR_FUNC(GeneratorFunc);
 
 struct Generator

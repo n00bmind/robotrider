@@ -44,6 +44,18 @@ AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
     return result;
 }
 
+inline bool
+GreaterOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
+{
+    return a > b || AlmostEqual( a, b, absoluteEpsilon );
+}
+
+inline bool
+LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
+{
+    return a < b || AlmostEqual( a, b, absoluteEpsilon );
+}
+
 inline r32
 Radians( r32 degrees )
 {
@@ -75,6 +87,40 @@ RandomRange( r32 min, r32 max )
 {
     r32 t = rand() / ((r32)RAND_MAX + 1);
     r32 result = min + t * (max - min);
+    return result;
+}
+
+internal int LogTable256[256] = 
+{
+#define LT(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n
+    -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+    LT(4), LT(5), LT(5), LT(6), LT(6), LT(6), LT(6),
+    LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7)
+#undef LT
+};
+
+inline int
+Log2( u32 value )
+{
+    int result;
+    u32 t, tt;
+
+    tt = value >> 16;
+    if( tt )
+    {
+        t = tt >> 8;
+        result = t
+            ? 24 + LogTable256[t]
+            : 16 + LogTable256[tt];
+    }
+    else 
+    {
+        t = value >> 8;
+        result = t
+            ? 8 + LogTable256[t]
+            : LogTable256[value];
+    }
+
     return result;
 }
 

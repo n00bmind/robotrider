@@ -1057,7 +1057,7 @@ Win32GetSecondsElapsed( LARGE_INTEGER start, LARGE_INTEGER end )
 internal void
 Win32ToggleFullscreen( HWND window )
 {
-    local_persistent WINDOWPLACEMENT windowPos = {sizeof(windowPos)};
+    persistent WINDOWPLACEMENT windowPos = {sizeof(windowPos)};
 
     // http://blogs.msdn.com/b/oldnewthing/archive/2010/04/12/9994016.aspx
 
@@ -1939,7 +1939,7 @@ main( int argC, char **argV )
             u32 renderBufferSize = MEGABYTES( 4 );
             u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize,
                                                    MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-            u32 vertexBufferMaxCount = 2*1024*1024;
+            u32 vertexBufferMaxCount = 8*1024*1024;
             TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferMaxCount * sizeof(TexturedVertex),
                                                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
             u32 indexBufferMaxCount = vertexBufferMaxCount * 8;

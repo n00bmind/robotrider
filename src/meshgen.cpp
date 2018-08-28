@@ -1,20 +1,37 @@
 MarchingCacheBuffers
-InitMarchingCacheBuffers( MemoryArena* arena, r32 areaSideMeters, r32 resolutionMeters )
+InitMarchingCacheBuffers( MemoryArena* arena, u32 cellsPerAxis )
 {
-    // NOTE We waste a bit of memory by adding an extra row of cells at the ends,
-    // but that simplifies the algorithm by eliminating edge cases
-    u32 stepsPerSide = (u32)(areaSideMeters / resolutionMeters) + 1;
-    u32 layerCellCount = stepsPerSide * stepsPerSide;
-
     MarchingCacheBuffers result;
+    result.cellsPerAxis = cellsPerAxis;
+
+    // NOTE We add an extra row of cells at the ends, which simplifies the algorithm by eliminating edge cases
+    u32 stepsPerAxis = cellsPerAxis + 1;
+    u32 layerCellCount = stepsPerAxis * stepsPerAxis;
+
     result.bottomLayerSamples = PUSH_ARRAY( arena, layerCellCount, r32 );
     result.topLayerSamples = PUSH_ARRAY( arena, layerCellCount, r32 );
     result.bottomLayerVertexIndices = PUSH_ARRAY( arena, layerCellCount * 2, u32 );
     result.middleLayerVertexIndices = PUSH_ARRAY( arena, layerCellCount, u32 );
     result.topLayerVertexIndices = PUSH_ARRAY( arena, layerCellCount * 2, u32 );
-    result.layerCellCount = layerCellCount;
 
     return result;
+}
+
+internal void
+ClearVertexCaches( MarchingCacheBuffers* buffers, bool clearBottomLayer )
+{
+    u32 stepsPerAxis = buffers->cellsPerAxis + 1;
+    u32 layerCellCount = stepsPerAxis * stepsPerAxis;
+
+    if( clearBottomLayer )
+    {
+        SET( buffers->bottomLayerVertexIndices, U32MAX,
+             layerCellCount * 2 * sizeof(u32) );
+    }
+    SET( buffers->middleLayerVertexIndices, U32MAX,
+         layerCellCount * sizeof(u32) );
+    SET( buffers->topLayerVertexIndices, U32MAX, 
+         layerCellCount * 2 * sizeof(u32) );
 }
 
 internal void
@@ -29,32 +46,32 @@ SwapTopAndBottomLayers( MarchingCacheBuffers* buffers )
 
 
 void
-Init( MarchingMeshPool* pool, r32 areaSideMeters, r32 resolutionMeters,
-      MemoryArena* arena, sz size )
+Init( MeshPool* pool, MemoryArena* arena, sz size )
 {
     new (&pool->scratchVertices) BucketArray<TexturedVertex>( 1024, arena );
     new (&pool->scratchIndices) BucketArray<u32>( 1024, arena );
 
-    pool->cacheBuffers =
-        InitMarchingCacheBuffers( arena, areaSideMeters, resolutionMeters );
     // Initialize empty sentinel
     pool->memorySentinel.prev = &pool->memorySentinel;
     pool->memorySentinel.next = &pool->memorySentinel;
     pool->memorySentinel.size = 0;
     pool->memorySentinel.flags = MemoryBlockFlags::None;
 
+    // Insert empty block with the whole memory chunk
     InsertBlock( &pool->memorySentinel, size, PUSH_SIZE( arena, size ) );
+
+    pool->meshCount = 0;
 }
 
 void
-ClearScratchMesh( MarchingMeshPool* pool )
+ClearScratchBuffers( MeshPool* pool )
 {
     pool->scratchVertices.Clear();
     pool->scratchIndices.Clear();
 }
 
 Mesh*
-AllocateMesh( MarchingMeshPool* pool, u32 vertexCount, u32 indexCount )
+AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
 {
     sz vertexSize = sizeof(TexturedVertex) * vertexCount;
     sz indexSize = sizeof(u32) * indexCount;
@@ -68,10 +85,12 @@ AllocateMesh( MarchingMeshPool* pool, u32 vertexCount, u32 indexCount )
         const sz blockSplitThreshold = 4096;
         result = (Mesh*)UseBlock( block, totalMeshSize, blockSplitThreshold );
 
+        Init( result );
         result->vertices = (TexturedVertex*)((u8*)result + sizeof(Mesh));
         result->indices = (u32*)((u8*)result->vertices + vertexSize);
-
         result->ownerPool = pool;
+
+        pool->meshCount++;
     }
     else
     {
@@ -84,7 +103,7 @@ AllocateMesh( MarchingMeshPool* pool, u32 vertexCount, u32 indexCount )
 }
 
 Mesh*
-AllocateMeshFromScratchBuffers( MarchingMeshPool* pool )
+AllocateMeshFromScratchBuffers( MeshPool* pool )
 {
     Mesh* result = AllocateMesh( pool, pool->scratchVertices.count,
                                  pool->scratchIndices.count );
@@ -98,10 +117,29 @@ AllocateMeshFromScratchBuffers( MarchingMeshPool* pool )
     return result;
 }
 
-void
-ReleaseMesh( Mesh* mesh )
+Mesh*
+CopyMeshFromScratchBuffers( Mesh* mesh, MeshPool* pool )
 {
-    ReleaseBlockAt( mesh, &mesh->ownerPool->memorySentinel );
+    if( mesh->vertexCount != pool->scratchVertices.count ||
+        mesh->indexCount != pool->scratchIndices.count )
+    {
+        mesh = AllocateMeshFromScratchBuffers( pool );
+    }
+    else
+    {
+        pool->scratchVertices.BlitTo( mesh->vertices );
+        pool->scratchIndices.BlitTo( mesh->indices );
+    }
+
+    return mesh;
+}
+
+void
+ReleaseMesh( Mesh** mesh )
+{
+    ReleaseBlockAt( *mesh, &(*mesh)->ownerPool->memorySentinel );
+    (*mesh)->ownerPool->meshCount--;
+    *mesh = nullptr;
 }
 
 ///// MARCHING CUBES /////
@@ -130,7 +168,7 @@ namespace
 
 internal void
 MarchCube( const v3& pOrigin, r32 cubeSize,
-           const v2i& pLayerOrigin, const MarchingCacheBuffers& cacheBuffers, u32 layerStepsCount,
+           const v2i& pLayerOrigin, MarchingCacheBuffers* cacheBuffers, u32 layerStepsCount,
            BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
 {
     TIMED_BLOCK;
@@ -147,8 +185,8 @@ MarchCube( const v3& pOrigin, r32 cubeSize,
         u32 layerOffset = pLayer.x * layerStepsCount + pLayer.y;
 
         r32 sample = cornerOffset.z
-            ? cacheBuffers.topLayerSamples[layerOffset]
-            : cacheBuffers.bottomLayerSamples[layerOffset];
+            ? cacheBuffers->topLayerSamples[layerOffset]
+            : cacheBuffers->bottomLayerSamples[layerOffset];
 
         if( sample >= 0 )
             caseIndex |= 1 << i;
@@ -162,9 +200,9 @@ MarchCube( const v3& pOrigin, r32 cubeSize,
 
     u32* vertexCaches[3] =
     {
-        cacheBuffers.bottomLayerVertexIndices,
-        cacheBuffers.middleLayerVertexIndices,
-        cacheBuffers.topLayerVertexIndices,
+        cacheBuffers->bottomLayerVertexIndices,
+        cacheBuffers->middleLayerVertexIndices,
+        cacheBuffers->topLayerVertexIndices,
     };
 
     int caseVertex = 0;
@@ -226,7 +264,7 @@ MarchCube( const v3& pOrigin, r32 cubeSize,
                 indices->Add( newVertexIndex );
                 TexturedVertex v = {};
                 v.p = vPos;
-                v.color = Pack01ToRGBA( { 0, 0, 0, 1 } );
+                v.color = Pack01ToRGBA( { 1, 1, 1, 1 } );
                 vertices->Add( v );
 
                 // Cache it too!
@@ -239,47 +277,47 @@ MarchCube( const v3& pOrigin, r32 cubeSize,
 }
 
 Mesh*
-MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
-               MarchedCubeSampleFunc* sampleFunc, const void* sampleData,
-               MarchingMeshPool* meshPool )
+MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters, MarchedCubeSampleFunc* sampleFunc, const void* sampleData,
+               MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool )
 {
-    ClearScratchMesh( meshPool );
+    ClearScratchBuffers( meshPool );
 
     {
         TIMED_BLOCK;
 
-        // TODO Eliminate all the duplicate vertices that marching cubes creates
-        // see http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng
+        u32 cellsPerAxis = (u32)(areaSideMeters / cubeSizeMeters);
+        ASSERT( cacheBuffers->cellsPerAxis == cellsPerAxis );
         r32 halfSideMeters = areaSideMeters / 2;
-        i32 numSteps = (i32)(areaSideMeters / cubeSizeMeters);
-        v3 centerOffset = { -halfSideMeters, -halfSideMeters, -halfSideMeters };
+        v3 cornerOffset = { -halfSideMeters, -halfSideMeters, -halfSideMeters };
 
         v3 vXDelta = V3( cubeSizeMeters, 0, 0 );
         v3 vYDelta = V3( 0, cubeSizeMeters, 0 );
 
-        bool firstPass = true;
+        u32 gridLinesPerAxis = cellsPerAxis + 1;
+        bool firstLayer = true;
 
-        for( int k = 0; k < numSteps; ++k )
+        // Iterate cells when going vertically, since we consider both the bottom and the top of the cubes on each pass
+        for( u32 k = 0; k < cellsPerAxis; ++k )
         {
-            r32* bottomSamples = meshPool->cacheBuffers.bottomLayerSamples;
-            r32* topSamples = meshPool->cacheBuffers.topLayerSamples;
+            r32* bottomSamples = cacheBuffers->bottomLayerSamples;
+            r32* topSamples = cacheBuffers->topLayerSamples;
 
             // Pre-sample top and bottom slices of values for each layer
             // so we only sample one corner per cube instead of 8
             for( int n = 0; n < 2; ++n )
             {
-                if( n == 0 && !firstPass )
+                if( n == 0 && !firstLayer )
                     continue;
 
                 r32* sampledLayer = n ? topSamples : bottomSamples;
 
-                v3 p = pCenter + centerOffset + V3I( 0, 0, k + n ) * cubeSizeMeters;
+                v3 p = pCenter + cornerOffset + V3I( 0, 0, k + n ) * cubeSizeMeters;
 
                 r32* sample = sampledLayer;
-                for( int i = 0; i < numSteps; ++i )
+                for( u32 i = 0; i < gridLinesPerAxis; ++i )
                 {
                     v3 pAtRowStart = p;
-                    for( int j = 0; j < numSteps; ++j )
+                    for( u32 j = 0; j < gridLinesPerAxis; ++j )
                     {
                         *sample++ = sampleFunc( sampleData, p );
                         p += vYDelta;
@@ -288,50 +326,30 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters,
                 }
             }
 
-            if( firstPass )
-            {
-                CLEAR( meshPool->cacheBuffers.bottomLayerVertexIndices,
-                       meshPool->cacheBuffers.layerCellCount * 2 * sizeof(u32), U32MAX );
-            }
-            CLEAR( meshPool->cacheBuffers.middleLayerVertexIndices,
-                   meshPool->cacheBuffers.layerCellCount * sizeof(u32), U32MAX );
-            CLEAR( meshPool->cacheBuffers.topLayerVertexIndices,
-                   meshPool->cacheBuffers.layerCellCount * 2 * sizeof(u32), U32MAX );
+            // Keep a cache of already calculated vertices to eliminate duplication
+            ClearVertexCaches( cacheBuffers, firstLayer );
 
-            v3 p = pCenter + centerOffset + V3I( 0, 0, k ) * cubeSizeMeters;
-
-            for( int i = 0; i < numSteps; ++i )
+            v3 p = pCenter + cornerOffset + V3I( 0, 0, k ) * cubeSizeMeters;
+            for( u32 i = 0; i < cellsPerAxis; ++i )
             {
                 v3 pAtRowStart = p;
-                for( int j = 0; j < numSteps; ++j )
+                for( u32 j = 0; j < cellsPerAxis; ++j )
                 {
-                    MarchCube( p, cubeSizeMeters,
-                               V2I( i, j ), meshPool->cacheBuffers, numSteps,
+                    MarchCube( p, cubeSizeMeters, V2I( i, j ), cacheBuffers, gridLinesPerAxis,
                                &meshPool->scratchVertices, &meshPool->scratchIndices );
                     p += vYDelta;
                 }
                 p = pAtRowStart + vXDelta;
             }
 
-            firstPass = false;
-            SwapTopAndBottomLayers( &meshPool->cacheBuffers );
+            firstLayer = false;
+            SwapTopAndBottomLayers( cacheBuffers );
         }
     }
 
     // Write output mesh
-#if 0
-    Mesh* result = PUSH_STRUCT( arena, Mesh );
-    result->vertices = PUSH_ARRAY( arena, pool->scratchVertices.count, TexturedVertex );
-    pool->scratchVertices.BlitTo( result->vertices );
-    result->vertexCount = pool->scratchVertices.count;
-
-    result->indices = PUSH_ARRAY( arena, pool->scratchIndices.count, u32 );
-    pool->scratchIndices.BlitTo( result->indices );
-    result->indexCount = pool->scratchIndices.count;
-#else
     Mesh* result = AllocateMeshFromScratchBuffers( meshPool );
     return result;
-#endif
 }
 
 internal r32
@@ -351,11 +369,10 @@ SampleMetaballs( const void* sampleData, const v3& pos )
 }
 
 void
-TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT,
-               MarchingCacheBuffers cacheBuffers,
-               MarchingMeshPool* meshPool, RenderCommands *renderCommands )
+TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, MarchingCacheBuffers* cacheBuffers,
+               MeshPool* meshPool, RenderCommands *renderCommands )
 {
-    local_persistent SArray<Metaball, 10> balls;
+    persistent SArray<Metaball, 10> balls;
 
     if( balls[0].radiusMeters == 0 )
     {
@@ -365,7 +382,7 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT,
             //r32 y = RandomRange( -halfSideMeters, halfSideMeters );
             //r32 z = RandomRange( -halfSideMeters, halfSideMeters );
             r32 r = RandomRange( 1.0f, 5.0f );
-            balls.Add( { V3Zero(), r } );
+            balls.Add( { V3Zero, r } );
         }
     }
 
@@ -381,9 +398,9 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT,
     }
     
     // Update mesh by sampling our cubic area centered at origin
-    Mesh* metaMesh = MarchAreaFast( V3Zero(), areaSideMeters, cubeSizeMeters,
+    Mesh* metaMesh = MarchAreaFast( V3Zero, areaSideMeters, cubeSizeMeters,
                                     SampleMetaballs, &balls,
-                                    meshPool );
+                                    cacheBuffers, meshPool );
 
     PushMesh( *metaMesh, renderCommands );
 }
@@ -469,7 +486,7 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration )
     if( iteration == 0 )
     {
         for( u32 i = 0; i < mesh->vertices.count; ++i )
-            mesh->vertices[i].q = M4SymmetricZero();
+            mesh->vertices[i].q = M4SymmetricZero;
 
         for( u32 i = 0; i < mesh->triangles.count; ++i )
         {
@@ -791,6 +808,251 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, r32 agressiven
     CompactMesh( mesh );
 }
 
+///// CONVERSION TO 'SAMPLED' MESHES /////
+
+inline u32
+GridRayHash( const v2i& key, u32 tableSize )
+{
+    u32 bits = Log2( tableSize ) / 2 + 1;
+    u32 mask = (1 << bits) - 1;
+
+    u32 result = ((key.e[0] & mask) << bits) | (key.e[1] & mask);
+    return result;
+}
+
+struct Hit
+{
+    v2i gridCoords;
+    r32 hitCoord;
+};
+
+// TODO REMOVE
+internal void
+AddSorted( const Hit& hit, Array<Hit>* result )
+{
+    Hit tmp = {};
+    Hit* newSlot = nullptr;
+    bool inserted = false;
+    u32 i = 0;
+
+    for( i = 0; i < result->count; ++i )
+    {
+        if( hit.hitCoord < (*result)[i].hitCoord )
+        {
+            newSlot = result->Reserve();
+            tmp = (*result)[i];
+            (*result)[i] = hit;
+            inserted = true;
+            i++;
+            break;
+        }
+    }
+
+    if( inserted )
+    {
+        while( i < result->count )
+        {
+            Hit old = (*result)[i];
+            (*result)[i] = tmp;
+            tmp = old;
+
+            i++;
+        }
+    }
+    else
+        result->Add( hit );
+}
+
+internal void
+FindAllHits( const v2i& gridCoords, const Array<Hit>& hits, Array<Hit>* result )
+{
+    result->Clear();
+    for( u32 i = 0; i < hits.count; ++i )
+    {
+        if( hits[i].gridCoords == gridCoords )
+            AddSorted( hits[i], result );
+    }
+}
+
+Mesh*
+ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuffers,
+                         MeshPool* meshPool, MemoryArena* tmpArena, RenderCommands* renderCommands, const EditorState& editorState )
+{
+    // Make bounds same length on all axes
+    r32 xDim = sourceMesh.bounds.xMax - sourceMesh.bounds.xMin;
+    r32 yDim = sourceMesh.bounds.yMax - sourceMesh.bounds.yMin;
+    r32 zDim = sourceMesh.bounds.zMax - sourceMesh.bounds.zMin;
+
+    v3 pCenter = { sourceMesh.bounds.xMin + xDim / 2, sourceMesh.bounds.yMin + yDim / 2, sourceMesh.bounds.zMin + zDim / 2 };
+    r32 dim = Max( xDim, Max( yDim, zDim ) );
+
+    aabb box =
+    {
+        pCenter.x - dim / 2, pCenter.x + dim / 2,
+        pCenter.y - dim / 2, pCenter.y + dim / 2,
+        pCenter.z - dim / 2, pCenter.z + dim / 2,
+    };
+    v3 pGridOrigin = { box.xMin, box.yMin, box.zMin };
+
+    u32 cellsPerAxis = cacheBuffers->cellsPerAxis;
+    u32 gridLinesPerAxis = cellsPerAxis + 1;
+    r32 step = dim / cellsPerAxis;
+
+    // We store all intersections with grid rays in a hashtable where encoded integer coords are the hash
+    // For example, for X rays, the Y|Z coords are the hash, for Y rays, the X|Z coords, etc.
+    // NOTE This can be heavily compressed if needed by using a more compact hash, since most entries will be empty anyway
+    u32 rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
+    HashTable<v2i, r32, GridRayHash> yRaysTable( tmpArena, rayCount );
+
+    SArray<Hit, 80000> hits;
+
+    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
+    PushMaterial( nullptr, renderCommands );
+
+    // Get all triangles and find their bounds
+    u32 triangleCount = sourceMesh.indexCount / 3;
+    ASSERT( triangleCount * 3 == sourceMesh.indexCount );
+
+    u32 vertIndex = 0;
+    for( u32 i = 0; i < triangleCount; ++i )
+    {
+        TexturedVertex& v0 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
+        TexturedVertex& v1 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
+        TexturedVertex& v2 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
+        tri t = { v0.p, v1.p, v2.p };
+
+        aabb triBounds;
+        triBounds.xMin = Min( v0.p.x, Min( v1.p.x, v2.p.x ) );
+        triBounds.xMax = Max( v0.p.x, Max( v1.p.x, v2.p.x ) );
+        triBounds.yMin = Min( v0.p.y, Min( v1.p.y, v2.p.y ) );
+        triBounds.yMax = Max( v0.p.y, Max( v1.p.y, v2.p.y ) );
+        triBounds.zMin = Min( v0.p.z, Min( v1.p.z, v2.p.z ) );
+        triBounds.zMax = Max( v0.p.z, Max( v1.p.z, v2.p.z ) );
+
+        // Test each tri for intersection against all marching grid rays (early out using bounds first)
+        // (this could be accelerated easily by using a binary search on grid coords)
+        
+        // Y rays
+        for( u32 x = 0; x < gridLinesPerAxis; ++x )
+        {
+            r32 xGrid = box.xMin + x * step;
+
+            if( triBounds.xMax < xGrid )
+                break;
+            if( xGrid >= triBounds.xMin )
+            {
+                for( u32 z = 0; z < gridLinesPerAxis; ++z )
+                {
+                    r32 zGrid = box.zMin + z * step;
+
+                    if( triBounds.zMax < zGrid )
+                        break;
+                    if( zGrid >= triBounds.zMin )
+                    {
+                        ray r = { { xGrid, box.yMin, zGrid }, { 0, 1, 0 } };
+                        v3 pI = V3Zero;
+
+                        // NOTE Rays intersecting at the very edges of tris can be a problem at finer resolutions
+                        // (not easily solved even when adding a manual tolerance)
+                        if( Intersects( r, t, &pI ) )
+                        {
+                            // Store intersection coords relative to grid
+                            //yRaysTable.Add( V2I( x, z ), (pI - pGridOrigin).y, tmpArena );
+                            hits.Add( { V2I( x, z ), (pI - pGridOrigin).y } );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    ClearScratchBuffers( meshPool );
+    bool firstLayer = true;
+
+    for( u32 k = 0; k < cellsPerAxis; ++k )
+    {
+        r32* bottomSamples = cacheBuffers->bottomLayerSamples;
+        r32* topSamples = cacheBuffers->topLayerSamples;
+
+        // Pre-sample top and bottom slices of values for each layer
+        // so we only sample one corner per cube instead of 8
+        for( int n = 0; n < 2; ++n )
+        {
+            if( n == 0 && !firstLayer )
+                continue;
+
+            r32* sampledLayer = n ? topSamples : bottomSamples;
+            r32* sample = sampledLayer;
+            for( u32 i = 0; i < gridLinesPerAxis; ++i )
+            {
+                v2i vIK = n == 0 ? V2I( i, k ) : V2I( i, k+1 );
+
+                //HashTable<v2i, r32, GridRayHash>::Slot* hits = yRaysTable.FindAllSlots( vIK );
+                SArray<Hit, 10> rayHits;
+                FindAllHits( vIK, hits, &rayHits );
+
+                // This usually signals a tolerance error in Intersects() (or a bogus mesh, of course)
+                ASSERT( (rayHits.count & 0x1) == 0 );
+
+                u32 h = 0;
+                int value = 1;
+                for( u32 j = 0; j < gridLinesPerAxis; ++j )
+                {
+                    r32 yGrid = j * step;
+                    //while( hits && hits->value < j )
+                    //{
+                        //if( hits->key == vIK )
+                            //value *= -1;
+                        //hits = hits->nextInHash;
+                    //}
+
+                    while( h < rayHits.count && rayHits[h].hitCoord < yGrid )
+                    {
+                        value *= -1;
+                        h++;
+                    }
+                    *sample++ = (r32)value;
+                }
+            }
+        }
+
+        // Keep a cache of already calculated vertices to eliminate duplication
+        ClearVertexCaches( cacheBuffers, firstLayer );
+
+        for( u32 i = 0; i < cellsPerAxis; ++i )
+        {
+            for( u32 j = 0; j < cellsPerAxis; ++j )
+            {
+                v3 p = pGridOrigin + V3I( i, j, k ) * step;
+
+#if 1
+                if( editorState.displayedLayer == k )
+                {
+                    u32 color = Pack01ToRGBA( 0, 1, 0, 1 );
+                    r32 value = cacheBuffers->bottomLayerSamples[i * gridLinesPerAxis + j];
+                    //if( value < 0 )
+                        //DrawBoxAt( p, 0.005f * editorState.drawingDistance, color, renderCommands );
+
+                    value = cacheBuffers->topLayerSamples[i * gridLinesPerAxis + j];
+                    if( value < 0 )
+                        DrawBoxAt( p + V3( 0, 0, step ), 0.005f * editorState.drawingDistance, color, renderCommands );
+                }
+#endif
+
+                MarchCube( p, step, V2I( i, j ), cacheBuffers, gridLinesPerAxis,
+                           &meshPool->scratchVertices, &meshPool->scratchIndices );
+            }
+        }
+
+        firstLayer = false;
+        SwapTopAndBottomLayers( cacheBuffers );
+    }
+
+    Mesh* result = AllocateMeshFromScratchBuffers( meshPool );
+    result->bounds = box;
+    return result;
+}
+
 
 ///// MESH GENERATION /////
 
@@ -876,8 +1138,8 @@ SampleCylinder( const void* sampleData, const v3& p )
 
 u32
 GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advancePosition,
-                     MarchingCacheBuffers cacheBuffers,
-                     MarchingMeshPool* meshPool, Mesh** outMesh, GeneratorPathData* nextFork )
+                     MarchingCacheBuffers* cacheBuffers,
+                     MeshPool* meshPool, Mesh** outMesh, GeneratorPathData* nextFork )
 {
     bool turnInThisStep = path->distanceToNextTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToNextFork < path->areaSideMeters;
@@ -911,7 +1173,7 @@ GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advance
     if( forkInThisStep )
     {
         if( turnInThisStep )
-            rotations[rotIndex] = M4Identity();
+            rotations[rotIndex] = M4Identity;
 
         rotIndex = (random >> 2) & 0x3;
         m4& rot = rotations[rotIndex];
@@ -922,8 +1184,8 @@ GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advance
         path->nextFork = nextFork;
     }
 
-    *outMesh = MarchAreaFast( V3Zero(), path->areaSideMeters, resolutionMeters,
-                              SampleCuboid, path, meshPool );
+    *outMesh = MarchAreaFast( V3Zero, path->areaSideMeters, resolutionMeters,
+                              SampleCuboid, path, cacheBuffers, meshPool );
     (*outMesh)->mTransform = Translation( path->pCenter );
 
     // Advance to next chunk
@@ -956,7 +1218,7 @@ SampleHullNode( const void* sampleData, const v3& p )
     GeneratorHullNodeData* genData = (GeneratorHullNodeData*)sampleData;
 
     // Just a sphere for now
-    r32 result = DistanceSq( p, V3Zero() ) - 5;
+    r32 result = DistanceSq( p, V3Zero ) - 5;
     return result;
 }
 
@@ -967,9 +1229,9 @@ GENERATOR_FUNC(GeneratorHullNodeFunc)
     r32 areaSideMeters = hullGenData->areaSideMeters;
     r32 resolutionMeters = hullGenData->resolutionMeters;
 
-    Mesh* result = MarchAreaFast( V3Zero(), areaSideMeters, resolutionMeters,
+    Mesh* result = MarchAreaFast( V3Zero, areaSideMeters, resolutionMeters,
                                   SampleHullNode, generatorData,
-                                  meshPool );
+                                  cacheBuffers, meshPool );
     result->mTransform = Translation( p.pClusterOffset );
 
     return result;

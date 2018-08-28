@@ -21,42 +21,72 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-internal void
-DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands )
+#if !RELEASE
+
+internal EditorEntity
+CreateEditorEntityFor( Mesh* mesh, u32 cellsPerSide )
 {
-    const r32 areaHalf = areaSizeMeters / 2;
+    EditorEntity result = { mesh, Pack01ToRGBA( 1, 0, 0, 1 ) };
+    result.cellsPerSide = cellsPerSide;
+    return result;
+}
 
-    u32 semiBlack = Pack01ToRGBA( V4( 0, 0, 0, 0.1f ) );
-    v3 off = V3Zero();
+internal void
+DrawEditorEntity( const EditorEntity& editorEntity, const EditorState& editorState, RenderCommands* renderCommands )
+{
+    if( editorEntity.mesh )
+    {
+        DrawBounds( editorEntity.mesh->bounds, editorEntity.color, renderCommands );
 
-    r32 yStart = -areaHalf;
-    r32 yEnd = areaHalf;
-    for( float x = -areaHalf; x <= areaHalf; x += resolutionMeters )
-    {
-        PushLine( V3( x, yStart, 0 ) + off, V3( x, yEnd, 0 ) + off, semiBlack, renderCommands );
-    }
-    r32 xStart = -areaHalf;
-    r32 xEnd = areaHalf;
-    for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
-    {
-        PushLine( V3( xStart, y, 0 ) + off, V3( xEnd, y, 0 ) + off, semiBlack, renderCommands );
+        aabb& box = editorEntity.mesh->bounds;
+        r32 resolutionStep = (box.xMax - box.xMin) / editorEntity.cellsPerSide;
+        //DrawCubicGrid( box, resolutionStep, Pack01ToRGBA( 1, 0, 0, 0.05f ), false, renderCommands ); 
+        r32 step = resolutionStep;
+        u32 color = Pack01ToRGBA( 0, 0, 0, 0.3f );
+        r32 xMin = box.xMin;
+        r32 xMax = box.xMax;
+        r32 yMin = box.yMin;
+        r32 yMax = box.yMax;
+        //for( u32 layer = editorState.displayedLayer; layer <= editorState.displayedLayer + 1; ++layer )
+        u32 layer = editorState.displayedLayer + 1;
+        {
+            r32 z = box.zMin + layer * step;
+
+            for( r32 y = yMin; y <= yMax; y += step )
+                PushLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );
+
+            for( r32 x = xMin; x <= xMax; x += step )
+            {
+                PushLine( { x, yMin, z }, { x, yMax, z }, color, renderCommands );
+            }
+        }
     }
 }
 
-#if !RELEASE
 void
-UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *renderCommands, const char* statsText )
+InitEditor( EditorState* editorState, World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
+{
+    editorState->testMesh = LoadOBJ( "bunny.obj", worldArena, tmpArena,
+                                      Scale( V3( 10.f, 10.f, 10.f ) ) * Translation( V3( 0, 0, 1.f ) ) );
+
+    editorState->cacheBuffers = InitMarchingCacheBuffers( worldArena, 200 );
+}
+
+void
+UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *renderCommands, const char* statsText,
+                       MemoryArena* tmpArena )
 {
     float dT = input->frameElapsedSeconds;
     float elapsedT = input->totalElapsedSeconds;
 
     GameState *gameState = (GameState *)memory->permanentStorage;
     EditorState &editorState = gameState->DEBUGeditorState;
+    World* world = gameState->world;
 
     // Setup a zenithal camera initially
-    if( editorState.pCamera == V3Zero() )
+    if( editorState.pCamera == V3Zero )
     {
-        editorState.pCamera = V3( 0, -50, 50 );
+        editorState.pCamera = V3( 0, -30, 30 );
         editorState.camYaw = 0;
         editorState.camPitch = 0;
         //v3 pLookAt = gameState->pPlayer;
@@ -105,12 +135,33 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
 
+    //if( input->totalElapsedSeconds - editorState.lastUpdateTimeSeconds >= 1.f || input->executableReloaded )
+    if( input->executableReloaded )
+    {
+        editorState.displayedLayer = (editorState.displayedLayer + 1) % editorState.cacheBuffers.cellsPerAxis;
+        editorState.lastUpdateTimeSeconds = input->totalElapsedSeconds;
+        editorState.drawingDistance = Distance( GetTranslation( editorState.testMesh.mTransform ), editorState.pCamera );
+        editorState.displayedLayer = 172;
+
+        MeshPool* meshPool = &world->meshPools[0];
+        if( editorState.testIsoSurfaceMesh )
+            ReleaseMesh( &editorState.testIsoSurfaceMesh );
+        editorState.testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( editorState.testMesh, &editorState.cacheBuffers,
+                                                                  meshPool, tmpArena, renderCommands, editorState );
+    }
+
+    PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
+    //PushMesh( editorState.testMesh, renderCommands );
+    PushMesh( *editorState.testIsoSurfaceMesh, renderCommands );
+
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMaterial( nullptr, renderCommands );
 
-    DrawFloorGrid( CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands );
+	DrawFloorGrid(CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands);
 
-    // FIXME Draw this as plain color always
+	editorState.testEditorEntity = CreateEditorEntityFor(editorState.testIsoSurfaceMesh, editorState.cacheBuffers.cellsPerAxis);
+	DrawEditorEntity( editorState.testEditorEntity, editorState, renderCommands );
+
     DrawAxisGizmos( renderCommands );
 
     r32 elapsedSeconds = input->totalElapsedSeconds;

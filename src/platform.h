@@ -72,7 +72,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
 #define internal static
-#define local_persistent static
+#define persistent static
 
 
 #if !RELEASE
@@ -105,8 +105,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define MEGABYTES(value) (KILOBYTES(value)*1024)
 #define GIGABYTES(value) (MEGABYTES((u64)value)*1024)
 
-#define CLEAR(dest, size, value) memset( dest, value, size )
-#define CLEAR0(dest, size) memset( dest, 0, size )
+#define COPY(source, dest, size) memcpy( dest, source, size )
+#define SET(dest, value, size) memset( dest, value, size )
+#define ZERO(dest, size) memset( dest, 0, size )
 
 // NOTE Only use these where storage is important (i.e: structs)
 typedef int8_t i8;

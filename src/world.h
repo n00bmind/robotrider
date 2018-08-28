@@ -102,16 +102,17 @@ struct Cluster
 
 struct GeneratorJob
 {
-    const StoredEntity* storedEntity;
-    const v3i*          pWorldOrigin;
-    MarchingMeshPool*   meshPools;
-    LiveEntity*         outputEntity;
+    const StoredEntity*     storedEntity;
+    const v3i*              pWorldOrigin;
+    MarchingCacheBuffers*   cacheBuffers;
+    MeshPool*               meshPools;
+    LiveEntity*             outputEntity;
 
     volatile bool occupied;
 };
 
-u32 ClusterHashFunction( const v3i& keyValue );
-u32 EntityHashFunction( const u32& keyValue );
+inline u32 ClusterHash( const v3i& keyValue, u32 tableSize );
+inline u32 EntityHash( const u32& keyValue, u32 tableSize );
 
 // 'Thickness' in clusters of the sim region on each side of the origin cluster
 #define SIM_REGION_WIDTH 1
@@ -133,7 +134,7 @@ struct World
     // 'REAL' stuff
     //
     // For now this will be the primary storage for (stored) entities
-    HashTable<v3i, Cluster, ClusterHashFunction> clusterTable;
+    HashTable<v3i, Cluster, ClusterHash> clusterTable;
     // Scratch buffer for all the entities in the simulation region
     // (we take the clusters we want to simulate, expand the entities stored there to their live version, and then store them back)
     // (clusters around the player are always kept live)
@@ -142,7 +143,7 @@ struct World
     BucketArray<LiveEntity> liveEntities;
     // Handles to stored entities to allow arbitrary entity cross-referencing even for entities that move
     // across clusters
-    HashTable<u32, StoredEntity*, EntityHashFunction> entityRefs;
+    HashTable<u32, StoredEntity*, EntityHash> entityRefs;
 
     // Coordinates of the current cluster
     v3i pWorldOrigin;
@@ -152,10 +153,9 @@ struct World
     r32 marchingCubeSize;
 
     Generator meshGenerators[16];
-    // TODO Create one of these per available worker thread
-    // (give threads an index they can use in the resulting array)
     // TODO Should this be aligned and/or padded for cache niceness?
-    MarchingMeshPool* meshPools;
+    MarchingCacheBuffers* cacheBuffers;
+    MeshPool* meshPools;
 
     GeneratorJob generatorJobs[PLATFORM_MAX_JOBQUEUE_JOBS];
     u32 lastAddedJob;

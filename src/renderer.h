@@ -36,14 +36,14 @@ enum class ShaderProgramName
 {
     None,
     PlainColor,
-    FlatShaded,
+    FlatShading,
 };
 
 
 struct Camera
 {
     r32 fovYDeg = 60;
-    m4 mTransform = M4Identity();
+    m4 mTransform = M4Identity;
 };
 
 struct TexturedVertex
@@ -55,13 +55,12 @@ struct TexturedVertex
     v3 n;
 };
 
-
 struct Material
 {
     void* diffuseMap;
 };
 
-struct MarchingMeshPool;
+struct MeshPool;
 
 struct Mesh
 {
@@ -71,11 +70,52 @@ struct Mesh
     u32 indexCount;
 
     m4 mTransform;
+    aabb bounds;
 
     Material* material;
 
-    MarchingMeshPool* ownerPool;
+    MeshPool* ownerPool;
 };
+
+inline void
+Init( Mesh* mesh )
+{
+    *mesh = {};
+    mesh->mTransform = M4Identity;
+}
+
+inline void
+CalcBounds( Mesh* mesh )
+{
+    aabb boundingBox =
+    {
+        R32INF, -R32INF,
+        R32INF, -R32INF,
+        R32INF, -R32INF,
+    };
+
+    for( u32 i = 0; i < mesh->vertexCount; ++i )
+    {
+        v3& p = mesh->vertices[i].p;
+
+        if( boundingBox.xMin > p.x )
+            boundingBox.xMin = p.x;
+        if( boundingBox.xMax < p.x )
+            boundingBox.xMax = p.x;
+
+        if( boundingBox.yMin > p.y )
+            boundingBox.yMin = p.y;
+        if( boundingBox.yMax < p.y )
+            boundingBox.yMax = p.y;
+
+        if( boundingBox.zMin > p.z )
+            boundingBox.zMin = p.z;
+        if( boundingBox.zMax < p.z )
+            boundingBox.zMax = p.z;
+    }
+
+    mesh->bounds = boundingBox;
+}
 
 
 enum class RenderEntryType

@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 
-import os, sys, subprocess, atexit
+import os, sys, subprocess, atexit, random
 from collections import namedtuple
 
 
@@ -41,14 +41,14 @@ config_win_debug = Config(
         platform       = platform_win,
         cmdline_opts   = ['d', 'dbg', 'debug'],
         compiler_flags = ['-DDEBUG=1', '-Z7', '-Od'],
-        linker_flags   = ['/debug:fastlink']
+        linker_flags   = ['/debug:full']                # Required for debugging after hot reloading
 )
 config_win_develop = Config(
         name           = 'Develop',
         platform       = platform_win,
         cmdline_opts   = ['dev', 'develop'],
         compiler_flags = ['-DDEVELOP=1', '-Z7', '-O2'],
-        linker_flags   = ['/debug:fastlink']
+        linker_flags   = ['/debug:full']
 )
 config_win_release = Config(
         name           = 'Release',
@@ -60,7 +60,8 @@ config_win_release = Config(
 
 
 default_platform = platform_win
-default_config = config_win_develop
+# default_config = config_win_develop
+default_config = config_win_debug
 
 
 
@@ -95,6 +96,8 @@ if __name__ == '__main__':
     config = default_config
 
     if platform.toolset == 'CL':
+        # TODO Do the renaming of pdbs etc. so that reloading can work inside VS
+        
         # Build game library
         args = [platform.compiler]
         args.extend(platform.common_compiler_flags)
@@ -104,6 +107,8 @@ if __name__ == '__main__':
         args.append('/link')
         args.extend(platform.common_linker_flags)
         args.extend(config.linker_flags)
+        # FIXME Generating a different PDB each time breaks debugging in VS when hot reloading
+        args.append('/PDB:robotrider_{}.pdb'.format(random.randint(0, 100000)))
 
         if verbose:
             print('Building game library...')

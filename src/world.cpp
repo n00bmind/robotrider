@@ -22,17 +22,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 
-u32 ClusterHashFunction( const v3i& keyValue )
+inline u32
+ClusterHash( const v3i& clusterCoords, u32 tableSize )
 {
     // TODO Better hash function! x)
-    u32 hashValue = (u32)(19*keyValue.x + 7*keyValue.y + 3*keyValue.z);
+    u32 hashValue = (u32)(19*clusterCoords.x + 7*clusterCoords.y + 3*clusterCoords.z);
     return hashValue;
 }
 
-u32 EntityHashFunction( const u32& keyValue )
+inline u32
+EntityHash( const u32& entityId, u32 tableSize )
 {
     // TODO Better hash function! x)
-    return keyValue;
+    return entityId;
 }
 
 #define INITIAL_CLUSTER_COORDS V3I( I32MAX, I32MAX, I32MAX )
@@ -40,15 +42,11 @@ u32 EntityHashFunction( const u32& keyValue )
 void
 InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
 {
-#if 0
-    LoadOBJ( "bunny.obj", &testVertices, &testIndices );
-#endif
-
     world->player = PUSH_STRUCT( worldArena, Player );
     world->player->mesh =
         LoadOBJ( "feisar/feisar_ship.obj", worldArena, tmpArena,
                  ZRotation( PI ) * XRotation( PI/2 ) * Scale( V3( 0.02f, 0.02f, 0.02f ) ) );
-    world->player->mesh.mTransform = M4Identity();
+    world->player->mesh.mTransform = M4Identity;
 
     LoadTextureResult textureResult
         = LoadTexture( "feisar/maps/diffuse.bmp" );
@@ -60,9 +58,9 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
     world->marchingCubeSize = 1;
     srand( 1234 );
 
-    new (&world->clusterTable) HashTable<v3i, Cluster, ClusterHashFunction>( worldArena, 256*1024 );
+    new (&world->clusterTable) HashTable<v3i, Cluster, ClusterHash>( worldArena, 256*1024 );
     new (&world->liveEntities) BucketArray<LiveEntity>( 256, worldArena );
-    new (&world->entityRefs) HashTable<u32, StoredEntity *, EntityHashFunction>( worldArena, 1024 );
+    new (&world->entityRefs) HashTable<u32, StoredEntity *, EntityHash>( worldArena, 1024 );
 
     world->pWorldOrigin = { 0, 0, 0 };
     world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
@@ -71,14 +69,16 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
     hullGenData->areaSideMeters = world->marchingAreaSize;
     hullGenData->resolutionMeters = world->marchingCubeSize;
     Generator hullGenerator = { GeneratorHullNodeFunc, &hullGenData->header };
+    // TODO Check if we need to reinstate these pointers after a reload
     world->meshGenerators[0] = hullGenerator;
 
-    world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.workerThreadsCount, MarchingMeshPool );
+    world->cacheBuffers = PUSH_ARRAY( worldArena, globalPlatform.workerThreadsCount, MarchingCacheBuffers );
+    world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.workerThreadsCount, MeshPool );
     for( u32 i = 0; i < globalPlatform.workerThreadsCount; ++i )
     {
+        world->cacheBuffers[i] = InitMarchingCacheBuffers( worldArena, 10 );
         // TODO Re-evaluate size of each pool now that we have many
-        Init( &world->meshPools[i], world->marchingAreaSize, world->marchingCubeSize,
-              worldArena, MEGABYTES(256) );
+        Init( &world->meshPools[i], worldArena, MEGABYTES(256) );
     }
 }
 
@@ -112,14 +112,6 @@ GetClusterWorldOffset( const v3i& clusterCoords, const World* world )
 {
     v3 result = V3(clusterCoords - world->pWorldOrigin) * CLUSTER_HALF_SIZE_METERS * 2;
     return result;
-}
-
-internal void
-DEBUGClearAllClusters( World* world )
-{
-    // NOTE This very likely leaks
-    world->clusterTable.Clear();
-    world->liveEntities.Clear();
 }
 
 internal bool
@@ -168,7 +160,8 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
     if( IsInSimRegion( clusterCoords, *job->pWorldOrigin ) )
     {
         // TODO Find a much more explicit and general way to associate thread-job data like this
-        MarchingMeshPool* meshPool = &job->meshPools[workerThreadIndex];
+        MarchingCacheBuffers* cacheBuffers = &job->cacheBuffers[workerThreadIndex];
+        MeshPool* meshPool = &job->meshPools[workerThreadIndex];
 
         // Make live entity from stored and put it in the world
         *job->outputEntity =
@@ -176,7 +169,7 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
             *job->storedEntity,
             job->storedEntity->generator->func( job->storedEntity->generator->data,
                                                 job->storedEntity->pUniverse,
-                                                meshPool ),
+                                                cacheBuffers, meshPool ),
             EntityState::Loaded,
         };
     }
@@ -233,6 +226,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
             {
                 &storedEntity,
                 &world->pWorldOrigin,
+                world->cacheBuffers,
                 world->meshPools,
                 outputEntity,
             };
@@ -289,7 +283,7 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
 
             cluster->entityStorage.Add( storedEntity );
 
-            ReleaseMesh( liveEntity.mesh );
+            ReleaseMesh( &liveEntity.mesh );
             world->liveEntities.Remove( it );
         }
 
@@ -468,11 +462,6 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
 #if !RELEASE
     DebugState* debugState = (DebugState*)gameMemory->debugStorage;
-    if( input->executableReloaded )
-    {
-        DEBUGClearAllClusters( world );
-        world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
-    }
 #endif
 
     // Update player based on input
@@ -547,8 +536,9 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
     ///// Render
     PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
-    PushProgramChange( ShaderProgramName::FlatShaded, renderCommands );
+    //PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
 
+#if 0
     auto it = world->liveEntities.First();
     while( it )
     {
@@ -565,11 +555,12 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #if !RELEASE
     debugState->totalEntities = world->liveEntities.count;
 #endif
+#endif
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
 
-    PushMaterial( world->player->mesh.material, renderCommands );
-    PushMesh( world->player->mesh, renderCommands );
+    //PushMaterial( world->player->mesh.material, renderCommands );
+    //PushMesh( world->player->mesh, renderCommands );
 
     PushMaterial( nullptr, renderCommands );
 

@@ -98,7 +98,7 @@ OpenGLShaderProgram globalShaderPrograms[] =
         { "mTransform" },
     },
     {
-        ShaderProgramName::FlatShaded,
+        ShaderProgramName::FlatShading,
         "default.vs.glsl",
         "face_normal.gs.glsl",
         "flat.fs.glsl",

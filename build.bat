@@ -31,6 +31,7 @@ set CFGFLAGS=%DEBUGFLAGS%
 if not exist %RRBIN% mkdir %RRBIN%
 pushd %RRBIN%
 del *.pdb >NUL 2>NUL
+:: FIXME Generating a different PDB each time breaks debugging in VS when hot reloading
 %COMPILER% %COMMONFLAGS% %CFGFLAGS% %COMPILERFLAGS% ..\%RRSRC%\robotrider.cpp -LD /link %LINKERFLAGS% /PDB:rr_dll_%random%.pdb
 %COMPILER% %COMMONFLAGS% %CFGFLAGS% %COMPILERFLAGS% ..\%RRSRC%\win32_platform.cpp -Felauncher.exe /link %LINKERFLAGS% -subsystem:console,5.2 %LIBS%
 popd
