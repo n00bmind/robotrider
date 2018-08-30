@@ -810,61 +810,38 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, r32 agressiven
 
 ///// CONVERSION TO 'SAMPLED' MESHES /////
 
-inline u32
-GridRayHash( const v2i& key, u32 tableSize )
-{
-    u32 bits = Log2( tableSize ) / 2 + 1;
-    u32 mask = (1 << bits) - 1;
-
-    u32 result = ((key.e[0] & mask) << bits) | (key.e[1] & mask);
-    return result;
-}
-
 struct Hit
 {
     v2i gridCoords;
     r32 hitCoord;
 };
 
-// TODO REMOVE
 internal void
 AddSorted( const Hit& hit, Array<Hit>* result )
 {
-    Hit tmp = {};
-    Hit* newSlot = nullptr;
-    bool inserted = false;
-    u32 i = 0;
+    Array<Hit>& out = *result;
+    out.Reserve();
 
-    for( i = 0; i < result->count; ++i )
+    u32 i = out.count - 1;
+    for( ; i > 0; --i )
     {
-        if( hit.hitCoord < (*result)[i].hitCoord )
+        if( out[i-1].hitCoord < hit.hitCoord )
         {
-            newSlot = result->Reserve();
-            tmp = (*result)[i];
-            (*result)[i] = hit;
-            inserted = true;
-            i++;
+            out[i] = hit;
             break;
         }
-    }
-
-    if( inserted )
-    {
-        while( i < result->count )
+        else
         {
-            Hit old = (*result)[i];
-            (*result)[i] = tmp;
-            tmp = old;
-
-            i++;
+            out[i] = out[i-1];
         }
     }
-    else
-        result->Add( hit );
+
+    if( i == 0 )
+        out[0] = hit;
 }
 
 internal void
-FindAllHits( const v2i& gridCoords, const Array<Hit>& hits, Array<Hit>* result )
+FilterHits( const Array<Hit>& hits, const v2i& gridCoords, Array<Hit>* result )
 {
     result->Clear();
     for( u32 i = 0; i < hits.count; ++i )
@@ -902,9 +879,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
     // For example, for X rays, the Y|Z coords are the hash, for Y rays, the X|Z coords, etc.
     // NOTE This can be heavily compressed if needed by using a more compact hash, since most entries will be empty anyway
     u32 rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
-    HashTable<v2i, r32, GridRayHash> yRaysTable( tmpArena, rayCount );
-
-    SArray<Hit, 80000> hits;
+    Array<Hit> gridHits( tmpArena, 100000 );
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMaterial( nullptr, renderCommands );
@@ -957,8 +932,8 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
                         if( Intersects( r, t, &pI ) )
                         {
                             // Store intersection coords relative to grid
-                            //yRaysTable.Add( V2I( x, z ), (pI - pGridOrigin).y, tmpArena );
-                            hits.Add( { V2I( x, z ), (pI - pGridOrigin).y } );
+                            r32 hitCoord = (pI - pGridOrigin).y;
+                            gridHits.Add( { V2I( x, z ), hitCoord } );
                         }
                     }
                 }
@@ -987,9 +962,8 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
             {
                 v2i vIK = n == 0 ? V2I( i, k ) : V2I( i, k+1 );
 
-                //HashTable<v2i, r32, GridRayHash>::Slot* hits = yRaysTable.FindAllSlots( vIK );
-                SArray<Hit, 10> rayHits;
-                FindAllHits( vIK, hits, &rayHits );
+                ARRAY(Hit, 10, rayHits);
+                FilterHits( gridHits, vIK, &rayHits );
 
                 // This usually signals a tolerance error in Intersects() (or a bogus mesh, of course)
                 ASSERT( (rayHits.count & 0x1) == 0 );
@@ -999,18 +973,12 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
                 for( u32 j = 0; j < gridLinesPerAxis; ++j )
                 {
                     r32 yGrid = j * step;
-                    //while( hits && hits->value < j )
-                    //{
-                        //if( hits->key == vIK )
-                            //value *= -1;
-                        //hits = hits->nextInHash;
-                    //}
-
                     while( h < rayHits.count && rayHits[h].hitCoord < yGrid )
                     {
                         value *= -1;
                         h++;
                     }
+
                     *sample++ = (r32)value;
                 }
             }

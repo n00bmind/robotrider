@@ -69,7 +69,7 @@ InitEditor( EditorState* editorState, World* world, MemoryArena* worldArena, Mem
     editorState->testMesh = LoadOBJ( "bunny.obj", worldArena, tmpArena,
                                       Scale( V3( 10.f, 10.f, 10.f ) ) * Translation( V3( 0, 0, 1.f ) ) );
 
-    editorState->cacheBuffers = InitMarchingCacheBuffers( worldArena, 200 );
+    editorState->cacheBuffers = InitMarchingCacheBuffers( worldArena, 50 );
 }
 
 void

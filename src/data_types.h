@@ -33,9 +33,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 template <typename T>
 struct Array
 {
-    T *data;
     u32 count;
     u32 maxCount;
+    T *data;
 
     Array( MemoryArena* arena, u32 maxCount_ )
     {
@@ -100,6 +100,7 @@ protected:
     }
 };
 
+#define ARRAY(type, count, name) type _##name[count];Array<type> name( _##name, count );
 /////     STATIC ARRAY    /////
 
 // TODO Remove (substitute for tmp arena allocations)
@@ -118,10 +119,8 @@ struct SArray : public Array<T>
 
 /////     HASH TABLE    /////
 
-// NOTE Type K must support/overload == comparison
-template <typename K, typename V,
-         u32 (*H)( const K&, u32 ),
-         bool (*S)( const K&, const K& ) = nullptr>
+// NOTE Type K must support == comparison
+template <typename K, typename V, u32 (*H)( const K&, u32 )>
 struct HashTable
 {
     struct Slot
@@ -187,71 +186,34 @@ struct HashTable
     }
 #endif
 
-    Slot* FindAllSlots( const K& key )
-    {
-        u32 idx = IndexFromKey( key );
-
-        Slot* result = &table[idx];
-        if( !result->occupied )
-            result = nullptr;
-
-        return result;
-    }
-
     V* Reserve( const K& key, MemoryArena* arena )
     {
         u32 idx = IndexFromKey( key );
 
-        Slot* last = nullptr;
-        Slot* next = nullptr;
+        Slot* prev = nullptr;
         Slot* slot = &table[idx];
-        while( slot && slot->occupied )
+        if( slot->occupied )
         {
-            // TODO Allow key comparisons different from bit-equality if needed
-            if( slot->key == key )
-                return nullptr;
-
-            bool insertHere = false;
-            constexpr bool sorted = (S != nullptr);
-            if( sorted )
-                insertHere = S( key, slot->key );
-
-            if( insertHere )
+            do
             {
-                next = PUSH_STRUCT( arena, Slot );
-                next->occupied = true;
-                next->key = slot->key;
-                next->nextInHash = slot->nextInHash;
-                COPY( &slot->value, &next->value, sizeof(V) );
+                // TODO Allow key comparisons different from bit-equality if needed
+                if( slot->key == key )
+                    return nullptr;
 
-                break;
-            }
-            else
-            {
-                last = slot;
+                prev = slot;
                 slot = slot->nextInHash;
-            }
-        }
+            } while( slot );
 
-        if( slot )
-        {
-            ZERO( &slot->value, sizeof(V) );
-            slot->occupied = true;
-            slot->key = key;
-            slot->nextInHash = next;
-        }
-        else
-        {
-            // We're at the end
             slot = PUSH_STRUCT( arena, Slot );
-            ZERO( slot, sizeof(Slot) );
-            slot->occupied = true;
-            slot->key = key;
-
-            last->nextInHash = slot;
+            prev->nextInHash = slot;
         }
 
         count++;
+        slot->occupied = true;
+        slot->key = key;
+        slot->nextInHash = nullptr;
+        ZERO( &slot->value, sizeof(V) );
+
         return &slot->value;
     }
 
@@ -287,11 +249,11 @@ Length( const char* cstring )
 
 struct String
 {
-    char *data;
     u32 size;
     u32 maxSize;
+    char *data;
 
-    // NOTE For now we don't allow (const) string literals. We'll see..
+    // NOTE For now we don't allow (const) string literals because that's readonly memory. We'll see..
     String( char *cString )
     {
         data = cString;
