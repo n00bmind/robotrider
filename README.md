@@ -10,7 +10,7 @@
                                                                         
 </pre>
 
-FEATURES
+# Features
 
 · Totally isolated platform / renderer / game layers (only Windows platform & OpenGL for now)<br/>
 · Hot code reloading (any change in the game layer code is immediately applied live)<br />
@@ -19,3 +19,13 @@ FEATURES
 · Debug mode (tilde) & editor mode (Ctrl+tilde)<br/>
 · Developer console with customizable commands<br />
 · Infinite procedural world (WIP)<br/>
+
+
+
+# References
+A list of papers, articles, sites, etc. that were useful during development:
+
+Marching cubes :: http://paulbourke.net/geometry/polygonise/ <br/>
+Marching cubes optimization :: http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng <br/>
+Fast quadric mesh simplification :: https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification <br/>
+Resampling meshes using MC :: http://vcg.isti.cnr.it/publications/papers/mi_smi01.pdf <br/>
