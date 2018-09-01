@@ -136,7 +136,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     u16 height = renderCommands->height;
 
     //if( input->totalElapsedSeconds - editorState.lastUpdateTimeSeconds >= 1.f || input->executableReloaded )
-    if( input->executableReloaded )
+    if( !editorState.testIsoSurfaceMesh || input->executableReloaded )
     {
         editorState.displayedLayer = (editorState.displayedLayer + 1) % editorState.cacheBuffers.cellsPerAxis;
         editorState.lastUpdateTimeSeconds = input->totalElapsedSeconds;
