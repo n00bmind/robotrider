@@ -101,21 +101,6 @@ protected:
 };
 
 #define ARRAY(type, count, name) type _##name[count];Array<type> name( _##name, count );
-/////     STATIC ARRAY    /////
-
-// TODO Remove (substitute for tmp arena allocations)
-template <typename T, u32 N>
-struct SArray : public Array<T>
-{
-    T storage[N];
-
-    SArray()
-    {
-        Array<T>::data = storage;
-        Array<T>::count = 0;
-        Array<T>::maxCount = N;
-    }
-};
 
 /////     HASH TABLE    /////
 

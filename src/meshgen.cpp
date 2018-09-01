@@ -372,7 +372,7 @@ void
 TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, MarchingCacheBuffers* cacheBuffers,
                MeshPool* meshPool, RenderCommands *renderCommands )
 {
-    persistent SArray<Metaball, 10> balls;
+    persistent ARRAY(Metaball, 10, balls);
 
     if( balls[0].radiusMeters == 0 )
     {
@@ -462,7 +462,7 @@ CalculateError( InflatedMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
 }
 
 internal void
-UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration )
+UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, MemoryArena* tmpArena )
 {
     if( iteration > 0 )
     {
@@ -560,8 +560,8 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration )
     // Identify boundary vertices
     if( iteration == 0 )
     {
-        SArray<u32, 1000> vCount;
-        SArray<u32, 1000> vIds;
+        Array<u32> vCount( tmpArena, 1000 );
+        Array<u32> vIds( tmpArena, 1000 );
 
         for( u32 i = 0; i < mesh->vertices.count; ++i )
             mesh->vertices[i].border = false;
@@ -715,12 +715,11 @@ CompactMesh( InflatedMesh* mesh )
     mesh->vertices.count = dst;
 }
 
-// FIXME Put these in an arena
-SArray<InflatedVertexRef, 500000> refs;
-
 // Taken from https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification
-void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, r32 agressiveness = 7 )
+void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, MemoryArena* tmpArena, r32 agressiveness = 7 )
 {
+    Array<InflatedVertexRef> refs( tmpArena, 500000 );
+
     u32 triangleCount = mesh->triangles.count;
     u32 deletedTriangleCount = 0;
 
@@ -734,7 +733,7 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, r32 agressiven
 
         // Update mesh every few cycles (including first time through)
         if( iteration % 5 == 0 )
-            UpdateMesh( mesh, &refs, iteration );
+            UpdateMesh( mesh, &refs, iteration, tmpArena );
 
         for( u32 i = 0; i < mesh->triangles.count; ++i )
             mesh->triangles[i].dirty = false;
@@ -756,8 +755,8 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, r32 agressiven
             {
                 if( tri.error[j] < threshold )
                 {
-                    SArray<bool, 1000> deleted0;
-                    SArray<bool, 1000> deleted1;
+                    Array<bool> deleted0( tmpArena, 1000 );
+                    Array<bool> deleted1( tmpArena, 1000 );
 
                     u32 i0 = tri.v[j];          InflatedVertex& v0 = mesh->vertices[i0];
                     u32 i1 = tri.v[(j+1)%3];    InflatedVertex& v1 = mesh->vertices[i1];

@@ -381,70 +381,6 @@ UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, Memor
             it.Next();
         }
     }
-
-
-
-
-    // Connected paths test
-#if 0
-    if( !world->pathsBuffer || input->executableReloaded )
-    {
-        v3 vForward = V3Forward();
-        v3 vUp = V3Up();
-        world->pathsBuffer = Array<GeneratorPath>( arena, 1000 );
-        world->pathsBuffer.Add( 
-        {
-            V3Zero(),
-            world->marchingAreaSize,
-            M4Basis( Cross( vForward, vUp ), vForward, vUp ),
-            IsoSurfaceType::Cuboid,
-            2,
-            50, 100,
-            150, 550,
-            RandomRange( 50.f, 100.f ),
-            RandomRange( 150.f, 550.f ),
-        } );
-    }
-
-    // TODO Decide how to pack entities for archival using minimal data
-    // (probably just use the GenPaths at each chunk position and regenerate)
-    // TODO Implement simulation regions
-
-    if( !world->hullMeshes )
-    {
-        world->hullMeshes = Array<Mesh>( arena, 10000 );
-
-        if( firstStepOnly )
-            world->hullMeshes.Place();
-    }
-
-    if( world->hullMeshes.count < 1000 ) //&& input->frameCounter % 10 == 0 )
-    {
-        // TODO This is all temporary
-        // We need to plan this with care. Keep the buffer sorted by distance to player always
-        GeneratorPath* currentPath = nullptr;
-        for( u32 i = 0; i < world->pathsBuffer.count; ++i )
-        {
-            GeneratorPath* path = &world->pathsBuffer[i];
-            if( DistanceSq( path->pCenter, world->pPlayer ) < 10000 )
-            {
-                currentPath = path;
-                break;
-            }
-        }
-
-        if( currentPath )
-        {
-            GeneratorPath fork;
-            Mesh* outMesh = firstStepOnly ? &world->hullMeshes[0] : world->hullMeshes.Place();
-
-            u32 numForks =
-                GenerateOnePathStep( currentPath, world->marchingCubeSize, !firstStepOnly, arena, outMesh, &fork );
-            if( numForks )
-                world->pathsBuffer.Add( fork );
-        }
-    }
-#endif
 }
 
 void
@@ -536,53 +472,39 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
     ///// Render
     PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
-    //PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
 
-#if 0
-    auto it = world->liveEntities.First();
-    while( it )
+    if( !gameMemory->DEBUGglobalEditing )
     {
-        TIMED_BLOCK;
-
-        LiveEntity& entity = (LiveEntity&)it;
-        if( entity.state == EntityState::Active )
+        PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
+        auto it = world->liveEntities.First();
+        while( it )
         {
-            PushMesh( *entity.mesh, renderCommands );
+            TIMED_BLOCK;
+
+            LiveEntity& entity = (LiveEntity&)it;
+            if( entity.state == EntityState::Active )
+            {
+                PushMesh( *entity.mesh, renderCommands );
+            }
+
+            it.Next();
         }
-
-        it.Next();
-    }
 #if !RELEASE
-    debugState->totalEntities = world->liveEntities.count;
+        debugState->totalEntities = world->liveEntities.count;
 #endif
-#endif
+    }
 
-    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
-
-    //PushMaterial( world->player->mesh.material, renderCommands );
-    //PushMesh( world->player->mesh, renderCommands );
-
-    PushMaterial( nullptr, renderCommands );
+    if( !gameMemory->DEBUGglobalEditing )
+    {
+        PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
+        PushMaterial( world->player->mesh.material, renderCommands );
+        PushMesh( world->player->mesh, renderCommands );
+    }
 
     // Render current cluster limits
-    r32 s = CLUSTER_HALF_SIZE_METERS;
+    PushMaterial( nullptr, renderCommands );
     u32 red = Pack01ToRGBA( V4( 1, 0, 0, 1 ) );
-
-    // X
-    PushLine( V3( -s, s, s ), V3( s, s, s ), red, renderCommands );
-    PushLine( V3( -s, s, -s ), V3( s, s, -s ), red, renderCommands );
-    PushLine( V3( -s, -s, s ), V3( s, -s, s ), red, renderCommands );
-    PushLine( V3( -s, -s, -s ), V3( s, -s, -s ), red, renderCommands );
-    // Z
-    PushLine( V3( -s, s, s ), V3( -s, s, -s ), red, renderCommands );
-    PushLine( V3( s, s, s ), V3( s, s, -s ), red, renderCommands );
-    PushLine( V3( -s, -s, s ), V3( -s, -s, -s ), red, renderCommands );
-    PushLine( V3( s, -s, s ), V3( s, -s, -s ), red, renderCommands );
-    // Y
-    PushLine( V3( -s, -s, s ), V3( -s, s, s ), red, renderCommands );
-    PushLine( V3( -s, -s, -s ), V3( -s, s, -s ), red, renderCommands );
-    PushLine( V3( s, -s, s ), V3( s, s, s ), red, renderCommands );
-    PushLine( V3( s, -s, -s ), V3( s, s, -s ), red, renderCommands );
+    DrawBoxAt( V3Zero, CLUSTER_HALF_SIZE_METERS, red, renderCommands );
 
     {
         // Create a chasing camera
