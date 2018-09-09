@@ -48,10 +48,9 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
                  ZRotation( PI ) * XRotation( PI/2 ) * Scale( V3( 0.02f, 0.02f, 0.02f ) ) );
     world->player->mesh.mTransform = M4Identity;
 
-    LoadTextureResult textureResult
-        = LoadTexture( "feisar/maps/diffuse.bmp" );
+    Texture textureResult = LoadTexture( "feisar/maps/diffuse.bmp", true, true, 4 );
     Material* playerMaterial = PUSH_STRUCT( worldArena, Material );
-    playerMaterial->diffuseMap = textureResult.textureHandle;
+    playerMaterial->diffuseMap = textureResult.handle;
     world->player->mesh.material = playerMaterial;
 
     world->marchingAreaSize = 10;
@@ -292,7 +291,7 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
 }
 
 internal void
-UpdateWorldGeneration( GameInput* input, bool firstStepOnly, World* world, MemoryArena* arena )
+UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
 {
     TIMED_BLOCK;
 
@@ -462,10 +461,8 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     }
 
 
-    bool firstStepOnly = false;
-
-
-    UpdateWorldGeneration( input, firstStepOnly, world, &gameState->worldArena );
+    if( !gameMemory->DEBUGglobalEditing )
+        UpdateWorldGeneration( input, world, &gameState->worldArena );
 
 
 

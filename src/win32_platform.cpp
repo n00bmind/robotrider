@@ -27,6 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "imgui/imgui_draw.cpp"
 #include "imgui/imgui.cpp"
+#include "imgui/imgui_widgets.cpp"
 
 #include <gl/gl.h>
 #include "glext.h"
@@ -671,6 +672,7 @@ Win32DisplayInWindow( const Win32State& platformState, const RenderCommands &com
         {
             OpenGLRenderToOutput( globalOpenGLState, commands, gameMemory );
             ImGui::Render();
+            OpenGLRenderImGui( globalOpenGLState, ImGui::GetDrawData() );
             SwapBuffers( deviceContext );
         } break;
 
@@ -1792,7 +1794,7 @@ PLATFORM_ALLOCATE_TEXTURE(Win32AllocateTexture)
     switch( globalPlatformState.renderer )
     {
         case Renderer::OpenGL:
-            result = OpenGLAllocateTexture( data, width, height );
+            result = OpenGLAllocateTexture( data, width, height, filtered );
             break;
 
         INVALID_DEFAULT_CASE

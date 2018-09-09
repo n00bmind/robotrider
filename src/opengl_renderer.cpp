@@ -304,8 +304,8 @@ PLATFORM_ALLOCATE_TEXTURE(OpenGLAllocateTexture)
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
     // Use GL_LINEAR_MIPMAP_LINEAR?
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtered ? GL_LINEAR : GL_NEAREST );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filtered ? GL_LINEAR : GL_NEAREST );
 
     glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                   data );
@@ -406,19 +406,15 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
 
     // Create a white texture
     gl.white = 0xFFFFFFFF;
-    gl.whiteTexture = OpenGLAllocateTexture( (u8*)&gl.white, 1, 1 );
+    gl.whiteTexture = OpenGLAllocateTexture( (u8*)&gl.white, 1, 1, true );
 
     ASSERT_GL_STATE;
     return info;
 }
 
 internal void
-OpenGLRenderImGui( ImDrawData *drawData )
+OpenGLRenderImGui( const OpenGLState& gl, ImDrawData *drawData )
 {
-    // FIXME This hack prevents us from easily updating the lib, so switch to what Omar suggested in
-    // https://github.com/ocornut/imgui/issues/1309
-    OpenGLState &gl = *((OpenGLState *)drawData->UserData);
-
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     ImGuiIO& io = ImGui::GetIO();
     int fbWidth = (int)(io.DisplaySize.x * io.DisplayFramebufferScale.x);
@@ -484,6 +480,7 @@ inline void SetupImGuiStyle( bool bStyleDark_, float alpha_  )
 {
     ImGuiStyle& style = ImGui::GetStyle();
 
+#if 0
     // light style from Pacôme Danhiez (user itamago) https://github.com/ocornut/imgui/pull/511#issuecomment-175719267
     style.Alpha = 1.0f;
     style.FrameRounding = 3.0f;
@@ -615,6 +612,7 @@ inline void SetupImGuiStyle( bool bStyleDark_, float alpha_  )
             }
         }
     }
+#endif
 }
 
 ImGuiContext *
@@ -622,9 +620,8 @@ OpenGLInitImGui( OpenGLState &gl )
 {
     LOG( ".Initializing ImGui version %s", ImGui::GetVersion() );
 
-    // We're gonna create our own ImGui context instead of relying on the default one,
-    // FIXME We also should create an arena for all ImGui and pass a custom allocator/free here (and not use new for the atlas!)
-    ImGuiContext *context = ImGui::CreateContext( NULL, NULL );
+    // FIXME Create an arena (when we have dynamic arenas) for ImGui and pass a custom allocator/free here (and not use new for the atlas!)
+    ImGuiContext *context = ImGui::CreateContext();
     ImGui::SetCurrentContext( context );
     ImGui::GetIO().Fonts = new ImFontAtlas();
 
@@ -694,10 +691,8 @@ OpenGLInitImGui( OpenGLState &gl )
     io.Fonts->TexID = (void *)(intptr_t)gl.imGui.fontTexture;
 
     // TODO Override memory allocation functions!
-    io.RenderDrawListsFn = OpenGLRenderImGui;
-    ImGui::GetCurrentContext()->RenderDrawData.UserData = &gl;
 
-    SetupImGuiStyle( true, 0.98f );
+    //SetupImGuiStyle( true, 0.98f );
 
     return context;
 }
@@ -880,9 +875,22 @@ OpenGLRenderToOutput( OpenGLState &gl, const RenderCommands &commands, GameMemor
                 glBindTexture( GL_TEXTURE_2D, materialId );
             } break;
 
+            case RenderEntryType::RenderEntrySwitch:
+            {
+                RenderEntrySwitch* entry = (RenderEntrySwitch*)entryHeader;
+                bool enable = entry->enable;
+
+                //switch( entry->renderSwitch )
+                //{
+                    //// TODO 
+                    //INVALID_DEFAULT_CASE
+                //}
+            } break;
+
             default:
             {
                 LOG( "ERROR :: Unsupported RenderEntry type [%d]", entryHeader->type );
+                INVALID_CODE_PATH;
             } break;
         }
 

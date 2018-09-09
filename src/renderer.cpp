@@ -309,6 +309,17 @@ PushMaterial( Material* material, RenderCommands* commands )
     }
 }
 
+void
+PushSwitch( RenderSwitch renderSwitch, bool enable, RenderCommands* commands )
+{
+    RenderEntrySwitch *entry = PUSH_RENDER_ELEMENT( commands, RenderEntrySwitch );
+    if( entry )
+    {
+        entry->renderSwitch = renderSwitch;
+        entry->enable = enable;
+    }
+}
+
 internal void
 DrawBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
 {

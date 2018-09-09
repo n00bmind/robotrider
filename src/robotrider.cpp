@@ -31,14 +31,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "data_types.h"
 #include "meshgen.h"
 #include "world.h"
+#include "asset_loaders.h"
+#include "wfc.h"
 #include "editor.h"
 #include "robotrider.h"
-#include "asset_loaders.h"
 
 #include "renderer.cpp"
 
 #include "imgui/imgui_draw.cpp"
 #include "imgui/imgui.cpp"
+#include "imgui/imgui_widgets.cpp"
 #include "imgui/imgui_demo.cpp"     // TODO Remove!
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -50,6 +52,7 @@ void  LibFree( void* p );
 #define STBI_REALLOC(p,newsz)     LibRealloc( p, newsz )
 #define STBI_FREE(p)              LibFree( p )
 #define STBI_ONLY_BMP
+#define STBI_ONLY_PNG
 #define STBI_NO_STDIO
 #define STB_IMAGE_STATIC
 #include "stb/stb_image.h"
@@ -57,6 +60,7 @@ void  LibFree( void* p );
 #include "ui.cpp"
 #include "console.cpp"
 #include "asset_loaders.cpp"
+#include "wfc.cpp"
 #include "meshgen.cpp"
 #include "world.cpp"
 #include "editor.cpp"
@@ -154,7 +158,11 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         // Re-set platform's ImGui context
         ImGui::SetCurrentContext( memory->imGuiContext );
 
+        // FIXME
+        auxArena = &gameState->worldArena;
+
 #if !RELEASE
+        memory->DEBUGglobalEditing = true;
         InitEditor( &gameState->DEBUGeditorState, gameState->world, &gameState->worldArena, &gameState->transientArena );
 #endif
     }
@@ -194,7 +202,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     if( memory->DEBUGglobalEditing )
     {
-        UpdateAndRenderEditor( input, memory, renderCommands, statsText, &gameState->transientArena );
+        UpdateAndRenderEditor( input, memory, renderCommands, statsText, &gameState->worldArena, &gameState->transientArena );
     }
     else if( memory->DEBUGglobalDebugging )
     {

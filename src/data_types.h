@@ -216,6 +216,28 @@ struct HashTable
         return result;
     }
 
+    Array<K> Keys( MemoryArena* arena ) const
+    {
+        Array<K> result( arena, count );
+        for( u32 i = 0; i < tableSize; ++i )
+        {
+            if( table[i].occupied )
+            {
+                result.Add( table[i].key );
+                if( table[i].nextInHash )
+                {
+                    Slot* slot = table[i].nextInHash;
+                    while( slot )
+                    {
+                        result.Add( slot->key );
+                        slot = slot->nextInHash;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
 private:
     
     // Disallow implicit copying

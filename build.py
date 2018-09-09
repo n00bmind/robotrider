@@ -14,7 +14,7 @@ platform_win = Platform(
         common_compiler_flags = [
             '-MTd', '-nologo', '-FC', '-W4', '-WX', '-Oi', '-GR-', '-EHa-',
             '-D_HAS_EXCEPTIONS=0', '-D_CRT_SECURE_NO_WARNINGS',
-            '-wd4201', '-wd4100', '-wd4189', '-wd4101', '-wd4505', '-wd4312'
+            '-wd4201', '-wd4100', '-wd4189', '-wd4101', '-wd4505', '-wd4312', '-wd4200'
             ],
         libs                  = ['user32.lib', 'gdi32.lib', 'winmm.lib', 'ole32.lib', 'opengl32.lib', 'shlwapi.lib'],
         common_linker_flags   = ['/opt:ref', '/incremental:no']
@@ -60,8 +60,8 @@ config_win_release = Config(
 
 
 default_platform = platform_win
-# default_config = config_win_develop
-default_config = config_win_debug
+default_config = config_win_develop
+# default_config = config_win_debug
 
 
 

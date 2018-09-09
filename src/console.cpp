@@ -129,10 +129,10 @@ ConsoleInputCallback( ImGuiTextEditCallbackData *data )
 }
 
 void
-DrawConsole( GameConsole *console, u16 windowWidth, u16 windowHeight, const char *statsText )
+DrawConsole( GameConsole *console, u16 screenWidth, u16 screenHeight, const char *statsText )
 {
     ImGui::SetNextWindowPos( ImVec2( 0.f, 0.f ), ImGuiCond_FirstUseEver );
-    ImGui::SetNextWindowSize( ImVec2( windowWidth, windowHeight * 0.25f ), ImGuiCond_Appearing );
+    ImGui::SetNextWindowSize( ImVec2( screenWidth, screenHeight * 0.25f ), ImGuiCond_Appearing );
     ImGui::SetNextWindowSizeConstraints( ImVec2( -1, 100 ), ImVec2( -1, FLT_MAX ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 3.f );
     ImGui::PushStyleColor( ImGuiCol_WindowBg, UItoolWindowBgColor );

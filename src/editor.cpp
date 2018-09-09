@@ -66,15 +66,20 @@ DrawEditorEntity( const EditorEntity& editorEntity, const EditorState& editorSta
 void
 InitEditor( EditorState* editorState, World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
 {
+    // Mesh resampling test
+#if 0
     editorState->testMesh = LoadOBJ( "bunny.obj", worldArena, tmpArena,
                                       Scale( V3( 10.f, 10.f, 10.f ) ) * Translation( V3( 0, 0, 1.f ) ) );
 
     editorState->cacheBuffers = InitMarchingCacheBuffers( worldArena, 50 );
+#endif
+
+    editorState->testSourceTexture = LoadTexture( "wfc/Red Maze.png", false, false, 4 );
 }
 
 void
 UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *renderCommands, const char* statsText,
-                       MemoryArena* tmpArena )
+                       MemoryArena* arena, MemoryArena* tmpArena )
 {
     float dT = input->frameElapsedSeconds;
     float elapsedT = input->totalElapsedSeconds;
@@ -126,7 +131,6 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
 
         v3 vCamForward = GetColumn( mCamRot, 2 ).xyz;
         v3 vCamRight = GetColumn( mCamRot, 0 ).xyz;
-        //editorState.pCamera += vCamForward * vCamDelta.z + vCamRight * vCamDelta.x;
         editorState.pCamera += Transposed( mCamRot ) * vCamDelta;
 
         renderCommands->camera.mTransform = mCamRot * Translation( -editorState.pCamera );
@@ -135,7 +139,15 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
 
-    //if( input->totalElapsedSeconds - editorState.lastUpdateTimeSeconds >= 1.f || input->executableReloaded )
+
+    /// WFC test
+    WFCUpdate( editorState.testSourceTexture, &editorState.wfcState, arena );
+    WFCDrawTest( editorState, width, height, &editorState.wfcState, arena, tmpArena, renderCommands );
+
+
+
+    // Mesh resampling test
+#if 0
     if( !editorState.testIsoSurfaceMesh || input->executableReloaded )
     {
         editorState.displayedLayer = (editorState.displayedLayer + 1) % editorState.cacheBuffers.cellsPerAxis;
@@ -153,19 +165,20 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
     //PushMesh( editorState.testMesh, renderCommands );
     PushMesh( *editorState.testIsoSurfaceMesh, renderCommands );
+#endif
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMaterial( nullptr, renderCommands );
 
-	DrawFloorGrid(CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands);
-
+#if 0
 	editorState.testEditorEntity = CreateEditorEntityFor(editorState.testIsoSurfaceMesh, editorState.cacheBuffers.cellsPerAxis);
 	DrawEditorEntity( editorState.testEditorEntity, editorState, renderCommands );
+#endif
 
+	DrawFloorGrid(CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands);
     DrawAxisGizmos( renderCommands );
 
     r32 elapsedSeconds = input->totalElapsedSeconds;
     DrawEditorStats( width, height, statsText, (i32)elapsedSeconds % 2 == 0 );
-
 }
 #endif

@@ -122,6 +122,12 @@ Clamp0( r32 value )
     return Max( 0, value );
 }
 
+inline i32
+Square( i32 value )
+{
+    return value * value;
+}
+
 inline r64
 Pow( r64 b, r64 exp )
 {

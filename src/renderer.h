@@ -39,6 +39,10 @@ enum class ShaderProgramName
     FlatShading,
 };
 
+enum class RenderSwitch
+{
+};
+
 
 struct Camera
 {
@@ -53,6 +57,16 @@ struct TexturedVertex
     v2 uv;
     // TODO Should we just ignore these and do it all in the GS based on what shading we want?
     v3 n;
+};
+
+struct Texture
+{
+    void* handle;
+    u8* imageBuffer;
+
+    i32 width;
+    i32 height;
+    i32 channelCount;
 };
 
 struct Material
@@ -125,6 +139,7 @@ enum class RenderEntryType
     RenderEntryLines,
     RenderEntryProgramChange,
     RenderEntryMaterial,
+    RenderEntrySwitch,
 };
 
 struct RenderEntry
@@ -172,6 +187,14 @@ struct RenderEntryMaterial
     RenderEntry header;
 
     Material* material;
+};
+
+struct RenderEntrySwitch
+{
+    RenderEntry header;
+
+    RenderSwitch renderSwitch;
+    bool enable;
 };
 
 

@@ -124,4 +124,27 @@ Log2( u32 value )
     return result;
 }
 
+inline u32
+Fletcher32( const void* buffer, sz len )
+{
+	const u8* data = (u8*)buffer;
+	u32 fletch1 = 0xFFFF;
+	u32 fletch2 = 0xFFFF;
+
+	while( data && len )
+	{
+		sz l = (len <= 360) ? len : 360;
+		len -= l;
+		while (l)
+		{
+            fletch1 += *data++;
+            fletch2 += fletch1;
+            l--;
+		}
+		fletch1 = (fletch1 & 0xFFFF) + (fletch1 >> 16);
+		fletch2 = (fletch2 & 0xFFFF) + (fletch2 >> 16);
+	}
+	return (fletch2 << 16) | (fletch1 & 0xFFFF);
+}
+
 #endif /* __MATH_H__ */

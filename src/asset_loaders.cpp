@@ -266,29 +266,29 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
     return result;
 }
 
-LoadTextureResult
-LoadTexture( const char* path )
+Texture
+LoadTexture( const char* path, bool flipVertically, bool filtered = true, int desiredChannels = 0 )
 {
     DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
 
+    stbi_set_flip_vertically_on_load( flipVertically );
+
     i32 imageWidth = 0, imageHeight = 0, imageChannels = 0;
-
-    // OpenGL has weird coords!
-    stbi_set_flip_vertically_on_load( true );
-
-    // TODO Use our allocators!
     u8* imageBuffer =
         stbi_load_from_memory( (u8*)read.contents, read.contentSize,
-                               &imageWidth, &imageHeight, &imageChannels, 4 );
+                               &imageWidth, &imageHeight, &imageChannels, desiredChannels );
     // TODO Async texture uploads (and unload)
     void* textureHandle
-        = globalPlatform.AllocateTexture( imageBuffer, imageWidth, imageHeight );
+        = globalPlatform.AllocateTexture( imageBuffer, imageWidth, imageHeight, filtered );
 
     globalPlatform.DEBUGFreeFileMemory( read.contents );
 
-    LoadTextureResult result;
-    result.textureHandle = textureHandle;
+    Texture result;
+    result.handle = textureHandle;
     result.imageBuffer = imageBuffer;
+    result.width = imageWidth;
+    result.height = imageHeight;
+    result.channelCount = imageChannels;
 
     return result;
 }

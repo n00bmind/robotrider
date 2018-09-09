@@ -19,9 +19,15 @@ struct EditorState
 
     MarchingCacheBuffers cacheBuffers;
 
+    // Mesh resampling test
+#if 0
     Mesh testMesh;
     Mesh* testIsoSurfaceMesh;
     EditorEntity testEditorEntity;
+#endif
+
+    Texture testSourceTexture;
+    WFCState wfcState;
 
     r32 drawingDistance;
     u32 displayedLayer;

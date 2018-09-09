@@ -111,8 +111,8 @@ struct GeneratorJob
     volatile bool occupied;
 };
 
-inline u32 ClusterHash( const v3i& keyValue, u32 tableSize );
-inline u32 EntityHash( const u32& keyValue, u32 tableSize );
+inline u32 ClusterHash( const v3i& key, u32 tableSize );
+inline u32 EntityHash( const u32& key, u32 tableSize );
 
 // 'Thickness' in clusters of the sim region on each side of the origin cluster
 #define SIM_REGION_WIDTH 1

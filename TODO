@@ -40,6 +40,7 @@ INPUT
 - Find a way to calibrate different relative movement amounts from the different input methods
 
 DEBUGGING
+- Hot reloading seems to be broken for ImGui elements
 - Memory stats for arenas and pools
 - Habemus leak! Memory usage grows non-stop currently
 - Profiler
