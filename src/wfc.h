@@ -20,6 +20,19 @@ struct WFCPackedPattern
 
 inline u32 PatternHash( const WFCPattern& key, u32 tableSize );
 
+struct WFCIndexEntry
+{
+    // One entry per pattern
+    Array<bool> matches;
+};
+
+// This might change
+struct WFCIndexCell
+{
+    // One entry per pattern
+    Array<WFCIndexEntry> entries;
+};
+
 enum class WFCTestPage
 {
     Patterns,
@@ -39,14 +52,15 @@ struct WFCState
     HashTable<WFCPattern, u32, PatternHash> patternsHash;
     Array<WFCPattern> patterns;
 
-    Array<Array<bool>> patternsIndex;
-    u32 indexOffsetsCount;
+    // 4 directions for 2D
+    // This might change
+    WFCIndexCell patternsIndex[4];
 
     bool done;
 
     // UI stuff
-    WFCTestPage currentDrawnPage;
-    u32 currentDrawnIndex;
+    WFCTestPage currentPage;
+    u32 currentIndexEntry;
 };
 
 

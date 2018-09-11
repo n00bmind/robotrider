@@ -181,38 +181,59 @@ CreatePatternTexture( const WFCPattern& pattern, const u32* palette, MemoryArena
 internal bool
 Matches( u8* basePattern, v2i offset, u8* testPattern, u32 N )
 {
-    bool result = false;
-    
+    bool result = true;
+
+    u32 xMin = offset.x < 0 ? 0 : offset.x, xMax = offset.x < 0 ? offset.x + N : N;
+    u32 yMin = offset.y < 0 ? 0 : offset.y, yMax = offset.y < 0 ? offset.y + N : N;
+
+    for( u32 y = yMin; y < yMax; ++y )
+    {
+        for( u32 x = xMin; x < xMax; ++x )
+        {
+            u32 x2 = x - offset.x;
+            u32 y2 = y - offset.y;
+
+            if( basePattern[y * N + x] != testPattern[y2 * N + x2] )
+            {
+                result = false;
+                break;
+            }
+        }
+    }
+
     return result;
 }
 
 internal void
 BuildPatternsIndex( WFCState* state, u32 N, MemoryArena* arena )
 {
-    u32 stride = 2 * (N - 1) + 1;
-    state->indexOffsetsCount = stride * stride;
-    u32 patternCount = state->patterns.count;
-    new (&state->patternsIndex) Array<Array<bool>>( arena, patternCount );
-
-    for( u32 p = 0; p < patternCount; ++p )
+    v2i offsets[4] =
     {
-        u8* pData = state->patterns[p].data;
+        { -1,  0 },
+        {  0,  1 },
+        {  1,  0 },
+        {  0, -1 },
+    };
 
-        int n1 = (int)(N - 1);
-        for( int j = -n1; j <= n1; ++j )
+    u32 patternCount = state->patterns.count;
+    for( u32 d = 0; d < ARRAYCOUNT(state->patternsIndex); ++d )
+    {
+        Array<WFCIndexEntry> entries( arena, patternCount );
+
+        for( u32 p = 0; p < patternCount; ++p )
         {
-            for( int i = -n1; i <= n1; ++i )
-            {
-                Array<bool> index( arena, patternCount );
+            u8* pData = state->patterns[p].data;
 
-                for( u32 q = 0; q < patternCount; ++q )
-                {
-                    u8* qData = state->patterns[q].data;
-                    //index.Add( Matches( pData, { i, j }, qData, N ) );
-                }
+            Array<bool> matches( arena, patternCount );
+
+            for( u32 q = 0; q < patternCount; ++q )
+            {
+                u8* qData = state->patterns[q].data;
+                matches.Add( Matches( pData, offsets[d], qData, N ) );
             }
+            entries.Add( { matches } );
         }
-        //state->patternsIndex.Add( index );
+        state->patternsIndex[d] = { entries };
     }
 }
 
@@ -237,9 +258,10 @@ WFCUpdate( const Texture& source, WFCState* state, MemoryArena* arena )
     if( !state->paletteEntries )
         PalettizeSource( source, state, arena );
     else if( state->patternsHash.count == 0 )
+    {
         BuildPatternsFromSource( state, N, arena );
-    else if( !state->patternsIndex )
         BuildPatternsIndex( state, N, arena );
+    }
     else
     {
         if( !state->done )
@@ -254,6 +276,7 @@ void
 WFCDrawTest( const EditorState& editorState, u16 screenWidth, u16 screenHeight, WFCState* state, MemoryArena* arena,
              MemoryArena* tmpArena, RenderCommands* renderCommands )
 {
+    const r32 patternScale = 16;
 
     ImGui::SetNextWindowPos( ImVec2( 100.f, 100.f ), ImGuiCond_FirstUseEver );
     ImGui::SetNextWindowSize( ImVec2( screenWidth * 0.75f, screenHeight * 0.75f ), ImGuiCond_FirstUseEver );
@@ -265,31 +288,29 @@ WFCDrawTest( const EditorState& editorState, u16 screenWidth, u16 screenHeight, 
     ImGui::BeginChild( "child_wfc_left", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
     // TODO Draw indexed & de-indexed image to help detect errors
     const Texture& srcTex = editorState.testSourceTexture;
-    ImGui::Image( srcTex.handle, ImVec2( (r32)srcTex.width * 8, (r32)srcTex.height * 8 ) );
+    ImGui::Image( srcTex.handle, ImVec2( (r32)srcTex.width * patternScale, (r32)srcTex.height * patternScale ) );
 
     ImGui::Dummy( ImVec2( 0, 100 ) );
     ImGui::Separator();
-    ImGui::Dummy( ImVec2( 0, 100 ) );
+    ImGui::Dummy( ImVec2( 0, 20 ) );
 
     ImGui::BeginGroup();
     if( ImGui::Button( "Patterns" ) )
-        state->currentDrawnPage = WFCTestPage::Patterns;
+        state->currentPage = WFCTestPage::Patterns;
     if( ImGui::Button( "Index" ) )
-        state->currentDrawnPage = WFCTestPage::Index;
+        state->currentPage = WFCTestPage::Index;
     ImGui::EndGroup();
 
     ImGui::EndChild();
     ImGui::SameLine();
 
-    // TODO Add a view with all extracted patterns
+    u32 patternsCountSqrt = (u32)Round( Sqrt( (r32)state->patterns.count ) );
+
     ImGui::BeginChild( "child_wfc_right", ImVec2( 0, 0 ), true, 0 );
-    switch( state->currentDrawnPage )
+    switch( state->currentPage )
     {
         case WFCTestPage::Patterns:
         {
-            const r32 patternScale = 16;
-            u32 side = (u32)Round( Sqrt( (r32)state->patterns.count ) );
-
             u32 row = 0;
             for( u32 i = 0; i < state->patterns.count; ++i )
             {
@@ -301,7 +322,7 @@ WFCDrawTest( const EditorState& editorState, u16 screenWidth, u16 screenHeight, 
                 ImGui::Image( p.texture.handle, ImVec2( (r32)p.texture.width * patternScale, (r32)p.texture.height * patternScale ) );
 
                 row++;
-                if( row < side )
+                if( row < patternsCountSqrt )
                     ImGui::SameLine( 0, 30 );
                 else
                 {
@@ -313,7 +334,77 @@ WFCDrawTest( const EditorState& editorState, u16 screenWidth, u16 screenHeight, 
 
         case WFCTestPage::Index:
         {
-            ImGui::Text( "Index world" );
+            ImGui::BeginChild( "child_index_entries", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
+            for( u32 i = 0; i < state->patterns.count; ++i )
+            {
+                WFCPattern& p = state->patterns[i];
+
+                if( !p.texture.handle )
+                    p.texture = CreatePatternTexture( p, state->palette, arena );
+
+                if( ImGui::ImageButton( p.texture.handle, ImVec2( (r32)p.texture.width * patternScale, (r32)p.texture.height * patternScale ) ) )
+                    state->currentIndexEntry = i;
+                ImGui::Spacing();
+            }
+            ImGui::EndChild();
+
+            ImGui::SameLine();
+
+            ImGui::BeginChild( "child_index_offsets", ImVec2( 0, 0 ), false, 0 );
+            ImGui::Columns( 3, nullptr, true );
+            for( u32 j = 0; j < 3; ++j )
+            {
+                for( u32 i = 0; i < 3; ++i )
+                {
+                    int d = -1;
+
+                    if( ImGui::GetColumnIndex() == 0 )
+                        ImGui::Separator();
+                    ImGui::Text("{ %d, %d }", i, j );
+
+                    if( i == 0 && j == 1 )
+                        d = 0;
+                    else if( i == 1 && j == 2 )
+                        d = 1;
+                    else if( i == 2 && j == 1 )
+                        d = 2;
+                    else if( i == 1 && j == 0 )
+                        d = 3;
+
+                    if( d >= 0 )
+                    {
+                        Array<bool>& matches = state->patternsIndex[d].entries[state->currentIndexEntry].matches;
+
+                        u32 row = 0;
+                        for( u32 m = 0; m < state->patterns.count; ++m )
+                        {
+                            if( !matches[m] )
+                                continue;
+
+                            WFCPattern& p = state->patterns[m];
+
+                            //if( !p.texture.handle )
+                                //p.texture = CreatePatternTexture( p, state->palette, arena );
+
+                            ImGui::Image( p.texture.handle, ImVec2( (r32)p.texture.width * patternScale, (r32)p.texture.height * patternScale ) );
+
+                            row++;
+                            if( row < patternsCountSqrt )
+                                ImGui::SameLine( 0, 30 );
+                            else
+                            {
+                                ImGui::Spacing();
+                                row = 0;
+                            }
+                        }
+                    }
+
+                    ImGui::NextColumn();
+                }
+            }
+            ImGui::Columns( 1 );
+            ImGui::Separator();
+            ImGui::EndChild();
         } break;
     }
     ImGui::EndChild();
