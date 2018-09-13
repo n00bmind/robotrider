@@ -122,44 +122,6 @@ OpenGLGetInfo( bool modernContext )
     return result;
 }
 
-internal m4
-CreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
-{
-    r32 n = 0.1f;		// Make this configurable?
-    r32 f = 1000.0f;
-    r32 d = f - n;
-    r32 a = aspectRatio;
-    r32 fovy = Radians( fovYDeg );
-    r32 ctf = 1 / (r32)tan( fovy / 2 );
-
-    m4 result =
-    {{
-        { ctf/a,      0,           0,            0 },
-        {     0,    ctf,           0,            0 },
-        {     0,      0,    -(f+n)/d,     -2*f*n/d },
-        {     0,      0,          -1,            0 } 
-    }};
-
-    return result;
-}
-
-internal m4
-CreateOrthographicMatrix( r32 width, r32 height )
-{
-    r32 w = width;
-    r32 h = -height;
-
-    m4 result =
-    {{
-        { 2.0f/w,        0,      0,     0 },
-        {      0,   2.0f/h,      0,     0 },
-        {      0,        0,     -1,     0 },
-        {     -1,        1,      0,     1 },
-    }};
-
-    return result;
-}
-
 internal GLint
 OpenGLCompileShader( GLenum shaderType, const char *shaderSource, GLuint *outShaderId )
 {

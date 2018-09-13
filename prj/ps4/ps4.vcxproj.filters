@@ -3,4 +3,20 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\ps4_platform.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{6f1cca62-e172-4bf4-9290-147b61ea2e70}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <OrbisWavePsslc Include="..\..\src\shaders\clear_p.pssl">
+      <Filter>shaders</Filter>
+    </OrbisWavePsslc>
+    <OrbisWavePsslc Include="..\..\src\shaders\test_p.pssl">
+      <Filter>shaders</Filter>
+    </OrbisWavePsslc>
+    <OrbisWavePsslc Include="..\..\src\shaders\test_vv.pssl">
+      <Filter>shaders</Filter>
+    </OrbisWavePsslc>
+  </ItemGroup>
 </Project>

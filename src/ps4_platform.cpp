@@ -4,52 +4,80 @@
 #include <string.h>
 #include <kernel.h>
 
+#include <gnmx.h>
+#include <gnmx/shader_parser.h>
+#include <video_out.h>
+
+using namespace sce;
+
 #include "ps4_platform.h"
+#include "ps4_renderer.h"
+#include "ps4_renderer.cpp"
 
 
 
 PlatformAPI globalPlatform;
 internal PS4State globalPlatformState;
-
+internal PS4RendererState globalRendererState;
 
 
 
 internal void*
-PS4AllocAndMap( void* address, sz size, int memoryType,
-                int protection = SCE_KERNEL_PROT_CPU_RW | SCE_KERNEL_PROT_GPU_RW )
+PS4AllocAndMap( void* address, sz size, int memoryType, sz alignment /* = 0 */, 
+                int protection /* = SCE_KERNEL_PROT_CPU_RW | SCE_KERNEL_PROT_GPU_RW */ )
 {
+    ASSERT( globalPlatformState.nextFreeMemoryBlock < ARRAYCOUNT(globalPlatformState.memoryBlocks) );
+    PS4MemoryBlock *result = globalPlatformState.memoryBlocks + globalPlatformState.nextFreeMemoryBlock++;
+    result->address = address;
+
     ASSERT( size > 0 );
-
     const u32 pageSize = 16*1024;
-    size = ((size + pageSize - 1) / pageSize) * pageSize;
 
-    off_t physicalOffset = 0;
-    i32 ret = sceKernelAllocateMainDirectMemory( size, 0, memoryType, &physicalOffset );
+    if( alignment > pageSize )
+        result->size = Align( size, alignment );
+    else
+        result->size = Align( size, pageSize );
+
+    int ret = sceKernelAllocateMainDirectMemory( result->size, alignment, memoryType, &result->physicalOffset );
     ASSERT( ret == 0 );
 
     // NOTE Never specify 0 for the 'protection' field! Non-consistent page faults will ensue!
-    ret = sceKernelMapDirectMemory( &address, size, protection, address ? SCE_KERNEL_MAP_FIXED : 0, physicalOffset, 0 );
+    ret = sceKernelMapDirectMemory( &result->address, result->size, protection,
+                                    (address ? SCE_KERNEL_MAP_FIXED : 0) | SCE_KERNEL_MAP_NO_OVERWRITE,
+                                    result->physicalOffset, alignment );
     ASSERT( ret == 0 );
 
-    return address;
+    return result->address;
 }
 
 internal void
 PS4Free( void* address )
 {
-    // TODO Need to track physical memory offset ourselves!
-    sz physicalOffset = 0;
-    sz size = 0;
+    PS4MemoryBlock* block = nullptr;
+    for( u32 i = 0; i < ARRAYCOUNT(globalPlatformState.memoryBlocks); ++i )
+    {
+        block = &globalPlatformState.memoryBlocks[i];
+        if( block->address == address )
+            break;
+    }
+    ASSERT( block );
 
-    i32 ret = sceKernelReleaseDirectMemory( physicalOffset, size );
+    int ret = sceKernelMunmap( block->address, block->size );
     ASSERT( ret == 0 );
+    block->address = nullptr;
+
+    ret = sceKernelReleaseDirectMemory( block->physicalOffset, block->size );
+    ASSERT( ret == 0 );
+    block->physicalOffset = 0;
+
+    block->size = 0;
 }
 
 internal sz
 PS4JoinPaths( const char* pathBase, const char* relativePath, char* destination, bool addTrailingSlash = false )
 {
     const char* format = "%s/%s";
-    if( destination[0] == '/' )
+    if( relativePath[0] == '/' )
         format = "%s%s";
 
     snprintf( destination, MAX_PATH, format, pathBase, relativePath );
@@ -73,12 +101,42 @@ PS4JoinPaths( const char* pathBase, const char* relativePath, char* destination,
 internal void
 PS4ResolvePaths( PS4State* platformState )
 {
+#if RELEASE
+    NOT_IMPLEMENTED
+#else
+    snprintf( platformState->binariesPath, MAX_PATH, "/app0/bin/ORBIS" );
     snprintf( platformState->assetDataPath, MAX_PATH, "/app0/data" );
+#endif
+}
+
+internal void
+PS4BuildAbsolutePath( const char* filename, PS4Path pathType, char *outPath )
+{
+    switch( pathType )
+    {
+        case PS4Path::Binary:
+            PS4JoinPaths( globalPlatformState.binariesPath, filename, outPath );
+            break;
+        case PS4Path::Asset:
+            PS4JoinPaths( globalPlatformState.assetDataPath, filename, outPath );
+            break;
+        INVALID_DEFAULT_CASE
+    }
 }
 
 PLATFORM_LOG(PS4Log)
 {
-    // TODO 
+    char buffer[1024];
+
+    va_list args;
+    va_start( args, fmt );
+    vsnprintf( buffer, ARRAYCOUNT( buffer ), fmt, args );
+    va_end( args );
+
+    printf( "%s\n", buffer );
+
+    if( globalPlatformState.gameCode.LogCallback )
+        globalPlatformState.gameCode.LogCallback( buffer );
 }
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPS4FreeFileMemory)
@@ -96,8 +154,8 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPS4ReadEntireFile)
     char absolutePath[MAX_PATH];
     if( filename[0] != '/' )
     {
-        // If path is relative, use executable location to complete it
-        PS4JoinPaths( globalPlatformState.assetDataPath, filename, absolutePath );
+        // If path is relative, use assets location to complete it
+        PS4BuildAbsolutePath( filename, PS4Path::Asset, absolutePath );
         filename = absolutePath;
     }
 
@@ -111,7 +169,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPS4ReadEntireFile)
         if( ret == 0 )
         {
             sz fileSize = st.st_size;
-            result.contents = PS4AllocAndMap( 0, fileSize + 1, SCE_KERNEL_WB_ONION, SCE_KERNEL_PROT_CPU_RW );
+            result.contents = PS4AllocAndMap( 0, fileSize + 1, SCE_KERNEL_WB_ONION, 0, SCE_KERNEL_PROT_CPU_RW );
 
             if( result.contents )
             {
@@ -141,7 +199,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPS4ReadEntireFile)
     }
     else
     {
-        LOG( "ERROR: Failed opening file for reading (%#x)", fileHandle );
+        LOG( "ERROR: Failed opening file '%s' for reading (%#x)", filename, fileHandle );
     }
 
     return result;
@@ -271,53 +329,58 @@ int main( int argc, const char* argv[] )
     globalPlatformState.renderer = Renderer::Gnmx;
     PS4ResolvePaths( &globalPlatformState );
 
-    LOG( "Initializing PS4 platform with game DLL at: %s", globalPlatformState.sourceDLLPath );
+    LOG( "Initializing PS4 platform with game DLL at: %s", globalPlatformState.binariesPath );
     GameMemory gameMemory = {};
     gameMemory.platformAPI = &globalPlatform;
     gameMemory.permanentStorageSize = GIGABYTES(2);
     gameMemory.transientStorageSize = GIGABYTES(1);
-#if DEBUG
+#if !RELEASE
     gameMemory.debugStorageSize = MEGABYTES(64);
 #endif
 
 
+    globalRendererState = PS4InitRenderer();
+
     // TODO Decide a proper size for this
     u32 renderBufferSize = MEGABYTES( 4 );
-    u8 *renderBuffer = (u8 *)PS4AllocAndMap( 0, renderBufferSize, 0, SCE_KERNEL_WC_GARLIC );
+    u8 *renderBuffer = (u8 *)PS4AllocAndMap( 0, renderBufferSize, SCE_KERNEL_WC_GARLIC );
     u32 vertexBufferSize = 1024*1024;
     TexturedVertex *vertexBuffer = (TexturedVertex *)PS4AllocAndMap( 0, vertexBufferSize * sizeof(TexturedVertex),
-                                                                     0, SCE_KERNEL_WC_GARLIC );
+                                                                     SCE_KERNEL_WC_GARLIC );
     u32 indexBufferSize = vertexBufferSize * 8;
-    u32 *indexBuffer = (u32 *)PS4AllocAndMap( 0, indexBufferSize * sizeof(u32), 0, SCE_KERNEL_WC_GARLIC );
+    u32 *indexBuffer = (u32 *)PS4AllocAndMap( 0, indexBufferSize * sizeof(u32), SCE_KERNEL_WC_GARLIC );
 
     RenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
                                                         vertexBuffer, vertexBufferSize,
                                                         indexBuffer, indexBufferSize );
 
     void* baseAddress = 0;
-#if DEBUG
+#if !RELEASE
     baseAddress = (void*)GIGABYTES(64);
 #endif
 
     // Allocate game memory pools
     u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize + gameMemory.debugStorageSize;
-    globalPlatformState.gameMemoryBlock = PS4AllocAndMap( baseAddress, totalSize, SCE_KERNEL_WB_ONION, SCE_KERNEL_PROT_CPU_RW );
+    globalPlatformState.gameMemoryBlock = PS4AllocAndMap( baseAddress, totalSize, SCE_KERNEL_WB_ONION, 0, SCE_KERNEL_PROT_CPU_RW );
     globalPlatformState.gameMemorySize = totalSize;
 
     gameMemory.permanentStorage = globalPlatformState.gameMemoryBlock;
     gameMemory.transientStorage = (u8 *)gameMemory.permanentStorage + gameMemory.permanentStorageSize;
-#if DEBUG
+#if !RELEASE
     gameMemory.debugStorage = (u8*)gameMemory.transientStorage + gameMemory.transientStorageSize;
 #endif
 
     //i16 *soundSamples = (i16 *)PS4AllocAndMap( 0, audioOutput.bufferSizeFrames * audioOutput.bytesPerFrame,
-                                               //0, SCE_KERNEL_WB_ONION );
+                                               //SCE_KERNEL_WB_ONION );
 
     if( gameMemory.permanentStorage && renderCommands.isValid ) //&& soundSamples )
     {
 //         LOG( ".Allocated game memory with base address: %p", baseAddress );
 
-        globalPlatformState.gameCode = PS4LoadGameCode( "/hostapp/robotrider.prx", &gameMemory );
+        char absolutePath[MAX_PATH];
+        const char* filename = "robotrider.prx";
+        PS4BuildAbsolutePath( filename, PS4Path::Binary, absolutePath );
+        globalPlatformState.gameCode = PS4LoadGameCode( absolutePath, &gameMemory );
 
         GameInput input[2] = {};
         GameInput *newInput = &input[0];
@@ -345,6 +408,9 @@ int main( int argc, const char* argv[] )
             // Ask the game to render one frame
             globalPlatformState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
 
+            // Display frame
+            PS4RenderToOutput( renderCommands, &globalRendererState );
+            PS4SwapBuffers( &globalRendererState );
         }
     }
     else
@@ -352,5 +418,6 @@ int main( int argc, const char* argv[] )
         LOG( ".ERROR: Memory allocation failed!" );
     }
 
+    PS4ShutdownRenderer( &globalRendererState );
     return 0;
 }

@@ -122,6 +122,8 @@ MergeIfPossible( MemoryBlock* first, MemoryBlock* second, MemoryBlock* sentinel 
     return result;
 }
 
+// TODO Abstract the sentinel inside a 'MemoryPool' struct and put a pointer to that in the block
+// so that we don't need to pass the sentinel, and we can remove the 'ownerPool' idea from the meshes
 inline void
 ReleaseBlockAt( void* memory, MemoryBlock* sentinel )
 {
@@ -192,6 +194,10 @@ CheckArena( MemoryArena *arena )
 #define PUSH_STRUCT(arena, type) (type *)_PushSize( arena, sizeof(type) )
 #define PUSH_ARRAY(arena, count, type) (type *)_PushSize( arena, (count)*sizeof(type) )
 #define PUSH_SIZE(arena, size) _PushSize( arena, size )
+
+#define PUSH_ARRAY_ALIGNED(arena, count, type, alignment) (type *)_PushSize( arena, (count)*sizeof(type), alignment )
+#define PUSH_SIZE_ALIGNED(arena, size, alignment) _PushSize( arena, size, alignment )
+
 inline void *
 _PushSize( MemoryArena *arena, sz size )
 {
@@ -200,6 +206,20 @@ _PushSize( MemoryArena *arena, sz size )
 
     void *result = arena->base + arena->used;
     arena->used += size;
+    return result;
+}
+
+inline void *
+_PushSize( MemoryArena *arena, sz size, sz alignment )
+{
+    ASSERT( arena->used + size <= arena->size );
+    // TODO Clear to zero option
+
+    void *free = arena->base + arena->used;
+    void* result = Align( free, alignment );
+    sz waste = (u8*)result - (u8*)free;
+
+    arena->used += size + waste;
     return result;
 }
 

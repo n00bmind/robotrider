@@ -13,6 +13,11 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\ps4_platform.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <OrbisWavePsslc Include="..\..\src\shaders\clear_p.pssl" />
+    <OrbisWavePsslc Include="..\..\src\shaders\test_p.pssl" />
+    <OrbisWavePsslc Include="..\..\src\shaders\test_vv.pssl" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{9B42C6B7-EB84-4ED3-85C0-705236566B37}</ProjectGuid>
     <ProjectName>ps4_platform</ProjectName>
@@ -61,21 +66,27 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ORBIS'">
     <ClCompile>
-      <PreprocessorDefinitions>DEBUG;%(PreprocessorDefinitions);</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SCE_GNMX_ENABLE_GFX_LCUE;DEBUG=1;%(PreprocessorDefinitions);</PreprocessorDefinitions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <DisableSpecificWarnings>missing-braces; unused-variable; unused-function; missing-field-initializers</DisableSpecificWarnings>
       <WarningsAsErrors>true</WarningsAsErrors>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>libSceGnm.a;libSceGnmDriver_stub_weak.a;libSceGnmx.a;libSceGpuAddress.a;libSceVideoOut_stub_weak.a;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ORBIS'">
     <ClCompile>
-      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions);</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SCE_GNMX_ENABLE_GFX_LCUE;RELEASE=1;%(PreprocessorDefinitions);</PreprocessorDefinitions>
       <OptimizationLevel>Level2</OptimizationLevel>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <DisableSpecificWarnings>missing-braces; unused-variable; unused-function; missing-field-initializers</DisableSpecificWarnings>
       <WarningsAsErrors>true</WarningsAsErrors>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>libSceGnm.a;libSceGnmDriver_stub_weak.a;libSceGnmx.a;libSceGpuAddress.a;libSceVideoOut_stub_weak.a;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <Import Condition="'$(ConfigurationType)' == 'Makefile' and Exists('$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets')" Project="$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

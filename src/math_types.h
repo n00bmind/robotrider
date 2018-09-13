@@ -749,6 +749,44 @@ operator*( const m4 &m1, const m4 &m2 )
 }
 
 inline m4
+CreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
+{
+    r32 n = 0.1f;		// Make this configurable?
+    r32 f = 1000.0f;
+    r32 d = f - n;
+    r32 a = aspectRatio;
+    r32 fovy = Radians( fovYDeg );
+    r32 ctf = 1 / (r32)tan( fovy / 2 );
+
+    m4 result =
+    {{
+        { ctf/a,      0,           0,            0 },
+        {     0,    ctf,           0,            0 },
+        {     0,      0,    -(f+n)/d,     -2*f*n/d },
+        {     0,      0,          -1,            0 } 
+    }};
+
+    return result;
+}
+
+inline m4
+CreateOrthographicMatrix( r32 width, r32 height )
+{
+    r32 w = width;
+    r32 h = -height;
+
+    m4 result =
+    {{
+        { 2.0f/w,        0,      0,     0 },
+        {      0,   2.0f/h,      0,     0 },
+        {      0,        0,     -1,     0 },
+        {     -1,        1,      0,     1 },
+    }};
+
+    return result;
+}
+
+inline m4
 CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
 {
     m4 r = M4Rows( x, y, z );

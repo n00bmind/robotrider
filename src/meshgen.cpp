@@ -78,8 +78,9 @@ AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
     sz totalMeshSize = sizeof(Mesh) + vertexSize + indexSize;
 
     Mesh* result = nullptr;
+    // FIXME This is wrong. Not accounting for the size of the MemoryBlock struct (which we shouldn't have to do anyway!)
     MemoryBlock* block = FindBlockForSize( &pool->memorySentinel, totalMeshSize );
-    if( block)
+    if( block )
     {
         // TODO Tune this based on the smallest mesh size we will typically have
         const sz blockSplitThreshold = 4096;
@@ -137,6 +138,8 @@ CopyMeshFromScratchBuffers( Mesh* mesh, MeshPool* pool )
 void
 ReleaseMesh( Mesh** mesh )
 {
+    // TODO Move the sentinel in MeshPool to a 'parent' MemoryPool and add a reference to that
+    // in the MemoryBlock so we can remove the ownerPool thing!
     ReleaseBlockAt( *mesh, &(*mesh)->ownerPool->memorySentinel );
     (*mesh)->ownerPool->meshCount--;
     *mesh = nullptr;

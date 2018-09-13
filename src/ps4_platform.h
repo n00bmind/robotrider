@@ -3,6 +3,13 @@
 
 #define MAX_PATH 1024
 
+struct PS4MemoryBlock
+{
+    void* address;
+    off_t physicalOffset;
+
+    sz size;
+};
 
 struct PlatformJobQueueJob
 {
@@ -41,17 +48,23 @@ struct PS4GameCode
     bool isValid;
 };
 
+enum class PS4Path
+{
+    Binary,
+    Asset,
+};
+
 #define MAX_REPLAY_BUFFERS 3
 struct PS4State
 {
-    char currentDirectory[MAX_PATH];
-    char elfFilePath[MAX_PATH];
-    char sourceDLLPath[MAX_PATH];
-    char tempDLLPath[MAX_PATH];
+    char binariesPath[MAX_PATH];
     char assetDataPath[MAX_PATH];
 
     PS4GameCode gameCode;
     Renderer renderer;
+
+    PS4MemoryBlock memoryBlocks[64];
+    u32 nextFreeMemoryBlock;
 
     void *gameMemoryBlock;
     u64 gameMemorySize;
@@ -66,5 +79,17 @@ struct PS4State
 
     PlatformJobQueue hiPriorityQueue;
 };
+
+
+
+internal void*
+PS4AllocAndMap( void* address, sz size, int memoryType, sz alignment = 0,
+                int protection = SCE_KERNEL_PROT_CPU_RW | SCE_KERNEL_PROT_GPU_RW );
+internal void
+PS4Free( void* address );
+
+internal void
+PS4BuildAbsolutePath( const char* filename, PS4Path pathType, char *outPath );
+
 
 #endif /* __PS4_PLATFORM_H__ */
