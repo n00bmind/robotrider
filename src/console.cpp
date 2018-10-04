@@ -107,7 +107,7 @@ ConsoleExec( GameConsole *console, char *input )
 }
 
 internal int
-ConsoleInputCallback( ImGuiTextEditCallbackData *data )
+ConsoleInputCallback( ImGuiTextEditCallbackData *data )     // TODO Deprecated
 {
     GameConsole *console = (GameConsole *)data->UserData;
 

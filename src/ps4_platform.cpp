@@ -1,24 +1,32 @@
 #include "game.h"
 
+#include "imgui/imgui_draw.cpp"
+#include "imgui/imgui.cpp"
+#include "imgui/imgui_widgets.cpp"
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <kernel.h>
 
+size_t sceLibcHeapSize = 1 * 1024 * 1024;
+unsigned int sceLibcHeapDebugFlags = SCE_LIBC_HEAP_DEBUG_SHORTAGE;
+
 #include <gnmx.h>
 #include <gnmx/shader_parser.h>
+#include <vectormath.h>
 #include <video_out.h>
 
 using namespace sce;
+
 
 #include "ps4_platform.h"
 #include "ps4_renderer.h"
 #include "ps4_renderer.cpp"
 
 
-
 PlatformAPI globalPlatform;
 internal PS4State globalPlatformState;
-internal PS4RendererState globalRendererState;
 
 
 
@@ -26,6 +34,7 @@ internal void*
 PS4AllocAndMap( void* address, sz size, int memoryType, sz alignment /* = 0 */, 
                 int protection /* = SCE_KERNEL_PROT_CPU_RW | SCE_KERNEL_PROT_GPU_RW */ )
 {
+    // FIXME Switch to getting this info from sceKernelVirtualQuery
     ASSERT( globalPlatformState.nextFreeMemoryBlock < ARRAYCOUNT(globalPlatformState.memoryBlocks) );
     PS4MemoryBlock *result = globalPlatformState.memoryBlocks + globalPlatformState.nextFreeMemoryBlock++;
     result->address = address;
@@ -72,6 +81,7 @@ PS4Free( void* address )
 
     block->size = 0;
 }
+
 
 internal sz
 PS4JoinPaths( const char* pathBase, const char* relativePath, char* destination, bool addTrailingSlash = false )
@@ -139,6 +149,7 @@ PLATFORM_LOG(PS4Log)
         globalPlatformState.gameCode.LogCallback( buffer );
 }
 
+
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPS4FreeFileMemory)
 {
     if( memory )
@@ -204,6 +215,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPS4ReadEntireFile)
 
     return result;
 }
+
 
 internal
 PLATFORM_ADD_NEW_JOB(PS4AddNewJob)
@@ -286,7 +298,6 @@ PS4LoadGameCode( const char* prxPath, GameMemory* gameMemory )
 //     if( sceKernelStat( prxPath, &bla ) == 0 )
 //         result.lastPrxWriteTime = bla.st_mtim;
 
-    // TODO Check if we should specify '/host' for the root path here
     result.gameCodePrx = sceKernelLoadStartModule( prxPath, 0, nullptr, 0, nullptr, nullptr );
     if( result.gameCodePrx > 0 )
     {
@@ -307,9 +318,11 @@ PS4LoadGameCode( const char* prxPath, GameMemory* gameMemory )
     return result;
 }
 
+
 int main( int argc, const char* argv[] )
 {
     // Init global platform
+    globalPlatform = {};
     globalPlatform.Log = PS4Log;
     globalPlatform.DEBUGReadEntireFile = DEBUGPS4ReadEntireFile;
     globalPlatform.DEBUGFreeFileMemory = DEBUGPS4FreeFileMemory;
@@ -326,6 +339,8 @@ int main( int argc, const char* argv[] )
     globalPlatform.hiPriorityQueue = &globalPlatformState.hiPriorityQueue;
     globalPlatform.workerThreadsCount = workerThreadsCount;
 
+
+    globalPlatformState = {};
     globalPlatformState.renderer = Renderer::Gnmx;
     PS4ResolvePaths( &globalPlatformState );
 
@@ -337,9 +352,6 @@ int main( int argc, const char* argv[] )
 #if !RELEASE
     gameMemory.debugStorageSize = MEGABYTES(64);
 #endif
-
-
-    globalRendererState = PS4InitRenderer();
 
     // TODO Decide a proper size for this
     u32 renderBufferSize = MEGABYTES( 4 );
@@ -353,7 +365,6 @@ int main( int argc, const char* argv[] )
     RenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
                                                         vertexBuffer, vertexBufferSize,
                                                         indexBuffer, indexBufferSize );
-
     void* baseAddress = 0;
 #if !RELEASE
     baseAddress = (void*)GIGABYTES(64);
@@ -375,25 +386,39 @@ int main( int argc, const char* argv[] )
 
     if( gameMemory.permanentStorage && renderCommands.isValid ) //&& soundSamples )
     {
-//         LOG( ".Allocated game memory with base address: %p", baseAddress );
+        LOG( ".Allocated game memory with base address: %p", baseAddress );
 
-        char absolutePath[MAX_PATH];
+        char gameCodePath[MAX_PATH];
         const char* filename = "robotrider.prx";
-        PS4BuildAbsolutePath( filename, PS4Path::Binary, absolutePath );
-        globalPlatformState.gameCode = PS4LoadGameCode( absolutePath, &gameMemory );
+        PS4BuildAbsolutePath( filename, PS4Path::Binary, gameCodePath );
+        globalPlatformState.gameCode = PS4LoadGameCode( gameCodePath, &gameMemory );
+
+        PS4RendererState rendererState = PS4InitRenderer();
+        gameMemory.imGuiContext = PS4InitImGui();
 
         GameInput input[2] = {};
         GameInput *newInput = &input[0];
         GameInput *oldInput = &input[1];
 
+        u32 runningFrameCounter = 0;
+
         // Main loop
         globalPlatformState.running = true;
         while( globalPlatformState.running )
         {
-            //PS4PrepareInputData( oldInput, newInput,
-            //lastDeltaTimeSecs, totalElapsedSeconds, runningFrameCounter );
+            //PS4PrepareInputData( oldInput, newInput, lastDeltaTimeSecs, totalElapsedSeconds, runningFrameCounter );
 
             // Process input
+            newInput->executableReloaded = false;
+
+            if( runningFrameCounter == 0 )
+                newInput->executableReloaded = true;
+
+            // Setup remaining stuff for the ImGui frame
+            ImGuiIO &io = ImGui::GetIO();
+            io.DisplaySize.x = kDisplayBufferWidth;
+            io.DisplaySize.y = kDisplayBufferHeight;
+            ImGui::NewFrame();
 
             // Prepare audio & video buffers
             GameAudioBuffer audioBuffer = {};
@@ -409,15 +434,20 @@ int main( int argc, const char* argv[] )
             globalPlatformState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
 
             // Display frame
-            PS4RenderToOutput( renderCommands, &globalRendererState );
-            PS4SwapBuffers( &globalRendererState );
+            PS4RenderToOutput( &rendererState );
+            PS4RenderImGui();
+            PS4SwapBuffers( &rendererState );
+
+            ++runningFrameCounter;
         }
+
+        PS4ShutdownRenderer( &rendererState );
     }
     else
     {
         LOG( ".ERROR: Memory allocation failed!" );
     }
 
-    PS4ShutdownRenderer( &globalRendererState );
     return 0;
 }
+

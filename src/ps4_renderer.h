@@ -24,6 +24,29 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __PS4_RENDERER_H__
 #define __PS4_RENDERER_H__ 
 
+using namespace sce::Vectormath::Simd::Aos;
+
+struct Matrix4GPU
+{
+    v4 x;
+    v4 y;
+    v4 z;
+    v4 w;
+
+    Matrix4GPU &operator=( const Matrix4 &rhs )
+    {
+        memcpy( this, &rhs, sizeof(*this) );
+        return *this;
+    }
+};
+
+struct ShaderConstants
+{
+    Matrix4GPU m_WorldViewProj;
+};
+
+////////////////////////////////////////////////
+
 enum PS4RenderContextState
 {
     kRenderContextFree = 0,
@@ -55,6 +78,7 @@ struct PS4RendererState
     MemoryArena onionArena;
     MemoryArena garlicArena;
 
+    Gnm::OwnerHandle ownerHandle;
     int videoOutHandle;
 
     // Since we're using one context per frame, this represents the number of frames that can be "in flight"

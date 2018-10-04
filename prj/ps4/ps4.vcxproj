@@ -75,6 +75,10 @@
     <Link>
       <AdditionalDependencies>libSceGnm.a;libSceGnmDriver_stub_weak.a;libSceGnmx.a;libSceGpuAddress.a;libSceVideoOut_stub_weak.a;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <OrbisWavePsslc>
+      <Optimization>Od</Optimization>
+      <SdbCache>Cache</SdbCache>
+    </OrbisWavePsslc>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ORBIS'">
     <ClCompile>
