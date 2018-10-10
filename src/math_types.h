@@ -460,6 +460,14 @@ operator *( r32 f, const v4 &v )
     return result;
 }
 
+inline v4
+operator /( const v4& v, r32 s )
+{
+    v4 result = { v.x / s, v.y / s, v.z / s, v.w / s };
+    return result;
+}
+
+
 // Matrix 4x4
 
 union m4
@@ -478,9 +486,10 @@ const m4 M4Identity =
 inline bool
 AlmostEqual( const m4& a, const m4& b )
 {
-    for( int i = 0; i < 4; ++i )
-        for( int j = 0; i < 4; ++j )
-            if( !AlmostEqual( a.e[i][j], b.e[i][j] ) )
+    for( int r = 0; r < 4; ++r )
+        for( int c = 0; c < 4; ++c )
+            // C is row-major
+            if( !AlmostEqual( a.e[r][c], b.e[r][c] ) )
                 return false;
     return true;
 }
@@ -734,11 +743,11 @@ operator*( const m4 &m1, const m4 &m2 )
 {
     m4 result = {};
     
-    for(int r = 0; r <= 3; ++r)
+    for(int r = 0; r < 4; ++r)
     {
-        for(int c = 0; c <= 3; ++c)
+        for(int c = 0; c < 4; ++c)
         {
-            for(int i = 0; i <= 3; ++i)
+            for(int i = 0; i < 4; ++i)
             {
                 result.e[r][c] += m1.e[r][i] * m2.e[i][c];
             }

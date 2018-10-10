@@ -1,3 +1,26 @@
+/*
+The MIT License
+
+Copyright (c) 2017 Oscar Peñas Pariente <oscarpp80@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 #include "game.h"
 
 #include "imgui/imgui_draw.cpp"
@@ -14,8 +37,8 @@ unsigned int sceLibcHeapDebugFlags = SCE_LIBC_HEAP_DEBUG_SHORTAGE;
 
 #include <gnmx.h>
 #include <gnmx/shader_parser.h>
-#include <vectormath.h>
 #include <video_out.h>
+#include <gpu_debugger.h>
 
 using namespace sce;
 
@@ -353,18 +376,6 @@ int main( int argc, const char* argv[] )
     gameMemory.debugStorageSize = MEGABYTES(64);
 #endif
 
-    // TODO Decide a proper size for this
-    u32 renderBufferSize = MEGABYTES( 4 );
-    u8 *renderBuffer = (u8 *)PS4AllocAndMap( 0, renderBufferSize, SCE_KERNEL_WC_GARLIC );
-    u32 vertexBufferSize = 1024*1024;
-    TexturedVertex *vertexBuffer = (TexturedVertex *)PS4AllocAndMap( 0, vertexBufferSize * sizeof(TexturedVertex),
-                                                                     SCE_KERNEL_WC_GARLIC );
-    u32 indexBufferSize = vertexBufferSize * 8;
-    u32 *indexBuffer = (u32 *)PS4AllocAndMap( 0, indexBufferSize * sizeof(u32), SCE_KERNEL_WC_GARLIC );
-
-    RenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
-                                                        vertexBuffer, vertexBufferSize,
-                                                        indexBuffer, indexBufferSize );
     void* baseAddress = 0;
 #if !RELEASE
     baseAddress = (void*)GIGABYTES(64);
@@ -384,7 +395,7 @@ int main( int argc, const char* argv[] )
     //i16 *soundSamples = (i16 *)PS4AllocAndMap( 0, audioOutput.bufferSizeFrames * audioOutput.bytesPerFrame,
                                                //SCE_KERNEL_WB_ONION );
 
-    if( gameMemory.permanentStorage && renderCommands.isValid ) //&& soundSamples )
+    if( gameMemory.permanentStorage ) //&& soundSamples )
     {
         LOG( ".Allocated game memory with base address: %p", baseAddress );
 
@@ -427,14 +438,16 @@ int main( int argc, const char* argv[] )
             //audioBuffer.frameCount = audioFramesToWrite;
             //audioBuffer.samples = soundSamples;
 
-            ResetRenderCommands( &renderCommands );
-
+#if 1
+            ResetRenderCommands( &rendererState.renderCommands );
 
             // Ask the game to render one frame
-            globalPlatformState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
+            globalPlatformState.gameCode.UpdateAndRender( &gameMemory, newInput,
+                                                          &rendererState.renderCommands, &audioBuffer );
+#endif
 
             // Display frame
-            PS4RenderToOutput( &rendererState );
+            PS4RenderToOutput( rendererState.renderCommands, &rendererState, &gameMemory );
             PS4RenderImGui();
             PS4SwapBuffers( &rendererState );
 
@@ -450,4 +463,3 @@ int main( int argc, const char* argv[] )
 
     return 0;
 }
-

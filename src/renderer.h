@@ -46,9 +46,16 @@ enum class RenderSwitch
 
 struct Camera
 {
-    r32 fovYDeg = 60;
-    m4 mTransform = M4Identity;
+    r32 fovYDeg;
+    m4 mTransform;
 };
+
+inline Camera
+DefaultCamera()
+{
+    Camera result = { 60, M4Identity };
+    return result;
+}
 
 struct TexturedVertex
 {

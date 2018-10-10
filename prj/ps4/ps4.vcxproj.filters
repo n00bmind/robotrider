@@ -12,10 +12,10 @@
     <OrbisWavePsslc Include="..\..\src\shaders\clear_p.pssl">
       <Filter>shaders</Filter>
     </OrbisWavePsslc>
-    <OrbisWavePsslc Include="..\..\src\shaders\test_p.pssl">
+    <OrbisWavePsslc Include="..\..\src\shaders\default_vv.pssl">
       <Filter>shaders</Filter>
     </OrbisWavePsslc>
-    <OrbisWavePsslc Include="..\..\src\shaders\test_vv.pssl">
+    <OrbisWavePsslc Include="..\..\src\shaders\plain_color_p.pssl">
       <Filter>shaders</Filter>
     </OrbisWavePsslc>
   </ItemGroup>

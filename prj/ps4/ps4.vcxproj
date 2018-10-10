@@ -15,8 +15,8 @@
   </ItemGroup>
   <ItemGroup>
     <OrbisWavePsslc Include="..\..\src\shaders\clear_p.pssl" />
-    <OrbisWavePsslc Include="..\..\src\shaders\test_p.pssl" />
-    <OrbisWavePsslc Include="..\..\src\shaders\test_vv.pssl" />
+    <OrbisWavePsslc Include="..\..\src\shaders\plain_color_p.pssl" />
+    <OrbisWavePsslc Include="..\..\src\shaders\default_vv.pssl" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{9B42C6B7-EB84-4ED3-85C0-705236566B37}</ProjectGuid>
@@ -73,7 +73,7 @@
       <WarningsAsErrors>true</WarningsAsErrors>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>libSceGnm.a;libSceGnmDriver_stub_weak.a;libSceGnmx.a;libSceGpuAddress.a;libSceVideoOut_stub_weak.a;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libSceGnm_debug.a;libSceGnmDriver_stub_weak.a;libSceGnmx_debug.a;libSceGpuAddress_debug.a;libSceGpuDebugger_stub_weak.a;libSceVideoOut_stub_weak.a;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <OrbisWavePsslc>
       <Optimization>Od</Optimization>

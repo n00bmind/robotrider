@@ -147,66 +147,6 @@ PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, Ren
     }
 }
 
-#if 0
-void
-PushRenderGroup( FlyingDude *dude, RenderCommands *commands )
-{
-    RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
-    if( entry )
-    {
-        u32 vertexCount = ARRAYCOUNT( dude->vertices );
-        u32 indexCount = ARRAYCOUNT( dude->indices );
-
-        int indexOffsetStart = entry->vertexCount;
-
-        for( u32 i = 0; i < vertexCount; ++i )
-        {
-            // Transform to world coordinates so this can all be rendered in big chunks
-            PushVertex( dude->mTransform * dude->vertices[i],
-                        Pack01ToRGBA( V4( 1, 0, 0, 1 ) ),
-                        { 0, 0 },
-                        commands );
-        }
-        entry->vertexCount += vertexCount;
-
-        for( u32 i = 0; i < indexCount; ++i )
-        {
-            PushIndex( indexOffsetStart + dude->indices[i], commands );
-        }
-        entry->indexCount += indexCount;
-    }
-}
-
-void
-PushRenderGroup( CubeThing *cube, RenderCommands *commands )
-{
-    RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
-    if( entry )
-    {
-        u32 vertexCount = ARRAYCOUNT( cube->vertices );
-        u32 indexCount = ARRAYCOUNT( cube->indices );
-
-        int indexOffsetStart = entry->vertexCount;
-
-        for( u32 i = 0; i < vertexCount; ++i )
-        {
-            // Transform to world coordinates so this can all be rendered in big chunks
-            PushVertex( cube->mTransform * cube->vertices[i],
-                        Pack01ToRGBA( V4( 0, 0, 0, 1 ) ),
-                        { 0, 0 },
-                        commands );
-        }
-        entry->vertexCount += vertexCount;
-
-        for( u32 i = 0; i < indexCount; ++i )
-        {
-            PushIndex( indexOffsetStart + cube->indices[i], commands );
-        }
-        entry->indexCount += indexCount;
-    }
-}
-#endif
-
 void
 PushLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )
 {
@@ -352,12 +292,12 @@ DrawBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
 }
 
 internal void
-DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands )
+DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands, r32 zOffset = 0 )
 {
     const r32 areaHalf = areaSizeMeters / 2;
 
     u32 semiBlack = Pack01ToRGBA( V4( 0, 0, 0, 0.1f ) );
-    v3 off = V3Zero;
+    v3 off = V3( 0, 0, zOffset );
 
     r32 yStart = -areaHalf;
     r32 yEnd = areaHalf;

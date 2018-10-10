@@ -24,8 +24,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __PS4_RENDERER_H__
 #define __PS4_RENDERER_H__ 
 
-using namespace sce::Vectormath::Simd::Aos;
-
 struct Matrix4GPU
 {
     v4 x;
@@ -33,7 +31,7 @@ struct Matrix4GPU
     v4 z;
     v4 w;
 
-    Matrix4GPU &operator=( const Matrix4 &rhs )
+    Matrix4GPU& operator=( const m4& rhs )
     {
         memcpy( this, &rhs, sizeof(*this) );
         return *this;
@@ -73,6 +71,15 @@ struct PS4ShaderProgram
     Gnmx::PsShader* fragmentShader;
 };
 
+enum VertexElements
+{
+    kVertexPosition = 0,
+    kVertexColor,
+    kVertexUv,
+
+    kVertexElemCount
+};
+
 struct PS4RendererState
 {
     MemoryArena onionArena;
@@ -102,6 +109,9 @@ struct PS4RendererState
     Gnmx::InputOffsetsCache psOffsetsTable;
     void* fsMemory;
     u32 fsModifier;
+
+    Gnm::Buffer vertexBufferDescriptors[kVertexElemCount];
+    RenderCommands renderCommands;
 };
 
 

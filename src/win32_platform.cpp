@@ -672,7 +672,7 @@ Win32DisplayInWindow( const Win32State& platformState, const RenderCommands &com
     {
         case Renderer::OpenGL:
         {
-            OpenGLRenderToOutput( globalOpenGLState, commands, gameMemory );
+            OpenGLRenderToOutput( commands, &globalOpenGLState, gameMemory );
             ImGui::Render();
             OpenGLRenderImGui( globalOpenGLState, ImGui::GetDrawData() );
             SwapBuffers( deviceContext );

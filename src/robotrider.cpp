@@ -151,6 +151,21 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     TemporaryMemory tempMemory = BeginTemporaryMemory( &gameState->transientArena );
 
+#if 0
+    PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
+
+    renderCommands->camera = DefaultCamera();
+    u32 color = Pack01ToRGBA( 1, 0, 1, 1 );
+
+//     PushLine( { -1, 1, -10 }, { -1, -1, -10 }, Pack01ToRGBA( 0, 0, 1, 1 ), renderCommands );
+//     PushLine( { 1, 1, -10 }, { 1, -1, -10 }, Pack01ToRGBA( 0, 0, 1, 1 ), renderCommands );
+//     PushLine( { -1, 1, -10 }, { 1, 1, -10 }, Pack01ToRGBA( 0, 0, 1, 1 ), renderCommands );
+//     PushLine( { -1, -1, -10 }, { 1, -1, -10 }, Pack01ToRGBA( 0, 0, 1, 1 ), renderCommands );
+
+    DrawBoxAt( {0, 0, -5}, 1, color, renderCommands );
+    DrawFloorGrid( 50, 1, renderCommands, -10 );
+
+#else
     if( input->executableReloaded )
     {
         // TODO Check if these are all ok here so that we can remove GAME_SETUP_AFTER_RELOAD
@@ -211,6 +226,8 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
     else
         DrawStats( width, height, statsText );
+#endif
+
 #endif
 
     EndTemporaryMemory( tempMemory );

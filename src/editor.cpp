@@ -133,6 +133,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
         v3 vCamRight = GetColumn( mCamRot, 0 ).xyz;
         editorState.pCamera += Transposed( mCamRot ) * vCamDelta;
 
+        renderCommands->camera = DefaultCamera();
         renderCommands->camera.mTransform = mCamRot * Translation( -editorState.pCamera );
     }
 

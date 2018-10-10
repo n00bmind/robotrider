@@ -660,7 +660,7 @@ OpenGLInitImGui( OpenGLState &gl )
 }
 
 internal void
-OpenGLUseProgram( ShaderProgramName programName, OpenGLState &gl )
+OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
 {
     if( programName == ShaderProgramName::None )
     {
@@ -669,11 +669,11 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState &gl )
 
         glUseProgram( 0 );
 
-        gl.activeProgram = nullptr;
+        gl->activeProgram = nullptr;
     }
     else
     {
-        if( gl.activeProgram && gl.activeProgram->name == programName )
+        if( gl->activeProgram && gl->activeProgram->name == programName )
             // Nothing to do
             return;
 
@@ -702,7 +702,7 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState &gl )
 
             // Material *matPtr = entry->materialArray;
 
-            glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, gl.mCurrentProjView.e[0] );
+            glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, gl->mCurrentProjView.e[0] );
 
             GLuint pAttribId = 0;
             GLuint uvAttribId = 1;
@@ -717,7 +717,7 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState &gl )
             // NOTE glVertexAttribPointer cannot be used with integral data. Beware the I!!!
             glVertexAttribIPointer( cAttribId, 1, GL_UNSIGNED_INT, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color) );
 
-            gl.activeProgram = &prg;
+            gl->activeProgram = &prg;
         }
     }
 }
@@ -737,13 +737,13 @@ OpenGLNewFrame( u32 viewportWidth, u32 viewportHeight )
 }
 
 internal void
-OpenGLRenderToOutput( OpenGLState &gl, const RenderCommands &commands, GameMemory* gameMemory )
+OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemory* gameMemory )
 {
     OpenGLNewFrame( commands.width, commands.height );
 
     m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
     mProjView = mProjView * commands.camera.mTransform;
-    gl.mCurrentProjView = mProjView;
+    gl->mCurrentProjView = mProjView;
 
 #if !RELEASE
     DebugState* debugState = (DebugState*)gameMemory->debugStorage;
@@ -782,8 +782,6 @@ OpenGLRenderToOutput( OpenGLState &gl, const RenderCommands &commands, GameMemor
                 //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 
                 GLuint countBytes = entry->vertexCount * sizeof(TexturedVertex);
-                // TODO Our current slowness is not due to this, contrary to what you assumed!
-                // Just comment this out and see for yourself x')
                 glBufferData( GL_ARRAY_BUFFER,
                               countBytes,
                               commands.vertexBuffer.base + entry->vertexBufferOffset,
@@ -833,7 +831,7 @@ OpenGLRenderToOutput( OpenGLState &gl, const RenderCommands &commands, GameMemor
                 RenderEntryMaterial* entry = (RenderEntryMaterial*)entryHeader;
                 Material* material = entry->material;
 
-                GLuint materialId = (GLuint)(sz)(material ? material->diffuseMap : gl.whiteTexture);
+                GLuint materialId = (GLuint)(sz)(material ? material->diffuseMap : gl->whiteTexture);
                 glBindTexture( GL_TEXTURE_2D, materialId );
             } break;
 

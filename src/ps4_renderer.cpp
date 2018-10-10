@@ -142,7 +142,7 @@ PS4LoadShaders( PS4RendererState* state )
 {
     const char* filename = nullptr;
 
-    filename = "test_vv.sb";
+    filename = "default_vv.sb";
     state->testVS = LoadVSFromFile( filename, state );
     if( !state->testVS )
     {
@@ -150,7 +150,7 @@ PS4LoadShaders( PS4RendererState* state )
         INVALID_CODE_PATH
     }
 
-    filename = "test_p.sb";
+    filename = "plain_color_p.sb";
     state->testPS = LoadPSFromFile( filename, state );
     if( !state->testPS )
     {
@@ -196,6 +196,7 @@ internal void
 ClearRenderTarget( const Gnm::RenderTarget& renderTarget, sce::Gnmx::GnmxGfxContext* gfxc, const v4 &color,
                    PS4RendererState* state )
 {
+    // TODO Most of this stuff is done as part of our default config and is probably duplicated
     gfxc->setRenderTarget( 0, &renderTarget );
     gfxc->setDepthRenderTarget( nullptr );
     gfxc->setPsShader( state->clearPS, &state->clearOffsetsTable );
@@ -221,64 +222,14 @@ ClearRenderTarget( const Gnm::RenderTarget& renderTarget, sce::Gnmx::GnmxGfxCont
     gfxc->setConstantBuffers( Gnm::kShaderStagePs, 0, 1, &constantBuffer );
 
     gfxc->setCbControl( Gnm::kCbModeNormal, Gnm::kRasterOpCopy );
-    sce::Gnmx::renderFullScreenQuad( gfxc );
+    Gnmx::renderFullScreenQuad( gfxc );
 }
 
-//////////////////////////////////////
-// TEST DATA
-// TODO Remove!
-
-enum VertexElements
-{
-    kVertexPosition = 0,
-    kVertexColor,
-    kVertexUv,
-
-    kVertexElemCount
-};
-
-struct Vertex
-{
-    float x, y, z;	// Position
-    float r, g, b;	// Color
-    float u, v;		// UVs
-};
-
-static const Vertex kVertexData[] =
-{
-    // 2    3
-    // +----+
-    // |\   |
-    // | \  |
-    // |  \ |
-    // |   \|
-    // +----+
-    // 0    1
-
-    //   POSITION                COLOR               UV
-    { -0.5f, -0.5f, 0.0f,    0.7f, 0.7f, 1.0f,    0.0f, 1.0f },
-    { 0.5f, -0.5f, 0.0f,    0.7f, 0.7f, 1.0f,    1.0f, 1.0f },
-    { -0.5f,  0.5f, 0.0f,    0.7f, 1.0f, 1.0f,    0.0f, 0.0f },
-    { 0.5f,  0.5f, 0.0f,    1.0f, 0.7f, 1.0f,    1.0f, 0.0f },
-};
-static const uint16_t kIndexData[] =
-{
-    0, 1, 2,
-    1, 3, 2
-};
-
-static Gnm::Buffer vertexBuffers[kVertexElemCount];
-
-static Vertex *vertexData;
-static uint16_t *indexData;
-
-
-//////////////////////////////////////////////
 
 PS4RendererState
 PS4InitRenderer()
 {
-    int ret;
+    int ret = 0;
 
     PS4RendererState state = {};
 
@@ -296,6 +247,11 @@ PS4InitRenderer()
     InitializeArena( &state.garlicArena, (u8*)garlicBlock, kGarlicMemorySize );
 
 
+#if !RELEASE
+    // TODO Enable this when we find out how!
+//     ret = sceGpuDebuggerEnableTargetSideSupport();
+//     ASSERT( ret == 0 );
+#endif
     Gnm::registerOwner( &state.ownerHandle, "robotrider" );
     // Load the shader binaries from disk
     PS4LoadShaders( &state );
@@ -498,7 +454,6 @@ PS4InitRenderer()
     state.depthTarget.setAddresses( depthMemory, nullptr );
 
 
-
     // Create the event queue for used to synchronize with end-of-pipe interrupts
     ret = sceKernelCreateEqueue( &state.eopEventQueue, "EOP QUEUE" );
     if( ret != SCE_OK )
@@ -516,44 +471,49 @@ PS4InitRenderer()
     }
 
 
-
-
+    // Initialize render commands and necessary buffers
+    // TODO Decide a proper size for this
+    u32 renderBufferSize = MEGABYTES( 4 );
+    u8 *renderBuffer = (u8 *)PUSH_SIZE( &state.onionArena, renderBufferSize );
 
     // Init some test vertex data
-    vertexData = PUSH_ARRAY_ALIGNED( &state.garlicArena, ARRAYCOUNT(kVertexData), Vertex, Gnm::kAlignmentOfBufferInBytes );
-    indexData = PUSH_ARRAY_ALIGNED( &state.garlicArena, ARRAYCOUNT(kIndexData), u16, Gnm::kAlignmentOfBufferInBytes );
-    ASSERT( vertexData && indexData );
+    u32 vertexBufferSize = 1024*1024;
+    TexturedVertex* vertexBuffer = PUSH_ARRAY_ALIGNED( &state.garlicArena, vertexBufferSize, TexturedVertex,
+                                                       Gnm::kAlignmentOfBufferInBytes );
+    u32 indexBufferSize = vertexBufferSize * 8;
+    u32* indexBuffer = PUSH_ARRAY_ALIGNED( &state.garlicArena, indexBufferSize, u32, Gnm::kAlignmentOfBufferInBytes );
 
-    // Copy the vertex/index data onto the GPU mapped memory
-    COPY( kVertexData, vertexData, sizeof( kVertexData ) );
-    COPY( kIndexData, indexData, sizeof( kIndexData ) );
+    state.renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
+                                               vertexBuffer, vertexBufferSize,
+                                               indexBuffer, indexBufferSize );
+    ASSERT( state.renderCommands.isValid );
+    state.renderCommands.width = kDisplayBufferWidth;
+    state.renderCommands.height = kDisplayBufferHeight;
+
 
     // Initialize the vertex buffers pointing to each vertex element
-    vertexBuffers[kVertexPosition].initAsVertexBuffer(
-        &vertexData->x,
-        Gnm::kDataFormatR32G32B32Float,
-        sizeof( Vertex ),
-        ARRAYCOUNT(kVertexData) );
+    state.vertexBufferDescriptors[kVertexPosition].initAsVertexBuffer( &vertexBuffer->p,
+                                                                       Gnm::kDataFormatR32G32B32Float,
+                                                                       sizeof( TexturedVertex ),
+                                                                       vertexBufferSize );
 
-    vertexBuffers[kVertexColor].initAsVertexBuffer(
-        &vertexData->r,
-        Gnm::kDataFormatR32G32B32Float,
-        sizeof( Vertex ),
-        ARRAYCOUNT(kVertexData) );
+    state.vertexBufferDescriptors[kVertexColor].initAsVertexBuffer( &vertexBuffer->color,
+                                                                    Gnm::kDataFormatR8G8B8A8Unorm,
+                                                                    sizeof( TexturedVertex ),
+                                                                    vertexBufferSize );
 
-    vertexBuffers[kVertexUv].initAsVertexBuffer(
-        &vertexData->u,
-        Gnm::kDataFormatR32G32Float,
-        sizeof( Vertex ),
-        ARRAYCOUNT(kVertexData) );
+    state.vertexBufferDescriptors[kVertexUv].initAsVertexBuffer( &vertexBuffer->uv,
+                                                                 Gnm::kDataFormatR32G32Float,
+                                                                 sizeof( TexturedVertex ),
+                                                                 vertexBufferSize );
 
     return state;
 }
 
 void
-PS4RenderToOutput( PS4RendererState* state )
+PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, GameMemory* gameMemory )
 {
-    int ret;
+    int ret = 0;
 
     PS4RenderContext *renderContext = &state->renderContexts[state->renderContextIndex];
     PS4DisplayBuffer *backBuffer = &state->displayBuffers[state->backBufferIndex];
@@ -590,12 +550,9 @@ PS4RenderToOutput( PS4RendererState* state )
     //
     gfxc.waitUntilSafeForRendering( state->videoOutHandle, backBuffer->displayIndex );
 
-
-
-    ////////////////// TEST SETUP & DRAWING
-
-
-
+    //
+    // New frame setup
+    //
 
     // Setup the viewport to match the entire screen.
     // The z-scale and z-offset values are used to specify the transformation
@@ -608,12 +565,9 @@ PS4RenderToOutput( PS4RendererState* state )
                               0.5f );		// Z-offset
 
     // Bind the render & depth targets to the context
-    // FIXME We disable the depth target in the next call, so look into that!
+    // FIXME We disable the depth target in the ClearRenderTarget call, so look into that!
     gfxc.setRenderTarget( 0, &backBuffer->renderTarget );
     gfxc.setDepthRenderTarget( &state->depthTarget );
-
-    // Clear the color and the depth target
-    ClearRenderTarget( backBuffer->renderTarget, &gfxc, V4( 1.f, 0.f, 1.f, 1 ), state );
 
     // Enable z-writes using a less comparison function
     Gnm::DepthStencilControl dsc;
@@ -643,7 +597,104 @@ PS4RenderToOutput( PS4RendererState* state )
     gfxc.setRenderTargetMask( 0xF );
 
 
+#if !RELEASE
+    DebugState* debugState = (DebugState*)gameMemory->debugStorage;
+    debugState->totalDrawCalls = 0;
+    debugState->totalPrimitiveCount = 0;
+    debugState->totalVertexCount = 0;
+#endif
 
+    m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
+    mProjView = mProjView * commands.camera.mTransform;
+
+
+    const RenderBuffer &buffer = commands.renderBuffer;
+    for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
+    {
+        RenderEntry *entryHeader = (RenderEntry *)(buffer.base + baseAddress);
+
+        switch( entryHeader->type )
+        {
+            case RenderEntryType::RenderEntryClear:
+            {
+                RenderEntryClear *entry = (RenderEntryClear *)entryHeader;
+
+                // Clear the color and the depth target
+                ClearRenderTarget( backBuffer->renderTarget, &gfxc, entry->color, state );
+            } break;
+
+            case RenderEntryType::RenderEntryLines:
+            {
+                RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
+
+#if 1
+                Gnm::PrimitiveSetup lineSetup;
+                lineSetup.setPolygonMode( Gnm::kPrimitiveSetupPolygonModeLine, Gnm::kPrimitiveSetupPolygonModeLine );
+                lineSetup.setCullFace( Gnm::kPrimitiveSetupCullFaceNone );
+                gfxc.setPrimitiveSetup( lineSetup );
+                gfxc.setLineWidth( 8 );
+
+                gfxc.setRenderTarget( 0, &backBuffer->renderTarget );
+                gfxc.setDepthRenderTarget( nullptr );
+
+                // Activate the VS and PS shader stages
+                gfxc.setActiveShaderStages( Gnm::kActiveShaderStagesVsPs );
+                gfxc.setVsShader( state->testVS, state->fsModifier, state->fsMemory, &state->vsOffsetsTable );
+                gfxc.setPsShader( state->testPS, &state->psOffsetsTable );
+
+                // Setup the vertex buffer used by the ES stage (vertex shader)
+                // Note that the setXxx methods of GfxContext which are used to set
+                // shader resources (e.g.: V#, T#, S#, ...) map directly on the
+                // Constants Update Engine. These methods do not directly produce PM4
+                // packets in the command buffer. The CUE gathers all the resource
+                // definitions and creates a set of PM4 packets later on in the
+                // gfxc.drawXxx method.
+                gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBufferDescriptors );
+
+                // Allocate the vertex shader constants from the command buffer
+                ShaderConstants *constants = (ShaderConstants*)gfxc.allocateFromCommandBuffer( sizeof(ShaderConstants),
+                                                                                               Gnm::kEmbeddedDataAlignment4 );
+
+                // Initialize the vertex shader constants
+                ASSERT( constants );
+                constants->m_WorldViewProj = mProjView;
+
+                Gnm::Buffer constBuffer;
+                constBuffer.initAsConstantBuffer( constants, sizeof( ShaderConstants ) );
+                gfxc.setConstantBuffers( Gnm::kShaderStageVs, 0, 1, &constBuffer );
+
+
+                // Submit a draw call
+                gfxc.setPrimitiveType( Gnm::kPrimitiveTypeLineList );
+                gfxc.drawIndexAuto( entry->lineCount * 2, entry->vertexBufferOffset, 0, Gnm::kDrawModifierDefault );
+
+                v4 vertices[1024][2];
+                for( int i = 0; i < entry->lineCount; ++i )
+                {
+                    vertices[i][0] = mProjView * V4( state->renderCommands.vertexBuffer.base[ entry->vertexBufferOffset + 2 * i ].p, 1 );
+                    vertices[i][0] = vertices[i][0] / vertices[i][0].w;
+                    vertices[i][1] = mProjView * V4( state->renderCommands.vertexBuffer.base[ entry->vertexBufferOffset + 2 * i + 1 ].p, 1 );
+                    vertices[i][1] = vertices[i][1] / vertices[i][1].w;
+                }
+#endif
+
+#if !RELEASE
+                debugState->totalDrawCalls++;
+                debugState->totalPrimitiveCount += entry->lineCount;
+#endif
+            } break;
+
+            default:
+            {
+                LOG( "ERROR :: Unsupported RenderEntry type [%d]", entryHeader->type );
+                //INVALID_CODE_PATH;
+            } break;
+        }
+
+        baseAddress += entryHeader->size;
+    }
+
+#if 0
     // Activate the VS and PS shader stages
     gfxc.setActiveShaderStages( Gnm::kActiveShaderStagesVsPs );
     gfxc.setVsShader( state->testVS, state->fsModifier, state->fsMemory, &state->vsOffsetsTable );
@@ -656,7 +707,7 @@ PS4RenderToOutput( PS4RendererState* state )
     // packets in the command buffer. The CUE gathers all the resource
     // definitions and creates a set of PM4 packets later on in the
     // gfxc.drawXxx method.
-    gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, vertexBuffers );
+    gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBufferDescriptors );
 
     // Allocate the vertex shader constants from the command buffer
     ShaderConstants *constants = (ShaderConstants*)gfxc.allocateFromCommandBuffer( sizeof(ShaderConstants),
@@ -684,14 +735,15 @@ PS4RenderToOutput( PS4RendererState* state )
 
     // Submit a draw call
     gfxc.setPrimitiveType( Gnm::kPrimitiveTypeTriList );
-    gfxc.setIndexSize( Gnm::kIndexSize16 );
-    gfxc.drawIndex( ARRAYCOUNT(kIndexData), indexData );
+    gfxc.setIndexSize( Gnm::kIndexSize32 );
+    gfxc.drawIndex( ARRAYCOUNT(kIndexData), state->renderCommands.indexBuffer.base );
+#endif
 }
 
 void
 PS4SwapBuffers( PS4RendererState* state )
 {
-    int ret;
+    int ret = 0;
 
     PS4RenderContext *renderContext = &state->renderContexts[state->renderContextIndex];
     PS4DisplayBuffer *backBuffer = &state->displayBuffers[state->backBufferIndex];
@@ -744,7 +796,7 @@ PS4SwapBuffers( PS4RendererState* state )
 void
 PS4ShutdownRenderer( PS4RendererState* state )
 {
-    int ret;
+    int ret = 0;
 
     // Wait for the GPU to be idle before deallocating its resources
     for( u32 i = 0; i < ARRAYCOUNT(state->renderContexts); ++i )

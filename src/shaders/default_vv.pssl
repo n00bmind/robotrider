@@ -21,18 +21,35 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-struct VS_OUTPUT
+struct VS_INPUT
 {
-	float4 Position		: S_POSITION;
-	float3 Color		: TEXCOORD0;
-	float2 UV			: TEXCOORD1;
+	float3 position		: POSITION0;
+	float4 color		: COLOR0;
+	float2 texCoords	: TEXCOORD0;
 };
 
-SamplerState samp0 : register(s0);
-Texture2D colorMap : register(t0);
-
-
-float4 main(VS_OUTPUT Input) : S_TARGET_OUTPUT
+struct VS_OUTPUT
 {
-	return /*colorMap.Sample(samp0, Input.UV) **/ float4(Input.Color, 1.0f);
+	float4 position		: S_POSITION;
+	float4 color		: COLOR0;
+	float2 texCoords	: TEXCOORD1;
+};
+
+#pragma pack_matrix (row_major)
+
+ConstantBuffer ShaderConstants
+{
+    matrix mTransform;
+};
+
+
+VS_OUTPUT main( VS_INPUT _in )
+{
+	VS_OUTPUT _out;
+
+	_out.position = mul(mTransform, float4(_in.position.xyz, 1));
+	_out.color = _in.color;
+	_out.texCoords = _in.texCoords;
+
+	return _out;
 }
