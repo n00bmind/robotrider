@@ -154,17 +154,16 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if 0
     PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
 
+    Player *player = gameState->world->player;
+    PushMesh( player->mesh, renderCommands );
+
+    DrawAxisGizmos( renderCommands );
+
+    v3 pCam = player->mesh.mTransform * V3( 0, -8, 5 );
+    v3 pLookAt = player->mesh.mTransform * V3( 0, 1, 0 );
+    v3 vUp = GetColumn( player->mesh.mTransform, 2 ).xyz;
     renderCommands->camera = DefaultCamera();
-    u32 color = Pack01ToRGBA( 1, 0, 1, 1 );
-
-//     PushLine( { -1, 1, -10 }, { -1, -1, -10 }, Pack01ToRGBA( 0, 0, 1, 1 ), renderCommands );
-//     PushLine( { 1, 1, -10 }, { 1, -1, -10 }, Pack01ToRGBA( 0, 0, 1, 1 ), renderCommands );
-//     PushLine( { -1, 1, -10 }, { 1, 1, -10 }, Pack01ToRGBA( 0, 0, 1, 1 ), renderCommands );
-//     PushLine( { -1, -1, -10 }, { 1, -1, -10 }, Pack01ToRGBA( 0, 0, 1, 1 ), renderCommands );
-
-    DrawBoxAt( {0, 0, -5}, 1, color, renderCommands );
-    DrawFloorGrid( 50, 1, renderCommands, -10 );
-
+    renderCommands->camera.mTransform = CameraLookAt( pCam, pLookAt, vUp );
 #else
     if( input->executableReloaded )
     {

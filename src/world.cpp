@@ -491,7 +491,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #endif
     }
 
-    if( !gameMemory->DEBUGglobalEditing )
+//     if( !gameMemory->DEBUGglobalEditing )
     {
         PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
         PushMaterial( world->player->mesh.material, renderCommands );

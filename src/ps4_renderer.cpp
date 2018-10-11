@@ -596,6 +596,16 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
     // Setup the output color mask
     gfxc.setRenderTargetMask( 0xF );
 
+    gfxc.setLineWidth( 8 );
+
+    Gnm::Sampler bilinearSampler;
+    bilinearSampler.init();
+    bilinearSampler.setXyFilterMode( Gnm::kFilterModeBilinear, Gnm::kFilterModeBilinear );
+
+    Gnm::Texture texture;
+    texture.setResourceMemoryType( Gnm::kResourceMemoryTypeRO );
+    // TODO Texture conversion/loading -> look into sce-samples\sample_code\graphics\api_gnm\texture-tool-target-sample
+
 
 #if !RELEASE
     DebugState* debugState = (DebugState*)gameMemory->debugStorage;
@@ -623,19 +633,62 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
                 ClearRenderTarget( backBuffer->renderTarget, &gfxc, entry->color, state );
             } break;
 
+            case RenderEntryType::RenderEntryTexturedTris:
+            {
+                RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
+
+                // Activate the VS and PS shader stages
+                gfxc.setActiveShaderStages( Gnm::kActiveShaderStagesVsPs );
+                gfxc.setVsShader( state->testVS, state->fsModifier, state->fsMemory, &state->vsOffsetsTable );
+                gfxc.setPsShader( state->testPS, &state->psOffsetsTable );
+
+                // Setup the vertex buffer used by the ES stage (vertex shader)
+                // Note that the setXxx methods of GfxContext which are used to set
+                // shader resources (e.g.: V#, T#, S#, ...) map directly on the
+                // Constants Update Engine. These methods do not directly produce PM4
+                // packets in the command buffer. The CUE gathers all the resource
+                // definitions and creates a set of PM4 packets later on in the
+                // gfxc.drawXxx method.
+                gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBufferDescriptors );
+
+                // Allocate the vertex shader constants from the command buffer
+                ShaderConstants *constants = (ShaderConstants*)gfxc.allocateFromCommandBuffer( sizeof( ShaderConstants ),
+                                                                                               Gnm::kEmbeddedDataAlignment4 );
+
+                // Initialize the vertex shader constants
+                ASSERT( constants );
+                constants->m_WorldViewProj = mProjView;
+
+                Gnm::Buffer constBuffer;
+                constBuffer.initAsConstantBuffer( constants, sizeof( ShaderConstants ) );
+                gfxc.setConstantBuffers( Gnm::kShaderStageVs, 0, 1, &constBuffer );
+
+//                 gfxc.setSamplers( Gnm::kShaderStagePs, 0, 1, &bilinearSampler );
+//                 gfxc.setTextures( Gnm::kShaderStagePs, 0, 2, &texture );
+
+                // Submit a draw call
+                gfxc.setPrimitiveType( Gnm::kPrimitiveTypeTriList );
+                gfxc.setIndexSize( Gnm::kIndexSize32 );
+                gfxc.drawIndex( entry->indexCount, state->renderCommands.indexBuffer.base + entry->indexBufferOffset );
+
+#if !RELEASE
+                debugState->totalDrawCalls++;
+                debugState->totalVertexCount += entry->vertexCount;
+                debugState->totalPrimitiveCount += (entry->indexCount / 3);
+#endif
+            } break;
+
             case RenderEntryType::RenderEntryLines:
             {
                 RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
-
+                break;
 #if 1
-                Gnm::PrimitiveSetup lineSetup;
-                lineSetup.setPolygonMode( Gnm::kPrimitiveSetupPolygonModeLine, Gnm::kPrimitiveSetupPolygonModeLine );
-                lineSetup.setCullFace( Gnm::kPrimitiveSetupCullFaceNone );
-                gfxc.setPrimitiveSetup( lineSetup );
-                gfxc.setLineWidth( 8 );
+//                 Gnm::PrimitiveSetup lineSetup;
+//                 lineSetup.setPolygonMode( Gnm::kPrimitiveSetupPolygonModeLine, Gnm::kPrimitiveSetupPolygonModeLine );
+//                 lineSetup.setCullFace( Gnm::kPrimitiveSetupCullFaceNone );
+//                 gfxc.setPrimitiveSetup( lineSetup );
 
-                gfxc.setRenderTarget( 0, &backBuffer->renderTarget );
-                gfxc.setDepthRenderTarget( nullptr );
+//                 gfxc.setDepthRenderTarget( nullptr );
 
                 // Activate the VS and PS shader stages
                 gfxc.setActiveShaderStages( Gnm::kActiveShaderStagesVsPs );
@@ -667,15 +720,6 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
                 // Submit a draw call
                 gfxc.setPrimitiveType( Gnm::kPrimitiveTypeLineList );
                 gfxc.drawIndexAuto( entry->lineCount * 2, entry->vertexBufferOffset, 0, Gnm::kDrawModifierDefault );
-
-                v4 vertices[1024][2];
-                for( int i = 0; i < entry->lineCount; ++i )
-                {
-                    vertices[i][0] = mProjView * V4( state->renderCommands.vertexBuffer.base[ entry->vertexBufferOffset + 2 * i ].p, 1 );
-                    vertices[i][0] = vertices[i][0] / vertices[i][0].w;
-                    vertices[i][1] = mProjView * V4( state->renderCommands.vertexBuffer.base[ entry->vertexBufferOffset + 2 * i + 1 ].p, 1 );
-                    vertices[i][1] = vertices[i][1] / vertices[i][1].w;
-                }
 #endif
 
 #if !RELEASE
