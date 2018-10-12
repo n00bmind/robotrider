@@ -71,13 +71,20 @@ struct PS4ShaderProgram
     Gnmx::PsShader* fragmentShader;
 };
 
-enum VertexElements
+enum PS4VertexElements
 {
     kVertexPosition = 0,
     kVertexColor,
     kVertexUv,
 
     kVertexElemCount
+};
+
+struct PS4VertexBufferSpec
+{
+    sz offset;
+    sz stride;
+    Gnm::DataFormat format;
 };
 
 struct PS4RendererState
@@ -110,7 +117,9 @@ struct PS4RendererState
     void* fsMemory;
     u32 fsModifier;
 
-    Gnm::Buffer vertexBufferDescriptors[kVertexElemCount];
+    PS4VertexBufferSpec vertexBufferSpecs[kVertexElemCount];
+    Gnm::Buffer vertexBuffers[kVertexElemCount];
+
     RenderCommands renderCommands;
 };
 

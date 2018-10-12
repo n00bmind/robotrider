@@ -225,6 +225,22 @@ ClearRenderTarget( const Gnm::RenderTarget& renderTarget, sce::Gnmx::GnmxGfxCont
     Gnmx::renderFullScreenQuad( gfxc );
 }
 
+internal void
+InitVertexBuffers( PS4RendererState* state, TexturedVertex* bufferBase, sz entriesCount )
+{
+    ASSERT( ARRAYCOUNT(state->vertexBufferSpecs) == ARRAYCOUNT(state->vertexBuffers) );
+
+    // TODO Would it be better to have all this data in a single buffer?
+    for( u32 i = 0; i < ARRAYCOUNT(state->vertexBufferSpecs); ++i )
+    {
+        PS4VertexBufferSpec& spec = state->vertexBufferSpecs[i];
+        state->vertexBuffers[i].initAsVertexBuffer( (u8*)bufferBase + spec.offset,
+                                                    spec.format,
+                                                    spec.stride,
+                                                    entriesCount );
+    }
+}
+
 
 PS4RendererState
 PS4InitRenderer()
@@ -477,35 +493,29 @@ PS4InitRenderer()
     u8 *renderBuffer = (u8 *)PUSH_SIZE( &state.onionArena, renderBufferSize );
 
     // Init some test vertex data
-    u32 vertexBufferSize = 1024*1024;
-    TexturedVertex* vertexBuffer = PUSH_ARRAY_ALIGNED( &state.garlicArena, vertexBufferSize, TexturedVertex,
+    u32 maxVerticesCount = 1024*1024;
+    TexturedVertex* vertexBuffer = PUSH_ARRAY_ALIGNED( &state.garlicArena, maxVerticesCount, TexturedVertex,
                                                        Gnm::kAlignmentOfBufferInBytes );
-    u32 indexBufferSize = vertexBufferSize * 8;
-    u32* indexBuffer = PUSH_ARRAY_ALIGNED( &state.garlicArena, indexBufferSize, u32, Gnm::kAlignmentOfBufferInBytes );
+    u32 maxIndicesCount = maxVerticesCount * 8;
+    u32* indexBuffer = PUSH_ARRAY_ALIGNED( &state.garlicArena, maxIndicesCount, u32, Gnm::kAlignmentOfBufferInBytes );
 
     state.renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
-                                               vertexBuffer, vertexBufferSize,
-                                               indexBuffer, indexBufferSize );
+                                               vertexBuffer, maxVerticesCount,
+                                               indexBuffer, maxIndicesCount );
     ASSERT( state.renderCommands.isValid );
     state.renderCommands.width = kDisplayBufferWidth;
     state.renderCommands.height = kDisplayBufferHeight;
 
 
     // Initialize the vertex buffers pointing to each vertex element
-    state.vertexBufferDescriptors[kVertexPosition].initAsVertexBuffer( &vertexBuffer->p,
-                                                                       Gnm::kDataFormatR32G32B32Float,
-                                                                       sizeof( TexturedVertex ),
-                                                                       vertexBufferSize );
-
-    state.vertexBufferDescriptors[kVertexColor].initAsVertexBuffer( &vertexBuffer->color,
-                                                                    Gnm::kDataFormatR8G8B8A8Unorm,
-                                                                    sizeof( TexturedVertex ),
-                                                                    vertexBufferSize );
-
-    state.vertexBufferDescriptors[kVertexUv].initAsVertexBuffer( &vertexBuffer->uv,
-                                                                 Gnm::kDataFormatR32G32Float,
-                                                                 sizeof( TexturedVertex ),
-                                                                 vertexBufferSize );
+    PS4VertexBufferSpec specs[kVertexElemCount] =
+    {
+        { OFFSETOF(TexturedVertex, p),      sizeof(TexturedVertex), Gnm::kDataFormatR32G32B32Float },
+        { OFFSETOF(TexturedVertex, color),  sizeof(TexturedVertex), Gnm::kDataFormatR8G8B8A8Unorm },
+        { OFFSETOF(TexturedVertex, uv),     sizeof(TexturedVertex), Gnm::kDataFormatR32G32Float },
+    };
+    COPY( specs, state.vertexBufferSpecs, sizeof(specs) );
+    InitVertexBuffers( &state, vertexBuffer, maxVerticesCount );
 
     return state;
 }
@@ -549,6 +559,7 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
     // This command should be used right before writing the display buffer.
     //
     gfxc.waitUntilSafeForRendering( state->videoOutHandle, backBuffer->displayIndex );
+
 
     //
     // New frame setup
@@ -642,14 +653,7 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
                 gfxc.setVsShader( state->testVS, state->fsModifier, state->fsMemory, &state->vsOffsetsTable );
                 gfxc.setPsShader( state->testPS, &state->psOffsetsTable );
 
-                // Setup the vertex buffer used by the ES stage (vertex shader)
-                // Note that the setXxx methods of GfxContext which are used to set
-                // shader resources (e.g.: V#, T#, S#, ...) map directly on the
-                // Constants Update Engine. These methods do not directly produce PM4
-                // packets in the command buffer. The CUE gathers all the resource
-                // definitions and creates a set of PM4 packets later on in the
-                // gfxc.drawXxx method.
-                gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBufferDescriptors );
+                gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBuffers );
 
                 // Allocate the vertex shader constants from the command buffer
                 ShaderConstants *constants = (ShaderConstants*)gfxc.allocateFromCommandBuffer( sizeof( ShaderConstants ),
@@ -669,7 +673,9 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
                 // Submit a draw call
                 gfxc.setPrimitiveType( Gnm::kPrimitiveTypeTriList );
                 gfxc.setIndexSize( Gnm::kIndexSize32 );
+                gfxc.setIndexOffset( entry->vertexBufferOffset );
                 gfxc.drawIndex( entry->indexCount, state->renderCommands.indexBuffer.base + entry->indexBufferOffset );
+//                                 entry->vertexBufferOffset, 0, Gnm::kDrawModifierDefault );       // !! Requires compiling with -indirect-draw !!
 
 #if !RELEASE
                 debugState->totalDrawCalls++;
@@ -681,8 +687,7 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
             case RenderEntryType::RenderEntryLines:
             {
                 RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
-                break;
-#if 1
+
 //                 Gnm::PrimitiveSetup lineSetup;
 //                 lineSetup.setPolygonMode( Gnm::kPrimitiveSetupPolygonModeLine, Gnm::kPrimitiveSetupPolygonModeLine );
 //                 lineSetup.setCullFace( Gnm::kPrimitiveSetupCullFaceNone );
@@ -695,14 +700,7 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
                 gfxc.setVsShader( state->testVS, state->fsModifier, state->fsMemory, &state->vsOffsetsTable );
                 gfxc.setPsShader( state->testPS, &state->psOffsetsTable );
 
-                // Setup the vertex buffer used by the ES stage (vertex shader)
-                // Note that the setXxx methods of GfxContext which are used to set
-                // shader resources (e.g.: V#, T#, S#, ...) map directly on the
-                // Constants Update Engine. These methods do not directly produce PM4
-                // packets in the command buffer. The CUE gathers all the resource
-                // definitions and creates a set of PM4 packets later on in the
-                // gfxc.drawXxx method.
-                gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBufferDescriptors );
+                gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBuffers );
 
                 // Allocate the vertex shader constants from the command buffer
                 ShaderConstants *constants = (ShaderConstants*)gfxc.allocateFromCommandBuffer( sizeof(ShaderConstants),
@@ -719,8 +717,8 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
 
                 // Submit a draw call
                 gfxc.setPrimitiveType( Gnm::kPrimitiveTypeLineList );
-                gfxc.drawIndexAuto( entry->lineCount * 2, entry->vertexBufferOffset, 0, Gnm::kDrawModifierDefault );
-#endif
+                gfxc.setIndexOffset( entry->vertexBufferOffset );
+                gfxc.drawIndexAuto( entry->lineCount * 2 );
 
 #if !RELEASE
                 debugState->totalDrawCalls++;

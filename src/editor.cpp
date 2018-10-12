@@ -91,7 +91,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     // Setup a zenithal camera initially
     if( editorState.pCamera == V3Zero )
     {
-        editorState.pCamera = V3( 0, -30, 30 );
+        editorState.pCamera = V3( 0, -20, 20 );
         editorState.camYaw = 0;
         editorState.camPitch = 0;
         //v3 pLookAt = gameState->pPlayer;
