@@ -187,42 +187,59 @@ PS4LoadShaders( PS4RendererState* state )
     Gnmx::generateInputOffsetsCache( &state->psOffsetsTable, Gnm::kShaderStagePs, state->testPS );
 }
 
-
-// TODO This needs more testing
-// In particular, docs advise to "Draw a full-screen quad at maximum depth with the depth-test feature disabled".
-// We're disabling the depth-test (while still writing to the z buffer), but since the full-screen quad is "embedded"
-// in Gnm, we have no way of knowing at which depth it's being rendered, so test against geometry with very "deep" Z coords.
 internal void
-ClearRenderTarget( const Gnm::RenderTarget& renderTarget, sce::Gnmx::GnmxGfxContext* gfxc, const v4 &color,
+ClearRenderTarget( const Gnm::RenderTarget& renderTarget, Gnmx::GnmxGfxContext* gfxc, const v4 &color,
                    PS4RendererState* state )
 {
-    // TODO Most of this stuff is done as part of our default config and is probably duplicated
     gfxc->setRenderTarget( 0, &renderTarget );
-    gfxc->setDepthRenderTarget( nullptr );
+    gfxc->setDepthRenderTarget( &state->depthTarget );
+
     gfxc->setPsShader( state->clearPS, &state->clearOffsetsTable );
+    v4 *constants = (v4*)gfxc->allocateFromCommandBuffer( sizeof( v4 ), Gnm::kEmbeddedDataAlignment4 );
+    *constants = color;
+    Gnm::Buffer constantBuffer;
+    constantBuffer.initAsConstantBuffer( constants, sizeof( *constants ) );
+    gfxc->setConstantBuffers( Gnm::kShaderStagePs, 0, 1, &constantBuffer );
 
     Gnm::BlendControl blendControl;
     blendControl.init();
     blendControl.setBlendEnable( false );
     gfxc->setBlendControl( 0, blendControl );
-    gfxc->setRenderTargetMask( 0x0000000F );
+
+    Gnm::DbRenderControl dbRenderControl;
+    dbRenderControl.init();
+    dbRenderControl.setDepthClearEnable( true );
+    gfxc->setDbRenderControl( dbRenderControl );
+    gfxc->setDepthClearValue( 1.0f );
 
     Gnm::DepthStencilControl dsc;
     dsc.init();
-    dsc.setDepthControl( Gnm::kDepthControlZWriteEnable, Gnm::kCompareFuncNever );
-    dsc.setDepthEnable( false );
+    dsc.setDepthControl( Gnm::kDepthControlZWriteEnable, Gnm::kCompareFuncAlways );
+    dsc.setStencilFunction( Gnm::kCompareFuncNever );
+    dsc.setDepthEnable( true );
     gfxc->setDepthStencilControl( dsc );
-    gfxc->setDepthStencilDisable();
     gfxc->setupScreenViewport( 0, 0, renderTarget.getWidth(), renderTarget.getHeight(), 0.5f, 0.5f );
-
-    v4 *constants = (v4*)gfxc->allocateFromCommandBuffer( sizeof(v4), Gnm::kEmbeddedDataAlignment4 );
-    *constants = color;
-    Gnm::Buffer constantBuffer;
-    constantBuffer.initAsConstantBuffer( constants, sizeof(*constants) );
-    gfxc->setConstantBuffers( Gnm::kShaderStagePs, 0, 1, &constantBuffer );
 
     gfxc->setCbControl( Gnm::kCbModeNormal, Gnm::kRasterOpCopy );
     Gnmx::renderFullScreenQuad( gfxc );
+
+
+    // Restore all relevant state
+    dsc.init();
+    dsc.setDepthControl( Gnm::kDepthControlZWriteEnable, Gnm::kCompareFuncLess );
+    dsc.setDepthEnable( true );
+    gfxc->setDepthStencilControl( dsc );
+
+    dbRenderControl.init();
+    gfxc->setDbRenderControl( dbRenderControl );
+
+    blendControl.init();
+    blendControl.setBlendEnable( true );
+    blendControl.setColorEquation(
+        Gnm::kBlendMultiplierSrcAlpha,
+        Gnm::kBlendFuncAdd,
+        Gnm::kBlendMultiplierOneMinusSrcAlpha );
+    gfxc->setBlendControl( 0, blendControl );
 }
 
 internal void
