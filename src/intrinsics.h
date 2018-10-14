@@ -134,6 +134,12 @@ Pow( r64 b, r64 exp )
     return pow( b, exp );
 }
 
+inline r64
+Log( r64 value )
+{
+    return log( value );
+}
+
 inline r32
 Abs( r32 value )
 {

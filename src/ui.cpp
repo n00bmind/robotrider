@@ -106,19 +106,19 @@ DrawAxisGizmos( RenderCommands *renderCommands )
     r32 w = 0.005f;
     v3 origin = pCamera + z * vCamFwd - (w2-margin) * vCamX - (h2-margin) * vCamY;
 
-    u32 color = Pack01ToRGBA( V4( 1, 0, 0, 1 ) );
+    u32 color = Pack01ToRGBA( 1, 0, 0, 1 );
     DrawAlignedQuadWithBasis( origin,                       V3X, len,  V3Z, w, color, renderCommands );
     DrawAlignedQuadWithBasis( origin + V3Z * w,             V3X, len,  V3Y, w, color, renderCommands );
     DrawAlignedQuadWithBasis( origin + V3Z * w + V3Y * w,   V3X, len, -V3Z, w, color, renderCommands );
     DrawAlignedQuadWithBasis( origin + V3Y * w,             V3X, len, -V3Y, w, color, renderCommands );
 
-    color = Pack01ToRGBA( V4( 0, 1, 0, 1 ) );
+    color = Pack01ToRGBA( 0, 1, 0, 1 );
     DrawAlignedQuadWithBasis( origin,                       V3Y, len,  V3Z, w, color, renderCommands );
     DrawAlignedQuadWithBasis( origin + V3Z * w,             V3Y, len, -V3X, w, color, renderCommands );
     DrawAlignedQuadWithBasis( origin + V3Z * w - V3X * w,   V3Y, len, -V3Z, w, color, renderCommands );
     DrawAlignedQuadWithBasis( origin - V3X * w,             V3Y, len,  V3X, w, color, renderCommands );
 
-    color = Pack01ToRGBA( V4( 0, 0, 1, 1 ) );
+    color = Pack01ToRGBA( 0, 0, 1, 1 );
     DrawAlignedQuadWithBasis( origin,                       V3Z, len, -V3X, w, color, renderCommands );
     DrawAlignedQuadWithBasis( origin - V3X * w,             V3Z, len,  V3Y, w, color, renderCommands );
     DrawAlignedQuadWithBasis( origin - V3X * w + V3Y * w,   V3Z, len,  V3X, w, color, renderCommands );

@@ -909,11 +909,12 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
     oldInput = temp;
 
     newInput->executableReloaded = false;
-    newInput->mouseX = oldInput->mouseX;
-    newInput->mouseY = oldInput->mouseY;
-    newInput->mouseZ = oldInput->mouseZ;
-    for( u32 i = 0; i < ARRAYCOUNT(newInput->mouseButtons); ++i )
-        newInput->mouseButtons[i] = oldInput->mouseButtons[i];
+    newInput->hasEditorInput = true;
+    newInput->editor.mouseX = oldInput->editor.mouseX;
+    newInput->editor.mouseY = oldInput->editor.mouseY;
+    newInput->editor.mouseZ = oldInput->editor.mouseZ;
+    for( u32 i = 0; i < ARRAYCOUNT(newInput->editor.mouseButtons); ++i )
+        newInput->editor.mouseButtons[i] = oldInput->editor.mouseButtons[i];
     newInput->frameElapsedSeconds = elapsedSeconds;
     newInput->totalElapsedSeconds = totalSeconds;
     newInput->frameCounter = frameCounter;
@@ -1192,6 +1193,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     }
                     else if( vkCode == VK_RIGHT )
                     {
+                        Win32SetButtonState( &input->editor.nextStep, isDown );
                     }
                     else if( vkCode == VK_RETURN )
                     {
@@ -1273,11 +1275,11 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
 
             case WM_MOUSEMOVE:
             {
-                input->mouseX = GET_SIGNED_LO( message.lParam );
-                input->mouseY = GET_SIGNED_HI( message.lParam );
+                input->editor.mouseX = GET_SIGNED_LO( message.lParam );
+                input->editor.mouseY = GET_SIGNED_HI( message.lParam );
                 
-                imGuiIO.MousePos.x = (float)input->mouseX;
-                imGuiIO.MousePos.y = (float)input->mouseY;
+                imGuiIO.MousePos.x = (float)input->editor.mouseX;
+                imGuiIO.MousePos.y = (float)input->editor.mouseY;
             } break;
 
             case WM_MOUSEWHEEL:
@@ -1286,11 +1288,11 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 pt.x = GET_SIGNED_LO( message.lParam );
                 pt.y = GET_SIGNED_HI( message.lParam );
                 ScreenToClient( platformState->mainWindow, &pt );
-                input->mouseX = pt.x;
-                input->mouseY = pt.y;
-                input->mouseZ = GET_WHEEL_DELTA_WPARAM( message.wParam );
+                input->editor.mouseX = pt.x;
+                input->editor.mouseY = pt.y;
+                input->editor.mouseZ = GET_WHEEL_DELTA_WPARAM( message.wParam );
 
-                imGuiIO.MouseWheel = input->mouseZ > 0 ? +1.0f : -1.0f;
+                imGuiIO.MouseWheel = input->editor.mouseZ > 0 ? +1.0f : -1.0f;
             } break;
 
             case WM_LBUTTONDOWN:
@@ -1336,36 +1338,36 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     bDown = (buttonFlags & RI_MOUSE_LEFT_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->mouseButtons[0], bDown );
-                        imGuiIO.MouseDown[0] = !!input->mouseButtons[0].endedDown;
+                        Win32SetButtonState( &input->editor.mouseButtons[0], bDown );
+                        imGuiIO.MouseDown[0] = input->editor.mouseButtons[0].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_MIDDLE_BUTTON_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->mouseButtons[1], bDown );
-                        imGuiIO.MouseDown[1] = !!input->mouseButtons[1].endedDown;
+                        Win32SetButtonState( &input->editor.mouseButtons[1], bDown );
+                        imGuiIO.MouseDown[1] = input->editor.mouseButtons[1].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_RIGHT_BUTTON_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->mouseButtons[2], bDown );
-                        imGuiIO.MouseDown[2] = !!input->mouseButtons[2].endedDown;
+                        Win32SetButtonState( &input->editor.mouseButtons[2], bDown );
+                        imGuiIO.MouseDown[2] = input->editor.mouseButtons[2].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_BUTTON_4_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_BUTTON_4_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->mouseButtons[3], bDown  );
-                        imGuiIO.MouseDown[3] = !!input->mouseButtons[3].endedDown;
+                        Win32SetButtonState( &input->editor.mouseButtons[3], bDown  );
+                        imGuiIO.MouseDown[3] = input->editor.mouseButtons[3].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_BUTTON_5_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_BUTTON_5_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->mouseButtons[4], bDown  );
-                        imGuiIO.MouseDown[4] = !!input->mouseButtons[4].endedDown;
+                        Win32SetButtonState( &input->editor.mouseButtons[4], bDown  );
+                        imGuiIO.MouseDown[4] = input->editor.mouseButtons[4].endedDown;
                     }
 
                     if( buttonFlags & RI_MOUSE_WHEEL )
@@ -1784,7 +1786,7 @@ PLATFORM_ALLOCATE_TEXTURE(Win32AllocateTexture)
     switch( globalPlatformState.renderer )
     {
         case Renderer::OpenGL:
-            result = OpenGLAllocateTexture( data, width, height, filtered );
+            result = OpenGLAllocateTexture( data, width, height, filtered, optionalHandle );
             break;
 
         INVALID_DEFAULT_CASE

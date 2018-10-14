@@ -63,6 +63,7 @@ struct Array
         return data[i];
     }
 
+    // TODO Not too sure about this!
     operator bool() const
     {
         return data != nullptr;
@@ -78,6 +79,18 @@ struct Array
     {
         T* slot = Reserve();
         *slot = item;
+    }
+
+    void Push( const T& item )
+    {
+        Add( item );
+    }
+
+    T Pop()
+    {
+        ASSERT( count > 0 );
+        --count;
+        return data[count];
     }
 
     void BlitTo( T* buffer ) const
@@ -101,6 +114,36 @@ protected:
 };
 
 #define ARRAY(type, count, name) type _##name[count];Array<type> name( _##name, count );
+
+template <typename T>
+struct Array2
+{
+    u32 rows;
+    u32 cols;
+    T *data;
+
+    Array2( MemoryArena* arena, u32 rows_, u32 cols_ )
+    {
+        rows = rows_;
+        cols = cols_;
+        data = PUSH_ARRAY( arena, rows * cols, T );
+    }
+
+    T& At( u32 r, u32 c )
+    {
+        ASSERT( r < rows );
+        ASSERT( c < cols );
+        return data[r * cols + c];
+    }
+
+    const T& At( u32 r, u32 c ) const
+    {
+        ASSERT( r < rows );
+        ASSERT( c < cols );
+        return data[r * cols + c];
+    }
+};
+
 
 /////     HASH TABLE    /////
 
@@ -230,6 +273,28 @@ struct HashTable
                     while( slot )
                     {
                         result.Add( slot->key );
+                        slot = slot->nextInHash;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    Array<V> Values( MemoryArena* arena ) const
+    {
+        Array<V> result( arena, count );
+        for( u32 i = 0; i < tableSize; ++i )
+        {
+            if( table[i].occupied )
+            {
+                result.Add( table[i].value );
+                if( table[i].nextInHash )
+                {
+                    Slot* slot = table[i].nextInHash;
+                    while( slot )
+                    {
+                        result.Add( slot->value );
                         slot = slot->nextInHash;
                     }
                 }

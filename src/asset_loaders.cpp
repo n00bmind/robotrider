@@ -279,7 +279,7 @@ LoadTexture( const char* path, bool flipVertically, bool filtered = true, int de
                                &imageWidth, &imageHeight, &imageChannels, desiredChannels );
     // TODO Async texture uploads (and unload)
     void* textureHandle
-        = globalPlatform.AllocateTexture( imageBuffer, imageWidth, imageHeight, filtered );
+        = globalPlatform.AllocateTexture( imageBuffer, imageWidth, imageHeight, filtered, nullptr );
 
     globalPlatform.DEBUGFreeFileMemory( read.contents );
 

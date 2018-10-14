@@ -67,23 +67,52 @@ Radians( r32 degrees )
 // https://www.gamasutra.com/blogs/RuneSkovboJohansen/20150105/233505/A_Primer_on_Repeatable_Random_Numbers.php
 // https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/monte-carlo-methods-in-practice/generating-random-numbers
 // http://www.pcg-random.org/
+// Also, we should probably distinguish between "fast & repeatable" (for PCG) and "good distribution" (for other stuff) random numbers
 
 inline u32
-Random()
+RandomU32()
 {
     return rand();
 }
 
+inline r32
+RandomNormalizedR32()
+{
+    r32 result = (r32)(rand() / (RAND_MAX + 1.));
+    return result;
+}
+
+inline r32
+RandomBinormalizedR32()
+{
+    r32 result = RandomNormalizedR32() * 2.f - 1.f;
+    return result;
+}
+
+inline r64
+RandomNormalizedR64()
+{
+    r64 result = rand() / (RAND_MAX + 1.);
+    return result;
+}
+
+inline r64
+RandomBinormalizedR64()
+{
+    r64 result = RandomNormalizedR64() * 2.0 - 1.0;
+    return result;
+}
+
 // Includes min & max
 inline i32
-RandomRange( i32 min, i32 max )
+RandomRangeI32( i32 min, i32 max )
 {
     i32 result = min + rand() / (RAND_MAX / (max - min + 1) + 1);
     return result;
 }
 
 inline r32
-RandomRange( r32 min, r32 max )
+RandomRangeR32( r32 min, r32 max )
 {
     r32 t = rand() / ((r32)RAND_MAX + 1);
     r32 result = min + t * (max - min);
@@ -167,6 +196,35 @@ Fletcher32( const void* buffer, sz len )
 		fletch2 = (fletch2 & 0xFFFF) + (fletch2 >> 16);
 	}
 	return (fletch2 << 16) | (fletch1 & 0xFFFF);
+}
+
+inline u32
+Pack01ToRGBA( r32 r, r32 g, r32 b, r32 a )
+{
+    u32 result = (((Round( a * 255 ) & 0xFF) << 24)
+                | ((Round( b * 255 ) & 0xFF) << 16)
+                | ((Round( g * 255 ) & 0xFF) << 8)
+                |  (Round( r * 255 ) & 0xFF));
+    return result;
+}
+
+inline u32
+PackRGBA( u32 r, u32 g, u32 b, u32 a )
+{
+    u32 result = (((a & 0xFF) << 24)
+                | ((b & 0xFF) << 16)
+                | ((g & 0xFF) <<  8)
+                |  (r & 0xFF));
+    return result;
+}
+
+inline void
+UnpackRGBA( u32 c, u32* r, u32* g, u32* b, u32* a = nullptr )
+{
+    if( a ) *a = (c >> 24);
+    if( b ) *b = (c >> 16) & 0xFF;
+    if( g ) *g = (c >>  8) & 0xFF;
+    if( r ) *r = c & 0xFF;
 }
 
 #endif /* __MATH_H__ */

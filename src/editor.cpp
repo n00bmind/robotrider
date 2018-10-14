@@ -143,9 +143,8 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
 
 #if 0
     /// WFC test
-    WFCUpdate( editorState.testSourceTexture, &editorState.wfcState, arena );
-    WFCDrawTest( editorState, width, height, &editorState.wfcState, arena, tmpArena, renderCommands );
-#endif
+    WFC::Update( editorState.testSourceTexture, 64, 64, &editorState.wfcState, arena );
+    WFC::DrawTest( editorState, width, height, &editorState.wfcState, arena, tmpArena, renderCommands );
 
 
 

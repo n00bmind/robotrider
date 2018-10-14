@@ -497,7 +497,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
     // Render current cluster limits
     PushMaterial( nullptr, renderCommands );
-    u32 red = Pack01ToRGBA( V4( 1, 0, 0, 1 ) );
+    u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
     DrawBoxAt( V3Zero, CLUSTER_HALF_SIZE_METERS, red, renderCommands );
 
     {

@@ -135,6 +135,8 @@ typedef size_t sz;
 #define R32INF INFINITY
 #define R32NAN NAN
 
+#define R64INF (r64)INFINITY
+
 
 #if COMPILER_MSVC
 #define COMPILER_READ_BARRIER       _ReadBarrier();
@@ -196,7 +198,8 @@ typedef PLATFORM_COMPLETE_ALL_JOBS(PlatformCompleteAllJobsFunc);
 #define PLATFORM_MAX_JOBQUEUE_JOBS 16768
 
 
-#define PLATFORM_ALLOCATE_TEXTURE(name) void* name( void* data, u32 width, u32 height, bool filtered )
+// Providing a handle means we're updating the texture data instead of creating it anew
+#define PLATFORM_ALLOCATE_TEXTURE(name) void* name( void* data, u32 width, u32 height, bool filtered, void* optionalHandle )
 typedef PLATFORM_ALLOCATE_TEXTURE(PlatformAllocateTextureFunc);
 
 #define PLATFORM_DEALLOCATE_TEXTURE(name) void name( void* handle )

@@ -292,12 +292,12 @@ DrawBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
 }
 
 internal void
-DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands, r32 zOffset = 0 )
+DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands )
 {
     const r32 areaHalf = areaSizeMeters / 2;
 
-    u32 semiBlack = Pack01ToRGBA( V4( 0, 0, 0, 0.1f ) );
-    v3 off = V3( 0, 0, zOffset );
+    u32 semiBlack = Pack01ToRGBA( 0, 0, 0, 0.1f );
+    v3 off = V3Zero;
 
     r32 yStart = -areaHalf;
     r32 yEnd = areaHalf;

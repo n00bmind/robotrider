@@ -69,7 +69,7 @@ struct TexturedVertex
 struct Texture
 {
     void* handle;
-    u8* imageBuffer;
+    void* imageBuffer;
 
     i32 width;
     i32 height;
@@ -281,25 +281,5 @@ ResetRenderCommands( RenderCommands *commands )
 }
 
 
-
-inline u32
-Pack01ToRGBA( r32 r, r32 g, r32 b, r32 a )
-{
-    u32 result = (((Round( a * 255 ) & 0xFF) << 24)
-                | ((Round( b * 255 ) & 0xFF) << 16)
-                | ((Round( g * 255 ) & 0xFF) << 8)
-                | ((Round( r * 255 ) & 0xFF) << 0));
-    return result;
-}
-
-inline u32
-Pack01ToRGBA( v4 unpacked )
-{
-    u32 result = (((Round( unpacked.a * 255 ) & 0xFF) << 24)
-                | ((Round( unpacked.b * 255 ) & 0xFF) << 16)
-                | ((Round( unpacked.g * 255 ) & 0xFF) << 8)
-                | ((Round( unpacked.r * 255 ) & 0xFF) << 0));
-    return result;
-}
 
 #endif /* __RENDERER_H__ */

@@ -267,7 +267,7 @@ MarchCube( const v3& pOrigin, r32 cubeSize,
                 indices->Add( newVertexIndex );
                 TexturedVertex v = {};
                 v.p = vPos;
-                v.color = Pack01ToRGBA( { 1, 1, 1, 1 } );
+                v.color = Pack01ToRGBA( 1, 1, 1, 1 );
                 vertices->Add( v );
 
                 // Cache it too!
@@ -384,7 +384,7 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, March
             //r32 x = RandomRange( -halfSideMeters, halfSideMeters );
             //r32 y = RandomRange( -halfSideMeters, halfSideMeters );
             //r32 z = RandomRange( -halfSideMeters, halfSideMeters );
-            r32 r = RandomRange( 1.0f, 5.0f );
+            r32 r = RandomRangeR32( 1.0f, 5.0f );
             balls.Add( { V3Zero, r } );
         }
     }
@@ -1123,7 +1123,7 @@ GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advance
         XRotation(  pi2 ),
         XRotation( -pi2 ),
     };
-    u32 random = Random();
+    u32 random = RandomU32();
     u32 rotIndex = random & 0x3;
 
     path->nextBasis = nullptr;
@@ -1166,11 +1166,11 @@ GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advance
         if( turnInThisStep )
         {
             path->basis = nextBasis;
-            path->distanceToNextTurn = RandomRange( path->minDistanceToTurn, path->maxDistanceToTurn );
+            path->distanceToNextTurn = RandomRangeR32( path->minDistanceToTurn, path->maxDistanceToTurn );
         }
         if( forkInThisStep )
         {
-            path->distanceToNextFork = RandomRange( path->minDistanceToFork, path->maxDistanceToFork );
+            path->distanceToNextFork = RandomRangeR32( path->minDistanceToFork, path->maxDistanceToFork );
         }
 
         v3 vForward = GetYBasis( path->basis );

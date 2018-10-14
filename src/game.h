@@ -31,9 +31,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "platform.h"
 #include "intrinsics.h"
 #include "math.h"
+#include "math_types.h"
 #include "memory.h"
 #include "debugstats.h"
-#include "math_types.h"
 #include "renderer.h"
 
 
@@ -110,6 +110,25 @@ struct GameControllerInput
     };
 };
 
+// OPTIONAL: some platforms may not provide this
+struct EditorInput
+{
+    // This is normal desktop mouse data (with standard system ballistics applied)
+    i32 mouseX, mouseY, mouseZ;
+    GameButtonState mouseButtons[5];
+
+    // TODO Platform-agnostic way to pass raw keypress data to the game?
+    // FIXME Reset these!
+    struct
+    {
+        GameButtonState openEditor; // TODO
+        GameButtonState closeEditor; // TODO
+        GameButtonState triggerEditor; // TODO
+
+        GameButtonState nextStep;
+    };
+};
+
 struct GameInput
 {
     bool executableReloaded;
@@ -119,10 +138,8 @@ struct GameInput
 
     GameControllerInput _controllers[5];
 
-    // This is normal desktop mouse data (with standard system ballistics applied)
-    i32 mouseX, mouseY, mouseZ;
-    GameButtonState mouseButtons[5];
-    // TODO Platform-agnostic way to pass raw keypress data to the game
+    bool hasEditorInput;
+    EditorInput editor;
 };
 
 #define PLATFORM_KEYMOUSE_CONTROLLER_SLOT 0

@@ -282,17 +282,23 @@ PLATFORM_ALLOCATE_TEXTURE(OpenGLAllocateTexture)
     void* result = nullptr;
 
     GLuint textureHandle;
-    glGenTextures( 1, &textureHandle );
-    glBindTexture( GL_TEXTURE_2D, textureHandle );
+    if( optionalHandle )
+        textureHandle = (GLuint)(sz)optionalHandle;
+    else
+        glGenTextures( 1, &textureHandle );
 
+    glBindTexture( GL_TEXTURE_2D, textureHandle );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
     // Use GL_LINEAR_MIPMAP_LINEAR?
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtered ? GL_LINEAR : GL_NEAREST );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filtered ? GL_LINEAR : GL_NEAREST );
 
-    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                  data );
+    if( optionalHandle )
+        glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data );
+    else
+        glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data );
+
     glGenerateMipmap( GL_TEXTURE_2D );
 
     result = (void*)textureHandle;
@@ -390,7 +396,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
 
     // Create a white texture
     gl.white = 0xFFFFFFFF;
-    gl.whiteTexture = OpenGLAllocateTexture( &gl.white, 1, 1, true );
+    gl.whiteTexture = OpenGLAllocateTexture( (u8*)&gl.white, 1, 1, true, nullptr );
 
     ASSERT_GL_STATE;
     return info;
