@@ -526,19 +526,24 @@ CreateOutputTexture( const Spec& spec, State* state, MemoryArena* arena )
     {
         for( u32 y = 0; y < height; ++y )
         {
-            u32 cellY = (y < height - N + 1) ? 0 : N - 1;
+            u32 cellY = (y < height - N + 1) ? y : y - N + 1;
             u32 dy = (y < height - N + 1) ? 0 : y + N - height;
 
             for( u32 x = 0; x < width; ++x )
             {
-                u32 cellX = (x < width - N + 1) ? 0 : N - 1;
+                u32 cellX = (x < width - N + 1) ? x : x - N + 1;
                 u32 dx = (x < width - N + 1) ? 0 : x + N - width;
 
+                u32 color = 0;
                 u32 patternIndex = state->observations[cellY * width + cellX];
-                u8* patternSamples = state->patterns[patternIndex].data;
-                u8 sample = patternSamples[dy * N + dx];
+                if( patternIndex != U32MAX )
+                {
+                    u8* patternSamples = state->patterns[patternIndex].data;
+                    u8 sample = patternSamples[dy * N + dx];
+                    color = state->palette[sample];
+                }
 
-                *out++ = state->palette[sample];
+                *out++ = color;
             }
         }
     }
@@ -771,20 +776,22 @@ DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpAr
 
 
 void
-DoWFC( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpArena, RenderCommands* renderCommands )
+InitWFC( const Spec& spec, State* state, MemoryArena* arena )
 {
     // TODO Investigate how to create temporary arenas that last more than a frame for this kind of thing
-    if( state->currentResult == NotStarted )
-    {
-        PalettizeSource( spec.source, state, arena );
-        BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, state, arena );
-        BuildPatternsIndex( spec.N, state, arena );
 
-        Init( state, spec.outputDim, arena );
+    PalettizeSource( spec.source, state, arena );
+    BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, state, arena );
+    BuildPatternsIndex( spec.N, state, arena );
 
-        state->currentResult = InProgress;
-    }
+    Init( state, spec.outputDim, arena );
 
+    state->currentResult = InProgress;
+}
+
+void
+DoWFC( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpArena, RenderCommands* renderCommands )
+{
     if( state->currentResult == InProgress )
     {
         if( spec.displayMode )
@@ -792,13 +799,13 @@ DoWFC( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpArena
             if( state->propagationStack.count )
                 Propagate( spec, state );
             else
-                Observe( spec, state, arena );
+                state->currentResult = Observe( spec, state, arena );
         }
         else
         {
             while( state->currentResult == InProgress )
             {
-                Observe( spec, state, arena );
+                state->currentResult = Observe( spec, state, arena );
                 Propagate( spec, state );
             }
         }

@@ -118,14 +118,17 @@ struct EditorInput
     GameButtonState mouseButtons[5];
 
     // TODO Platform-agnostic way to pass raw keypress data to the game?
-    // FIXME Reset these!
-    struct
+    union
     {
-        GameButtonState openEditor; // TODO
-        GameButtonState closeEditor; // TODO
-        GameButtonState triggerEditor; // TODO
+        struct
+        {
+            GameButtonState openEditor; // TODO
+            GameButtonState closeEditor; // TODO
+            GameButtonState triggerEditor; // TODO
 
-        GameButtonState nextStep;
+            GameButtonState nextStep;
+        };
+        GameButtonState buttons[4];
     };
 };
 

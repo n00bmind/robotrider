@@ -909,15 +909,19 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
     oldInput = temp;
 
     newInput->executableReloaded = false;
+    newInput->frameElapsedSeconds = elapsedSeconds;
+    newInput->totalElapsedSeconds = totalSeconds;
+    newInput->frameCounter = frameCounter;
+
     newInput->hasEditorInput = true;
     newInput->editor.mouseX = oldInput->editor.mouseX;
     newInput->editor.mouseY = oldInput->editor.mouseY;
     newInput->editor.mouseZ = oldInput->editor.mouseZ;
+
     for( u32 i = 0; i < ARRAYCOUNT(newInput->editor.mouseButtons); ++i )
         newInput->editor.mouseButtons[i] = oldInput->editor.mouseButtons[i];
-    newInput->frameElapsedSeconds = elapsedSeconds;
-    newInput->totalElapsedSeconds = totalSeconds;
-    newInput->frameCounter = frameCounter;
+    for( u32 i = 0; i < ARRAYCOUNT(newInput->editor.buttons); ++i )
+        newInput->editor.buttons[i] = oldInput->editor.buttons[i];
 }
 
 

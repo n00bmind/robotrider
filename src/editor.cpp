@@ -145,12 +145,17 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     {
         editorState.testSourceTexture,
         2,
-        { 128, 128 },
+        { 256, 256 },
         true,
         { width * 0.75f, height * 0.75f },
         false,
     };
 
+    if( input->executableReloaded || input->editor.nextStep.endedDown )
+    {
+        RandomSeed( input->frameCounter );
+        InitWFC( spec, &editorState.wfcState, arena ); 
+    }
     /// WFC test
     WFC::DoWFC( spec, &editorState.wfcState, arena, tmpArena, renderCommands );
 
