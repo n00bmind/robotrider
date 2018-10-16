@@ -6,17 +6,12 @@ internal void
 PalettizeSource( const Texture& source, State* state, MemoryArena* arena )
 {
     state->input = PUSH_ARRAY( arena, source.width * source.height, u8 );
-    state->inputWidth = source.width;
-    state->inputHeight = source.height;
-    state->inputChannels = source.channelCount;
 
     for( int i = 0; i < source.width * source.height; ++i )
     {
-        bool found = false;
-
         u32 color = *((u32*)source.imageBuffer + i);
 
-        // NOTE Could be ordered for speed
+        bool found = false;
         for( u32 c = 0; c < state->paletteEntries; ++c )
         {
             if( state->palette[c] == color )
@@ -104,9 +99,8 @@ inline bool operator ==( const Pattern& a, const Pattern& b )
 }
 
 internal void
-AddPatternWithData( u8* data, State* state, MemoryArena* arena )
+AddPatternWithData( u8* data, const u32 N, State* state, MemoryArena* arena )
 {
-    const u32 N = state->N;
     Pattern testPattern = { data, N };
 
     u32* patternCount = state->patternsHash.Find( testPattern );
@@ -121,44 +115,42 @@ AddPatternWithData( u8* data, State* state, MemoryArena* arena )
 }
 
 internal void
-BuildPatternsFromSource( State* state, MemoryArena* arena )
+BuildPatternsFromSource( const u32 N, const v2i& inputDim, State* state, MemoryArena* arena )
 {
-    const u32 N = state->N;
-
     u8* patternData = PUSH_ARRAY( arena, N * N, u8 );
     u8* rotatedPatternData = PUSH_ARRAY( arena, N * N, u8 );
     u8* reflectedPatternData = PUSH_ARRAY( arena, N * N, u8 );
 
     // Totally arbitrary number for the entry count
-    new (&state->patternsHash) HashTable<Pattern, u32, PatternHash>( arena, state->inputWidth * state->inputHeight / 2 );
+    new (&state->patternsHash) HashTable<Pattern, u32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
 
-    for( u32 j = 0; j < state->inputHeight - N + 1; ++j )
+    for( u32 j = 0; j < inputDim.y - N + 1; ++j )
     {
-        for( u32 i = 0; i < state->inputWidth - N + 1; ++i )
+        for( u32 i = 0; i < inputDim.x - N + 1; ++i )
         {
-            ExtractPattern( state->input, i, j, state->inputWidth, N, patternData );
-            AddPatternWithData( patternData, state, arena );
+            ExtractPattern( state->input, i, j, inputDim.x, N, patternData );
+            AddPatternWithData( patternData, N, state, arena );
 
             ReflectPattern( patternData, N, reflectedPatternData );
-            AddPatternWithData( reflectedPatternData, state, arena );
+            AddPatternWithData( reflectedPatternData, N, state, arena );
             RotatePattern( patternData, N, rotatedPatternData );
-            AddPatternWithData( rotatedPatternData, state, arena );
+            AddPatternWithData( rotatedPatternData, N, state, arena );
             COPY( rotatedPatternData, patternData, N * N );
 
             ReflectPattern( patternData, N, reflectedPatternData );
-            AddPatternWithData( reflectedPatternData, state, arena );
+            AddPatternWithData( reflectedPatternData, N, state, arena );
             RotatePattern( patternData, N, rotatedPatternData );
-            AddPatternWithData( rotatedPatternData, state, arena );
+            AddPatternWithData( rotatedPatternData, N, state, arena );
             COPY( rotatedPatternData, patternData, N * N );
 
             ReflectPattern( patternData, N, reflectedPatternData );
-            AddPatternWithData( reflectedPatternData, state, arena );
+            AddPatternWithData( reflectedPatternData, N, state, arena );
             RotatePattern( patternData, N, rotatedPatternData );
-            AddPatternWithData( rotatedPatternData, state, arena );
+            AddPatternWithData( rotatedPatternData, N, state, arena );
             COPY( rotatedPatternData, patternData, N * N );
 
             ReflectPattern( patternData, N, reflectedPatternData );
-            AddPatternWithData( reflectedPatternData, state, arena );
+            AddPatternWithData( reflectedPatternData, N, state, arena );
         }
     }
 
@@ -228,9 +220,8 @@ internal const u32 opposites[Adjacency::Count] =
 };
 
 internal void
-BuildPatternsIndex( State* state, MemoryArena* arena )
+BuildPatternsIndex( const u32 N, State* state, MemoryArena* arena )
 {
-    const u32 N = state->N;
     u32 patternCount = state->patterns.count;
 
     for( u32 d = 0; d < ARRAYCOUNT(state->patternsIndex); ++d )
@@ -267,12 +258,9 @@ CountMatches( const IndexEntry& entry )
 }
 
 internal void
-Init( State* state, u32 width, u32 height, MemoryArena* arena )
+Init( State* state, const v2i outputDim, MemoryArena* arena )
 {
-    state->outputWidth = width;
-    state->outputHeight = height;
-
-    u32 waveLength = width * height;
+    u32 waveLength = outputDim.x * outputDim.y;
     u32 patternCount = state->patterns.count;
 
     state->remaining = waveLength;
@@ -373,36 +361,36 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
 }
 
 inline bool
-OnBoundary( const v2i& p, State* state )
+OnBoundary( const v2i& p, const Spec& spec )
 {
-    const u32 N = state->N;
-    return !state->periodic && (p.x < 0 || p.y < 0 || p.x + N > state->outputWidth || p.y + N > state->outputHeight);
+    const int N = spec.N;
+    return !spec.periodic && (p.x < 0 || p.y < 0 || p.x + N > spec.outputDim.x || p.y + N > spec.outputDim.y);
 }
 
 inline v2i
-PositionFromIndex( u32 index, u32 width )
+PositionFromIndex( u32 index, u32 stride )
 {
-    return { (i32)(index % width), (i32)(index / width) };
+    return { (i32)(index % stride), (i32)(index / stride) };
 }
 
 inline u32
-IndexFromPosition( const v2i& p, u32 width )
+IndexFromPosition( const v2i& p, u32 stride )
 {
-    return p.y * width + p.x;
+    return p.y * stride + p.x;
 }
 
 internal Result
-Observe( State* state, MemoryArena* arena )
+Observe( const Spec& spec, State* state, MemoryArena* arena )
 {
     Result result = InProgress;
 
     u32 selectedCellIndex = 0;
     r64 minEntropy = R64INF;
 
-    u32 waveLength = state->outputWidth * state->outputHeight;
+    u32 waveLength = spec.outputDim.x * spec.outputDim.y;
     for( u32 i = 0; i < waveLength; ++i )
     {
-        if( OnBoundary( PositionFromIndex( i, state->outputWidth ), state ) )
+        if( OnBoundary( PositionFromIndex( i, spec.outputDim.x ), spec ) )
             continue;
 
         u32 count = state->compatiblesCount[i];
@@ -473,10 +461,10 @@ Observe( State* state, MemoryArena* arena )
 }
 
 internal void
-Propagate( State* state )
+Propagate( const Spec& spec, State* state )
 {
-    u32 width = state->outputWidth;
-    u32 height = state->outputHeight;
+    u32 width = spec.outputDim.x;
+    u32 height = spec.outputDim.y;
     u32 patternCount = state->patterns.count;
 
     while( state->propagationStack.count > 0 )
@@ -488,7 +476,7 @@ Propagate( State* state )
         {
             v2i pAdjacent = pCell + cellDeltas[d];
 
-            if( OnBoundary( pAdjacent, state ) )
+            if( OnBoundary( pAdjacent, spec ) )
                 continue;
 
             if( pAdjacent.x < 0 )
@@ -516,60 +504,22 @@ Propagate( State* state )
             }
         }
 
-        if( state->displayMode )
+        if( spec.displayMode )
             break;
     }
 }
 
-void
-Update( const Texture& source, u32 width, u32 height, State* state, MemoryArena* arena )
-{
-    state->N = 2;
-    state->displayMode = true;
-
-    // TODO Investigate how to create temporary arenas that last more than a frame for this kind of thing
-    if( state->currentResult == NotStarted )
-    {
-        PalettizeSource( source, state, arena );
-        BuildPatternsFromSource( state, arena );
-        BuildPatternsIndex( state, arena );
-
-        Init( state, width, height, arena );
-
-        state->currentResult = InProgress;
-    }
-
-    if( state->displayMode )
-    {
-        if( state->currentResult == InProgress )
-        {
-            if( state->propagationStack.count )
-                Propagate( state );
-            else
-                Observe( state, arena );
-        }
-    }
-    else
-    {
-        while( state->currentResult == InProgress )
-        {
-            Observe( state, arena );
-            Propagate( state );
-        }
-    }
-}
-
 internal Texture
-CreateOutputTexture( State* state, MemoryArena* arena )
+CreateOutputTexture( const Spec& spec, State* state, MemoryArena* arena )
 {
     if( !state->outputImage )
     {
-        state->outputImage = PUSH_ARRAY( arena, state->outputWidth * state->outputHeight, u32 );
+        state->outputImage = PUSH_ARRAY( arena, spec.outputDim.x * spec.outputDim.y, u32 );
     }
 
-    const u32 N = state->N;
-    const u32 width = state->outputWidth;
-    const u32 height = state->outputHeight;
+    const u32 N = spec.N;
+    const u32 width = spec.outputDim.x;
+    const u32 height = spec.outputDim.y;
     u32* out = state->outputImage;
 
     if( state->currentResult > InProgress )
@@ -613,7 +563,7 @@ CreateOutputTexture( State* state, MemoryArena* arena )
                         if( cellX < 0 )
                             cellX += width;
 
-                        if( OnBoundary( { cellX, cellY }, state ) )
+                        if( OnBoundary( { cellX, cellY }, spec ) )
                             continue;
 
                         for( u32 p = 0; p < state->patterns.count; ++p )
@@ -640,26 +590,25 @@ CreateOutputTexture( State* state, MemoryArena* arena )
         }
     }
 
-    state->outputTextureHandle = globalPlatform.AllocateTexture( state->outputImage, state->outputWidth, state->outputHeight, false,
+    state->outputTextureHandle = globalPlatform.AllocateTexture( state->outputImage, spec.outputDim.x, spec.outputDim.y, false,
                                                                  state->outputTextureHandle );
     Texture result;
     result.handle = state->outputTextureHandle;
     result.imageBuffer = state->outputImage;
-    result.width = state->outputWidth;
-    result.height = state->outputHeight;
+    result.width = spec.outputDim.x;
+    result.height = spec.outputDim.y;
     result.channelCount = 4;
 
     return result;
 }
 
-void
-DrawTest( const EditorState& editorState, u16 screenWidth, u16 screenHeight, State* state, MemoryArena* arena,
-             MemoryArena* tmpArena, RenderCommands* renderCommands )
+internal void
+DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpArena, RenderCommands* renderCommands )
 {
     const r32 patternScale = 16;
 
-    ImGui::SetNextWindowPos( ImVec2( 100.f, 100.f ), ImGuiCond_FirstUseEver );
-    ImGui::SetNextWindowSize( ImVec2( screenWidth * 0.75f, screenHeight * 0.75f ), ImGuiCond_FirstUseEver );
+    ImGui::SetNextWindowPos( { 100.f, 100.f }, ImGuiCond_FirstUseEver );
+    ImGui::SetNextWindowSize( spec.displayDim, ImGuiCond_FirstUseEver );
     ImGui::SetNextWindowSizeConstraints( ImVec2( -1, -1 ), ImVec2( -1, -1 ) );
     ImGui::Begin( "window_WFC", NULL,
                   //ImGuiWindowFlags_NoTitleBar |
@@ -667,8 +616,7 @@ DrawTest( const EditorState& editorState, u16 screenWidth, u16 screenHeight, Sta
 
     ImGui::BeginChild( "child_wfc_left", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
     // TODO Draw indexed & de-indexed image to help detect errors
-    const Texture& srcTex = editorState.testSourceTexture;
-    ImGui::Image( srcTex.handle, ImVec2( (r32)srcTex.width * patternScale, (r32)srcTex.height * patternScale ) );
+    ImGui::Image( spec.source.handle, ImVec2( (r32)spec.source.width * patternScale, (r32)spec.source.height * patternScale ) );
 
     ImGui::Dummy( ImVec2( 0, 100 ) );
     ImGui::Separator();
@@ -696,11 +644,11 @@ DrawTest( const EditorState& editorState, u16 screenWidth, u16 screenHeight, Sta
 			if (state->currentResult > NotStarted)
             {
                 r32 outputScale = 4.f;
-                ImVec2 imageSize = ImVec2( state->outputWidth * outputScale, state->outputHeight * outputScale );
+                ImVec2 imageSize = spec.outputDim * outputScale;
 
                 if( state->remaining != state->lastRemaining )
                 {
-                    state->outputTexture = CreateOutputTexture( state, arena );
+                    state->outputTexture = CreateOutputTexture( spec, state, arena );
                     state->lastRemaining = state->remaining;
                 }
 
@@ -821,5 +769,42 @@ DrawTest( const EditorState& editorState, u16 screenWidth, u16 screenHeight, Sta
     ImGui::End();
 }
 
+
+void
+DoWFC( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpArena, RenderCommands* renderCommands )
+{
+    // TODO Investigate how to create temporary arenas that last more than a frame for this kind of thing
+    if( state->currentResult == NotStarted )
+    {
+        PalettizeSource( spec.source, state, arena );
+        BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, state, arena );
+        BuildPatternsIndex( spec.N, state, arena );
+
+        Init( state, spec.outputDim, arena );
+
+        state->currentResult = InProgress;
+    }
+
+    if( state->currentResult == InProgress )
+    {
+        if( spec.displayMode )
+        {
+            if( state->propagationStack.count )
+                Propagate( spec, state );
+            else
+                Observe( spec, state, arena );
+        }
+        else
+        {
+            while( state->currentResult == InProgress )
+            {
+                Observe( spec, state, arena );
+                Propagate( spec, state );
+            }
+        }
+    }
+
+    DrawTest( spec, state, arena, tmpArena, renderCommands );
+}
 
 } // namespace WFC

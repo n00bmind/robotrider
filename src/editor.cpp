@@ -141,10 +141,18 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     u16 height = renderCommands->height;
 
 
-#if 0
+    const WFC::Spec spec =
+    {
+        editorState.testSourceTexture,
+        2,
+        { 128, 128 },
+        true,
+        { width * 0.75f, height * 0.75f },
+        false,
+    };
+
     /// WFC test
-    WFC::Update( editorState.testSourceTexture, 64, 64, &editorState.wfcState, arena );
-    WFC::DrawTest( editorState, width, height, &editorState.wfcState, arena, tmpArena, renderCommands );
+    WFC::DoWFC( spec, &editorState.wfcState, arena, tmpArena, renderCommands );
 
 
 

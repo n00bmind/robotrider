@@ -93,6 +93,13 @@ union v2
 const v2 V2Zero = { 0, 0 };
 
 inline v2
+V2( r32 x, r32 y )
+{
+    v2 result = { x, y };
+    return result;
+}
+
+inline v2
 V2( const v2i &v )
 {
     v2 result = { (r32)v.x, (r32)v.y };

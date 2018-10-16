@@ -77,23 +77,21 @@ struct BannedTuple
     u32 patternIndex;
 };
 
+struct Spec
+{
+    Texture source;
+    u32 N;
+
+    v2i outputDim;
+    bool periodic;
+
+    v2 displayDim;
+    bool displayMode;       // true - display intermediate results every frame
+};
+
 struct State
 {
-    struct // Spec
-    {
-        u8* input;
-        u32 inputWidth;
-        u32 inputHeight;
-        u32 inputChannels;
-        u32 N;
-
-        u32 outputWidth;
-        u32 outputHeight;
-        bool periodic;
-
-        bool displayMode;
-    };
-
+    u8* input;
     u32 palette[256];
     u32 paletteEntries;
 
