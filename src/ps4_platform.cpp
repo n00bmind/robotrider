@@ -117,17 +117,17 @@ PS4JoinPaths( const char* pathBase, const char* relativePath, char* destination,
     if( relativePath[0] == '/' )
         format = "%s%s";
 
-    snprintf( destination, MAX_PATH, format, pathBase, relativePath );
+    snprintf( destination, PLATFORM_PATH_MAX, format, pathBase, relativePath );
     sz len = strlen( destination );
-    ASSERT( len < MAX_PATH );
+    ASSERT( len < PLATFORM_PATH_MAX );
     
     if( addTrailingSlash )
     {
         if( destination[len-1] != '/' )
         {
-            if( len < MAX_PATH )
+            if( len < PLATFORM_PATH_MAX )
                 destination[len++] = '/';
-            if( len < MAX_PATH )
+            if( len < PLATFORM_PATH_MAX )
                 destination[len++] = 0;
         }
     }
@@ -141,8 +141,8 @@ PS4ResolvePaths( PS4State* platformState )
 #if RELEASE
     NOT_IMPLEMENTED
 #else
-    snprintf( platformState->binariesPath, MAX_PATH, "/app0/bin/ORBIS" );
-    snprintf( platformState->assetDataPath, MAX_PATH, "/app0/data" );
+    snprintf( platformState->binariesPath, PLATFORM_PATH_MAX, "/app0/bin/ORBIS" );
+    snprintf( platformState->assetDataPath, PLATFORM_PATH_MAX, "/app0/data" );
 #endif
 }
 
@@ -189,7 +189,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPS4ReadEntireFile)
 {
     DEBUGReadFileResult result = {};
 
-    char absolutePath[MAX_PATH];
+    char absolutePath[PLATFORM_PATH_MAX];
     if( filename[0] != '/' )
     {
         // If path is relative, use assets location to complete it

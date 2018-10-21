@@ -91,7 +91,7 @@ config_win_release = Config(
 
 default_platform = platform_win
 default_config = config_win_develop
-# default_config = config_win_debug
+#default_config = config_win_debug
 
 
 
@@ -117,6 +117,10 @@ if __name__ == '__main__':
 
     if not os.path.exists(binpath):
         os.mkdir(binpath)
+    else:
+        for file in os.listdir(binpath):
+            if file.lower().endswith('.pdb'):
+                os.remove(os.path.join(binpath, file))
 
     # TODO Process comand line
     # verbose = True

@@ -125,6 +125,8 @@ struct State
     Texture outputTexture;
     u32 remaining;
     u32 lastRemaining;
+    DEBUGFileInfoList currentFileList;
+    char currentRootPath[PLATFORM_PATH_MAX];
 };
 
 

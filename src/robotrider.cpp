@@ -21,13 +21,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#include <ctype.h>
-#include <stdarg.h>
-
 
 #include "game.h"
 
-#include "memory.h"
 #include "data_types.h"
 #include "meshgen.h"
 #include "world.h"
@@ -152,20 +148,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     TemporaryMemory tempMemory = BeginTemporaryMemory( &gameState->transientArena );
 
-#if 0
-    PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
+    u16 width = renderCommands->width;
+    u16 height = renderCommands->height;
 
-    Player *player = gameState->world->player;
-    PushMesh( player->mesh, renderCommands );
-
-    DrawAxisGizmos( renderCommands );
-
-    v3 pCam = player->mesh.mTransform * V3( 0, -8, 5 );
-    v3 pLookAt = player->mesh.mTransform * V3( 0, 1, 0 );
-    v3 vUp = GetColumn( player->mesh.mTransform, 2 ).xyz;
-    renderCommands->camera = DefaultCamera();
-    renderCommands->camera.mTransform = CameraLookAt( pCam, pLookAt, vUp );
-#else
     if( input->executableReloaded )
     {
         // TODO Check if these are all ok here so that we can remove GAME_SETUP_AFTER_RELOAD
@@ -177,8 +162,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         auxArena = &gameState->worldArena;
 
 #if !RELEASE
-        //memory->DEBUGglobalEditing = true;
-        InitEditor( &gameState->DEBUGeditorState, gameState->world, &gameState->worldArena, &gameState->transientArena );
+        memory->DEBUGglobalEditing = true;
+        InitEditor( { width, height }, &gameState->DEBUGeditorState, gameState->world,
+                    &gameState->worldArena, &gameState->transientArena );
 #endif
     }
 
@@ -203,9 +189,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         UpdateAndRenderWorld( gameInput, memory, renderCommands );
     }
 
-    u16 width = renderCommands->width;
-    u16 height = renderCommands->height;
-
 #if !RELEASE
     float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
     float frameTime = 1000.f / fps;
@@ -227,8 +210,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
     else
         DrawStats( width, height, statsText );
-#endif
-
 #endif
 
     EndTemporaryMemory( tempMemory );

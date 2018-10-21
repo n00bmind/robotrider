@@ -24,7 +24,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __PLATFORM_H__
 #define __PLATFORM_H__ 
 
-
 //
 // Compiler stuff
 //
@@ -67,77 +66,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define LIB_EXPORT extern "C" __declspec(dllexport)
 #endif
 
-//
-// Common definitions
-//
-
-#define internal static
-#define persistent static
-
-
-#if !RELEASE
-#define HALT() ( (*(volatile int *)0 = 0) != 0 )
-#define ASSERT(expr) ((void)( !(expr) && (_assert_handler( #expr, __FILE__, __LINE__ ), 1) && HALT()))
-#define ASSERTM(expr, msg) ((void)( !(expr) && (_assert_handler( msg, __FILE__, __LINE__ ), 1) && HALT()))
-#else
-#define ASSERT(expr) ((void)0)
-#define ASSERTM(expr, msg) ((void)0)
-#endif
-
-#if !RELEASE
-#define NOT_IMPLEMENTED ASSERT(!"NotImplemented")
-#else
-#define NOT_IMPLEMENTED NotImplemented!!!
-#endif
-
-#define INVALID_CODE_PATH ASSERT(!"InvalidCodePath");
-#define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH; } break;
-
-// TODO Add support for different log levels (like in Android) and categories/filters
-#define LOG globalPlatform.Log
-
-#define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
-#define OFFSETOF(type, member) ((sz)&(((type *)0)->member))
-#define STR(s) _STR(s)
-#define _STR(s) #s
-
-#define KILOBYTES(value) ((value)*1024)
-#define MEGABYTES(value) (KILOBYTES(value)*1024)
-#define GIGABYTES(value) (MEGABYTES((u64)value)*1024)
-
-#define COPY(source, dest, size) memcpy( dest, source, size )
-#define SET(dest, value, size) memset( dest, value, size )
-#define ZERO(dest, size) memset( dest, 0, size )
-
-// NOTE Only use these where storage is important (i.e: structs)
-typedef int8_t i8;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef unsigned long long u64;
-
-typedef float r32;
-typedef double r64;
-
-typedef size_t sz;
-
-#define U8MAX UINT8_MAX
-#define I32MAX INT32_MAX
-#define I32MIN INT32_MIN
-#define U32MAX UINT32_MAX
-
-#define R32MAX FLT_MAX
-#define R32MIN FLT_MIN
-#define R32INF INFINITY
-#define R32NAN NAN
-
-#define R64INF (r64)INFINITY
-
-
 #if COMPILER_MSVC
 #define COMPILER_READ_BARRIER       _ReadBarrier();
 #define COMPILER_WRITE_BARRIER      _WriteBarrier();
@@ -167,12 +95,17 @@ typedef size_t sz;
 // Services that the platform layer provides to the game
 //
 
+// TODO Add support for different log levels (like in Android) and categories/filters
+#define LOG globalPlatform.Log
+
+
 
 struct DEBUGReadFileResult
 {
     u32 contentSize;
     void *contents;
 };
+// TODO Change this to use a given arena instead of allocating
 #define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGReadFileResult name( const char *filename )
 typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(DebugPlatformReadEntireFileFunc);
 
@@ -182,6 +115,41 @@ typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(DebugPlatformFreeFileMemoryFunc);
 
 #define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool name( const char *filename, u32 memorySize, void *memory )
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DebugPlatformWriteEntireFileFunc);
+
+#define PLATFORM_PATH_MAX 1024
+
+// NOTE IMPORTANT The file info struct is for use in a DEBUG context only (in an editor mode, etc.)
+// All asset information and content should be exclusively passed forward from the platform to the game
+// and never requested back from the game to avoid dependecy loops in a runtime context as much as possible.
+// In fact, this mechanism is something we should strive to eliminate entirely once the asset system
+// is developed and can provide for all use cases we accomplish through here instead.
+struct DEBUGFileInfo
+{
+    char fullPath[PLATFORM_PATH_MAX];
+    const char* name;
+
+    sz size;
+    u64 lastUpdated;
+    bool isFolder;
+};
+
+struct DEBUGFileInfoList
+{
+    DEBUGFileInfo* files;
+    u32 entryCount;
+};
+
+struct MemoryArena;
+
+// TODO Filters
+#define DEBUG_PLATFORM_LIST_ALL_ASSETS(name) DEBUGFileInfoList name( const char* relativeRootPath, MemoryArena* arena )
+typedef DEBUG_PLATFORM_LIST_ALL_ASSETS(DebugPlatformListAllAssetsFunc);
+
+#define DEBUG_PLATFORM_JOIN_PATHS(name) sz name( const char *root, const char *path, char *destination, bool canonicalize )
+typedef DEBUG_PLATFORM_JOIN_PATHS(DebugPlatformJoinPathsFunc);
+
+#define DEBUG_PLATFORM_GET_PARENT_PATH(name) void name( const char* path, char* destination )
+typedef DEBUG_PLATFORM_GET_PARENT_PATH(DebugPlatformGetParentPathFunc);
 
 
 struct PlatformJobQueue;
@@ -215,6 +183,9 @@ struct PlatformAPI
     DebugPlatformReadEntireFileFunc* DEBUGReadEntireFile;
     DebugPlatformFreeFileMemoryFunc* DEBUGFreeFileMemory;
     DebugPlatformWriteEntireFileFunc* DEBUGWriteEntireFile;
+    DebugPlatformListAllAssetsFunc* DEBUGListAllAssets;
+    DebugPlatformJoinPathsFunc* DEBUGJoinPaths;
+    DebugPlatformGetParentPathFunc* DEBUGGetParentPath;
 
     PlatformAddNewJobFunc* AddNewJob;
     PlatformCompleteAllJobsFunc* CompleteAllJobs;
@@ -231,13 +202,10 @@ struct PlatformAPI
 extern PlatformAPI globalPlatform;
 
 
-typedef void (*AssertHandler)( const char *, const char *, int );
-
-void DefaultAssertHandler( const char *msg, const char *file, int line )
+ASSERT_HANDLER(DefaultAssertHandler)
 {
     LOG( "ASSERTION FAILED! :: '%s' (%s@%d)\n", msg, file, line );
 }
-AssertHandler _assert_handler = DefaultAssertHandler;
 
 
 #endif /* __PLATFORM_H__ */

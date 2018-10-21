@@ -83,58 +83,60 @@ internal bool globalVSyncEnabled = false;
 
 
 
-internal sz
-Win32JoinPaths( const char *pathBase, const char *relativePath, char *destination, bool addTrailingSlash = true )
+DEBUG_PLATFORM_JOIN_PATHS(Win32JoinPaths)
 {
-    char buffer[MAX_PATH];
+    char buffer[PLATFORM_PATH_MAX] = {};
 
-    sz len = Min( strlen( pathBase ) + 1, MAX_PATH );
-    strncpy( buffer, pathBase, len );
-    len = MAX_PATH - len;
-    strncat( buffer, relativePath, len );
-    
-    if( addTrailingSlash )
+    sz len = Min( strlen( root ), PLATFORM_PATH_MAX );
+    strncpy( buffer, root, len );
+
+    // Add separator if root path is not empty and there's none at either of the two
+    if( len > 0 && len < PLATFORM_PATH_MAX )
     {
-        len = strlen( buffer );
-        if( buffer[len-1] != '/' )
+        if( path[0] != '\\' && path[0] != '/' &&
+            buffer[len-1] != '\\' && buffer[len-1] != '/' )
         {
-            if( len < MAX_PATH )
-                buffer[len++] = '/';
-            if( len < MAX_PATH )
-                buffer[len++] = 0;
+            buffer[len++] = '/';
         }
     }
 
-    GetFullPathName( buffer, MAX_PATH, destination, nullptr );
+    len = PLATFORM_PATH_MAX - len;
+    strncat( buffer, path, len );
+    
+    if( canonicalize )
+        GetFullPathName( buffer, PLATFORM_PATH_MAX, destination, nullptr );
+    else
+        strncpy( destination, buffer, PLATFORM_PATH_MAX );
+
     return strlen( destination );
 }
 
-internal void
-Win32GetFullPathToFile( const char* rootPath, const char* filename, char* destination )
+internal const char*
+FindFilename( const char* path )
 {
-    Win32JoinPaths( rootPath, filename, destination, false );
-}
-
-internal bool
-RemoveFilenameFromPath( char *path )
-{
-    bool result = false;
-
-    char *onePastLastSlash = path;
-    for( char *scanChar = path; *scanChar; ++scanChar )
+    const char *onePastLastSlash = path;
+    for( const char *scanChar = path; *scanChar; ++scanChar )
     {
-        if( *scanChar == '\\' )
+        if( *scanChar == '\\' || *scanChar == '/' )
         {
             onePastLastSlash = scanChar + 1;
         }
     }
-    if( onePastLastSlash != path )
-    {
-        *onePastLastSlash = 0;
-        result = true;
-    }
 
-    return result;
+    return onePastLastSlash;
+}
+
+DEBUG_PLATFORM_GET_PARENT_PATH(Win32GetParentPath)
+{
+    const char *pathSeparator = FindFilename( path );
+    if( pathSeparator != path )
+        --pathSeparator;
+
+    sz len = pathSeparator - path;
+    if( destination != path )
+        strncpy( destination, path, len );
+
+    destination[len] = 0;
 }
 
 internal char *
@@ -159,10 +161,68 @@ ExtractFileExtension( char *filename, char *destination, u32 destinationMaxLen )
 internal void
 TrimFileExtension( char* filename )
 {
-    char* extensionPos = ExtractFileExtension( filename, nullptr, 0 );
-    *extensionPos = 0;
+    char* lastDotPos = ExtractFileExtension( filename, nullptr, 0 );
+    *lastDotPos = 0;
 }
 
+
+internal bool
+AcceptAssetFileData( const WIN32_FIND_DATA& findData )
+{
+    bool result = true;
+    String filename( (char*)findData.cFileName );
+
+    if( filename.IsEqual( "." ) || filename.IsEqual( ".." ) )
+        result = false;
+
+    return result;
+}
+
+DEBUG_PLATFORM_LIST_ALL_ASSETS(Win32ListAllAssets)
+{
+    DEBUGFileInfoList result = {};
+
+    char joinedPath[PLATFORM_PATH_MAX] = {};
+    Win32JoinPaths( globalPlatformState.assetDataPath, relativeRootPath, joinedPath, true );
+    char findPath[PLATFORM_PATH_MAX] = {};
+    Win32JoinPaths( joinedPath, "*", findPath, false );
+
+    WIN32_FIND_DATA findData = {};
+    HANDLE hFind = FindFirstFile( findPath, &findData );
+    if( hFind != INVALID_HANDLE_VALUE )
+    {
+        do
+        {
+            if( AcceptAssetFileData( findData ) )
+                ++result.entryCount;
+        } while( FindNextFile( hFind, &findData ) );
+        FindClose( hFind );
+    }
+
+    result.files = PUSH_ARRAY( arena, result.entryCount, DEBUGFileInfo );
+    hFind = FindFirstFile( findPath, &findData );
+    if( hFind != INVALID_HANDLE_VALUE )
+    {
+        u32 i = 0;
+        do
+        {
+            if( AcceptAssetFileData( findData ) )
+            {
+                DEBUGFileInfo* info = result.files + i++;
+                *info = {};
+                Win32JoinPaths( joinedPath, findData.cFileName, info->fullPath, false );
+                info->name = FindFilename( info->fullPath );
+                info->size = ((sz)findData.nFileSizeHigh << 32) | findData.nFileSizeLow;
+                info->lastUpdated = ((u64)findData.ftLastWriteTime.dwHighDateTime << 32) | findData.ftLastWriteTime.dwLowDateTime;
+                info->isFolder = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+            }
+
+        } while( FindNextFile( hFind, &findData ) );
+        FindClose( hFind );
+    }
+
+    return result;
+}
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGWin32FreeFileMemory)
 {
@@ -176,11 +236,11 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
 {
     DEBUGReadFileResult result = {};
 
-    char absolutePath[MAX_PATH];
+    char absolutePath[PLATFORM_PATH_MAX];
     if( PathIsRelative( filename ) )
     {
         // If path is relative, use executable location to complete it
-        Win32GetFullPathToFile( globalPlatformState.assetDataPath, filename, absolutePath );
+        Win32JoinPaths( globalPlatformState.assetDataPath, filename, absolutePath, true );
         filename = absolutePath;
     }
 
@@ -234,11 +294,11 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGWin32WriteEntireFile)
 {
     bool result = false;
 
-    char absolutePath[MAX_PATH];
+    char absolutePath[PLATFORM_PATH_MAX];
     if( PathIsRelative( filename ) )
     {
         // If path is relative, use executable location to complete it
-        Win32GetFullPathToFile( globalPlatformState.assetDataPath, filename, absolutePath );
+        Win32JoinPaths( globalPlatformState.assetDataPath, filename, absolutePath, true );
         filename = absolutePath;
     }
 
@@ -340,9 +400,9 @@ Win32UnloadGameCode( Win32GameCode *gameCode )
 internal void
 Win32SetupAssetUpdateListener( Win32State *platformState )
 {
-    char absolutePath[MAX_PATH];
+    char absolutePath[PLATFORM_PATH_MAX];
     // FIXME This part is OpenGL specific. Formalize how we get this for different renderers
-    Win32JoinPaths( platformState->assetDataPath, SHADERS_RELATIVE_PATH, absolutePath );
+    Win32JoinPaths( platformState->assetDataPath, SHADERS_RELATIVE_PATH, absolutePath, true );
 
     platformState->shadersDirHandle
         = CreateFile( absolutePath, FILE_LIST_DIRECTORY, FILE_SHARE_READ, NULL,
@@ -380,10 +440,10 @@ Win32CheckAssetUpdates( Win32State *platformState )
             = (FILE_NOTIFY_INFORMATION *)platformState->shadersNotifyBuffer;
         if( notifyInfo->Action == FILE_ACTION_MODIFIED )
         {
-            char filename[MAX_PATH];
+            char filename[PLATFORM_PATH_MAX];
             WideCharToMultiByte( CP_ACP, WC_COMPOSITECHECK,
                                  notifyInfo->FileName, notifyInfo->FileNameLength,
-                                 filename, MAX_PATH, NULL, NULL );
+                                 filename, PLATFORM_PATH_MAX, NULL, NULL );
             filename[notifyInfo->FileNameLength/2] = 0;
 
             // Check and strip extension
@@ -392,7 +452,7 @@ Win32CheckAssetUpdates( Win32State *platformState )
             
             if( strcmp( extension, "glsl" ) == 0 )
             {
-                char assetPath[MAX_PATH];
+                char assetPath[PLATFORM_PATH_MAX];
                 strcpy( assetPath, SHADERS_RELATIVE_PATH );
                 strcat( assetPath, filename );
                 
@@ -926,11 +986,12 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
 
 
 internal void
-Win32GetInputFilePath( const Win32State& platformState, u32 slotIndex, bool isInputStream,
-                       char* dest, u32 destCount )
+Win32GetInputFilePath( const Win32State& platformState, u32 slotIndex, bool isInputStream, char* destination )
 {
-    sprintf_s( dest, destCount, "%s%s%d%s%s", platformState.exeFilePath,
-               "gamestate", slotIndex, isInputStream ? "_input" : "", ".in" );
+    char buffer[PLATFORM_PATH_MAX];
+    sprintf_s( buffer, ARRAYCOUNT(buffer), "%s%d%s%s", "gamestate", slotIndex, isInputStream ? "_input" : "", ".in" );
+
+    Win32JoinPaths( platformState.exeFilePath, buffer, destination, false );
 }
 
 internal Win32ReplayBuffer*
@@ -953,9 +1014,8 @@ Win32BeginInputRecording( Win32State *platformState, u32 inputRecordingIndex )
     {
         platformState->inputRecordingIndex = inputRecordingIndex;
 
-        char filename[MAX_PATH];
-        Win32GetInputFilePath( *platformState, inputRecordingIndex, true,
-                               filename, ARRAYCOUNT(filename) );
+        char filename[PLATFORM_PATH_MAX];
+        Win32GetInputFilePath( *platformState, inputRecordingIndex, true, filename );
         platformState->recordingHandle = CreateFile( filename,
                                                      GENERIC_WRITE, 0, 0,
                                                      CREATE_ALWAYS, 0, 0 );
@@ -993,9 +1053,8 @@ Win32BeginInputPlayback( Win32State *platformState, u32 inputPlaybackIndex )
     {
         platformState->inputPlaybackIndex = inputPlaybackIndex;
 
-        char filename[MAX_PATH];
-        Win32GetInputFilePath( *platformState, inputPlaybackIndex, true,
-                               filename, ARRAYCOUNT(filename) );
+        char filename[PLATFORM_PATH_MAX];
+        Win32GetInputFilePath( *platformState, inputPlaybackIndex, true, filename );
         platformState->playbackHandle = CreateFile( filename,
                                                     GENERIC_READ, 0, 0,
                                                     OPEN_EXISTING, 0, 0 );
@@ -1459,7 +1518,7 @@ Win32ResolvePaths( Win32State *state )
     LOG( state->currentDirectory );
 
     pathLen = GetModuleFileName( 0, state->exeFilePath, ARRAYCOUNT(state->exeFilePath) );
-    RemoveFilenameFromPath( state->exeFilePath );
+    Win32GetParentPath( state->exeFilePath, state->exeFilePath );
 
     {
         bool result = false;
@@ -1469,7 +1528,7 @@ Win32ResolvePaths( Win32State *state )
         // This is just to support the dist mechanism
         {
             char* sourceDLLName = "robotrider.debug.dll";
-            sprintf_s( state->sourceDLLPath, ARRAYCOUNT(state->sourceDLLPath), "%s%s", globalPlatformState.exeFilePath, sourceDLLName );
+            Win32JoinPaths( globalPlatformState.exeFilePath, sourceDLLName, state->sourceDLLPath, false );
             if( PathFileExists( state->sourceDLLPath ) )
             {
                 result = true;
@@ -1480,7 +1539,7 @@ Win32ResolvePaths( Win32State *state )
         char *sourceDLLName = buffer;
         if( !result )
         {
-            sprintf_s( state->sourceDLLPath, ARRAYCOUNT(state->sourceDLLPath), "%s%s", globalPlatformState.exeFilePath, sourceDLLName );
+            Win32JoinPaths( globalPlatformState.exeFilePath, sourceDLLName, state->sourceDLLPath, false );
             if( PathFileExists( state->sourceDLLPath ) )
             {
                 result = true;
@@ -1490,8 +1549,8 @@ Win32ResolvePaths( Win32State *state )
         if( result )
         {
             TrimFileExtension( sourceDLLName );
-            char tempDLLPath[MAX_PATH];
-            sprintf_s( state->tempDLLPath, ARRAYCOUNT(state->tempDLLPath), "%s%s.temp.dll", globalPlatformState.exeFilePath, sourceDLLName );
+            char tempDLLPath[PLATFORM_PATH_MAX];
+            sprintf_s( state->tempDLLPath, ARRAYCOUNT(state->tempDLLPath), "%s\\%s.temp.dll", globalPlatformState.exeFilePath, sourceDLLName );
         }
 
         ASSERT( result );
@@ -1510,7 +1569,7 @@ Win32ResolvePaths( Win32State *state )
 
         for( int i = 0; i < ARRAYCOUNT( supportedDataPaths ); ++i )
         {
-            Win32JoinPaths( state->exeFilePath, supportedDataPaths[i], state->assetDataPath );
+            Win32JoinPaths( state->exeFilePath, supportedDataPaths[i], state->assetDataPath, true );
             if( PathFileExists( state->assetDataPath ) )
             {
                 result = true;
@@ -1824,6 +1883,9 @@ main( int argC, char **argV )
     globalPlatform.DEBUGReadEntireFile = DEBUGWin32ReadEntireFile;
     globalPlatform.DEBUGFreeFileMemory = DEBUGWin32FreeFileMemory;
     globalPlatform.DEBUGWriteEntireFile = DEBUGWin32WriteEntireFile;
+    globalPlatform.DEBUGListAllAssets = Win32ListAllAssets;
+    globalPlatform.DEBUGJoinPaths = Win32JoinPaths;
+    globalPlatform.DEBUGGetParentPath = Win32GetParentPath;
     globalPlatform.AddNewJob = Win32AddNewJob;
     globalPlatform.CompleteAllJobs = Win32CompleteAllJobs;
     globalPlatform.AllocateTexture = Win32AllocateTexture;
@@ -1977,9 +2039,7 @@ main( int argC, char **argV )
                     Win32ReplayBuffer *replayBuffer = &globalPlatformState.replayBuffers[replayIndex];
 
                     // Since we use an index value of 0 as an off flag, slot filenames start at 1
-                    Win32GetInputFilePath( globalPlatformState, replayIndex + 1, false,
-                                           replayBuffer->filename,
-                                           ARRAYCOUNT(replayBuffer->filename) );
+                    Win32GetInputFilePath( globalPlatformState, replayIndex + 1, false, replayBuffer->filename );
                     replayBuffer->fileHandle = CreateFile( replayBuffer->filename,
                                                            GENERIC_READ|GENERIC_WRITE, 0, 0,
                                                            CREATE_ALWAYS, 0, 0 );

@@ -27,6 +27,7 @@ struct EditorState
 #endif
 
     Texture testSourceTexture;
+    WFC::Spec wfcSpec;
     WFC::State wfcState;
 
     r32 drawingDistance;

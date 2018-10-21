@@ -173,6 +173,10 @@ struct HashTable
         Clear();
     }
 
+    // Disallow implicit copying
+    HashTable( const HashTable& ) = delete;
+    HashTable& operator =( const HashTable& ) = delete;
+
     void Clear()
     {
         for( u32 i = 0; i < tableSize; ++i )
@@ -302,12 +306,6 @@ struct HashTable
         }
         return result;
     }
-
-private:
-    
-    // Disallow implicit copying
-    HashTable( const HashTable& );
-    HashTable& operator =( const HashTable& );
 };
 
 /////     STRING     /////
@@ -355,7 +353,7 @@ struct String
         return *data == '\n' || (*data == '\r' && *(data + 1) == '\n');
     }
 
-    bool StartsWith( const char* cString )
+    bool StartsWith( const char* cString ) const
     {
         ASSERT( *cString );
         if( IsNullOrEmpty() )
@@ -376,7 +374,7 @@ struct String
         return false;
     }
 
-    char* FindString( const char* cString )
+    char* FindString( const char* cString ) const
     {
         ASSERT( *cString );
         if( IsNullOrEmpty() )
@@ -576,6 +574,10 @@ struct BucketArray
         this->arena = arena;
     }
 
+    // Disallow implicit copying
+    BucketArray( const BucketArray& ) = delete;
+    BucketArray& operator =( const BucketArray& ) = delete;
+
     T* Reserve()
     {
         if( last->count == last->size )
@@ -684,10 +686,6 @@ struct BucketArray
 
 private:
     
-    // Disallow implicit copying
-    BucketArray( const BucketArray& );
-    BucketArray& operator =( const BucketArray& );
-
     void AddEmptyBucket()
     {
         Bucket* newBucket;

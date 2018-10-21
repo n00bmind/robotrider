@@ -90,7 +90,7 @@ struct Win32ReplayBuffer
 {
     HANDLE fileHandle;
     HANDLE memoryMap;
-    char filename[MAX_PATH];
+    char filename[PLATFORM_PATH_MAX];
     void *memoryBlock;
 };
 
@@ -99,11 +99,11 @@ struct Win32State
 {
     HWND mainWindow;
 
-    char currentDirectory[MAX_PATH];
-    char exeFilePath[MAX_PATH];
-    char sourceDLLPath[MAX_PATH];
-    char tempDLLPath[MAX_PATH];
-    char assetDataPath[MAX_PATH];
+    char currentDirectory[PLATFORM_PATH_MAX];
+    char exeFilePath[PLATFORM_PATH_MAX];
+    char sourceDLLPath[PLATFORM_PATH_MAX];
+    char tempDLLPath[PLATFORM_PATH_MAX];
+    char assetDataPath[PLATFORM_PATH_MAX];
 
     Win32GameCode gameCode;
     Renderer renderer;

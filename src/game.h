@@ -27,12 +27,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <ctype.h>
 
-#include "platform.h"
+
+#include "common.h"
 #include "intrinsics.h"
 #include "math.h"
 #include "math_types.h"
 #include "memory.h"
+#include "data_types.h"
+#include "platform.h"
 #include "debugstats.h"
 #include "renderer.h"
 

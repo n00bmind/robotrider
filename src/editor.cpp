@@ -64,7 +64,7 @@ DrawEditorEntity( const EditorEntity& editorEntity, const EditorState& editorSta
 }
 
 void
-InitEditor( EditorState* editorState, World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
+InitEditor( const v2i screenDim, EditorState* editorState, World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
 {
     // Mesh resampling test
 #if 0
@@ -75,6 +75,15 @@ InitEditor( EditorState* editorState, World* world, MemoryArena* worldArena, Mem
 #endif
 
     editorState->testSourceTexture = LoadTexture( "wfc/Red Maze.png", false, false, 4 );
+    editorState->wfcSpec =
+    {
+        editorState->testSourceTexture,
+        2,
+        { 256, 256 },
+        true,
+        { screenDim.x * 0.75f, screenDim.y * 0.75f },
+        true,
+    };
 }
 
 void
@@ -137,27 +146,14 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
         renderCommands->camera.mTransform = mCamRot * Translation( -editorState.pCamera );
     }
 
-    u16 width = renderCommands->width;
-    u16 height = renderCommands->height;
-
-
-    const WFC::Spec spec =
-    {
-        editorState.testSourceTexture,
-        2,
-        { 256, 256 },
-        true,
-        { width * 0.75f, height * 0.75f },
-        false,
-    };
 
     if( input->executableReloaded || input->editor.nextStep.endedDown )
     {
         RandomSeed( input->frameCounter );
-        InitWFC( spec, &editorState.wfcState, arena ); 
+        InitWFC( editorState.wfcSpec, &editorState.wfcState, arena ); 
     }
     /// WFC test
-    WFC::DoWFC( spec, &editorState.wfcState, arena, tmpArena, renderCommands );
+    WFC::DoWFC( editorState.wfcSpec, &editorState.wfcState, arena, tmpArena, renderCommands );
 
 
 
@@ -193,6 +189,8 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
 	DrawFloorGrid(CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands);
     DrawAxisGizmos( renderCommands );
 
+    u16 width = renderCommands->width;
+    u16 height = renderCommands->height;
     r32 elapsedSeconds = input->totalElapsedSeconds;
     DrawEditorStats( width, height, statsText, (i32)elapsedSeconds % 2 == 0 );
 }

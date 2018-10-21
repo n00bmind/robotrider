@@ -1,7 +1,6 @@
 #ifndef __PS4_PLATFORM_H__
 #define __PS4_PLATFORM_H__ 
 
-#define MAX_PATH 1024
 
 struct PS4MemoryBlock
 {
@@ -65,8 +64,8 @@ struct PS4RendererState;
 #define MAX_REPLAY_BUFFERS 3
 struct PS4State
 {
-    char binariesPath[MAX_PATH];
-    char assetDataPath[MAX_PATH];
+    char binariesPath[PLATFORM_PATH_MAX];
+    char assetDataPath[PLATFORM_PATH_MAX];
 
     PS4GameCode gameCode;
     PS4ControllerInfo controllerInfos[ARRAYCOUNT(GameInput::_controllers)];     // Map 1-to-1 to controllers

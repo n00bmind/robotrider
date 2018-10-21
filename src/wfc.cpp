@@ -522,7 +522,7 @@ CreateOutputTexture( const Spec& spec, State* state, MemoryArena* arena )
     const u32 height = spec.outputDim.y;
     u32* out = state->outputImage;
 
-    if( state->currentResult > InProgress )
+    if( state->currentResult == Done )
     {
         for( u32 y = 0; y < height; ++y )
         {
@@ -547,7 +547,7 @@ CreateOutputTexture( const Spec& spec, State* state, MemoryArena* arena )
             }
         }
     }
-    else if( state->currentResult == InProgress )
+    else if( state->currentResult > NotStarted )
     {
         for( u32 y = 0; y < height; ++y )
         {
@@ -607,9 +607,64 @@ CreateOutputTexture( const Spec& spec, State* state, MemoryArena* arena )
     return result;
 }
 
+internal const char*
+DrawFileSelectorPopup( char* currentRoot, DEBUGFileInfoList* currentFileList, MemoryArena* arena )
+{
+    const char* result = nullptr;
+
+    ImGui::Text( "%s%s", "assets/", currentRoot );
+    ImGui::Separator();
+
+    ImGui::BeginChild( "child_file_list", ImVec2( 250, 400 ) );
+
+    if( !currentFileList->files )
+        *currentFileList = globalPlatform.DEBUGListAllAssets( currentRoot, arena );
+
+    if( ImGui::MenuItem( "..", nullptr, false, !String( currentRoot ).IsNullOrEmpty() ) )
+    {
+        globalPlatform.DEBUGGetParentPath( currentRoot, currentRoot );
+        // LEAK
+        *currentFileList = {};
+    }
+    for( u32 i = 0; i < currentFileList->entryCount; ++i )
+    {
+        DEBUGFileInfo& info = currentFileList->files[i];
+        if( info.isFolder )
+        {
+            ImGui::Text( ">" );
+            ImGui::SameLine();
+            if( ImGui::MenuItem( info.name ) )
+            {
+                globalPlatform.DEBUGJoinPaths( currentRoot, info.name, currentRoot, false );
+                // LEAK
+                *currentFileList = {};
+            }
+        }
+    }
+    for( u32 i = 0; i < currentFileList->entryCount; ++i )
+    {
+        DEBUGFileInfo& info = currentFileList->files[i];
+        if( !info.isFolder )
+        {
+            if( ImGui::MenuItem( info.name ) )
+            {
+                result = info.fullPath;
+            }
+        }
+    }
+    ImGui::EndChild();
+
+    return result;
+}
+
+void InitWFC( const Spec& spec, State* state, MemoryArena* arena );
+
 internal void
 DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpArena, RenderCommands* renderCommands )
 {
+    ImGui::ShowDemoWindow();
+
+
     const r32 patternScale = 16;
 
     ImGui::SetNextWindowPos( { 100.f, 100.f }, ImGuiCond_FirstUseEver );
@@ -621,7 +676,24 @@ DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpAr
 
     ImGui::BeginChild( "child_wfc_left", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
     // TODO Draw indexed & de-indexed image to help detect errors
-    ImGui::Image( spec.source.handle, ImVec2( (r32)spec.source.width * patternScale, (r32)spec.source.height * patternScale ) );
+    ImVec2 buttonDim = ImVec2( (r32)spec.source.width * patternScale, (r32)spec.source.height * patternScale );
+    if( ImGui::ImageButton( spec.source.handle, buttonDim ) )
+        ImGui::OpenPopup( "popup_file_selector" );
+
+    const char* selectedFile = nullptr;
+    if( ImGui::BeginPopup( "popup_file_selector" ) )
+    {
+        selectedFile = DrawFileSelectorPopup( state->currentRootPath, &state->currentFileList, arena );
+        if( selectedFile )
+        {
+            ImGui::CloseCurrentPopup();
+
+            ((Spec&)spec).source = LoadTexture( selectedFile, false, false, 4 );
+            InitWFC( spec, state, arena ); 
+        }
+        ImGui::EndPopup();
+    }
+    
 
     ImGui::Dummy( ImVec2( 0, 100 ) );
     ImGui::Separator();
@@ -778,8 +850,9 @@ DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpAr
 void
 InitWFC( const Spec& spec, State* state, MemoryArena* arena )
 {
-    // TODO Investigate how to create temporary arenas that last more than a frame for this kind of thing
+    ZERO( state, sizeof(State) );
 
+    // TODO Investigate how to create temporary arenas that last more than a frame for this kind of thing
     PalettizeSource( spec.source, state, arena );
     BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, state, arena );
     BuildPatternsIndex( spec.N, state, arena );
