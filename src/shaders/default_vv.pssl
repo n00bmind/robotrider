@@ -32,7 +32,7 @@ struct VS_OUTPUT
 {
 	float4 position		: S_POSITION;
 	float4 color		: COLOR0;
-	float2 texCoords	: TEXCOORD1;
+	float2 texCoords	: TEXCOORD0;
 };
 
 #pragma pack_matrix (row_major)

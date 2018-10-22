@@ -54,6 +54,9 @@ enum class PS4Path
     Asset,
 };
 
+
+struct PS4RendererState;
+
 #define MAX_REPLAY_BUFFERS 3
 struct PS4State
 {
@@ -61,13 +64,13 @@ struct PS4State
     char assetDataPath[MAX_PATH];
 
     PS4GameCode gameCode;
-    Renderer renderer;
+    PS4RendererState* renderer;
 
     PS4MemoryBlock memoryBlocks[64];
     u32 nextFreeMemoryBlock;
 
     void *gameMemoryBlock;
-    u64 gameMemorySize;
+    sz gameMemorySize;
     void* /*PS4ReplayBuffer*/ replayBuffers[MAX_REPLAY_BUFFERS];
 
     bool running;

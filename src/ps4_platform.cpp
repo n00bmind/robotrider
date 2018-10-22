@@ -32,7 +32,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string.h>
 #include <kernel.h>
 
-size_t sceLibcHeapSize = 1 * 1024 * 1024;
+size_t sceLibcHeapSize = 16 * 1024 * 1024;
 unsigned int sceLibcHeapDebugFlags = SCE_LIBC_HEAP_DEBUG_SHORTAGE;
 
 #include <gnmx.h>
@@ -40,16 +40,17 @@ unsigned int sceLibcHeapDebugFlags = SCE_LIBC_HEAP_DEBUG_SHORTAGE;
 #include <video_out.h>
 #include <gpu_debugger.h>
 
-using namespace sce;
-
-
 #include "ps4_platform.h"
-#include "ps4_renderer.h"
-#include "ps4_renderer.cpp"
+
+using namespace sce;
 
 
 PlatformAPI globalPlatform;
 internal PS4State globalPlatformState;
+
+
+#include "ps4_renderer.h"
+#include "ps4_renderer.cpp"
 
 
 
@@ -168,8 +169,8 @@ PLATFORM_LOG(PS4Log)
 
     printf( "%s\n", buffer );
 
-    if( globalPlatformState.gameCode.LogCallback )
-        globalPlatformState.gameCode.LogCallback( buffer );
+//     if( globalPlatformState.gameCode.LogCallback )
+//         globalPlatformState.gameCode.LogCallback( buffer );
 }
 
 
@@ -301,17 +302,6 @@ PS4InitJobQueue( PlatformJobQueue* queue,
     }
 }
 
-PLATFORM_ALLOCATE_TEXTURE(PS4AllocateTexture)
-{
-    // TODO
-    return nullptr;
-}
-
-PLATFORM_DEALLOCATE_TEXTURE(PS4DeallocateTexture)
-{
-    // TODO
-}
-
 internal PS4GameCode
 PS4LoadGameCode( const char* prxPath, GameMemory* gameMemory )
 {
@@ -364,7 +354,6 @@ int main( int argc, const char* argv[] )
 
 
     globalPlatformState = {};
-    globalPlatformState.renderer = Renderer::Gnmx;
     PS4ResolvePaths( &globalPlatformState );
 
     LOG( "Initializing PS4 platform with game DLL at: %s", globalPlatformState.binariesPath );
@@ -399,12 +388,19 @@ int main( int argc, const char* argv[] )
     {
         LOG( ".Allocated game memory with base address: %p", baseAddress );
 
+        sz memoryBytes;
+        sceKernelAvailableFlexibleMemorySize( &memoryBytes );
+        LOG( ".%d bytes of flexible memory available", memoryBytes );
+
         char gameCodePath[MAX_PATH];
         const char* filename = "robotrider.prx";
         PS4BuildAbsolutePath( filename, PS4Path::Binary, gameCodePath );
         globalPlatformState.gameCode = PS4LoadGameCode( gameCodePath, &gameMemory );
 
+        // NOTE For some reason, this cannot be static (global) or everything explodes
         PS4RendererState rendererState = PS4InitRenderer();
+        globalPlatformState.renderer = &rendererState;
+
         gameMemory.imGuiContext = PS4InitImGui();
 
         GameInput input[2] = {};

@@ -24,7 +24,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if !SCE_GNMX_ENABLE_GFX_LCUE
 #error LCUE must be enabled!
 #endif
- 
+
+#if !RELEASE && !defined(SCE_GNM_DEBUG)
+#error Non-release build should define SCE_GNM_DEBUG!
+#endif
+
 
 internal const u32 kDisplayBufferWidth = 1920;
 internal const u32 kDisplayBufferHeight = 1080;
@@ -593,7 +597,6 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
                               0.5f );		// Z-offset
 
     // Bind the render & depth targets to the context
-    // FIXME We disable the depth target in the ClearRenderTarget call, so look into that!
     gfxc.setRenderTarget( 0, &backBuffer->renderTarget );
     gfxc.setDepthRenderTarget( &state->depthTarget );
 
@@ -629,10 +632,7 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
     Gnm::Sampler bilinearSampler;
     bilinearSampler.init();
     bilinearSampler.setXyFilterMode( Gnm::kFilterModeBilinear, Gnm::kFilterModeBilinear );
-
-    Gnm::Texture texture;
-    texture.setResourceMemoryType( Gnm::kResourceMemoryTypeRO );
-    // TODO Texture conversion/loading -> look into sce-samples\sample_code\graphics\api_gnm\texture-tool-target-sample
+    bilinearSampler.setMipFilterMode( Gnm::kMipFilterModeLinear );
 
 
 #if !RELEASE
@@ -684,8 +684,12 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
                 constBuffer.initAsConstantBuffer( constants, sizeof( ShaderConstants ) );
                 gfxc.setConstantBuffers( Gnm::kShaderStageVs, 0, 1, &constBuffer );
 
-//                 gfxc.setSamplers( Gnm::kShaderStagePs, 0, 1, &bilinearSampler );
-//                 gfxc.setTextures( Gnm::kShaderStagePs, 0, 2, &texture );
+                Gnm::Texture* texture = state->currentMaterial ? (Gnm::Texture*)state->currentMaterial->diffuseMap : nullptr;
+                if( texture )
+                {
+                    gfxc.setTextures( Gnm::kShaderStagePs, 0, 1, texture );
+                    gfxc.setSamplers( Gnm::kShaderStagePs, 0, 1, &bilinearSampler );
+                }
 
                 // Submit a draw call
                 gfxc.setPrimitiveType( Gnm::kPrimitiveTypeTriList );
@@ -741,6 +745,14 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
                 debugState->totalDrawCalls++;
                 debugState->totalPrimitiveCount += entry->lineCount;
 #endif
+            } break;
+
+            case RenderEntryType::RenderEntryMaterial:
+            {
+                RenderEntryMaterial* entry = (RenderEntryMaterial*)entryHeader;
+                Material* material = entry->material;
+
+                state->currentMaterial = material;
             } break;
 
             default:
@@ -929,4 +941,48 @@ void
 PS4RenderImGui()
 {
     ImGui::Render();
+}
+
+
+PLATFORM_ALLOCATE_TEXTURE( PS4AllocateTexture )
+{
+    Gnm::TextureSpec texSpec;
+    texSpec.init();
+    texSpec.m_width = width;
+    texSpec.m_height = height;
+    texSpec.m_numSlices = 1;
+    texSpec.m_numMipLevels = 1;
+    texSpec.m_numFragments = sce::Gnm::kNumFragments1;
+    texSpec.m_format = Gnm::kDataFormatR8G8B8A8Unorm;   // Srgb ?
+    texSpec.m_textureType = Gnm::kTextureType2d;
+    texSpec.m_tileModeHint = Gnm::kTileModeDisplay_LinearAligned;
+    texSpec.m_minGpuMode = Gnm::getGpuMode();
+
+    // TODO Is this necessary?
+//     GpuAddress::SurfaceType texType = GpuAddress::kSurfaceTypeTextureFlat;
+//     GpuAddress::computeSurfaceTileMode( Gnm::getGpuMode(), &texSpec.m_tileModeHint, texType, texSpec.m_format, 1 );
+
+    PS4RendererState* renderer = globalPlatformState.renderer;
+
+    Gnm::Texture* texture = renderer->textures + renderer->firstFreeTextureIndex++;
+    int ret = texture->init( &texSpec );
+    ASSERT( ret == 0 );
+
+    Gnm::SizeAlign sa = texture->getSizeAlign();
+    void* videoMemory = PUSH_SIZE_ALIGNED( &renderer->garlicArena, sa.m_size, sa.m_align );
+    COPY( data, videoMemory, sa.m_size );
+    texture->setBaseAddress( videoMemory );
+
+    if( renderer->ownerHandle == 0 )
+        Gnm::registerOwner( &renderer->ownerHandle, "robotrider" );
+
+    Gnm::registerResource( nullptr, renderer->ownerHandle, texture->getBaseAddress(), sa.m_size,
+                           "Texture", Gnm::kResourceTypeTextureBaseAddress, 0 );
+
+    return texture;
+}
+
+PLATFORM_DEALLOCATE_TEXTURE( PS4DeallocateTexture )
+{
+    // TODO
 }

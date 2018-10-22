@@ -121,6 +121,15 @@ struct PS4RendererState
     Gnm::Buffer vertexBuffers[kVertexElemCount];
 
     RenderCommands renderCommands;
+
+    // TODO This needs a (single type) pool
+    // Also, we'll probably need to know which ones are in CPU mem vs GPU mem
+    sce::Gnm::Texture textures[1024];
+    u32 firstFreeTextureIndex;
+
+
+    // TODO Remove
+    Material* currentMaterial;
 };
 
 

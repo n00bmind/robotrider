@@ -66,7 +66,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ORBIS'">
     <ClCompile>
-      <PreprocessorDefinitions>SCE_GNMX_ENABLE_GFX_LCUE;DEBUG=1;%(PreprocessorDefinitions);</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SCE_GNMX_ENABLE_GFX_LCUE;SCE_GNM_DEBUG;_DEBUG;DEBUG=1;%(PreprocessorDefinitions);</PreprocessorDefinitions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <DisableSpecificWarnings>missing-braces; unused-variable; unused-function; missing-field-initializers</DisableSpecificWarnings>
