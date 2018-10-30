@@ -33,6 +33,25 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 internal const u32 kDisplayBufferWidth = 1920;
 internal const u32 kDisplayBufferHeight = 1080;
 
+internal
+PS4ShaderProgram globalShaderPrograms[] =
+{
+    {
+        ShaderProgramName::PlainColor,
+        "default_vv.sb",
+        nullptr,
+        "plain_color_p.sb",
+    },
+    //{
+        //ShaderProgramName::FlatShading,
+        //"default_vv.sb",
+        //"face_normal.gs.sb",
+        //"flat_p.sb",
+////         { "inPosition", "inTexCoords", "inColor" },
+////         { "mTransform" },
+    //},
+};
+
 
 
 internal Gnmx::VsShader*
@@ -81,6 +100,9 @@ InitializePSWithAllocators( const void* binaryData, MemoryArena* onionAllocator,
     if( offsetsTable )
         // TODO According to the docs, this should be done before patching for efficiency, so test that!
         // Also, cache it somewhere
+        // Generate the shader input caches.
+        // Using a pre-calculated shader input cache is optional with CUE but it
+        // normally reduces the CPU time necessary to build the command buffers.
         Gnmx::generateInputOffsetsCache( offsetsTable, Gnm::kShaderStagePs, result );
 
     Gnm::registerResource( nullptr, ownerHandle, result->getBaseAddress(), shaderInfo.m_gpuShaderCodeSize,
@@ -89,10 +111,10 @@ InitializePSWithAllocators( const void* binaryData, MemoryArena* onionAllocator,
     return result;
 }
 
-internal Gnmx::VsShader*
-LoadVSFromFile( const char *path, PS4RendererState* state, Gnmx::InputOffsetsCache* offsetsTable = nullptr )
+internal bool
+LoadVSFromFile( const char *path, PS4RendererState* state, PS4Shader* result )
 {
-    Gnmx::VsShader *result = nullptr;
+    Gnmx::VsShader *shader = nullptr;
 
     char absolutePath[MAX_PATH];
     if( path[0] != '/' )
@@ -105,20 +127,24 @@ LoadVSFromFile( const char *path, PS4RendererState* state, Gnmx::InputOffsetsCac
     DEBUGReadFileResult readFile = globalPlatform.DEBUGReadEntireFile( path );
     if( readFile.contents )
     {
-        result = InitializeVSWithAllocators( readFile.contents, &state->onionArena, &state->garlicArena,
-                                             state->ownerHandle, offsetsTable );
+        shader = InitializeVSWithAllocators( readFile.contents, &state->onionArena, &state->garlicArena,
+                                             state->ownerHandle, &result->offsetsTable );
         globalPlatform.DEBUGFreeFileMemory( readFile.contents );
     }
     else
+    {
         INVALID_CODE_PATH
+        return false;
+    }
 
-    return result;
+    result->vs = shader;
+    return true;
 }
 
-internal Gnmx::PsShader*
-LoadPSFromFile( const char *path, PS4RendererState* state, Gnmx::InputOffsetsCache* offsetsTable = nullptr )
+internal bool
+LoadPSFromFile( const char *path, PS4RendererState* state, PS4Shader* result )
 {
-    Gnmx::PsShader *result = nullptr;
+    Gnmx::PsShader *shader = nullptr;
 
     char absolutePath[MAX_PATH];
     if( path[0] != '/' )
@@ -131,14 +157,18 @@ LoadPSFromFile( const char *path, PS4RendererState* state, Gnmx::InputOffsetsCac
     DEBUGReadFileResult readFile = globalPlatform.DEBUGReadEntireFile( path );
     if( readFile.contents )
     {
-        result = InitializePSWithAllocators( readFile.contents, &state->onionArena, &state->garlicArena,
-                                             state->ownerHandle, offsetsTable );
+        shader = InitializePSWithAllocators( readFile.contents, &state->onionArena, &state->garlicArena,
+                                             state->ownerHandle, &result->offsetsTable );
         globalPlatform.DEBUGFreeFileMemory( readFile.contents );
     }
     else
+    {
         INVALID_CODE_PATH
+        return false;
+    }
 
-    return result;
+    result->ps = shader;
+    return true;
 }
 
 internal void
@@ -146,50 +176,56 @@ PS4LoadShaders( PS4RendererState* state )
 {
     const char* filename = nullptr;
 
-    filename = "default_vv.sb";
-    state->testVS = LoadVSFromFile( filename, state );
-    if( !state->testVS )
-    {
-        LOG( ".ERROR :: Couldn't load shader %s", filename );
-        INVALID_CODE_PATH
-    }
-
-    filename = "plain_color_p.sb";
-    state->testPS = LoadPSFromFile( filename, state );
-    if( !state->testPS )
-    {
-        LOG( ".ERROR :: Couldn't load shader %s", filename );
-        INVALID_CODE_PATH
-    }
-
     filename = "clear_p.sb";
-    state->clearPS = LoadPSFromFile( filename, state, &state->clearOffsetsTable );
-    if( !state->clearPS )
+    bool ret = LoadPSFromFile( filename, state, &state->clearPS );
+    if( !ret )
     {
-        LOG( ".ERROR :: Couldn't load shader %s", filename );
+        LOG( ".ERROR :: Couldn't load clear shader %s", filename );
         INVALID_CODE_PATH
     }
 
-    // Generate the fetch shader for the VS stage
-    state->fsMemory = PUSH_SIZE_ALIGNED( &state->garlicArena, Gnmx::computeVsFetchShaderSize( state->testVS ),
-                                         Gnm::kAlignmentOfFetchShaderInBytes );
-    if( !state->fsMemory )
+    for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
-        LOG( ".ERROR :: Cannot allocate memory for fetch shader" );
-        INVALID_CODE_PATH
+        PS4ShaderProgram& prg = globalShaderPrograms[i];
+
+        Gnm::ActiveShaderStages stages = Gnm::kActiveShaderStagesVsPs;
+        if( prg.gsFilename )
+            stages = Gnm::kActiveShaderStagesEsGsVsPs;
+        prg.activeStages = stages;
+
+        // Vertex shader
+        ret = LoadVSFromFile( prg.vsFilename, state, (PS4Shader*)&prg.vertexShader );
+        if( !ret )
+        {
+            LOG( ".ERROR :: Couldn't load vertex shader %s", prg.vsFilename );
+            INVALID_CODE_PATH
+        }
+
+        // Generate the fetch shader for the VS stage
+        prg.vertexShader.fsMemory =
+            PUSH_SIZE_ALIGNED( &state->garlicArena,
+                               Gnmx::computeVsFetchShaderSize( prg.vertexShader.shader.vs ),
+                               Gnm::kAlignmentOfFetchShaderInBytes );
+        if( !prg.vertexShader.fsMemory )
+        {
+            LOG( ".ERROR :: Cannot allocate memory for fetch shader" );
+            INVALID_CODE_PATH
+        }
+        Gnm::FetchShaderInstancingMode* instancingData = nullptr;
+        Gnmx::generateVsFetchShader( prg.vertexShader.fsMemory, &prg.vertexShader.fsModifier,
+                                     prg.vertexShader.shader.vs,
+                                     instancingData, instancingData == nullptr ? 0 : 256 );
+
+        // Pixel shader
+        ret = LoadPSFromFile( prg.psFilename, state, &prg.pixelShader );
+        if( !ret )
+        {
+            LOG( ".ERROR :: Couldn't load pixel shader %s", prg.psFilename );
+            INVALID_CODE_PATH
+        }
     }
-
-    Gnm::FetchShaderInstancingMode* instancingData = nullptr;
-    Gnmx::generateVsFetchShader( state->fsMemory, &state->fsModifier, state->testVS, instancingData,
-                                 instancingData == nullptr ? 0 : 256 );
-
-    // Generate the shader input caches.
-    // Using a pre-calculated shader input cache is optional with CUE but it
-    // normally reduces the CPU time necessary to build the command buffers.
-    // TODO Shouldn't we be doing this in the load function instead?
-    Gnmx::generateInputOffsetsCache( &state->vsOffsetsTable, Gnm::kShaderStageVs, state->testVS );
-    Gnmx::generateInputOffsetsCache( &state->psOffsetsTable, Gnm::kShaderStagePs, state->testPS );
 }
+
 
 internal void
 ClearRenderTarget( const Gnm::RenderTarget& renderTarget, Gnmx::GnmxGfxContext* gfxc, const v4 &color,
@@ -198,7 +234,7 @@ ClearRenderTarget( const Gnm::RenderTarget& renderTarget, Gnmx::GnmxGfxContext* 
     gfxc->setRenderTarget( 0, &renderTarget );
     gfxc->setDepthRenderTarget( &state->depthTarget );
 
-    gfxc->setPsShader( state->clearPS, &state->clearOffsetsTable );
+    gfxc->setPsShader( state->clearPS.ps, &state->clearPS.offsetsTable );
     v4 *constants = (v4*)gfxc->allocateFromCommandBuffer( sizeof( v4 ), Gnm::kEmbeddedDataAlignment4 );
     *constants = color;
     Gnm::Buffer constantBuffer;
@@ -260,6 +296,47 @@ InitVertexBuffers( PS4RendererState* state, TexturedVertex* bufferBase, sz entri
                                                     spec.stride,
                                                     entriesCount );
     }
+}
+
+
+PLATFORM_ALLOCATE_TEXTURE(PS4AllocateTexture)
+{
+    Gnm::TextureSpec texSpec;
+    texSpec.init();
+    texSpec.m_width = width;
+    texSpec.m_height = height;
+    texSpec.m_numSlices = 1;
+    texSpec.m_numMipLevels = 1;
+    texSpec.m_numFragments = sce::Gnm::kNumFragments1;
+    texSpec.m_format = Gnm::kDataFormatR8G8B8A8Unorm;   // kDataFormatR8G8B8A8UnormSrgb ?
+    texSpec.m_textureType = Gnm::kTextureType2d;
+    texSpec.m_tileModeHint = Gnm::kTileModeDisplay_LinearAligned;
+    texSpec.m_minGpuMode = Gnm::getGpuMode();
+
+    PS4RendererState* renderer = globalPlatformState.renderer;
+
+    // FIXME Change signature so caller can specify where to put this
+    Gnm::Texture* texture = renderer->textures + renderer->firstFreeTextureIndex++;
+    int ret = texture->init( &texSpec );
+    ASSERT( ret == 0 );
+
+    Gnm::SizeAlign sa = texture->getSizeAlign();
+    void* videoMemory = PUSH_SIZE_ALIGNED( &renderer->garlicArena, sa.m_size, sa.m_align );
+    COPY( data, videoMemory, sa.m_size );
+    texture->setBaseAddress( videoMemory );
+
+    if( renderer->ownerHandle == 0 )
+        Gnm::registerOwner( &renderer->ownerHandle, "robotrider" );
+
+    Gnm::registerResource( nullptr, renderer->ownerHandle, texture->getBaseAddress(), sa.m_size,
+                           "Texture", Gnm::kResourceTypeTextureBaseAddress, 0 );
+
+    return texture;
+}
+
+PLATFORM_DEALLOCATE_TEXTURE(PS4DeallocateTexture)
+{
+    // TODO
 }
 
 
@@ -538,7 +615,71 @@ PS4InitRenderer()
     COPY( specs, state.vertexBufferSpecs, sizeof(specs) );
     InitVertexBuffers( &state, vertexBuffer, maxVerticesCount );
 
+    // HACK Remove this!
+    globalPlatformState.renderer = &state;
+
+
+    state.white = 0xFFFFFFFF;
+    state.whiteTexture = *(Gnm::Texture*)PS4AllocateTexture( &state.white, 1, 1, false );
+
     return state;
+}
+
+internal void
+PS4UseProgram( ShaderProgramName programName, Gnmx::GnmxGfxContext* gfxc, PS4RendererState* state )
+{
+    if( programName == ShaderProgramName::None )
+    {
+        // TODO 
+
+        state->activeProgram = nullptr;
+    }
+    else
+    {
+        if( state->activeProgram && state->activeProgram->name == programName )
+            // Nothing to do
+            return;
+
+        int programIndex = -1;
+        for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
+        {
+            if( globalShaderPrograms[i].name == programName )
+            {
+                programIndex = i;
+                break;
+            }
+        }
+
+        if( programIndex == -1 )
+        {
+            LOG( "ERROR :: Unknown shader program [%d]", programName );
+        }
+        else
+        {
+            PS4ShaderProgram& prg = globalShaderPrograms[programIndex];
+
+            gfxc->setActiveShaderStages( prg.activeStages );
+            gfxc->setVsShader( prg.vertexShader.shader.vs, prg.vertexShader.fsModifier, prg.vertexShader.fsMemory,
+                               &prg.vertexShader.shader.offsetsTable );
+            gfxc->setPsShader( prg.pixelShader.ps, &prg.pixelShader.offsetsTable );
+
+            gfxc->setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBuffers );
+
+            // Allocate the vertex shader constants from the command buffer
+            ShaderConstants *constants = (ShaderConstants*)gfxc->allocateFromCommandBuffer( sizeof( ShaderConstants ),
+                                                                                            Gnm::kEmbeddedDataAlignment4 );
+
+            // Initialize the vertex shader constants
+            ASSERT( constants );
+            constants->m_WorldViewProj = state->mCurrentProjView;
+
+            Gnm::Buffer constBuffer;
+            constBuffer.initAsConstantBuffer( constants, sizeof( ShaderConstants ) );
+            gfxc->setConstantBuffers( Gnm::kShaderStageVs, 0, 1, &constBuffer );
+
+            state->activeProgram = &prg;
+        }
+    }
 }
 
 void
@@ -633,6 +774,8 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
     bilinearSampler.init();
     bilinearSampler.setXyFilterMode( Gnm::kFilterModeBilinear, Gnm::kFilterModeBilinear );
     bilinearSampler.setMipFilterMode( Gnm::kMipFilterModeLinear );
+    // TODO Understand SRGB and do the right thing regarding gamma!
+    bilinearSampler.setForceDegamma( true );
 
 
 #if !RELEASE
@@ -644,8 +787,10 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
 
     m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
     mProjView = mProjView * commands.camera.mTransform;
+    state->mCurrentProjView = mProjView;
 
 
+    // Process all commands in the render buffer
     const RenderBuffer &buffer = commands.renderBuffer;
     for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
     {
@@ -664,32 +809,6 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
             case RenderEntryType::RenderEntryTexturedTris:
             {
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
-
-                // Activate the VS and PS shader stages
-                gfxc.setActiveShaderStages( Gnm::kActiveShaderStagesVsPs );
-                gfxc.setVsShader( state->testVS, state->fsModifier, state->fsMemory, &state->vsOffsetsTable );
-                gfxc.setPsShader( state->testPS, &state->psOffsetsTable );
-
-                gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBuffers );
-
-                // Allocate the vertex shader constants from the command buffer
-                ShaderConstants *constants = (ShaderConstants*)gfxc.allocateFromCommandBuffer( sizeof( ShaderConstants ),
-                                                                                               Gnm::kEmbeddedDataAlignment4 );
-
-                // Initialize the vertex shader constants
-                ASSERT( constants );
-                constants->m_WorldViewProj = mProjView;
-
-                Gnm::Buffer constBuffer;
-                constBuffer.initAsConstantBuffer( constants, sizeof( ShaderConstants ) );
-                gfxc.setConstantBuffers( Gnm::kShaderStageVs, 0, 1, &constBuffer );
-
-                Gnm::Texture* texture = state->currentMaterial ? (Gnm::Texture*)state->currentMaterial->diffuseMap : nullptr;
-                if( texture )
-                {
-                    gfxc.setTextures( Gnm::kShaderStagePs, 0, 1, texture );
-                    gfxc.setSamplers( Gnm::kShaderStagePs, 0, 1, &bilinearSampler );
-                }
 
                 // Submit a draw call
                 gfxc.setPrimitiveType( Gnm::kPrimitiveTypeTriList );
@@ -714,28 +833,6 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
 //                 lineSetup.setCullFace( Gnm::kPrimitiveSetupCullFaceNone );
 //                 gfxc.setPrimitiveSetup( lineSetup );
 
-//                 gfxc.setDepthRenderTarget( nullptr );
-
-                // Activate the VS and PS shader stages
-                gfxc.setActiveShaderStages( Gnm::kActiveShaderStagesVsPs );
-                gfxc.setVsShader( state->testVS, state->fsModifier, state->fsMemory, &state->vsOffsetsTable );
-                gfxc.setPsShader( state->testPS, &state->psOffsetsTable );
-
-                gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBuffers );
-
-                // Allocate the vertex shader constants from the command buffer
-                ShaderConstants *constants = (ShaderConstants*)gfxc.allocateFromCommandBuffer( sizeof(ShaderConstants),
-                                                                                               Gnm::kEmbeddedDataAlignment4 );
-
-                // Initialize the vertex shader constants
-                ASSERT( constants );
-                constants->m_WorldViewProj = mProjView;
-
-                Gnm::Buffer constBuffer;
-                constBuffer.initAsConstantBuffer( constants, sizeof( ShaderConstants ) );
-                gfxc.setConstantBuffers( Gnm::kShaderStageVs, 0, 1, &constBuffer );
-
-
                 // Submit a draw call
                 gfxc.setPrimitiveType( Gnm::kPrimitiveTypeLineList );
                 gfxc.setIndexOffset( entry->vertexBufferOffset );
@@ -752,7 +849,19 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
                 RenderEntryMaterial* entry = (RenderEntryMaterial*)entryHeader;
                 Material* material = entry->material;
 
-                state->currentMaterial = material;
+                Gnm::Texture* texture = material ? (Gnm::Texture*)material->diffuseMap : &state->whiteTexture;
+                if( texture )
+                {
+                    gfxc.setTextures( Gnm::kShaderStagePs, 0, 1, texture );
+                    gfxc.setSamplers( Gnm::kShaderStagePs, 0, 1, &bilinearSampler );
+                }
+            } break;
+
+            case RenderEntryType::RenderEntryProgramChange:
+            {
+                RenderEntryProgramChange* entry = (RenderEntryProgramChange*)entryHeader;
+
+                PS4UseProgram( entry->programName, &gfxc, state );
             } break;
 
             default:
@@ -765,50 +874,8 @@ PS4RenderToOutput( const RenderCommands &commands, PS4RendererState* state, Game
         baseAddress += entryHeader->size;
     }
 
-#if 0
-    // Activate the VS and PS shader stages
-    gfxc.setActiveShaderStages( Gnm::kActiveShaderStagesVsPs );
-    gfxc.setVsShader( state->testVS, state->fsModifier, state->fsMemory, &state->vsOffsetsTable );
-    gfxc.setPsShader( state->testPS, &state->psOffsetsTable );
-
-    // Setup the vertex buffer used by the ES stage (vertex shader)
-    // Note that the setXxx methods of GfxContext which are used to set
-    // shader resources (e.g.: V#, T#, S#, ...) map directly on the
-    // Constants Update Engine. These methods do not directly produce PM4
-    // packets in the command buffer. The CUE gathers all the resource
-    // definitions and creates a set of PM4 packets later on in the
-    // gfxc.drawXxx method.
-    gfxc.setVertexBuffers( Gnm::kShaderStageVs, 0, kVertexElemCount, state->vertexBufferDescriptors );
-
-    // Allocate the vertex shader constants from the command buffer
-    ShaderConstants *constants = (ShaderConstants*)gfxc.allocateFromCommandBuffer( sizeof(ShaderConstants),
-                                                                                   Gnm::kEmbeddedDataAlignment4 );
-
-    // Initialize the vertex shader constants
-    if( constants )
-    {
-        static float angle = 0.0f;
-        angle += 1.0f / 120.0f;
-        const float kAspectRatio = float( kDisplayBufferWidth ) / float( kDisplayBufferHeight );
-        const Matrix4 rotationMatrix = Matrix4::rotationZ( angle );
-        const Matrix4 scaleMatrix = Matrix4::scale( Vector3( 1, kAspectRatio, 1 ) );
-        constants->m_WorldViewProj = (scaleMatrix * rotationMatrix);
-
-        Gnm::Buffer constBuffer;
-        constBuffer.initAsConstantBuffer( constants, sizeof( ShaderConstants ) );
-        gfxc.setConstantBuffers( Gnm::kShaderStageVs, 0, 1, &constBuffer );
-    }
-    else
-    {
-        LOG( ".ERROR :: Cannot allocate vertex shader constants" );
-    }
-
-
-    // Submit a draw call
-    gfxc.setPrimitiveType( Gnm::kPrimitiveTypeTriList );
-    gfxc.setIndexSize( Gnm::kIndexSize32 );
-    gfxc.drawIndex( ARRAYCOUNT(kIndexData), state->renderCommands.indexBuffer.base );
-#endif
+    // Don't keep active program for next frame
+    PS4UseProgram( ShaderProgramName::None, &gfxc, state );
 }
 
 void
@@ -943,46 +1010,3 @@ PS4RenderImGui()
     ImGui::Render();
 }
 
-
-PLATFORM_ALLOCATE_TEXTURE( PS4AllocateTexture )
-{
-    Gnm::TextureSpec texSpec;
-    texSpec.init();
-    texSpec.m_width = width;
-    texSpec.m_height = height;
-    texSpec.m_numSlices = 1;
-    texSpec.m_numMipLevels = 1;
-    texSpec.m_numFragments = sce::Gnm::kNumFragments1;
-    texSpec.m_format = Gnm::kDataFormatR8G8B8A8Unorm;   // Srgb ?
-    texSpec.m_textureType = Gnm::kTextureType2d;
-    texSpec.m_tileModeHint = Gnm::kTileModeDisplay_LinearAligned;
-    texSpec.m_minGpuMode = Gnm::getGpuMode();
-
-    // TODO Is this necessary?
-//     GpuAddress::SurfaceType texType = GpuAddress::kSurfaceTypeTextureFlat;
-//     GpuAddress::computeSurfaceTileMode( Gnm::getGpuMode(), &texSpec.m_tileModeHint, texType, texSpec.m_format, 1 );
-
-    PS4RendererState* renderer = globalPlatformState.renderer;
-
-    Gnm::Texture* texture = renderer->textures + renderer->firstFreeTextureIndex++;
-    int ret = texture->init( &texSpec );
-    ASSERT( ret == 0 );
-
-    Gnm::SizeAlign sa = texture->getSizeAlign();
-    void* videoMemory = PUSH_SIZE_ALIGNED( &renderer->garlicArena, sa.m_size, sa.m_align );
-    COPY( data, videoMemory, sa.m_size );
-    texture->setBaseAddress( videoMemory );
-
-    if( renderer->ownerHandle == 0 )
-        Gnm::registerOwner( &renderer->ownerHandle, "robotrider" );
-
-    Gnm::registerResource( nullptr, renderer->ownerHandle, texture->getBaseAddress(), sa.m_size,
-                           "Texture", Gnm::kResourceTypeTextureBaseAddress, 0 );
-
-    return texture;
-}
-
-PLATFORM_DEALLOCATE_TEXTURE( PS4DeallocateTexture )
-{
-    // TODO
-}

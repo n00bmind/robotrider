@@ -77,7 +77,7 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
     {
         world->cacheBuffers[i] = InitMarchingCacheBuffers( worldArena, 10 );
         // TODO Re-evaluate size of each pool now that we have many
-        Init( &world->meshPools[i], worldArena, MEGABYTES(256) );
+        Init( &world->meshPools[i], worldArena, MEGABYTES(64) );
     }
 }
 
@@ -491,9 +491,10 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #endif
     }
 
+    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
+
 //     if( !gameMemory->DEBUGglobalEditing )
     {
-        PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
         PushMaterial( world->player->mesh.material, renderCommands );
         PushMesh( world->player->mesh, renderCommands );
     }

@@ -65,6 +65,10 @@ void main()
 {
     vec4 vertexColor = unpack( _in.color );
 
+    // Face normal in eyespace
+    // NOTE This is supposedly faster than using a GS? CHECK!
+    // vec3 nES = normalize( cross( dFdx( pES ), dFdy( pES ) ) );
+
     // FIXME This is relative to the view,
     // make the light always come from a 'sun' at -Z inf. (so a directional light pointing to +Z)
     vec3 lightDirection = vec3( 0.0, 0.0, 1.0 );

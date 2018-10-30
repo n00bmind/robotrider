@@ -65,10 +65,44 @@ struct PS4DisplayBuffer
     int                     displayIndex;
 };
 
+enum class PS4ShaderType
+{
+    VertexShader,
+    PixelShader,
+    GeometryShader,
+};
+
+struct PS4Shader
+{
+    //PS4ShaderType type;
+    union
+    {
+        Gnmx::VsShader* vs;
+        Gnmx::GsShader* gs;
+        Gnmx::PsShader* ps;
+    };
+    Gnmx::InputOffsetsCache offsetsTable;
+};
+
+struct PS4FetchedShader
+{
+    PS4Shader shader;
+
+    void* fsMemory;
+    u32 fsModifier;
+};
+
 struct PS4ShaderProgram
 {
-    Gnmx::VsShader* vertexShader;
-    Gnmx::PsShader* fragmentShader;
+    ShaderProgramName name;
+    const char* vsFilename;
+    const char* gsFilename;
+    const char* psFilename;
+
+    Gnm::ActiveShaderStages activeStages;
+    PS4FetchedShader vertexShader;
+    PS4Shader geometryShader;           // Unused for now
+    PS4Shader pixelShader;
 };
 
 enum PS4VertexElements
@@ -107,29 +141,23 @@ struct PS4RendererState
     Gnm::DepthRenderTarget depthTarget;
     SceKernelEqueue eopEventQueue;
 
-    Gnmx::PsShader* clearPS;
-    Gnmx::InputOffsetsCache clearOffsetsTable;
-
-    Gnmx::VsShader* testVS;
-    Gnmx::InputOffsetsCache vsOffsetsTable;
-    Gnmx::PsShader* testPS;
-    Gnmx::InputOffsetsCache psOffsetsTable;
-    void* fsMemory;
-    u32 fsModifier;
+    PS4Shader clearPS;
 
     PS4VertexBufferSpec vertexBufferSpecs[kVertexElemCount];
     Gnm::Buffer vertexBuffers[kVertexElemCount];
 
     RenderCommands renderCommands;
 
-    // TODO This needs a (single type) pool
+    // TODO This calls for a (single type) pool
     // Also, we'll probably need to know which ones are in CPU mem vs GPU mem
-    sce::Gnm::Texture textures[1024];
+    Gnm::Texture textures[1024];
     u32 firstFreeTextureIndex;
 
+    u32 white;
+    Gnm::Texture whiteTexture;
 
-    // TODO Remove
-    Material* currentMaterial;
+    PS4ShaderProgram* activeProgram;
+    m4 mCurrentProjView;
 };
 
 

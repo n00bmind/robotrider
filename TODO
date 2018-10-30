@@ -14,6 +14,7 @@ EDITOR
 - Orbiting camera around selected entity (with progressive zoom)
 
 GRAPHICS
+- Use a query object (https://www.khronos.org/opengl/wiki/Query_Object) with GL_PRIMITIVES_GENERATED to know how much overhead we're creating with geomtry shaders
 - Frustum culling
 - Decent chasing camera
 - Start working on surfaces & lighting

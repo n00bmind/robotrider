@@ -21,6 +21,28 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+internal
+OpenGLShaderProgram globalShaderPrograms[] =
+{
+    {
+        ShaderProgramName::PlainColor,
+        "default.vs.glsl",
+        nullptr,
+        "plain_color.fs.glsl",
+        { "inPosition", "inTexCoords", "inColor" },
+        { "mTransform" },
+    },
+    {
+        ShaderProgramName::FlatShading,
+        "default.vs.glsl",
+        "face_normal.gs.glsl",
+        "flat.fs.glsl",
+        { "inPosition", "inTexCoords", "inColor" },
+        { "mTransform" },
+    },
+};
+
+
 GL_DEBUG_CALLBACK(OpenGLDebugCallback)
 {
     // Filter notifications by default because they flood the logs with some cards..
@@ -368,7 +390,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
 
     // Create a white texture
     gl.white = 0xFFFFFFFF;
-    gl.whiteTexture = OpenGLAllocateTexture( (u8*)&gl.white, 1, 1, true );
+    gl.whiteTexture = OpenGLAllocateTexture( &gl.white, 1, 1, true );
 
     ASSERT_GL_STATE;
     return info;
@@ -678,7 +700,6 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
             return;
 
         int programIndex = -1;
-
         for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
         {
             if( globalShaderPrograms[i].name == programName )
@@ -750,8 +771,12 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
     debugState->totalDrawCalls = 0;
     debugState->totalPrimitiveCount = 0;
     debugState->totalVertexCount = 0;
-#endif
 
+    if( gl->queryObjectId == 0 )
+        glGenQueries( 1, &gl->queryObjectId );
+
+    glBeginQuery( GL_PRIMITIVES_GENERATED, gl->queryObjectId );
+#endif
 
     const RenderBuffer &buffer = commands.renderBuffer;
     for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
@@ -860,4 +885,19 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
 
     // Don't keep active program for next frame
     OpenGLUseProgram( ShaderProgramName::None, gl );
+
+#if !RELEASE
+    glEndQuery( GL_PRIMITIVES_GENERATED );
+
+    // Ask for query object result asynchronously, otherwise we would stall the GPU until results are available
+    u32 queryResult = 0;
+    glGetQueryObjectuiv( gl->queryObjectId, GL_QUERY_RESULT_AVAILABLE, &queryResult );
+    if( queryResult == GL_TRUE )
+    {
+        glGetQueryObjectuiv( gl->queryObjectId, GL_QUERY_RESULT, &queryResult );
+        debugState->totalGeneratedVerticesCount = queryResult;
+    }
+
+    ASSERT_GL_STATE;
+#endif
 }

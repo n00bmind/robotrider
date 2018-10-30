@@ -66,6 +66,9 @@ struct OpenGLShaderUniform
 #define MAX_SHADER_ATTRIBS 16
 #define MAX_SHADER_UNIFORMS 16
 
+// FIXME Don't have this in a global define!
+#define SHADERS_RELATIVE_PATH "..\\src\\shaders\\"
+
 struct OpenGLShaderProgram
 {
     ShaderProgramName name;
@@ -85,28 +88,6 @@ struct OpenGLShaderProgram
     GLuint fsId;
 };
 
-#define SHADERS_RELATIVE_PATH "..\\src\\shaders\\"
-
-OpenGLShaderProgram globalShaderPrograms[] =
-{
-    {
-        ShaderProgramName::PlainColor,
-        "default.vs.glsl",
-        nullptr,
-        "plain_color.fs.glsl",
-        { "inPosition", "inTexCoords", "inColor" },
-        { "mTransform" },
-    },
-    {
-        ShaderProgramName::FlatShading,
-        "default.vs.glsl",
-        "face_normal.gs.glsl",
-        "flat.fs.glsl",
-        { "inPosition", "inTexCoords", "inColor" },
-        { "mTransform" },
-    },
-};
-
 struct OpenGLState
 {
     GLuint vertexBuffer;
@@ -118,7 +99,10 @@ struct OpenGLState
     OpenGLShaderProgram *activeProgram;
     u32 white;
     void* whiteTexture;
+
+    GLuint queryObjectId;
 };
+
 
 // Pointers to extension functions setup natively by the platform
 // TODO Is this really cross-platform?
@@ -154,6 +138,10 @@ PFNGLUNIFORM1IPROC	                    glUniform1i;
 PFNGLBINDATTRIBLOCATIONPROC             glBindAttribLocation;
 PFNGLVERTEXATTRIBIPOINTERPROC           glVertexAttribIPointer;
 PFNGLGENERATEMIPMAPPROC                 glGenerateMipmap;
+PFNGLGENQUERIESPROC                     glGenQueries;
+PFNGLBEGINQUERYPROC                     glBeginQuery;
+PFNGLENDQUERYPROC                       glEndQuery;
+PFNGLGETQUERYOBJECTUIVPROC              glGetQueryObjectuiv;
 
 
 #endif /* __OPENGL_RENDERER_H__ */

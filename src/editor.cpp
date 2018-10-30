@@ -141,9 +141,11 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     u16 height = renderCommands->height;
 
 
+#if 0
     /// WFC test
     WFCUpdate( editorState.testSourceTexture, &editorState.wfcState, arena );
     WFCDrawTest( editorState, width, height, &editorState.wfcState, arena, tmpArena, renderCommands );
+#endif
 
 
 

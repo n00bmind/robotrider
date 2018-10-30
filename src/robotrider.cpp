@@ -99,7 +99,8 @@ LibFree( void* p )
 LIB_EXPORT
 GAME_LOG_CALLBACK(GameLogCallback)
 {
-    ConsoleLog( gameConsole, msg );
+    if( gameConsole )
+        ConsoleLog( gameConsole, msg );
 }
 
 // TODO Remove
@@ -210,9 +211,10 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     float frameTime = 1000.f / fps;
     char statsText[1024];
     snprintf( statsText, ARRAYCOUNT(statsText),
-              "Frame ms.: %.3f (%.1f FPS)   Live entitites %u   Primitives %u   Vertices %u   DrawCalls %u",
+              "Frame ms.: %.3f (%.1f FPS)   Live entitites %u   Primitives %u   Vertices %u (+ %u)  DrawCalls %u",
               frameTime, fps, debugState->totalEntities,
-              debugState->totalPrimitiveCount, debugState->totalVertexCount, debugState->totalDrawCalls );
+              debugState->totalPrimitiveCount, debugState->totalVertexCount, debugState->totalGeneratedVerticesCount,
+              debugState->totalDrawCalls );
 
     if( memory->DEBUGglobalEditing )
     {

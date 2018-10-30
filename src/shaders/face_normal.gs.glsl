@@ -46,6 +46,11 @@ void main()
     vec3 v2 = (gl_in[2].gl_Position - gl_in[0].gl_Position).xyz;
     vec3 normal = normalize( cross( v1, v2 ) );
 
+    // FIXME This creates too many (unaccounted for) vertices!
+    // Also, we don't reuse the ones that were already there!
+    // Still do it here, but only emit a new vertex when the 'provoking vertex' already has a normal
+    // https://www.opengl.org/discussion_boards/showthread.php/198880-simple-flat-shader-%28without-geometry-shader%29?p=1283972&viewfull=1#post1283972
+    // Test speed/convenience against the dFdx/dFdy solution in the fragment shader
     for( int i = 0; i < gl_in.length(); ++i )
     {
         gl_Position = gl_in[i].gl_Position;

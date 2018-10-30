@@ -1658,6 +1658,10 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
     BINDGLPROC( glBindAttribLocation, PFNGLBINDATTRIBLOCATIONPROC );
     BINDGLPROC( glVertexAttribIPointer, PFNGLVERTEXATTRIBIPOINTERPROC );
     BINDGLPROC( glGenerateMipmap, PFNGLGENERATEMIPMAPPROC );
+    BINDGLPROC( glGenQueries, PFNGLGENQUERIESPROC );
+    BINDGLPROC( glBeginQuery, PFNGLBEGINQUERYPROC );
+    BINDGLPROC( glEndQuery, PFNGLENDQUERYPROC );
+    BINDGLPROC( glGetQueryObjectuiv, PFNGLGETQUERYOBJECTUIVPROC );
 #undef BINDGLPROC
 
 
@@ -1921,7 +1925,7 @@ main( int argC, char **argV )
 
 #if !RELEASE
             DEBUGglobalCursor = LoadCursor( 0, IDC_CROSS );
-            ShowWindow( window, SW_MAXIMIZE );
+            ShowWindow( window, SW_SHOWNORMAL ); //SW_MAXIMIZE );
 #else
             Win32ToggleFullscreen( window );
 #endif
