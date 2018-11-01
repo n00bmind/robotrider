@@ -75,12 +75,13 @@ struct GameButtonState
 struct GameControllerInput
 {
     bool isConnected;
-    bool isAnalog;
     
     GameStickState leftStick;
     GameStickState rightStick;
 
-    // TODO Left/right triggers
+    // TODO Left/right triggers (Win)
+    r32 leftTriggerValue;               // 0 to 1 range
+    r32 rightTriggerValue;
 
     union
     {
@@ -102,6 +103,7 @@ struct GameControllerInput
             GameButtonState rightShoulder;
 
             GameButtonState start;
+            GameButtonState options;
             GameButtonState back;
         };
         GameButtonState buttons[14];
@@ -122,6 +124,8 @@ struct GameInput
     GameButtonState mouseButtons[5];
     // TODO Platform-agnostic way to pass raw keypress data to the game
 };
+
+#define PLATFORM_KEYMOUSE_CONTROLLER_SLOT 0
 
 inline GameControllerInput *
 GetController( GameInput *input, u32 controllerIndex )

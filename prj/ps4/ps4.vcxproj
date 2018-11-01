@@ -73,7 +73,7 @@
       <WarningsAsErrors>true</WarningsAsErrors>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>libSceGnm_debug.a;libSceGnmDriver_stub_weak.a;libSceGnmx_debug.a;libSceGpuAddress_debug.a;libSceGpuDebugger_stub_weak.a;libSceVideoOut_stub_weak.a;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libSceGnm_debug.a;libSceGnmDriver_stub_weak.a;libSceGnmx_debug.a;libSceGpuAddress_debug.a;libSceGpuDebugger_stub_weak.a;libSceVideoOut_stub_weak.a;%(AdditionalDependencies);libScePad_stub_weak.a;libSceUserService_stub_weak.a</AdditionalDependencies>
     </Link>
     <OrbisWavePsslc>
       <Optimization>Od</Optimization>
@@ -89,7 +89,7 @@
       <WarningsAsErrors>true</WarningsAsErrors>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>libSceGnm.a;libSceGnmDriver_stub_weak.a;libSceGnmx.a;libSceGpuAddress.a;libSceVideoOut_stub_weak.a;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libSceGnm.a;libSceGnmDriver_stub_weak.a;libSceGnmx.a;libSceGpuAddress.a;libSceVideoOut_stub_weak.a;%(AdditionalDependencies);libScePad_stub_weak.a;libSceUserService_stub_weak.a</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Condition="'$(ConfigurationType)' == 'Makefile' and Exists('$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets')" Project="$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets" />

@@ -54,6 +54,11 @@ enum class PS4Path
     Asset,
 };
 
+struct PS4ControllerInfo
+{
+    i32 handle;
+    ScePadControllerInformation pad;
+};
 
 struct PS4RendererState;
 
@@ -64,6 +69,7 @@ struct PS4State
     char assetDataPath[MAX_PATH];
 
     PS4GameCode gameCode;
+    PS4ControllerInfo controllerInfos[ARRAYCOUNT(GameInput::_controllers)];     // Map 1-to-1 to controllers
     PS4RendererState* renderer;
 
     PS4MemoryBlock memoryBlocks[64];

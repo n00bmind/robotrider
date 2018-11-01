@@ -760,7 +760,7 @@ Win32ProcessXInputStickValue( SHORT value, SHORT deadZoneThreshold )
     {
         result = (r32)(value + deadZoneThreshold) / (32768.0f - deadZoneThreshold);
     }
-    else if( value > XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE )
+    else if( value > deadZoneThreshold )
     {
         result = (r32)(value - deadZoneThreshold) / (32767.0f - deadZoneThreshold);
     }
@@ -793,7 +793,6 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
         {
             // Plugged in
             newController->isConnected = true;
-            newController->isAnalog = oldController->isAnalog;
             XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
 
             newController->leftStick.startX = oldController->leftStick.endX;
@@ -823,12 +822,6 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
                 = (newController->rightStick.startY + newController->rightStick.endY) / 2;
 
             // TODO Left/right triggers
-
-            if( newController->leftStick.avgX != 0.0f || newController->leftStick.avgY != 0.0f ||
-                newController->rightStick.avgX != 0.0f || newController->rightStick.avgY != 0.0f )
-            {
-                newController->isAnalog = true;
-            }
 
             Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dUp,
                                              XINPUT_GAMEPAD_DPAD_UP, &newController->dUp );
@@ -861,25 +854,22 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 
 #if 1
             // Link left stick and dPad direction buttons
+            // FIXME This shouldn't be done at the platform level!
             if(pad->wButtons & XINPUT_GAMEPAD_DPAD_UP)
             {
                 newController->leftStick.avgY = 1.0f;
-                newController->isAnalog = false;
             }
             if(pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
             {
                 newController->leftStick.avgY = -1.0f;
-                newController->isAnalog = false;
             }
             if(pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
             {
                 newController->leftStick.avgX = -1.0f;
-                newController->isAnalog = false;
             }
             if(pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
             {
                 newController->leftStick.avgX = 1.0f;
-                newController->isAnalog = false;
             }
 
             r32 threshold = 0.5f;

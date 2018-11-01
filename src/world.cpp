@@ -400,7 +400,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #endif
 
     // Update player based on input
-    GameControllerInput *input0 = GetController( input, 0 );
+    GameControllerInput *input0 = GetController( input, 1 );
     if( input0->isConnected )
     {
         Player *player = world->player;

@@ -35,6 +35,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 size_t sceLibcHeapSize = 16 * 1024 * 1024;
 unsigned int sceLibcHeapDebugFlags = SCE_LIBC_HEAP_DEBUG_SHORTAGE;
 
+#include <pad.h>
 #include <gnmx.h>
 #include <gnmx/shader_parser.h>
 #include <video_out.h>
@@ -52,6 +53,8 @@ internal PS4State globalPlatformState;
 #include "ps4_renderer.h"
 #include "ps4_renderer.cpp"
 
+
+internal const r32 targetFramerateHz = 60;
 
 
 internal void*
@@ -169,8 +172,8 @@ PLATFORM_LOG(PS4Log)
 
     printf( "%s\n", buffer );
 
-//     if( globalPlatformState.gameCode.LogCallback )
-//         globalPlatformState.gameCode.LogCallback( buffer );
+    if( globalPlatformState.gameCode.LogCallback )
+        globalPlatformState.gameCode.LogCallback( buffer );
 }
 
 
@@ -322,11 +325,168 @@ PS4LoadGameCode( const char* prxPath, GameMemory* gameMemory )
         result.isValid = result.UpdateAndRender != nullptr;
     }
 
-//     if( result.SetupAfterReload )
-//         result.SetupAfterReload( gameMemory );
+    if( result.SetupAfterReload )
+        result.SetupAfterReload( gameMemory );
 
     if( !result.UpdateAndRender )
         result.UpdateAndRender = GameUpdateAndRenderStub;
+
+    return result;
+}
+
+internal void
+PS4InitInput( PS4State* state )
+{
+    int ret = sceUserServiceInitialize( nullptr );
+    ASSERT( ret == 0 );
+
+    // NOTE This model for user management is recommended to use 'InitialUserAlwaysLoggedIn'
+    // when creating app packages
+    SceUserServiceUserId userId;
+    ret = sceUserServiceGetInitialUser( &userId );
+    ASSERT( ret == 0 );
+
+    ret = scePadInit();
+    ASSERT( ret == 0 );
+
+    i32 handle = scePadOpen( userId, SCE_PAD_PORT_TYPE_STANDARD, 0, nullptr );
+    ASSERT( handle > 0 );
+
+    for( u32 i = 0; i < ARRAYCOUNT(state->controllerInfos); ++i )
+    {
+        if( i == PLATFORM_KEYMOUSE_CONTROLLER_SLOT )
+            continue;
+
+        state->controllerInfos[i].handle = handle;
+        ret = scePadGetControllerInformation( handle, &state->controllerInfos[i].pad );
+        ASSERT( ret == 0 );
+
+        // Ready Player 1
+        break;
+    }
+}
+
+internal void
+PS4PrepareInputData( GameInput** oldInput, GameInput** newInput,
+                     r32 frameElapsedSeconds , r32 totalElapsedSeconds, u32 deltaFrameCounter )
+{
+    GameInput* temp = *newInput;
+    *newInput = *oldInput;
+    *oldInput = temp;
+
+    (*newInput)->mouseX = (*oldInput)->mouseX;
+    (*newInput)->mouseY = (*oldInput)->mouseY;
+    (*newInput)->mouseZ = (*oldInput)->mouseZ;
+    for( u32 i = 0; i < ARRAYCOUNT((*newInput)->mouseButtons); ++i )
+        (*newInput)->mouseButtons[i] = (*oldInput)->mouseButtons[i];
+
+    (*newInput)->executableReloaded = ((*newInput)->frameCounter == 0);
+    // Prevent huge skips in physics etc. while debugging
+    if( frameElapsedSeconds >= 1.f )
+    {
+        (*newInput)->frameElapsedSeconds = 1.f / targetFramerateHz;
+        (*newInput)->totalElapsedSeconds = (*oldInput)->totalElapsedSeconds + (*newInput)->frameElapsedSeconds;
+    }
+    else
+    {
+        (*newInput)->frameElapsedSeconds = frameElapsedSeconds;
+        (*newInput)->totalElapsedSeconds = totalElapsedSeconds;
+    }
+    (*newInput)->frameCounter = (*oldInput)->frameCounter + deltaFrameCounter;
+}
+
+internal r32
+PS4ProcessStickValue( u8 newValue, u8 deadZoneHalfWidth )
+{
+    // TODO Cube the values as explained in the XInput help
+    // to give more sensitivity to the movement?
+
+    r32 result = 0;
+    int intValue = newValue - 0x80;
+
+    // TODO Does hardware have a round deadzone?
+    if( intValue < -deadZoneHalfWidth )
+    {
+        result = (r32)(intValue + deadZoneHalfWidth) / (128.0f - deadZoneHalfWidth);
+    }
+    else if( intValue > deadZoneHalfWidth )
+    {
+        result = (r32)(intValue - deadZoneHalfWidth) / (127.0f - deadZoneHalfWidth);
+    }
+
+    return result;
+}
+
+internal void
+PS4ReadControllerStates( PS4State* state, GameInput* oldInput, GameInput* newInput )
+{
+    for( u32 i = 0; i < ARRAYCOUNT(state->controllerInfos); ++i )
+    {
+        if( i == PLATFORM_KEYMOUSE_CONTROLLER_SLOT )
+            continue;
+
+        PS4ControllerInfo& info = state->controllerInfos[i];
+        if( info.handle > 0 )
+        {
+            ScePadData data;
+            int ret = scePadReadState( info.handle, &data );
+            ASSERT( ret == 0 );
+
+            GameControllerInput* newC = GetController( newInput, i );
+            GameControllerInput* oldC = GetController( oldInput, i );
+            newC->isConnected = data.connected;
+
+            if( newC->isConnected )
+            {
+                newC->leftStick.startX = oldC->leftStick.endX;
+                newC->leftStick.endX = PS4ProcessStickValue( data.leftStick.x, info.pad.stickInfo.deadZoneLeft );
+                newC->leftStick.avgX = (newC->leftStick.startX + newC->leftStick.endX) / 2;
+
+                newC->leftStick.startY = oldC->leftStick.endY;
+                newC->leftStick.endY = PS4ProcessStickValue( data.leftStick.y, info.pad.stickInfo.deadZoneLeft );
+                newC->leftStick.avgY = (newC->leftStick.startY + newC->leftStick.endY) / 2;
+
+                newC->rightStick.startX = oldC->rightStick.endX;
+                newC->rightStick.endX = PS4ProcessStickValue( data.rightStick.x, info.pad.stickInfo.deadZoneRight );
+                newC->rightStick.avgX = (newC->rightStick.startX + newC->rightStick.endX) / 2;
+
+                newC->rightStick.startY = oldC->rightStick.endY;
+                newC->rightStick.endY = PS4ProcessStickValue( data.rightStick.y, info.pad.stickInfo.deadZoneRight );
+                newC->rightStick.avgY = (newC->rightStick.startY + newC->rightStick.endY) / 2;
+
+                newC->leftTriggerValue = data.analogButtons.l2 / 255.f;
+                newC->rightTriggerValue = data.analogButtons.r2 / 255.f;
+
+                newC->dUp.endedDown = data.buttons & SCE_PAD_BUTTON_UP;
+                newC->dDown.endedDown = data.buttons & SCE_PAD_BUTTON_DOWN;
+                newC->dLeft.endedDown = data.buttons & SCE_PAD_BUTTON_LEFT;
+                newC->dRight.endedDown = data.buttons & SCE_PAD_BUTTON_RIGHT;
+
+                newC->aButton.endedDown = data.buttons & SCE_PAD_BUTTON_CROSS;
+                newC->bButton.endedDown = data.buttons & SCE_PAD_BUTTON_CIRCLE;
+                newC->xButton.endedDown = data.buttons & SCE_PAD_BUTTON_SQUARE;
+                newC->yButton.endedDown = data.buttons & SCE_PAD_BUTTON_TRIANGLE;
+
+                newC->leftThumb.endedDown = data.buttons & SCE_PAD_BUTTON_L3;
+                newC->rightThumb.endedDown = data.buttons & SCE_PAD_BUTTON_R3;
+                newC->leftShoulder.endedDown = data.buttons & SCE_PAD_BUTTON_L1;
+                newC->rightShoulder.endedDown = data.buttons & SCE_PAD_BUTTON_R1;
+
+                newC->start.endedDown = data.buttons & SCE_PAD_BUTTON_TOUCH_PAD;
+                newC->options.endedDown = data.buttons & SCE_PAD_BUTTON_OPTIONS;
+            }
+        }
+    }
+}
+
+internal r32
+PS4GetSecondsElapsed( u64 previousTime, u64* output = nullptr )
+{
+    u64 procTime = sceKernelGetProcessTime();
+    r32 result = (r32)((procTime - previousTime) / 1000000.0);
+
+    if( output )
+        *output = procTime;
 
     return result;
 }
@@ -403,23 +563,44 @@ int main( int argc, const char* argv[] )
 
         gameMemory.imGuiContext = PS4InitImGui();
 
+        PS4InitInput( &globalPlatformState );
         GameInput input[2] = {};
         GameInput *newInput = &input[0];
         GameInput *oldInput = &input[1];
 
         u32 runningFrameCounter = 0;
+        // Assume our target for the first frame
+        r32 frameElapsedSeconds = 1.0f / targetFramerateHz;
+        r32 totalElapsedSeconds = 0;
+
+        u64 startTick = {};
+        PS4GetSecondsElapsed( startTick, &startTick );
+        u64 frameTick = startTick;
 
         // Main loop
         globalPlatformState.running = true;
         while( globalPlatformState.running )
         {
-            //PS4PrepareInputData( oldInput, newInput, lastDeltaTimeSecs, totalElapsedSeconds, runningFrameCounter );
+            PS4PrepareInputData( &oldInput, &newInput, frameElapsedSeconds, totalElapsedSeconds, 1 );
+            PS4ReadControllerStates( &globalPlatformState, oldInput, newInput );
+            
+            // TODO 
+#if 0 // !RELEASE
+            // Check for game code updates
+            if( GameCodeUpdated( &globalPlatformState ) )
+            {
+                PS4CompleteAllJobs( globalPlatform.hiPriorityQueue );
 
-            // Process input
-            newInput->executableReloaded = false;
-
-            if( runningFrameCounter == 0 )
+                LOG( "Detected updated game code. Reloading.." );
+                PS4UnloadGameCode( &globalPlatformState.gameCode );
+                globalPlatformState.gameCode
+                    = PS4LoadGameCode( gameCodePath, &gameMemory );
                 newInput->executableReloaded = true;
+            }
+
+            // Check for asset updates
+            PS4CheckAssetUpdates( &globalPlatformState );
+#endif
 
             // Setup remaining stuff for the ImGui frame
             ImGuiIO &io = ImGui::GetIO();
@@ -447,6 +628,8 @@ int main( int argc, const char* argv[] )
             PS4RenderImGui();
             PS4SwapBuffers( &rendererState );
 
+            frameElapsedSeconds = PS4GetSecondsElapsed( frameTick, &frameTick );
+            totalElapsedSeconds = PS4GetSecondsElapsed( startTick );
             ++runningFrameCounter;
         }
 

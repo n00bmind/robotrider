@@ -177,7 +177,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         auxArena = &gameState->worldArena;
 
 #if !RELEASE
-        memory->DEBUGglobalEditing = true;
+        //memory->DEBUGglobalEditing = true;
         InitEditor( &gameState->DEBUGeditorState, gameState->world, &gameState->worldArena, &gameState->transientArena );
 #endif
     }
