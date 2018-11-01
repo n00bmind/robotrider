@@ -34,6 +34,5 @@ Texture2D colorMap : register(t0);
 
 float4 main(VS_OUTPUT _in) : S_TARGET_OUTPUT
 {
-	// FIXME Something is busted with the brightness here.. (colors look "washed out")
 	return colorMap.Sample(samp0, _in.texCoords) * _in.color;
 }

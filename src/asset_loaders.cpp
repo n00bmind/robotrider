@@ -213,7 +213,7 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
                     TexturedVertex newVertex =
                     {
                         positions[key.pIdx],
-                        Pack01ToRGBA( 1, 0, 1, 1 ),
+                        Pack01ToRGBA( 1, 1, 1, 1 ),
                         uv,
                         n,
                     };
