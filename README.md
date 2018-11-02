@@ -29,3 +29,4 @@ Marching cubes :: http://paulbourke.net/geometry/polygonise/ <br/>
 Marching cubes optimization :: http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng <br/>
 Fast quadric mesh simplification :: https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification <br/>
 Resampling meshes using MC :: http://vcg.isti.cnr.it/publications/papers/mi_smi01.pdf <br/>
+Wave Function Collapse :: https://github.com/mxgmn/WaveFunctionCollapse & https://adamsmith.as/papers/wfc_is_constraint_solving_in_the_wild.pdf <br/>
