@@ -772,20 +772,21 @@ internal void
 Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 {
     // TODO Don't call GetState on disconnected controllers cause that has a big impact
+    // https://hero.handmade.network/forums/code-discussion/t/847-xinputgetstate
     // TODO Should we poll this more frequently?
-    // First controller is the keyboard
     // TODO Mouse?
     u32 maxControllerCount = XUSER_MAX_COUNT;
-    if( maxControllerCount > ARRAYCOUNT( newInput->_controllers ) - 1 )
-    {
-        maxControllerCount = ARRAYCOUNT( newInput->_controllers ) - 1;
-    }
+    // First controller is the keyboard
+    ASSERT( ARRAYCOUNT(GameInput::_controllers) >= XUSER_MAX_COUNT + 1 );
 
-    for( u32 index = 0; index < maxControllerCount; ++index )
+    DWORD controllerIndex = 0;
+    for( u32 index = 0; index < ARRAYCOUNT(GameInput::_controllers); ++index )
     {
-        DWORD controllerIndex = index + 1;
-        GameControllerInput *oldController = GetController( oldInput, controllerIndex );
-        GameControllerInput *newController = GetController( newInput, controllerIndex );
+        if( index == PLATFORM_KEYMOUSE_CONTROLLER_SLOT )
+            continue;
+
+        GameControllerInput *oldController = GetController( oldInput, index );
+        GameControllerInput *newController = GetController( newInput, index );
 
         XINPUT_STATE controllerState;
         // FIXME This call apparently stalls for a few hundred thousand cycles when the controller is not present
@@ -892,8 +893,11 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
             // Controller not available
             newController->isConnected = false;
         }
-    }
 
+        ++controllerIndex;
+        if( controllerIndex == XUSER_MAX_COUNT )
+            break;
+    }
 }
 
 internal void

@@ -400,36 +400,32 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #endif
 
     // Update player based on input
-    GameControllerInput *input0 = GetController( input, 1 );
-    if( input0->isConnected )
+    GameControllerInput *input1 = GetController( input, 1 );
+    if( input1->isConnected )
     {
         Player *player = world->player;
         v3 pPlayer = world->pPlayer;
 
-        r32 playerSpeed = input0->leftThumb.endedDown ? 30.f : 15.f;
+        r32 translationSpeed = input1->leftShoulder.endedDown ? 30.f : 15.f;
         v3 vPlayerDelta = {};
 
-        if( input0->dLeft.endedDown )
+        if( input1->leftStick.avgX != 0 )
         {
-            vPlayerDelta.x -= playerSpeed * dT;
+            vPlayerDelta.x += input1->leftStick.avgX * translationSpeed * dT;
         }
-        if( input0->dRight.endedDown )
+        if( input1->leftStick.avgY != 0 )
         {
-            vPlayerDelta.x += playerSpeed * dT;
-        }
-        if( input0->dUp.endedDown )
-        {
-            vPlayerDelta.y += playerSpeed * dT;
-        }
-        if( input0->dDown.endedDown )
-        {
-            vPlayerDelta.y -= playerSpeed * dT;
+            vPlayerDelta.y += input1->leftStick.avgY * translationSpeed * dT;
         }
 
-        if( input0->rightStick.avgX || input0->rightStick.avgY )
+        r32 rotationSpeed = 1.f;
+        if( input1->rightStick.avgX != 0 )
         {
-            world->playerPitch += -input0->rightStick.avgY / 15.f * dT;
-            world->playerYaw += -input0->rightStick.avgX / 15.f * dT; 
+            world->playerYaw += -input1->rightStick.avgX * rotationSpeed * dT; 
+        }
+        if( input1->rightStick.avgY != 0 )
+        {
+            world->playerPitch += -input1->rightStick.avgY * rotationSpeed * dT; 
         }
 
         m4 mPlayerRot = ZRotation( world->playerYaw ) * XRotation( world->playerPitch );
@@ -516,6 +512,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     }
     
     // Mesh simplification test
+    // TODO Move this out of the way
 #if 0
     Mesh testMesh;
     {

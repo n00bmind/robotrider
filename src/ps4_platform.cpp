@@ -443,7 +443,7 @@ PS4ReadControllerStates( PS4State* state, GameInput* oldInput, GameInput* newInp
                 newC->leftStick.avgX = (newC->leftStick.startX + newC->leftStick.endX) / 2;
 
                 newC->leftStick.startY = oldC->leftStick.endY;
-                newC->leftStick.endY = PS4ProcessStickValue( data.leftStick.y, info.pad.stickInfo.deadZoneLeft );
+                newC->leftStick.endY = PS4ProcessStickValue( U8MAX - data.leftStick.y, info.pad.stickInfo.deadZoneLeft );
                 newC->leftStick.avgY = (newC->leftStick.startY + newC->leftStick.endY) / 2;
 
                 newC->rightStick.startX = oldC->rightStick.endX;
@@ -451,7 +451,7 @@ PS4ReadControllerStates( PS4State* state, GameInput* oldInput, GameInput* newInp
                 newC->rightStick.avgX = (newC->rightStick.startX + newC->rightStick.endX) / 2;
 
                 newC->rightStick.startY = oldC->rightStick.endY;
-                newC->rightStick.endY = PS4ProcessStickValue( data.rightStick.y, info.pad.stickInfo.deadZoneRight );
+                newC->rightStick.endY = PS4ProcessStickValue( U8MAX - data.rightStick.y, info.pad.stickInfo.deadZoneRight );
                 newC->rightStick.avgY = (newC->rightStick.startY + newC->rightStick.endY) / 2;
 
                 newC->leftTriggerValue = data.analogButtons.l2 / 255.f;
