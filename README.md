@@ -23,7 +23,7 @@
 
 
 # References
-A list of papers, articles, sites, etc. that were useful during development:
+A list of papers, articles, sites, etc. that have been useful during development:
 
 Marching cubes :: http://paulbourke.net/geometry/polygonise/ <br/> & http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng <br/>
 Fast quadric mesh simplification :: https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification <br/>
