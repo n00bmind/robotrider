@@ -64,6 +64,7 @@ typedef double r64;
 
 typedef size_t sz;
 
+#define U8MAX UINT8_MAX
 #define I32MAX INT32_MAX
 #define I32MIN INT32_MIN
 #define U32MAX UINT32_MAX
@@ -72,7 +73,6 @@ typedef size_t sz;
 #define R32MIN FLT_MIN
 #define R32INF INFINITY
 #define R32NAN NAN
-
 #define R64INF (r64)INFINITY
 
 

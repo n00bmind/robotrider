@@ -18,3 +18,4 @@ rr.cap
 *.lastbuildstate
 .vs/
 *.vim
+SyncToy*
