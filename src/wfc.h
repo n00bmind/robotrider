@@ -9,8 +9,6 @@ struct Pattern
 {
     u8* data;
     u32 stride;
-
-    Texture texture;        // Just for debugging
 };
 
 // TODO Add later as an optimization
@@ -19,6 +17,7 @@ struct PackedPattern
 {
     u32 hash; //?
     u32 frequency;
+    u32 stride;
     u8 data[];
 };
 
@@ -35,21 +34,6 @@ struct IndexCell
 {
     // One entry per pattern
     Array<IndexEntry> entries;
-};
-
-enum class TestPage
-{
-    Output,
-    Patterns,
-    Index,
-};
-
-enum Result
-{
-    NotStarted = 0,
-    InProgress,
-    Done,
-    Contradiction,
 };
 
 enum Adjacency
@@ -79,14 +63,35 @@ struct BannedTuple
 
 struct Spec
 {
+    const char* name;
+
     Texture source;
     u32 N;
 
     v2i outputDim;
     bool periodic;
+};
+inline Spec
+DefaultSpec()
+{
+    Spec result =
+    {
+        "default",
+        {},
+        2,
+        { 256, 256 },
+        true,
+    };
+    return result;
+}
 
-    v2 displayDim;
-    bool displayMode;       // true - display intermediate results every frame
+enum Result
+{
+    NotStarted = 0,
+    InProgress,
+    Cancelled,
+    Done,
+    Contradiction,
 };
 
 struct State
@@ -95,6 +100,7 @@ struct State
     u32 palette[256];
     u32 paletteEntries;
 
+    // TODO We're duplicating data here
     HashTable<Pattern, u32, PatternHash> patternsHash;
     Array<Pattern> patterns;
 
@@ -114,21 +120,37 @@ struct State
     Array<r64> entropies;
 
     Array<u32> observations;
+    u32 remainingObservations;
 
     Result currentResult;
-
-    // UI stuff
-    TestPage currentPage;
-    u32 currentIndexEntry;
-    u32* outputImage;
-    void* outputTextureHandle;
-    Texture outputTexture;
-    u32 remaining;
-    u32 lastRemaining;
-    DEBUGFileInfoList currentFileList;
-    char currentRootPath[PLATFORM_PATH_MAX];
+    mutable bool cancellationRequested;
 };
 
+enum class TestPage
+{
+    Output,
+    Patterns,
+    Index,
+};
+
+struct DisplayState
+{
+    TestPage currentPage;
+    u32 currentSpecIndex;
+    u32 currentIndexEntry;
+
+    Array<Texture> patternTextures;
+    u32* outputImageBuffer;
+    Texture outputTexture;
+    u32 lastRemainingObservations;
+};
+
+struct WFCJob
+{
+    Spec spec;
+    State* state;
+    MemoryArena* arena;
+};
 
 } // namespace WFC
 

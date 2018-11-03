@@ -24,6 +24,130 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MEMORY_H__
 #define __MEMORY_H__ 
 
+
+#define PUSH_STRUCT(arena, type) (type *)_PushSize( arena, sizeof(type) )
+#define PUSH_ARRAY(arena, count, type) (type *)_PushSize( arena, (count)*sizeof(type) )
+#define PUSH_SIZE(arena, size) _PushSize( arena, size )
+
+#define PUSH_ARRAY_ALIGNED(arena, count, type, alignment) (type *)_PushSize( arena, (count)*sizeof(type), alignment )
+#define PUSH_SIZE_ALIGNED(arena, size, alignment) _PushSize( arena, size, alignment )
+
+
+///// STATIC MEMORY ARENA
+// Linear memory arena of a fixed initial size
+// Can be partitioned into sub arenas and supports "temporary blocks" (which can be nested)
+
+struct MemoryArena
+{
+    u8 *base;
+    sz size;
+    sz used;
+
+    u32 tempCount;
+};
+
+inline void * _PushSize( MemoryArena *arena, sz size );
+inline void * _PushSize( MemoryArena *arena, sz size, sz alignment );
+
+inline void
+InitializeArena( MemoryArena *arena, u8 *base, sz size )
+{
+    arena->base = base;
+    arena->size = size;
+    arena->used = 0;
+    arena->tempCount = 0;
+}
+
+inline MemoryArena
+MakeSubArena( MemoryArena* arena, sz size )
+{
+    MemoryArena result = {};
+    result.base = (u8*)PUSH_SIZE( arena, size );
+    result.size = size;
+
+    return result;
+}
+
+inline void
+ClearArena( MemoryArena* arena, bool clearToZero )
+{
+    arena->used = 0;
+    // TODO We should properly track this and invalidate existing TemporaryMemory blocks
+    arena->tempCount = 0;
+
+    if( clearToZero )
+        ZERO( arena->base, arena->size );
+}
+
+struct TemporaryMemory
+{
+    MemoryArena *arena;
+    sz used;
+};
+
+inline TemporaryMemory
+BeginTemporaryMemory( MemoryArena *arena )
+{
+    TemporaryMemory result;
+
+    result.arena = arena;
+    result.used = arena->used;
+
+    ++arena->tempCount;
+
+    return result;
+}
+
+inline void
+EndTemporaryMemory( TemporaryMemory tempMem )
+{
+    MemoryArena *arena = tempMem.arena;
+
+    ASSERT( arena->used >= tempMem.used );
+    arena->used = tempMem.used;
+
+    ASSERT( arena->tempCount > 0 );
+    --arena->tempCount;
+}
+
+inline void
+CheckTemporaryBlock( MemoryArena *arena )
+{
+    ASSERT( arena->tempCount == 0 );
+}
+
+inline void *
+_PushSize( MemoryArena *arena, sz size )
+{
+    ASSERT( arena->used + size <= arena->size );
+    // TODO Clear to zero option
+
+    void *result = arena->base + arena->used;
+    arena->used += size;
+    return result;
+}
+
+inline void *
+_PushSize( MemoryArena *arena, sz size, sz alignment )
+{
+    ASSERT( arena->used + size <= arena->size );
+    // TODO Clear to zero option
+
+    void *free = arena->base + arena->used;
+    void* result = Align( free, alignment );
+    sz waste = (u8*)result - (u8*)free;
+
+    arena->used += size + waste;
+    return result;
+}
+
+
+
+///// STATIC MEMORY POOL
+// General memory pool of a fixed initial size, can allocate any object type or size
+// Merges free contiguous blocks and searches linearly
+
+
 enum MemoryBlockFlags : u32
 {
     None = 0,
@@ -132,95 +256,6 @@ ReleaseBlockAt( void* memory, MemoryBlock* sentinel )
 
     MergeIfPossible( block, block->next, sentinel );
     MergeIfPossible( block->prev, block, sentinel );
-}
-
-
-
-struct MemoryArena
-{
-    u8 *base;
-    sz size;
-    sz used;
-
-    u32 tempCount;
-};
-
-inline void
-InitializeArena( MemoryArena *arena, u8 *base, sz size )
-{
-    arena->base = base;
-    arena->size = size;
-    arena->used = 0;
-    arena->tempCount = 0;
-}
-
-struct TemporaryMemory
-{
-    MemoryArena *arena;
-    sz used;
-};
-
-inline TemporaryMemory
-BeginTemporaryMemory( MemoryArena *arena )
-{
-    TemporaryMemory result;
-
-    result.arena = arena;
-    result.used = arena->used;
-
-    ++arena->tempCount;
-
-    return result;
-}
-
-inline void
-EndTemporaryMemory( TemporaryMemory tempMem )
-{
-    MemoryArena *arena = tempMem.arena;
-
-    ASSERT( arena->used >= tempMem.used );
-    arena->used = tempMem.used;
-
-    ASSERT( arena->tempCount > 0 );
-    --arena->tempCount;
-}
-
-inline void
-CheckArena( MemoryArena *arena )
-{
-    ASSERT( arena->tempCount == 0 );
-}
-
-#define PUSH_STRUCT(arena, type) (type *)_PushSize( arena, sizeof(type) )
-#define PUSH_ARRAY(arena, count, type) (type *)_PushSize( arena, (count)*sizeof(type) )
-#define PUSH_SIZE(arena, size) _PushSize( arena, size )
-
-#define PUSH_ARRAY_ALIGNED(arena, count, type, alignment) (type *)_PushSize( arena, (count)*sizeof(type), alignment )
-#define PUSH_SIZE_ALIGNED(arena, size, alignment) _PushSize( arena, size, alignment )
-
-inline void *
-_PushSize( MemoryArena *arena, sz size )
-{
-    ASSERT( arena->used + size <= arena->size );
-    // TODO Clear to zero option
-
-    void *result = arena->base + arena->used;
-    arena->used += size;
-    return result;
-}
-
-inline void *
-_PushSize( MemoryArena *arena, sz size, sz alignment )
-{
-    ASSERT( arena->used + size <= arena->size );
-    // TODO Clear to zero option
-
-    void *free = arena->base + arena->used;
-    void* result = Align( free, alignment );
-    sz waste = (u8*)result - (u8*)free;
-
-    arena->used += size + waste;
-    return result;
 }
 
 #endif /* __MEMORY_H__ */

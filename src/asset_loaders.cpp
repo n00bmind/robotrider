@@ -21,6 +21,209 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+Texture
+LoadTexture( const char* path, bool flipVertically, bool filtered = true, int desiredChannels = 0 )
+{
+    DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
+
+    stbi_set_flip_vertically_on_load( flipVertically );
+
+    i32 imageWidth = 0, imageHeight = 0, imageChannels = 0;
+    u8* imageBuffer =
+        stbi_load_from_memory( (u8*)read.contents, read.contentSize,
+                               &imageWidth, &imageHeight, &imageChannels, desiredChannels );
+    // TODO Async texture uploads (and unload)
+    void* textureHandle
+        = globalPlatform.AllocateOrUpdateTexture( imageBuffer, imageWidth, imageHeight, filtered, nullptr );
+
+    globalPlatform.DEBUGFreeFileMemory( read.contents );
+
+    Texture result;
+    result.handle = textureHandle;
+    result.imageBuffer = imageBuffer;
+    result.width = imageWidth;
+    result.height = imageHeight;
+    result.channelCount = imageChannels;
+
+    return result;
+}
+
+Array<WFC::Spec>
+LoadWFCVars( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
+{
+    Array<WFC::Spec> empty;
+    BucketArray<WFC::Spec> result( tmpArena, 128 );
+
+    const u32 minVersionNumber = 1;
+
+
+    DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
+    ASSERT( read.contents );
+
+    String contents( (char*)read.contents );
+
+    String firstLine = contents.ConsumeLine();
+    String firstWord = firstLine.ConsumeWord();
+
+    // First line must be version number
+    if( !firstWord.IsEqual( "#" ) )
+    {
+        LOG( "ERROR :: First line must be a comment specifying 'version X' for the version number" );
+        return empty;
+    }
+
+    firstWord.Consume( 1 );
+    if( !firstWord )
+        firstWord = firstLine.ConsumeWord();
+
+    if( !firstWord.IsEqual( "version", false ) )
+    {
+        LOG( "ERROR :: First line must be a comment specifying 'version X' for the version number" );
+        return empty;
+    }
+
+    String version = firstLine.ConsumeWord();
+    i32 versionNumber;
+    if( !version.ToI32( &versionNumber ) )
+    {
+        LOG( "ERROR :: version argument '%s' is not an integer number", version.CString( tmpArena ) );
+        return empty;
+    }
+
+    if( versionNumber < minVersionNumber )
+    {
+        LOG( "ERROR :: WFC vars file %s has version %d, minimum supported version is %d", path, versionNumber, minVersionNumber );
+        return empty;
+    }
+
+    u32 currentLineNumber = 2;
+    WFC::Spec* currentSpec = nullptr;
+    bool specHasName = false;
+    bool specHasSource = false;
+    String specSourceImage;
+
+    while( contents )
+    {
+        String line = contents.ConsumeLine();
+
+        if( line.IsNullOrEmpty() )
+        {
+            if( currentSpec )
+            {
+                if( specHasName && specHasSource )
+                {
+                    currentSpec->source = LoadTexture( specSourceImage.CString( tmpArena ), false, false, 4 );
+                }
+                else
+                {
+                    LOG( "ERROR :: WFC spec requires at least 'name' and 'sourceImage' attributes at line %d", currentLineNumber );
+                    *currentSpec = WFC::DefaultSpec();
+                }
+            }
+
+            currentSpec = nullptr;
+            specHasName = false;
+            specHasSource = false;
+            continue;
+        }
+
+        String var = line.ConsumeWord();
+
+        if( var.StartsWith( "#" ) )
+            ; // Ignore
+        else
+        {
+            if( !currentSpec )
+                currentSpec = result.Add( WFC::DefaultSpec() );
+
+            if( var.IsEqual( "name", false ) )
+            {
+                String nameString = line.ScanString();
+                if( nameString.IsNullOrEmpty() )
+                {
+                    LOG( "ERROR :: Missing 'name' string argument at line %d", currentLineNumber );
+                    currentSpec->name = "unknown";
+                }
+                else
+                    currentSpec->name = nameString.CString( arena );
+
+                specHasName = true;
+            }
+            else if( var.IsEqual( "sourceImage", false ) )
+            {
+                String imageString = line.ScanString();
+                if( imageString.IsNullOrEmpty() )
+                {
+                    LOG( "ERROR :: Missing 'sourceImage' string argument at line %d", currentLineNumber );
+                }
+                else
+                {
+                    specSourceImage = imageString;
+                    specHasSource = true;
+                }
+            }
+            else if( var.IsEqual( "N", false ) )
+            {
+                String nWord = line.ConsumeWord();
+
+                u32 n;
+                if( !nWord || !nWord.ToU32( &n ) )
+                    LOG( "ERROR :: Argument to 'N' must be an unsigned integer at line %d", currentLineNumber );
+                else
+                    currentSpec->N = n;
+            }
+            else if( var.IsEqual( "outputDim", false ) )
+            {
+                String xWord = line.ConsumeWord();
+                u32 x;
+                if( !xWord || !xWord.ToU32( &x ) )
+                    LOG( "ERROR :: Argument to 'outputDim' must be a vector2 of unsigned integer at line %d", currentLineNumber );
+                else
+                {
+                    String yWord = line.ConsumeWord();
+                    u32 y;
+                    if( !yWord || !yWord.ToU32( &y ) )
+                        LOG( "ERROR :: Argument to 'outputDim' must be a vector2 of unsigned integer at line %d", currentLineNumber );
+                    else
+                        currentSpec->outputDim = V2I( x, y );
+                }
+            }
+            else if( var.IsEqual( "periodic", false ) )
+            {
+                String boolWord = line.ConsumeWord();
+                bool value;
+                if( !boolWord || !boolWord.ToBool( &value ) )
+                    LOG( "ERROR :: Argument to 'periodic' must be a boolean at line %d", currentLineNumber );
+                else
+                    currentSpec->periodic = value;
+            }
+            else
+            {
+                String word = line.ConsumeWord();
+                LOG( "WARNING :: Unknown var '%s' ignored at line %d", word.CString( tmpArena ), currentLineNumber );
+            }
+        }
+
+        currentLineNumber++;
+    }
+
+    if( currentSpec )
+    {
+        if( specHasName && specHasSource )
+        {
+            currentSpec->source = LoadTexture( specSourceImage.CString( tmpArena ), false, false, 4 );
+        }
+        else
+        {
+            LOG( "ERROR :: WFC spec requires at least 'name' and 'sourceImage' attributes at line %d", currentLineNumber );
+            result.Pop();
+        }
+    }
+
+    return result.ToArray( arena );
+}
+
+
 struct VertexKey
 {
     u32 pIdx;
@@ -97,7 +300,7 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
     // that will share the same position but differ in tex coord and/or normal
     u32 tableSize = GetNextPowerOf2( vertexCount );
     HashTable<VertexKey, u32, VertexHash> cachedVertices( tmpArena, tableSize );
-    BucketArray<TexturedVertex> vertices( 1024, tmpArena );
+    BucketArray<TexturedVertex> vertices( tmpArena, 1024 );
 
     contents = (char*)read.contents;
     while( true )
@@ -266,29 +469,3 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
     return result;
 }
 
-Texture
-LoadTexture( const char* path, bool flipVertically, bool filtered = true, int desiredChannels = 0 )
-{
-    DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
-
-    stbi_set_flip_vertically_on_load( flipVertically );
-
-    i32 imageWidth = 0, imageHeight = 0, imageChannels = 0;
-    u8* imageBuffer =
-        stbi_load_from_memory( (u8*)read.contents, read.contentSize,
-                               &imageWidth, &imageHeight, &imageChannels, desiredChannels );
-    // TODO Async texture uploads (and unload)
-    void* textureHandle
-        = globalPlatform.AllocateTexture( imageBuffer, imageWidth, imageHeight, filtered, nullptr );
-
-    globalPlatform.DEBUGFreeFileMemory( read.contents );
-
-    Texture result;
-    result.handle = textureHandle;
-    result.imageBuffer = imageBuffer;
-    result.width = imageWidth;
-    result.height = imageHeight;
-    result.channelCount = imageChannels;
-
-    return result;
-}

@@ -37,6 +37,13 @@ struct Array
     u32 maxCount;
     T *data;
 
+    Array()
+    {
+        data = nullptr;
+        count = 0;
+        maxCount = 0;
+    }
+
     Array( MemoryArena* arena, u32 maxCount_ )
     {
         data = PUSH_ARRAY( arena, maxCount_, T );
@@ -95,21 +102,12 @@ struct Array
 
     void BlitTo( T* buffer ) const
     {
-        memcpy( buffer, data, count * sizeof(T) );
+        COPY( data, buffer, count * sizeof(T) );
     }
 
     void Clear()
     {
         count = 0;
-    }
-
-protected:
-
-    Array()
-    {
-        data = nullptr;
-        count = 0;
-        maxCount = 0;
     }
 };
 
@@ -317,24 +315,69 @@ Length( const char* cstring )
     return (u32)strlen( cstring );
 }
 
+inline bool
+IsWhitespace( char c )
+{
+    return c == ' ' || c == '\t';
+}
+
+inline bool
+IsWord( char c )
+{
+    return c >= 32 && c < 127 && !IsWhitespace( c );
+}
+
+// Read-only string
+// Covers most C-string use cases
+// Specially useful for fast zero-copy reads from text files, etc.
 struct String
 {
     u32 size;
     u32 maxSize;
-    char *data;
+    const char *data;
 
-    // NOTE For now we don't allow (const) string literals because that's readonly memory. We'll see..
-    String( char *cString )
+    String()
+    {
+        data = nullptr;
+        size = maxSize = 0;
+    }
+
+    String( const char *cString )
     {
         data = cString;
         size = maxSize = Length( cString );
     }
 
-    String( char *cString, u32 size_, u32 maxSize_ )
+    String( const char *cString, u32 size_, u32 maxSize_ )
     {
         data = cString;
         size = size_;
         maxSize = maxSize_;
+    }
+
+    const String& operator =( const char* cString )
+    {
+        data = cString;
+        size = maxSize = Length( cString );
+
+        return *this;
+    }
+
+    // Deep copy
+    void CopyTo( String* target, MemoryArena* arena ) const
+    {
+        target->size = size;
+        target->maxSize = size;
+        target->data = PUSH_ARRAY( arena, size, char );
+        COPY( data, (char*)target->data, size * sizeof(char) );
+    }
+
+    const char* CString( MemoryArena* arena ) const
+    {
+        char* result = PUSH_ARRAY( arena, size + 1, char );
+        COPY( data, result, size * sizeof(char) );
+
+        return result;
     }
 
     bool IsNullOrEmpty() const
@@ -342,10 +385,44 @@ struct String
         return data == nullptr || *data == '\0' || size == 0;
     }
 
-    bool IsEqual( const char* cString ) const
+    operator bool() const
     {
-        return strncmp( data, cString, size ) == 0
-            && cString[size] == '\0';
+        return !IsNullOrEmpty();
+    }
+
+    bool IsEqual( const char* cString, bool caseSensitive = true ) const
+    {
+        if( IsNullOrEmpty() )
+            return false;
+
+        bool result = false;
+
+        if( caseSensitive )
+            result = strncmp( data, cString, size ) == 0 && cString[size] == '\0';
+        else
+        {
+            const char* nextThis = data;
+            const char* nextThat = cString;
+
+            while( *nextThis && tolower( *nextThis ) == tolower( *nextThat ) )
+            {
+                nextThis++;
+                nextThat++;
+
+                if( *nextThat == '\0' )
+                {
+                    result = true;
+                    break;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    bool operator ==( const char* cString ) const
+    {
+        return IsEqual( cString );
     }
 
     bool IsNewline() const
@@ -357,9 +434,9 @@ struct String
     {
         ASSERT( *cString );
         if( IsNullOrEmpty() )
-            return true;
+            return false;
 
-        char* nextThis = data;
+        const char* nextThis = data;
         const char* nextThat = cString;
 
         while( *nextThis && *nextThis == *nextThat )
@@ -374,17 +451,17 @@ struct String
         return false;
     }
 
-    char* FindString( const char* cString ) const
+    const char* FindString( const char* cString ) const
     {
         ASSERT( *cString );
         if( IsNullOrEmpty() )
             return nullptr;
 
-        char* prospect = data;
+        const char* prospect = data;
         u32 remaining = size;
         while( remaining && *prospect )
         {
-            char* nextThis = prospect;
+            const char* nextThis = prospect;
             const char* nextThat = cString;
             while( *nextThis && *nextThis == *nextThat )
             {
@@ -406,17 +483,23 @@ struct String
     {
         u32 lineLen = size;
 
-        char* onePastNL = FindString( "\n" );
+        const char* atNL = data + size;
+        const char* onePastNL = FindString( "\n" );
 
         if( onePastNL )
         {
+            atNL = onePastNL;
             onePastNL++;
+            // Account for stupid Windows "double" NLs
+            if( *(atNL - 1) == '\r' )
+                atNL--;
+
             lineLen = SafeTruncToU32( onePastNL - data );
         }
 
-        String line( data, lineLen, maxSize );
-
         ASSERT( lineLen <= size );
+        String line( data, SafeTruncToU32( atNL - data ), maxSize );
+
         data = onePastNL;
         size -= lineLen;
         maxSize -= lineLen;
@@ -424,38 +507,69 @@ struct String
         return line;
     }
 
-    // Consume next word trimming whatever whitespace is there at the beginning
-    String ConsumeWord()
+    u32 ConsumeWhitespace()
     {
-        char *start = data;
+        const char *start = data;
         u32 remaining = size;
 
-        // TODO We may not want things like '\n' here?
-        while( *start && isspace( *start ) && remaining > 0 )
+        while( *start && IsWhitespace( *start ) && remaining > 0 )
         {
             start++;
             remaining--;
         }
 
-        u32 trimmed = SafeTruncToU32( start - data );
+        u32 advanced = size - remaining;
+
+        data = start;
+        size = remaining;
+        maxSize -= advanced;
+
+        return advanced;
+    }
+
+    // Consume next word trimming whatever whitespace is there at the beginning
+    String ConsumeWord()
+    {
+        ConsumeWhitespace();
+
         u32 wordLen = 0;
-        if( *start && remaining > 0 )
+        if( *data && size > 0 )
         {
-            char *end = start;
-            while( *end && !isspace( *end ) )
+            const char *end = data;
+            while( *end && IsWord( *end ) )
                 end++;
 
-            wordLen = SafeTruncToU32( end - start );
+            wordLen = SafeTruncToU32( end - data );
         }
 
-        String result( start, wordLen, maxSize - trimmed );
+        String result( data, wordLen, maxSize );
 
         // Consume stripped part
-        u32 totalLen = trimmed + wordLen;
-        ASSERT( totalLen <= size );
-        data += totalLen;
-        size -= totalLen;
-        maxSize -= totalLen; 
+        ASSERT( wordLen <= size );
+        data += wordLen;
+        size -= wordLen;
+        maxSize -= wordLen; 
+
+        return result;
+    }
+
+    String Consume( u32 charCount )
+    {
+        const char *next = data;
+        u32 remaining = Min( charCount, size );
+
+        while( *next && remaining > 0 )
+        {
+            next++;
+            remaining--;
+        }
+
+        u32 len = SafeTruncToU32( next - data );
+        String result( data, len, maxSize );
+
+        data = next;
+        size -= len;
+        maxSize -= len;
 
         return result;
     }
@@ -466,18 +580,106 @@ struct String
         va_start( args, format );
 
         // HACK Not pretty, but it's what we have until C gets a portable bounded vscanf
-        char endChar = *(data + size);
-        *(data + size) = '\0';
+        char* end = (char*)data + size;
+        char endChar = *end;
+        *end = '\0';
         int result = vsscanf( data, format, args );
-        *(data + size) = endChar;
+        *end = endChar;
 
         va_end( args );
         return result;
     }
 
-    operator bool() const
+    String ScanString()
     {
-        return !IsNullOrEmpty();
+        String result;
+
+        ConsumeWhitespace();
+
+        const char* start = data;
+        if( *start == '\'' || *start == '"' )
+        {
+            const char* next = start + 1;
+            u32 remaining = size - 1;
+
+            while( *next && remaining > 0 )
+            {
+                if( *next == *start && *(next - 1) != '\\' )
+                    break;
+
+                next++;
+                remaining--;
+            }
+
+            ++start;
+            result.data = start;
+            result.size = SafeTruncToU32(next - start);
+            result.maxSize = maxSize;
+        }
+
+        return result;
+    }
+
+    bool ToI32( i32* output )
+    {
+        bool result = false;
+
+        char start = data[0];
+        if( start == '+' || start == '-' )
+            start = data[1];
+
+        if( start >= '0' && start <= '9' )
+        {
+            char* end = (char*)1;
+            *output = strtol( data, &end, 0 );
+
+            if( *output == 0 )
+                result = (end != (char*)1);
+            else if( *output == LONG_MAX || *output == LONG_MIN )
+                result = (errno != ERANGE);
+            else
+                result = true;
+        }
+
+        return result;
+    }
+
+    bool ToU32( u32* output )
+    {
+        bool result = false;
+
+        char start = data[0];
+        if( start >= '0' && start <= '9' )
+        {
+            char* end = (char*)1;
+            *output = strtoul( data, &end, 0 );
+
+            if( *output == 0 )
+                result = (end != (char*)1);
+            else if( *output == ULONG_MAX )
+                result = (errno != ERANGE);
+            else
+                result = true;
+        }
+
+        return result;
+    }
+
+    bool ToBool( bool* output )
+    {
+        bool result = false;
+        if( IsEqual( "true", false ) || IsEqual( "y", false ) || IsEqual( "yes", false ) || IsEqual( "1" ) )
+        {
+            result = true;
+            *output = true;
+        }
+        else if( IsEqual( "false", false ) || IsEqual( "n", false ) || IsEqual( "no", false ) || IsEqual( "0" ) )
+        {
+            result = true;
+            *output = false;
+        }
+
+        return result;
     }
 };
 
@@ -497,7 +699,7 @@ struct BucketArray
         Bucket *next;
         Bucket *prev;
 
-        Bucket( u32 size_, MemoryArena* arena )
+        Bucket( MemoryArena* arena, u32 size_ )
         {
             data = PUSH_ARRAY( arena, size_, T );
             size = size_;
@@ -565,8 +767,8 @@ struct BucketArray
     MemoryArena* arena;
 
 
-    BucketArray( u32 bucketSize, MemoryArena* arena )
-        : first( bucketSize, arena )
+    BucketArray( MemoryArena* arena, u32 bucketSize )
+        : first( arena, bucketSize )
     {
         count = 0;
         last = &first;
@@ -587,16 +789,19 @@ struct BucketArray
         return &last->data[last->count++];
     }
 
-    void Add( const T& item )
+    T* Add( const T& item )
     {
         T* slot = Reserve();
         *slot = item;
+        return slot;
     }
 
-    void Remove( const Idx& index )
+    T Remove( const Idx& index )
     {
+        ASSERT( count > 0 );
         ASSERT( index.IsValid() );
 
+        T result = (T&)index;
         // If index is not pointing to last item, find last item and swap it
         if( index.base != last || index.index != last->count - 1 )
         {
@@ -615,6 +820,13 @@ struct BucketArray
         }
 
         count--;
+        return result;
+    }
+
+    T Pop()
+    {
+        T result = Remove( { last, last->count - 1 } );
+        return result;
     }
 
     void BlitTo( T* buffer ) const
@@ -622,10 +834,19 @@ struct BucketArray
         const Bucket* bucket = &first;
         while( bucket )
         {
-            memcpy( buffer, bucket->data, bucket->count * sizeof(T) );
+            COPY( bucket->data, buffer, bucket->count * sizeof(T) );
             buffer += bucket->count;
             bucket = bucket->next;
         }
+    }
+
+    Array<T> ToArray( MemoryArena* arena_ ) const
+    {
+        Array<T> result( arena_, count );
+        BlitTo( result.data );
+        result.count = count;
+
+        return result;
     }
 
     void Clear()
@@ -698,7 +919,7 @@ private:
         else
         {
             newBucket = PUSH_STRUCT( arena, Bucket );
-            *newBucket = Bucket( first.size, arena );
+            *newBucket = Bucket( arena, first.size );
         }
         newBucket->prev = last;
         last->next = newBucket;

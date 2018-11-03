@@ -167,7 +167,7 @@ CreatePatternTexture( const Pattern& pattern, const u32* palette, MemoryArena* a
         imageBuffer[i] = palette[pattern.data[i]];
 
     Texture result;
-    result.handle = globalPlatform.AllocateTexture( (u8*)imageBuffer, pattern.stride, pattern.stride, false, nullptr );
+    result.handle = globalPlatform.AllocateOrUpdateTexture( (u8*)imageBuffer, pattern.stride, pattern.stride, false, nullptr );
     result.imageBuffer = (u8*)imageBuffer;
     result.width = pattern.stride;
     result.height = pattern.stride;
@@ -258,12 +258,18 @@ CountMatches( const IndexEntry& entry )
 }
 
 internal void
-Init( State* state, const v2i outputDim, MemoryArena* arena )
+Init( const Spec& spec, State* state, MemoryArena* arena )
 {
+    PalettizeSource( spec.source, state, arena );
+    BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, state, arena );
+    BuildPatternsIndex( spec.N, state, arena );
+
+
+    const v2i outputDim = spec.outputDim;
     u32 waveLength = outputDim.x * outputDim.y;
     u32 patternCount = state->patterns.count;
 
-    state->remaining = waveLength;
+    state->remainingObservations = waveLength;
     // Increase as needed
     state->propagationStack = Array<BannedTuple>( arena, waveLength * 2 );
 
@@ -306,6 +312,8 @@ Init( State* state, const v2i outputDim, MemoryArena* arena )
                 state->adjacencyCounters.At( i, p ).dir[d] = CountMatches( state->patternsIndex[opposites[d]].entries[p] );
         }
     }
+
+    state->currentResult = InProgress;
 }
 
 internal u32
@@ -409,7 +417,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             if( state->observations[i] == U32MAX )
             {
                 state->observations[i] = p;
-                state->remaining--;
+                state->remainingObservations--;
             }
             else
                 ASSERT( state->observations[i] == p );
@@ -503,24 +511,16 @@ Propagate( const Spec& spec, State* state )
                 }
             }
         }
-
-        if( spec.displayMode )
-            break;
     }
 }
 
-internal Texture
-CreateOutputTexture( const Spec& spec, State* state, MemoryArena* arena )
+internal void
+CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Texture* result )
 {
-    if( !state->outputImage )
-    {
-        state->outputImage = PUSH_ARRAY( arena, spec.outputDim.x * spec.outputDim.y, u32 );
-    }
-
     const u32 N = spec.N;
     const u32 width = spec.outputDim.x;
     const u32 height = spec.outputDim.y;
-    u32* out = state->outputImage;
+    u32* out = imageBuffer;
 
     if( state->currentResult == Done )
     {
@@ -595,61 +595,31 @@ CreateOutputTexture( const Spec& spec, State* state, MemoryArena* arena )
         }
     }
 
-    state->outputTextureHandle = globalPlatform.AllocateTexture( state->outputImage, spec.outputDim.x, spec.outputDim.y, false,
-                                                                 state->outputTextureHandle );
-    Texture result;
-    result.handle = state->outputTextureHandle;
-    result.imageBuffer = state->outputImage;
-    result.width = spec.outputDim.x;
-    result.height = spec.outputDim.y;
-    result.channelCount = 4;
-
-    return result;
+    // Use existing handle if we have one
+    result->handle = globalPlatform.AllocateOrUpdateTexture( imageBuffer, spec.outputDim.x, spec.outputDim.y, false,
+                                                             result->handle );
+    result->imageBuffer = imageBuffer;
+    result->width = spec.outputDim.x;
+    result->height = spec.outputDim.y;
+    result->channelCount = 4;
 }
 
-internal const char*
-DrawFileSelectorPopup( char* currentRoot, DEBUGFileInfoList* currentFileList, MemoryArena* arena )
+internal u32
+DrawFileSelectorPopup( const Array<Spec>& specs, u32 currentSpecIndex )
 {
-    const char* result = nullptr;
+    u32 result = U32MAX;
 
-    ImGui::Text( "%s%s", "assets/", currentRoot );
+    ImGui::Text( "Specs in wfc.vars" );
     ImGui::Separator();
 
     ImGui::BeginChild( "child_file_list", ImVec2( 250, 400 ) );
 
-    if( !currentFileList->files )
-        *currentFileList = globalPlatform.DEBUGListAllAssets( currentRoot, arena );
-
-    if( ImGui::MenuItem( "..", nullptr, false, !String( currentRoot ).IsNullOrEmpty() ) )
+    for( u32 i = 0; i < specs.count; ++i )
     {
-        globalPlatform.DEBUGGetParentPath( currentRoot, currentRoot );
-        // LEAK
-        *currentFileList = {};
-    }
-    for( u32 i = 0; i < currentFileList->entryCount; ++i )
-    {
-        DEBUGFileInfo& info = currentFileList->files[i];
-        if( info.isFolder )
+        bool selected = i == currentSpecIndex;
+        if( ImGui::MenuItem( specs[i].name, nullptr, selected ) )
         {
-            ImGui::Text( ">" );
-            ImGui::SameLine();
-            if( ImGui::MenuItem( info.name ) )
-            {
-                globalPlatform.DEBUGJoinPaths( currentRoot, info.name, currentRoot, false );
-                // LEAK
-                *currentFileList = {};
-            }
-        }
-    }
-    for( u32 i = 0; i < currentFileList->entryCount; ++i )
-    {
-        DEBUGFileInfo& info = currentFileList->files[i];
-        if( !info.isFolder )
-        {
-            if( ImGui::MenuItem( info.name ) )
-            {
-                result = info.fullPath;
-            }
+            result = i;
         }
     }
     ImGui::EndChild();
@@ -657,18 +627,20 @@ DrawFileSelectorPopup( char* currentRoot, DEBUGFileInfoList* currentFileList, Me
     return result;
 }
 
-void InitWFC( const Spec& spec, State* state, MemoryArena* arena );
 
-internal void
-DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpArena, RenderCommands* renderCommands )
+u32
+DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* arena, DisplayState* displayState, const v2& displayDim )
 {
+    u32 selectedIndex = U32MAX;
+    const Spec& spec = specs[displayState->currentSpecIndex];
+
     ImGui::ShowDemoWindow();
 
 
-    const r32 patternScale = 16;
+    const r32 outputScale = 4.f;
 
-    ImGui::SetNextWindowPos( { 100.f, 100.f }, ImGuiCond_FirstUseEver );
-    ImGui::SetNextWindowSize( spec.displayDim, ImGuiCond_FirstUseEver );
+    ImGui::SetNextWindowPos( { 100.f, 100.f }, ImGuiCond_Always );
+    ImGui::SetNextWindowSize( displayDim, ImGuiCond_Always );
     ImGui::SetNextWindowSizeConstraints( ImVec2( -1, -1 ), ImVec2( -1, -1 ) );
     ImGui::Begin( "window_WFC", NULL,
                   //ImGuiWindowFlags_NoTitleBar |
@@ -676,20 +648,16 @@ DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpAr
 
     ImGui::BeginChild( "child_wfc_left", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
     // TODO Draw indexed & de-indexed image to help detect errors
-    ImVec2 buttonDim = ImVec2( (r32)spec.source.width * patternScale, (r32)spec.source.height * patternScale );
+    ImVec2 buttonDim = ImVec2( (r32)spec.source.width * outputScale, (r32)spec.source.height * outputScale );
     if( ImGui::ImageButton( spec.source.handle, buttonDim ) )
         ImGui::OpenPopup( "popup_file_selector" );
 
-    const char* selectedFile = nullptr;
     if( ImGui::BeginPopup( "popup_file_selector" ) )
     {
-        selectedFile = DrawFileSelectorPopup( state->currentRootPath, &state->currentFileList, arena );
-        if( selectedFile )
+        selectedIndex = DrawFileSelectorPopup( specs, displayState->currentSpecIndex );
+        if( selectedIndex != U32MAX )
         {
             ImGui::CloseCurrentPopup();
-
-            ((Spec&)spec).source = LoadTexture( selectedFile, false, false, 4 );
-            InitWFC( spec, state, arena ); 
         }
         ImGui::EndPopup();
     }
@@ -701,11 +669,11 @@ DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpAr
 
     ImGui::BeginGroup();
     if( ImGui::Button( "Output" ) )
-        state->currentPage = TestPage::Output;
+        displayState->currentPage = TestPage::Output;
     if( ImGui::Button( "Patterns" ) )
-        state->currentPage = TestPage::Patterns;
+        displayState->currentPage = TestPage::Patterns;
     if( ImGui::Button( "Index" ) )
-        state->currentPage = TestPage::Index;
+        displayState->currentPage = TestPage::Index;
     ImGui::EndGroup();
 
     ImGui::EndChild();
@@ -714,40 +682,46 @@ DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpAr
     u32 patternsCountSqrt = (u32)Round( Sqrt( (r32)state->patterns.count ) );
 
     ImGui::BeginChild( "child_wfc_right", ImVec2( 0, 0 ), true, 0 );
-    switch( state->currentPage )
+    switch( displayState->currentPage )
     {
         case TestPage::Output:
         {
 			if (state->currentResult > NotStarted)
             {
-                r32 outputScale = 4.f;
                 ImVec2 imageSize = spec.outputDim * outputScale;
 
-                if( state->remaining != state->lastRemaining )
+                if( state->remainingObservations != displayState->lastRemainingObservations )
                 {
-                    state->outputTexture = CreateOutputTexture( spec, state, arena );
-                    state->lastRemaining = state->remaining;
+                    if( !displayState->outputImageBuffer )
+                        displayState->outputImageBuffer = PUSH_ARRAY( arena, spec.outputDim.x * spec.outputDim.y, u32 );
+
+                    CreateOutputTexture( spec, state, displayState->outputImageBuffer, &displayState->outputTexture );
+                    displayState->lastRemainingObservations = state->remainingObservations;
                 }
 
-                ImGui::Image( state->outputTexture.handle, imageSize );
+                ImGui::Image( displayState->outputTexture.handle, imageSize );
 
                 ImGui::SameLine();
                 ImGui::Indent();
-                ImGui::Text( "Remaining: %d", state->remaining );
+                ImGui::Text( "Remaining: %d", state->remainingObservations );
             }
         } break;
 
         case TestPage::Patterns:
         {
+            if( !displayState->patternTextures )
+                displayState->patternTextures = Array<Texture>( arena, state->patterns.count );
+
             u32 row = 0;
             for( u32 i = 0; i < state->patterns.count; ++i )
             {
-                Pattern& p = state->patterns[i];
+                const Pattern& p = state->patterns[i];
+                Texture& t = displayState->patternTextures[i];
 
-                if( !p.texture.handle )
-                    p.texture = CreatePatternTexture( p, state->palette, arena );
+                if( !t.handle )
+                    t = CreatePatternTexture( p, state->palette, arena );
 
-                ImGui::Image( p.texture.handle, ImVec2( (r32)p.texture.width * patternScale, (r32)p.texture.height * patternScale ) );
+                ImGui::Image( t.handle, ImVec2( (r32)t.width * outputScale, (r32)t.height * outputScale ) );
 
                 row++;
                 if( row < patternsCountSqrt )
@@ -762,16 +736,20 @@ DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpAr
 
         case TestPage::Index:
         {
+            if( !displayState->patternTextures )
+                displayState->patternTextures = Array<Texture>( arena, state->patterns.count );
+
             ImGui::BeginChild( "child_index_entries", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
             for( u32 i = 0; i < state->patterns.count; ++i )
             {
-                Pattern& p = state->patterns[i];
+                const Pattern& p = state->patterns[i];
+                Texture& t = displayState->patternTextures[i];
 
-                if( !p.texture.handle )
-                    p.texture = CreatePatternTexture( p, state->palette, arena );
+                if( !t.handle )
+                    t = CreatePatternTexture( p, state->palette, arena );
 
-                if( ImGui::ImageButton( p.texture.handle, ImVec2( (r32)p.texture.width * patternScale, (r32)p.texture.height * patternScale ) ) )
-                    state->currentIndexEntry = i;
+                if( ImGui::ImageButton( t.handle, ImVec2( (r32)t.width * outputScale, (r32)t.height * outputScale ) ) )
+                    displayState->currentIndexEntry = i;
                 ImGui::Spacing();
             }
             ImGui::EndChild();
@@ -804,19 +782,20 @@ DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpAr
                         u32 row = 0;
                         if( d >= 0 )
                         {
-                            Array<bool>& matches = state->patternsIndex[d].entries[state->currentIndexEntry].matches;
+                            const Array<bool>& matches = state->patternsIndex[d].entries[displayState->currentIndexEntry].matches;
 
                             for( u32 m = 0; m < state->patterns.count; ++m )
                             {
                                 if( !matches[m] )
                                     continue;
 
-                                Pattern& p = state->patterns[m];
+                                const Pattern& p = state->patterns[m];
+                                Texture& t = displayState->patternTextures[i];
 
                                 //if( !p.texture.handle )
                                 //p.texture = CreatePatternTexture( p, state->palette, arena );
 
-                                ImGui::Image( p.texture.handle, ImVec2( (r32)p.texture.width * patternScale, (r32)p.texture.height * patternScale ) );
+                                ImGui::Image( t.handle, ImVec2( (r32)t.width * outputScale, (r32)t.height * outputScale ) );
 
                                 row++;
                                 if( row < patternsCountSqrt )
@@ -844,47 +823,56 @@ DrawTest( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpAr
     ImGui::EndChild();
 
     ImGui::End();
+
+    return selectedIndex;
 }
 
 
-void
-InitWFC( const Spec& spec, State* state, MemoryArena* arena )
-{
-    ZERO( state, sizeof(State) );
-
-    // TODO Investigate how to create temporary arenas that last more than a frame for this kind of thing
-    PalettizeSource( spec.source, state, arena );
-    BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, state, arena );
-    BuildPatternsIndex( spec.N, state, arena );
-
-    Init( state, spec.outputDim, arena );
-
-    state->currentResult = InProgress;
-}
 
 void
-DoWFC( const Spec& spec, State* state, MemoryArena* arena, MemoryArena* tmpArena, RenderCommands* renderCommands )
+StartWFCSync( const Spec& spec, State* state, MemoryArena* wfcArena )
 {
-    if( state->currentResult == InProgress )
+    Init( spec, state, wfcArena ); 
+
+    if( state->cancellationRequested )
+        state->currentResult = Cancelled;
+
+    while( state->currentResult == InProgress )
     {
-        if( spec.displayMode )
-        {
-            if( state->propagationStack.count )
-                Propagate( spec, state );
-            else
-                state->currentResult = Observe( spec, state, arena );
-        }
-        else
-        {
-            while( state->currentResult == InProgress )
-            {
-                state->currentResult = Observe( spec, state, arena );
-                Propagate( spec, state );
-            }
-        }
-    }
+        state->currentResult = Observe( spec, state, wfcArena );
+        Propagate( spec, state );
 
-    DrawTest( spec, state, arena, tmpArena, renderCommands );
+        if( state->cancellationRequested )
+            state->currentResult = Cancelled;
+    }
+}
+
+internal
+PLATFORM_JOBQUEUE_CALLBACK(DoWFC)
+{
+    WFCJob* job = (WFCJob*)userData;
+    StartWFCSync( job->spec, job->state, job->arena );
+}
+
+const State*
+StartWFCAsync( const Spec& spec, MemoryArena* wfcArena )
+{
+    const State* result = PUSH_STRUCT( wfcArena, State );
+
+    // We may want to have this passed independently?
+    WFCJob* job = PUSH_STRUCT( wfcArena, WFCJob );
+    *job =
+    {
+        spec,
+        (State*)result,     // const for the starting thread only
+        wfcArena,
+    };
+
+    globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
+                              DoWFC,
+                              job );
+
+    return result;
 }
 
 } // namespace WFC

@@ -23,12 +23,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __GAME_H__
 #define __GAME_H__ 
 
-#include <stdint.h>
-#include <math.h>
-#include <float.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <ctype.h>
+#include <string.h>
+#include <math.h>
+#include <float.h>
 
 
 #include "common.h"
@@ -196,8 +197,8 @@ typedef GAME_UPDATE_AND_RENDER(GameUpdateAndRenderFunc);
 GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
 { }
 
-#define GAME_ASSET_LOADED_CALLBACK(name) void name( const char *assetName, const u8 *contents, u32 len )
-typedef GAME_ASSET_LOADED_CALLBACK(GameAssetLoadedCallbackFunc);
+#define DEBUG_GAME_ASSET_LOADED_CALLBACK(name) void name( const char *filename, DEBUGReadFileResult readFile )
+typedef DEBUG_GAME_ASSET_LOADED_CALLBACK(DEBUGGameAssetLoadedCallbackFunc);
 
 #define GAME_LOG_CALLBACK(name) void name( const char *msg )
 typedef GAME_LOG_CALLBACK(GameLogCallbackFunc);

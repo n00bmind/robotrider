@@ -58,7 +58,7 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
     srand( 1234 );
 
     new (&world->clusterTable) HashTable<v3i, Cluster, ClusterHash>( worldArena, 256*1024 );
-    new (&world->liveEntities) BucketArray<LiveEntity>( 256, worldArena );
+    new (&world->liveEntities) BucketArray<LiveEntity>( worldArena, 256 );
     new (&world->entityRefs) HashTable<u32, StoredEntity *, EntityHash>( worldArena, 1024 );
 
     world->pWorldOrigin = { 0, 0, 0 };
@@ -173,6 +173,7 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
         };
     }
 
+    // TODO Review how to synchronize this
     MEMORY_WRITE_BARRIER    
 
     job->occupied = false;
@@ -189,7 +190,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
     {
         cluster = world->clusterTable.Reserve( clusterCoords, arena );
         cluster->populated = false;
-        new (&cluster->entityStorage) BucketArray<StoredEntity>( 256, arena );
+        new (&cluster->entityStorage) BucketArray<StoredEntity>( arena, 256 );
     }
 
     if( !cluster->populated )
@@ -216,10 +217,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
             const v3i& pWorldOrigin = world->pWorldOrigin;
 
 
-
-    // TODO Rewrite all this as it'll need to be when paralellized
-    ////////// JOB START
-
+            // Start new job in a hi priority thread
             GeneratorJob* job = FindFreeJob( world );
             *job =
             {
@@ -234,11 +232,6 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
             globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
                                       GenerateOneEntity,
                                       job );
-
-
-    ////////// JOB END
-
-
 
             it.Next();
         }

@@ -214,8 +214,8 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     EndTemporaryMemory( tempMemory );
 
-    CheckArena( &gameState->worldArena );
-    CheckArena( &gameState->transientArena );
+    CheckTemporaryBlock( &gameState->worldArena );
+    CheckTemporaryBlock( &gameState->transientArena );
 }
 
 

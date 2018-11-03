@@ -120,7 +120,12 @@ if __name__ == '__main__':
     else:
         for file in os.listdir(binpath):
             if file.lower().endswith('.pdb'):
-                os.remove(os.path.join(binpath, file))
+                try:
+                    pdbpath = os.path.join(binpath, file)
+                    os.remove(pdbpath)
+                except WindowsError:
+                    # print('Couldn\'t remove {} (probably in use)'.format(pdbpath))
+                    pass
 
     # TODO Process comand line
     # verbose = True

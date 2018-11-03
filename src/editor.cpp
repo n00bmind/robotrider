@@ -67,6 +67,7 @@ void
 InitEditor( const v2i screenDim, EditorState* editorState, World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
 {
     // Mesh resampling test
+    // TODO Move out of the way
 #if 0
     editorState->testMesh = LoadOBJ( "bunny.obj", worldArena, tmpArena,
                                       Scale( V3( 10.f, 10.f, 10.f ) ) * Translation( V3( 0, 0, 1.f ) ) );
@@ -74,16 +75,12 @@ InitEditor( const v2i screenDim, EditorState* editorState, World* world, MemoryA
     editorState->cacheBuffers = InitMarchingCacheBuffers( worldArena, 50 );
 #endif
 
-    editorState->testSourceTexture = LoadTexture( "wfc/Red Maze.png", false, false, 4 );
-    editorState->wfcSpec =
-    {
-        editorState->testSourceTexture,
-        2,
-        { 256, 256 },
-        true,
-        { screenDim.x * 0.75f, screenDim.y * 0.75f },
-        true,
-    };
+    editorState->wfcSpecs = LoadWFCVars( "wfc.vars", worldArena, tmpArena );
+    ASSERT( editorState->wfcSpecs.count );
+
+    /// WFC test
+    editorState->wfcArena = MakeSubArena( worldArena, MEGABYTES(128) );
+    editorState->wfcState = WFC::StartWFCAsync( editorState->wfcSpecs[0], &editorState->wfcArena );
 }
 
 void
@@ -147,17 +144,32 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     }
 
 
-    if( input->executableReloaded || input->editor.nextStep.endedDown )
+    v2 displayDim = V2( renderCommands->width * 0.9f, renderCommands->height * 0.9f );
+    u32 selectedIndex = WFC::DrawTest( editorState.wfcSpecs, editorState.wfcState, arena, &editorState.wfcDisplayState, displayDim );
+
+    if( editorState.wfcState->cancellationRequested )
     {
-        RandomSeed( input->frameCounter );
-        InitWFC( editorState.wfcSpec, &editorState.wfcState, arena ); 
+        // Simply wait until cancelled or done
+        if( editorState.wfcState->currentResult > WFC::Result::InProgress )
+        {
+            ClearArena( &editorState.wfcArena, true );
+            WFC::Spec& spec = editorState.wfcSpecs[editorState.wfcDisplayState.currentSpecIndex];
+            editorState.wfcState = WFC::StartWFCAsync( spec, &editorState.wfcArena );
+        }
     }
-    /// WFC test
-    WFC::DoWFC( editorState.wfcSpec, &editorState.wfcState, arena, tmpArena, renderCommands );
+    else
+    {
+        if( selectedIndex != U32MAX )
+        {
+            editorState.wfcDisplayState.currentSpecIndex = selectedIndex;
+            editorState.wfcState->cancellationRequested = true;
+        }
+    }
 
 
 
     // Mesh resampling test
+    // TODO Move out of the way
 #if 0
     if( !editorState.testIsoSurfaceMesh || input->executableReloaded )
     {

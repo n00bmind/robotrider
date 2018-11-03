@@ -104,6 +104,12 @@ Min( r64 a, r64 b )
     return a < b ? a : b;
 }
 
+inline u32
+Min( u32 a, u32 b )
+{
+    return a < b ? a : b;
+}
+
 inline u64
 Min( u64 a, u64 b )
 {

@@ -241,10 +241,9 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
     {
         // If path is relative, use executable location to complete it
         Win32JoinPaths( globalPlatformState.assetDataPath, filename, absolutePath, true );
-        filename = absolutePath;
     }
 
-    HANDLE fileHandle = CreateFile( filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
+    HANDLE fileHandle = CreateFile( absolutePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
     if( fileHandle != INVALID_HANDLE_VALUE )
     {
         LARGE_INTEGER fileSize;
@@ -265,7 +264,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
                 }
                 else
                 {
-                    LOG( "ERROR: ReadFile failed" );
+                    LOG( "ERROR: ReadFile failed for '%s'", filename );
                     DEBUGWin32FreeFileMemory( result.contents );
                     result.contents = 0;
                 }
@@ -277,14 +276,14 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
         }
         else
         {
-            LOG( "ERROR: Failed querying file size" );
+            LOG( "ERROR: Failed querying file size for '%s'", filename );
         }
 
         CloseHandle( fileHandle );
     }
     else
     {
-        LOG( "ERROR: Failed opening file for reading" );
+        LOG( "ERROR: Failed opening file '%s' for reading", filename );
     }
 
     return result;
@@ -398,86 +397,100 @@ Win32UnloadGameCode( Win32GameCode *gameCode )
 }
 
 internal void
-Win32SetupAssetUpdateListener( Win32State *platformState )
+Win32SetupAssetUpdateListeners( Win32State *platformState )
 {
-    char absolutePath[PLATFORM_PATH_MAX];
-    // FIXME This part is OpenGL specific. Formalize how we get this for different renderers
-    Win32JoinPaths( platformState->assetDataPath, SHADERS_RELATIVE_PATH, absolutePath, true );
-
-    platformState->shadersDirHandle
-        = CreateFile( absolutePath, FILE_LIST_DIRECTORY, FILE_SHARE_READ, NULL,
-                      OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL );
-
-    if( platformState->shadersDirHandle == INVALID_HANDLE_VALUE )
+    for( u32 i = 0; i < platformState->assetListenerCount; ++i )
     {
-        LOG( "ERROR :: Could not open directory for reading (%s)", absolutePath );
-        return;
+        Win32AssetUpdateListener& listener = platformState->assetListeners[i];
+
+        char absolutePath[PLATFORM_PATH_MAX];
+        Win32JoinPaths( platformState->assetDataPath, listener.relativePath, absolutePath, true );
+
+        listener.dirHandle
+            = CreateFile( absolutePath, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
+                          OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL );
+
+        if( listener.dirHandle == INVALID_HANDLE_VALUE )
+        {
+            LOG( "ERROR :: Could not open directory for reading (%s)", absolutePath );
+            continue;
+        }
+
+        listener.overlapped = {0};
+        listener.overlapped.hEvent = CreateEvent( NULL, FALSE, FALSE, NULL );
+
+        BOOL read = ReadDirectoryChangesW( listener.dirHandle,
+                                           platformState->assetsNotifyBuffer,
+                                           sizeof(platformState->assetsNotifyBuffer),
+                                           TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE,
+                                           NULL, &listener.overlapped, NULL );
+        ASSERT( read );
     }
-
-    platformState->shadersOverlapped = {0};
-    platformState->shadersOverlapped.hEvent = CreateEvent( NULL, FALSE, FALSE, NULL );
-
-    BOOL read = ReadDirectoryChangesW( platformState->shadersDirHandle,
-                                       platformState->shadersNotifyBuffer,
-                                       ARRAYCOUNT(platformState->shadersNotifyBuffer),
-                                       TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE,
-                                       NULL, &platformState->shadersOverlapped, NULL );
-    ASSERT( read );
 }
 
 internal void
 Win32CheckAssetUpdates( Win32State *platformState )
 {
-    DWORD bytesReturned;
-    // Return immediately if no info ready
-    BOOL result = GetOverlappedResult( platformState->shadersDirHandle,
-                                       &platformState->shadersOverlapped,
-                                       &bytesReturned, FALSE );
-
-    if( result )
+    for( u32 i = 0; i < platformState->assetListenerCount; ++i )
     {
-        FILE_NOTIFY_INFORMATION *notifyInfo
-            = (FILE_NOTIFY_INFORMATION *)platformState->shadersNotifyBuffer;
-        if( notifyInfo->Action == FILE_ACTION_MODIFIED )
+        Win32AssetUpdateListener& listener = platformState->assetListeners[i];
+
+        DWORD bytesReturned;
+        // Return immediately if no info ready
+        BOOL result = GetOverlappedResult( listener.dirHandle,
+                                           &listener.overlapped,
+                                           &bytesReturned, FALSE );
+
+        if( result )
         {
-            char filename[PLATFORM_PATH_MAX];
-            WideCharToMultiByte( CP_ACP, WC_COMPOSITECHECK,
-                                 notifyInfo->FileName, notifyInfo->FileNameLength,
-                                 filename, PLATFORM_PATH_MAX, NULL, NULL );
-            filename[notifyInfo->FileNameLength/2] = 0;
+            ASSERT( bytesReturned < sizeof(platformState->assetsNotifyBuffer) );
 
-            // Check and strip extension
-            char extension[16];
-            ExtractFileExtension( filename, extension, ARRAYCOUNT(extension) );
-            
-            if( strcmp( extension, "glsl" ) == 0 )
+            u32 entryOffset = 0;
+            do
             {
-                char assetPath[PLATFORM_PATH_MAX];
-                strcpy( assetPath, SHADERS_RELATIVE_PATH );
-                strcat( assetPath, filename );
-                
-                LOG( "Shader file '%s' was modified. Reloading..", filename );
-                DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( assetPath );
-                ASSERT( read.contents );
-                OpenGLHotswapShader( filename, (const char *)read.contents );
-                globalPlatform.DEBUGFreeFileMemory( read.contents );
-            }
+                FILE_NOTIFY_INFORMATION *notifyInfo
+                    = (FILE_NOTIFY_INFORMATION *)(platformState->assetsNotifyBuffer + entryOffset);
+                if( notifyInfo->Action == FILE_ACTION_MODIFIED )
+                {
+                    char filename[PLATFORM_PATH_MAX];
+                    WideCharToMultiByte( CP_ACP, WC_COMPOSITECHECK,
+                                         notifyInfo->FileName, notifyInfo->FileNameLength,
+                                         filename, PLATFORM_PATH_MAX, NULL, NULL );
+                    filename[notifyInfo->FileNameLength/2] = 0;
+
+                    // Check and strip extension
+                    char extension[16];
+                    ExtractFileExtension( filename, extension, ARRAYCOUNT(extension) );
+
+                    if( strcmp( extension, listener.extension ) == 0 )
+                    {
+                        LOG( "Shader file '%s' was modified. Reloading..", filename );
+
+                        char assetPath[PLATFORM_PATH_MAX];
+                        Win32JoinPaths( SHADERS_RELATIVE_PATH, filename, assetPath, false );
+
+                        DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( assetPath );
+                        ASSERT( read.contents );
+                        listener.callback( filename, read );
+                        globalPlatform.DEBUGFreeFileMemory( read.contents );
+                    }
+                }
+
+                entryOffset = notifyInfo->NextEntryOffset;
+            } while( entryOffset );
+
+            // Restart monitorization
+            BOOL read = ReadDirectoryChangesW( listener.dirHandle,
+                                               platformState->assetsNotifyBuffer,
+                                               sizeof(platformState->assetsNotifyBuffer),
+                                               TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE,
+                                               NULL, &listener.overlapped, NULL );
+            ASSERT( read );
         }
-
-        ASSERT( notifyInfo->NextEntryOffset == 0 );
-        //LOG( "WARNING :: More data available in update listener" );
-
-        // Restart monitorization
-        BOOL read = ReadDirectoryChangesW( platformState->shadersDirHandle,
-                                           platformState->shadersNotifyBuffer,
-                                           ARRAYCOUNT(platformState->shadersNotifyBuffer),
-                                           TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE,
-                                           NULL, &platformState->shadersOverlapped, NULL );
-        ASSERT( read );
-    }
-    else
-    {
-        ASSERT( GetLastError() == ERROR_IO_INCOMPLETE );
+        else
+        {
+            ASSERT( GetLastError() == ERROR_IO_INCOMPLETE );
+        }
     }
 }
 
@@ -1842,7 +1855,7 @@ PLATFORM_COMPLETE_ALL_JOBS(Win32CompleteAllJobs)
 
 
 internal
-PLATFORM_ALLOCATE_TEXTURE(Win32AllocateTexture)
+PLATFORM_ALLOCATE_OR_UPDATE_TEXTURE(Win32AllocateTexture)
 {
     void* result = nullptr;
 
@@ -1888,7 +1901,7 @@ main( int argC, char **argV )
     globalPlatform.DEBUGGetParentPath = Win32GetParentPath;
     globalPlatform.AddNewJob = Win32AddNewJob;
     globalPlatform.CompleteAllJobs = Win32CompleteAllJobs;
-    globalPlatform.AllocateTexture = Win32AllocateTexture;
+    globalPlatform.AllocateOrUpdateTexture = Win32AllocateTexture;
     globalPlatform.DeallocateTexture = Win32DeallocateTexture;
 
     // FIXME Should be dynamic, but can't be bothered!
@@ -2087,7 +2100,14 @@ main( int argC, char **argV )
 
                     globalPlatformState.gameCode
                         = Win32LoadGameCode( globalPlatformState.sourceDLLPath, globalPlatformState.tempDLLPath, &gameMemory );
-                    Win32SetupAssetUpdateListener( &globalPlatformState );
+
+                    Win32AssetUpdateListener assetListeners[] =
+                    {
+                        { SHADERS_RELATIVE_PATH, "glsl", OpenGLHotswapShader },
+                    };
+                    globalPlatformState.assetListeners = assetListeners;
+                    globalPlatformState.assetListenerCount = ARRAYCOUNT(assetListeners);
+                    Win32SetupAssetUpdateListeners( &globalPlatformState );
 
                     // Main loop
                     while( globalRunning )

@@ -26,9 +26,10 @@ struct EditorState
     EditorEntity testEditorEntity;
 #endif
 
-    Texture testSourceTexture;
-    WFC::Spec wfcSpec;
-    WFC::State wfcState;
+    Array<WFC::Spec> wfcSpecs;
+    MemoryArena wfcArena;
+    const WFC::State* wfcState;
+    WFC::DisplayState wfcDisplayState;
 
     r32 drawingDistance;
     u32 displayedLayer;

@@ -151,6 +151,7 @@ OpenGLCompileShader( GLenum shaderType, const char *shaderSource, GLuint *outSha
     if( shader == 0 )
         return GL_FALSE;
 
+    // FIXME
     glShaderSource( shader, 1, &shaderSource, NULL );     // That ** is super wrong!
     glCompileShader( shader );
 
@@ -227,9 +228,11 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
     return success;
 }
 
-internal void
-OpenGLHotswapShader( const char *filename, const char *shaderSource )
+internal 
+DEBUG_GAME_ASSET_LOADED_CALLBACK(OpenGLHotswapShader)
 {
+    const char* shaderSource = (const char*)readFile.contents;
+
     // Find which program definition(s) the file belongs to
     for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
@@ -277,7 +280,7 @@ OpenGLHotswapShader( const char *filename, const char *shaderSource )
 }
 
 internal
-PLATFORM_ALLOCATE_TEXTURE(OpenGLAllocateTexture)
+PLATFORM_ALLOCATE_OR_UPDATE_TEXTURE(OpenGLAllocateTexture)
 {
     void* result = nullptr;
 

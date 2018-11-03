@@ -167,8 +167,8 @@ typedef PLATFORM_COMPLETE_ALL_JOBS(PlatformCompleteAllJobsFunc);
 
 
 // Providing a handle means we're updating the texture data instead of creating it anew
-#define PLATFORM_ALLOCATE_TEXTURE(name) void* name( void* data, u32 width, u32 height, bool filtered, void* optionalHandle )
-typedef PLATFORM_ALLOCATE_TEXTURE(PlatformAllocateTextureFunc);
+#define PLATFORM_ALLOCATE_OR_UPDATE_TEXTURE(name) void* name( void* data, u32 width, u32 height, bool filtered, void* optionalHandle )
+typedef PLATFORM_ALLOCATE_OR_UPDATE_TEXTURE(PlatformAllocateOrUpdateTextureFunc);
 
 #define PLATFORM_DEALLOCATE_TEXTURE(name) void name( void* handle )
 typedef PLATFORM_DEALLOCATE_TEXTURE(PlatformDeallocateTextureFunc);
@@ -194,7 +194,7 @@ struct PlatformAPI
     // NOTE Includes the main thread! (0)
     u32 workerThreadsCount;
 
-    PlatformAllocateTextureFunc* AllocateTexture;
+    PlatformAllocateOrUpdateTextureFunc* AllocateOrUpdateTexture;
     PlatformDeallocateTextureFunc* DeallocateTexture;
 
     PlatformLogFunc* Log;

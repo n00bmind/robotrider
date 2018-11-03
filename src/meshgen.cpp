@@ -48,8 +48,8 @@ SwapTopAndBottomLayers( MarchingCacheBuffers* buffers )
 void
 Init( MeshPool* pool, MemoryArena* arena, sz size )
 {
-    new (&pool->scratchVertices) BucketArray<TexturedVertex>( 1024, arena );
-    new (&pool->scratchIndices) BucketArray<u32>( 1024, arena );
+    new (&pool->scratchVertices) BucketArray<TexturedVertex>( arena, 1024 );
+    new (&pool->scratchIndices) BucketArray<u32>( arena, 1024 );
 
     // Initialize empty sentinel
     pool->memorySentinel.prev = &pool->memorySentinel;

@@ -94,6 +94,15 @@ struct Win32ReplayBuffer
     void *memoryBlock;
 };
 
+struct Win32AssetUpdateListener
+{
+    const char* relativePath;
+    const char* extension;
+    DEBUGGameAssetLoadedCallbackFunc* callback;
+    HANDLE dirHandle;
+    OVERLAPPED overlapped;
+};
+
 #define MAX_REPLAY_BUFFERS 3
 struct Win32State
 {
@@ -117,9 +126,11 @@ struct Win32State
     u32 inputPlaybackIndex;
     HANDLE playbackHandle;
 
-    HANDLE shadersDirHandle;
-    OVERLAPPED shadersOverlapped;
-    u8 shadersNotifyBuffer[8192];
+    // NOTE I operate under the assumption that this won't be filled until our call to GetOverlappedResult return true,
+    // hence we should be able to just use one shared buffer for all our installed listeners. I could be wrong though!
+    u8 assetsNotifyBuffer[1024];
+    Win32AssetUpdateListener *assetListeners;
+    u32 assetListenerCount;
 
     PlatformJobQueue hiPriorityQueue;
 };
