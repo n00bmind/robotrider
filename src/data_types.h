@@ -140,6 +140,18 @@ struct Array2
         ASSERT( c < cols );
         return data[r * cols + c];
     }
+
+    T* AtRow( u32 r )
+    {
+        ASSERT( r < rows );
+        return &data[r * cols];
+    }
+
+    const T* AtRow( u32 r ) const
+    {
+        ASSERT( r < rows );
+        return &data[r * cols];
+    }
 };
 
 

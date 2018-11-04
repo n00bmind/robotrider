@@ -100,9 +100,12 @@ struct State
     u32 palette[256];
     u32 paletteEntries;
 
-    // TODO We're duplicating data here
+    // TODO Consolidate this stuff. We're duplicating data here!
     HashTable<Pattern, u32, PatternHash> patternsHash;
     Array<Pattern> patterns;
+    Array<u32> frequencies;
+
+    Array<r32> distributionTemp;
 
     // TODO Layout this differently (and rename it)
     IndexCell patternsIndex[Adjacency::Count];      // propagator
@@ -142,6 +145,8 @@ struct DisplayState
     Array<Texture> patternTextures;
     u32* outputImageBuffer;
     Texture outputTexture;
+
+    Result lastDisplayedResult;
     u32 lastRemainingObservations;
 };
 

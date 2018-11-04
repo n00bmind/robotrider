@@ -474,6 +474,36 @@ operator /( const v4& v, r32 s )
     return result;
 }
 
+inline v4
+Hadamard( const v4& a, const v4& b )
+{
+    v4 result = { a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w };
+    return result;
+}
+
+inline u32
+Pack01ToRGBA( const v4& c )
+{
+    u32 result = (((Round( c.a * 255 ) & 0xFF) << 24)
+                | ((Round( c.b * 255 ) & 0xFF) << 16)
+                | ((Round( c.g * 255 ) & 0xFF) << 8)
+                |  (Round( c.r * 255 ) & 0xFF));
+    return result;
+}
+
+inline v4
+UnpackRGBAToV401( u32 c )
+{
+    v4 result =
+    {
+        ((c >> 24) & 0xFF) / 255.f,
+        ((c >> 16) & 0xFF) / 255.f,
+        ((c >>  8) & 0xFF) / 255.f,
+        ((c >>  0) & 0xFF) / 255.f,
+    };
+    return result;
+}
+
 
 // Matrix 4x4
 

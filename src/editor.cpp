@@ -81,6 +81,8 @@ InitEditor( const v2i screenDim, EditorState* editorState, World* world, MemoryA
     /// WFC test
     editorState->wfcArena = MakeSubArena( worldArena, MEGABYTES(128) );
     editorState->wfcState = WFC::StartWFCAsync( editorState->wfcSpecs[0], &editorState->wfcArena );
+
+    editorState->wfcDisplayArena = MakeSubArena( worldArena, MEGABYTES(16) );
 }
 
 void
@@ -145,7 +147,8 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
 
 
     v2 displayDim = V2( renderCommands->width * 0.9f, renderCommands->height * 0.9f );
-    u32 selectedIndex = WFC::DrawTest( editorState.wfcSpecs, editorState.wfcState, arena, &editorState.wfcDisplayState, displayDim );
+    u32 selectedIndex = WFC::DrawTest( editorState.wfcSpecs, editorState.wfcState,
+                                       &editorState.wfcDisplayArena, &editorState.wfcDisplayState, displayDim );
 
     if( editorState.wfcState->cancellationRequested )
     {
@@ -153,6 +156,11 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
         if( editorState.wfcState->currentResult > WFC::Result::InProgress )
         {
             ClearArena( &editorState.wfcArena, true );
+            ClearArena( &editorState.wfcDisplayArena, true );
+            u32 savedIndex = editorState.wfcDisplayState.currentSpecIndex;
+            editorState.wfcDisplayState = {};
+            editorState.wfcDisplayState.currentSpecIndex = savedIndex;
+
             WFC::Spec& spec = editorState.wfcSpecs[editorState.wfcDisplayState.currentSpecIndex];
             editorState.wfcState = WFC::StartWFCAsync( spec, &editorState.wfcArena );
         }

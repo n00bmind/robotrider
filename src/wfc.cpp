@@ -273,6 +273,7 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
     // Increase as needed
     state->propagationStack = Array<BannedTuple>( arena, waveLength * 2 );
 
+    state->distributionTemp = Array<r32>( arena, patternCount );
     state->wave = Array2<bool>( arena, waveLength, patternCount );
     state->adjacencyCounters = Array2<AdjacencyCounters>( arena, waveLength, patternCount );
     state->compatiblesCount = Array<u32>( arena, waveLength );
@@ -286,12 +287,12 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
     r64 sumFrequencies = 0;                                                     // sumOfWeights
     r64 sumWeights = 0;                                                         // sumOfWeightLogWeights
 
-    Array<u32> frequencies = state->patternsHash.Values( arena );               // weights
-    ASSERT( frequencies.count == patternCount );
+    state->frequencies = state->patternsHash.Values( arena );               // weights
+    ASSERT( state->frequencies.count == patternCount );
     for( u32 p = 0; p < patternCount; ++p )
     {
-        state->weights[p] = frequencies[p] * Log( frequencies[p] );
-        sumFrequencies += frequencies[p];
+        state->weights[p] = state->frequencies[p] * Log( state->frequencies[p] );
+        sumFrequencies += state->frequencies[p];
         sumWeights += state->weights[p];
     }
 
@@ -322,18 +323,18 @@ RandomSelect( Array<r32>& distribution )
     r32 r = RandomNormalizedR32();
 
     r32 sum = 0.f;
-    for( u32 i = 0; i < distribution.count; ++i )
+    for( u32 i = 0; i < distribution.maxCount; ++i )
         sum += distribution[i];
 
     ASSERT( sum != 0.f );
 
-    for( u32 i = 0; i < distribution.count; ++i )
+    for( u32 i = 0; i < distribution.maxCount; ++i )
         distribution[i] /= sum;
 
     u32 i = 0;
     r32 x = 0.f;
 
-    while( i < distribution.count )
+    while( i < distribution.maxCount )
     {
         x += distribution[i];
         if (r <= x)
@@ -356,12 +357,16 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
     // Add entry to stack
     state->propagationStack.Push( { cellIndex, patternIndex } );
 
+    state->compatiblesCount[cellIndex]--;
+    // Early out
+    if( state->compatiblesCount[cellIndex] == 0 )
+        state->currentResult = Contradiction;
+
     // Weird entropy calculation
     u32 i = cellIndex;
     state->entropies[i] += state->sumWeights[i] / state->sumFrequencies[i] - Log( state->sumFrequencies[i] );
 
     u32* frequency = state->patternsHash.Find( state->patterns[patternIndex] );
-    state->compatiblesCount[i]--;
     state->sumFrequencies[i] -= *frequency;
     state->sumWeights[i] -= state->weights[patternIndex];
 
@@ -448,14 +453,10 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         {
             u32 patternCount = state->patterns.count;
 
-            // TODO Store this in the state so we don't have to keep doing it and don't LEAK memory everytime
-            Array<u32> frequencies = state->patternsHash.Values( arena );
-            Array<r32> distribution = Array<r32>( arena, patternCount );
-
             for( u32 p = 0; p < patternCount; ++p )
-                distribution.Add( state->wave.At( selectedCellIndex, p ) ? frequencies[p] : 0.f );
+                state->distributionTemp[p] = (state->wave.At( selectedCellIndex, p ) ? state->frequencies[p] : 0.f);
 
-            u32 selectedPattern = RandomSelect( distribution );
+            u32 selectedPattern = RandomSelect( state->distributionTemp );
 
             for( u32 p = 0; p < patternCount; ++p )
             {
@@ -475,7 +476,7 @@ Propagate( const Spec& spec, State* state )
     u32 height = spec.outputDim.y;
     u32 patternCount = state->patterns.count;
 
-    while( state->propagationStack.count > 0 )
+    while( state->currentResult == InProgress && state->propagationStack.count > 0 )
     {
         BannedTuple ban = state->propagationStack.Pop();
         v2i pCell = PositionFromIndex( ban.cellIndex, width );
@@ -522,32 +523,7 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
     const u32 height = spec.outputDim.y;
     u32* out = imageBuffer;
 
-    if( state->currentResult == Done )
-    {
-        for( u32 y = 0; y < height; ++y )
-        {
-            u32 cellY = (y < height - N + 1) ? y : y - N + 1;
-            u32 dy = (y < height - N + 1) ? 0 : y + N - height;
-
-            for( u32 x = 0; x < width; ++x )
-            {
-                u32 cellX = (x < width - N + 1) ? x : x - N + 1;
-                u32 dx = (x < width - N + 1) ? 0 : x + N - width;
-
-                u32 color = 0;
-                u32 patternIndex = state->observations[cellY * width + cellX];
-                if( patternIndex != U32MAX )
-                {
-                    u8* patternSamples = state->patterns[patternIndex].data;
-                    u8 sample = patternSamples[dy * N + dx];
-                    color = state->palette[sample];
-                }
-
-                *out++ = color;
-            }
-        }
-    }
-    else if( state->currentResult > NotStarted )
+    if( state->currentResult == InProgress )
     {
         for( u32 y = 0; y < height; ++y )
         {
@@ -583,12 +559,63 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
                                 b += cb;
                                 contributors++;
                             }
+                            //else
+                            //{
+                                //if( p == state->patterns.count - 1 && contributors == 0 )
+                                    //DebugBreak();
+                            //}
                         }
                     }
                 }
 
                 if( contributors )
                     color = PackRGBA( r / contributors, g / contributors, b / contributors, 0xFF );
+
+                //ASSERT( color != 0 );
+                *out++ = color;
+            }
+        }
+    }
+    else if( state->currentResult == Done )
+    {
+        for( u32 y = 0; y < height; ++y )
+        {
+            u32 cellY = (y < height - N + 1) ? y : y - N + 1;
+            u32 dy = (y < height - N + 1) ? 0 : y + N - height;
+
+            for( u32 x = 0; x < width; ++x )
+            {
+                u32 cellX = (x < width - N + 1) ? x : x - N + 1;
+                u32 dx = (x < width - N + 1) ? 0 : x + N - width;
+
+                u32 color = 0;
+                u32 patternIndex = state->observations[cellY * width + cellX];
+                if( patternIndex != U32MAX )
+                {
+                    u8* patternSamples = state->patterns[patternIndex].data;
+                    u8 sample = patternSamples[dy * N + dx];
+                    color = state->palette[sample];
+                }
+
+                ASSERT( color != 0 );
+                *out++ = color;
+            }
+        }
+    }
+    else if( state->currentResult == Contradiction )
+    {
+        for( u32 y = 0; y < height; ++y )
+        {
+            for( u32 x = 0; x < width; ++x )
+            {
+                u32 color = *out;
+                v4 unpacked = UnpackRGBAToV401( color );
+                unpacked = Hadamard( unpacked, { .5f, .5f, .5f, 1.f } );
+                color = Pack01ToRGBA( unpacked );
+
+                u32 count = state->compatiblesCount[y * width + x];
+                if( count == 0 )
+                    color = Pack01ToRGBA( 1, 0, 1, 1 );
 
                 *out++ = color;
             }
@@ -629,7 +656,7 @@ DrawFileSelectorPopup( const Array<Spec>& specs, u32 currentSpecIndex )
 
 
 u32
-DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* arena, DisplayState* displayState, const v2& displayDim )
+DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayArena, DisplayState* displayState, const v2& displayDim )
 {
     u32 selectedIndex = U32MAX;
     const Spec& spec = specs[displayState->currentSpecIndex];
@@ -690,27 +717,34 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* arena, Disp
             {
                 ImVec2 imageSize = spec.outputDim * outputScale;
 
-                if( state->remainingObservations != displayState->lastRemainingObservations )
+                if( state->currentResult != displayState->lastDisplayedResult ||
+                    state->remainingObservations != displayState->lastRemainingObservations )
                 {
+                    // NOTE Very Broken Synchronization, but I don't really want to synchronize..
+                    displayState->lastDisplayedResult = state->currentResult;
+                    displayState->lastRemainingObservations = state->remainingObservations;
+
                     if( !displayState->outputImageBuffer )
-                        displayState->outputImageBuffer = PUSH_ARRAY( arena, spec.outputDim.x * spec.outputDim.y, u32 );
+                        displayState->outputImageBuffer = PUSH_ARRAY( wfcDisplayArena, spec.outputDim.x * spec.outputDim.y, u32 );
 
                     CreateOutputTexture( spec, state, displayState->outputImageBuffer, &displayState->outputTexture );
-                    displayState->lastRemainingObservations = state->remainingObservations;
                 }
 
                 ImGui::Image( displayState->outputTexture.handle, imageSize );
 
                 ImGui::SameLine();
                 ImGui::Indent();
-                ImGui::Text( "Remaining: %d", state->remainingObservations );
+                if( state->currentResult == Contradiction )
+                    ImGui::Text( "CONTRADICTION!" );
+                else
+                    ImGui::Text( "Remaining: %d", state->remainingObservations );
             }
         } break;
 
         case TestPage::Patterns:
         {
             if( !displayState->patternTextures )
-                displayState->patternTextures = Array<Texture>( arena, state->patterns.count );
+                displayState->patternTextures = Array<Texture>( wfcDisplayArena, state->patterns.count );
 
             u32 row = 0;
             for( u32 i = 0; i < state->patterns.count; ++i )
@@ -719,7 +753,7 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* arena, Disp
                 Texture& t = displayState->patternTextures[i];
 
                 if( !t.handle )
-                    t = CreatePatternTexture( p, state->palette, arena );
+                    t = CreatePatternTexture( p, state->palette, wfcDisplayArena );
 
                 ImGui::Image( t.handle, ImVec2( (r32)t.width * outputScale, (r32)t.height * outputScale ) );
 
@@ -737,7 +771,7 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* arena, Disp
         case TestPage::Index:
         {
             if( !displayState->patternTextures )
-                displayState->patternTextures = Array<Texture>( arena, state->patterns.count );
+                displayState->patternTextures = Array<Texture>( wfcDisplayArena, state->patterns.count );
 
             ImGui::BeginChild( "child_index_entries", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
             for( u32 i = 0; i < state->patterns.count; ++i )
@@ -746,7 +780,7 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* arena, Disp
                 Texture& t = displayState->patternTextures[i];
 
                 if( !t.handle )
-                    t = CreatePatternTexture( p, state->palette, arena );
+                    t = CreatePatternTexture( p, state->palette, wfcDisplayArena );
 
                 if( ImGui::ImageButton( t.handle, ImVec2( (r32)t.width * outputScale, (r32)t.height * outputScale ) ) )
                     displayState->currentIndexEntry = i;
@@ -793,7 +827,7 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* arena, Disp
                                 Texture& t = displayState->patternTextures[i];
 
                                 //if( !p.texture.handle )
-                                //p.texture = CreatePatternTexture( p, state->palette, arena );
+                                //p.texture = CreatePatternTexture( p, state->palette, wfcDisplayArena );
 
                                 ImGui::Image( t.handle, ImVec2( (r32)t.width * outputScale, (r32)t.height * outputScale ) );
 

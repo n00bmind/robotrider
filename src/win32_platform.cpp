@@ -2000,7 +2000,7 @@ main( int argC, char **argV )
 
 #if !RELEASE
             DEBUGglobalCursor = LoadCursor( 0, IDC_CROSS );
-            ShowWindow( window, SW_SHOWNORMAL ); //SW_MAXIMIZE );
+            ShowWindow( window, SW_MAXIMIZE ); //SW_SHOWNORMAL );
 #else
             Win32ToggleFullscreen( window );
 #endif

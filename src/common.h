@@ -10,7 +10,7 @@
 
 
 #if !RELEASE
-#define HALT() ( (*(volatile int *)0 = 0) != 0 )
+#define HALT() ( (*(volatile int *)0x0BAD = 0) != 0 )
 #define ASSERT(expr) ((void)( !(expr) && (globalAssertHandler( #expr, __FILE__, __LINE__ ), 1) && HALT()))
 #define ASSERTM(expr, msg) ((void)( !(expr) && (globalAssertHandler( msg, __FILE__, __LINE__ ), 1) && HALT()))
 #else
