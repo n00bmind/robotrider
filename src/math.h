@@ -70,9 +70,9 @@ Radians( r32 degrees )
 // Also, we should probably distinguish between "fast & repeatable" (for PCG) and "good distribution" (for other stuff) random numbers
 
 inline void
-RandomSeed( u32 seed )
+RandomSeed()
 {
-    srand( seed );
+    srand( (u32)time( nullptr ) );
 }
 
 inline u32

@@ -496,10 +496,10 @@ UnpackRGBAToV401( u32 c )
 {
     v4 result =
     {
-        ((c >> 24) & 0xFF) / 255.f,
-        ((c >> 16) & 0xFF) / 255.f,
-        ((c >>  8) & 0xFF) / 255.f,
         ((c >>  0) & 0xFF) / 255.f,
+        ((c >>  8) & 0xFF) / 255.f,
+        ((c >> 16) & 0xFF) / 255.f,
+        ((c >> 24) & 0xFF) / 255.f,
     };
     return result;
 }

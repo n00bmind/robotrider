@@ -33,17 +33,18 @@ PalettizeSource( const Texture& source, State* state, MemoryArena* arena )
 }
 
 internal void
-ExtractPattern( u8* input, u32 x, u32 y, u32 pitch, u32 N, u8* output )
+ExtractPattern( u8* input, u32 x, u32 y, const v2i& inputDim, u32 N, u8* output )
 {
-    u8* src = input + y * pitch + x;
     u8* dst = output;
     for( u32 j = 0; j < N; ++j )
     {
+        u32 iy = (y + j) % inputDim.y;
         for( u32 i = 0; i < N; ++i )
         {
-            *dst++ = *src++;
+            u32 ix = (x + i) % inputDim.x;
+            u8* src = input + iy * inputDim.x + ix;
+            *dst++ = *src;
         }
-        src += pitch - N;
     }
 }
 
@@ -124,11 +125,11 @@ BuildPatternsFromSource( const u32 N, const v2i& inputDim, State* state, MemoryA
     // Totally arbitrary number for the entry count
     new (&state->patternsHash) HashTable<Pattern, u32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
 
-    for( u32 j = 0; j < inputDim.y - N + 1; ++j )
+    for( u32 j = 0; j < (u32)inputDim.y; ++j )
     {
-        for( u32 i = 0; i < inputDim.x - N + 1; ++i )
+        for( u32 i = 0; i < (u32)inputDim.x; ++i )
         {
-            ExtractPattern( state->input, i, j, inputDim.x, N, patternData );
+            ExtractPattern( state->input, i, j, inputDim, N, patternData );
             AddPatternWithData( patternData, N, state, arena );
 
             ReflectPattern( patternData, N, reflectedPatternData );
@@ -245,18 +246,6 @@ BuildPatternsIndex( const u32 N, State* state, MemoryArena* arena )
     }
 }
 
-inline u32
-CountMatches( const IndexEntry& entry )
-{
-    u32 result = 0;
-
-    for( u32 i = 0; i < entry.matches.count; ++i )
-        if( entry.matches[i] )
-            result++;
-
-    return result;
-}
-
 internal void
 Init( const Spec& spec, State* state, MemoryArena* arena )
 {
@@ -310,7 +299,16 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
         {
             state->wave.At( i, p ) = true;
             for( u32 d = 0; d < Adjacency::Count; ++d )
-                state->adjacencyCounters.At( i, p ).dir[d] = CountMatches( state->patternsIndex[opposites[d]].entries[p] );
+            {
+                IndexEntry& entry = state->patternsIndex[opposites[d]].entries[p];
+
+                u32 matches = 0;
+                for( u32 m = 0; m < entry.matches.count; ++m )
+                    if( entry.matches[m] )
+                        matches++;
+
+                state->adjacencyCounters.At( i, p ).dir[d] = matches;
+            }
         }
     }
 
@@ -665,6 +663,7 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
 
 
     const r32 outputScale = 4.f;
+    const r32 patternScale = outputScale * 2;
 
     ImGui::SetNextWindowPos( { 100.f, 100.f }, ImGuiCond_Always );
     ImGui::SetNextWindowSize( displayDim, ImGuiCond_Always );
@@ -732,6 +731,9 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
 
                 ImGui::Image( displayState->outputTexture.handle, imageSize );
 
+                if( ImGui::IsItemClicked() )
+                    selectedIndex = displayState->currentSpecIndex;
+
                 ImGui::SameLine();
                 ImGui::Indent();
                 if( state->currentResult == Contradiction )
@@ -755,7 +757,7 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
                 if( !t.handle )
                     t = CreatePatternTexture( p, state->palette, wfcDisplayArena );
 
-                ImGui::Image( t.handle, ImVec2( (r32)t.width * outputScale, (r32)t.height * outputScale ) );
+                ImGui::Image( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) );
 
                 row++;
                 if( row < patternsCountSqrt )
@@ -782,7 +784,7 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
                 if( !t.handle )
                     t = CreatePatternTexture( p, state->palette, wfcDisplayArena );
 
-                if( ImGui::ImageButton( t.handle, ImVec2( (r32)t.width * outputScale, (r32)t.height * outputScale ) ) )
+                if( ImGui::ImageButton( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) ) )
                     displayState->currentIndexEntry = i;
                 ImGui::Spacing();
             }
@@ -802,9 +804,14 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
 
                         if( ImGui::GetColumnIndex() == 0 )
                             ImGui::Separator();
-                        ImGui::Text("{ %d, %d }", i, j );
+                        ImGui::Text("{ %d, %d }", i - 1, j - 1 );
 
-                        if( i == 0 && j == 1 )
+                        if( i == 1 && j == 1 )
+                        {
+                            Texture& t = displayState->patternTextures[displayState->currentIndexEntry];
+                            ImGui::Image( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) );
+                        }
+                        else if( i == 0 && j == 1 )
                             d = 0;
                         else if( i == 1 && j == 2 )
                             d = 1;
@@ -824,12 +831,9 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
                                     continue;
 
                                 const Pattern& p = state->patterns[m];
-                                Texture& t = displayState->patternTextures[i];
+                                Texture& t = displayState->patternTextures[m];
 
-                                //if( !p.texture.handle )
-                                //p.texture = CreatePatternTexture( p, state->palette, wfcDisplayArena );
-
-                                ImGui::Image( t.handle, ImVec2( (r32)t.width * outputScale, (r32)t.height * outputScale ) );
+                                ImGui::Image( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) );
 
                                 row++;
                                 if( row < patternsCountSqrt )

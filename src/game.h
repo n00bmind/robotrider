@@ -30,6 +30,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string.h>
 #include <math.h>
 #include <float.h>
+#include <time.h>
 
 
 #include "common.h"

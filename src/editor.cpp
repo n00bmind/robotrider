@@ -78,6 +78,8 @@ InitEditor( const v2i screenDim, EditorState* editorState, World* world, MemoryA
     editorState->wfcSpecs = LoadWFCVars( "wfc.vars", worldArena, tmpArena );
     ASSERT( editorState->wfcSpecs.count );
 
+    RandomSeed();
+
     /// WFC test
     editorState->wfcArena = MakeSubArena( worldArena, MEGABYTES(128) );
     editorState->wfcState = WFC::StartWFCAsync( editorState->wfcSpecs[0], &editorState->wfcArena );
