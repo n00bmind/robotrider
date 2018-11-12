@@ -125,6 +125,7 @@ BuildPatternsFromSource( const u32 N, const v2i& inputDim, State* state, MemoryA
     // Totally arbitrary number for the entry count
     new (&state->patternsHash) HashTable<Pattern, u32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
 
+    // NOTE We assume 'periodicInput' to be true
     for( u32 j = 0; j < (u32)inputDim.y; ++j )
     {
         for( u32 i = 0; i < (u32)inputDim.x; ++i )
@@ -249,35 +250,29 @@ BuildPatternsIndex( const u32 N, State* state, MemoryArena* arena )
 internal void
 Init( const Spec& spec, State* state, MemoryArena* arena )
 {
+    state->arena = arena;
+
     PalettizeSource( spec.source, state, arena );
     BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, state, arena );
     BuildPatternsIndex( spec.N, state, arena );
 
 
     const v2i outputDim = spec.outputDim;
+    // FIXME This should actually be (width - N + 1) * (height - N + 1)
     u32 waveLength = outputDim.x * outputDim.y;
     u32 patternCount = state->patterns.count;
 
     state->remainingObservations = waveLength;
+    state->frequencies = state->patternsHash.Values( arena );
+    ASSERT( state->frequencies.count == patternCount );
+    state->weights = Array<r64>( arena, patternCount );
+    state->distributionTemp = Array<r32>( arena, patternCount );
     // Increase as needed
     state->propagationStack = Array<BannedTuple>( arena, waveLength * 2 );
-
-    state->distributionTemp = Array<r32>( arena, patternCount );
-    state->wave = Array2<bool>( arena, waveLength, patternCount );
-    state->adjacencyCounters = Array2<AdjacencyCounters>( arena, waveLength, patternCount );
-    state->compatiblesCount = Array<u32>( arena, waveLength );
-    state->weights = Array<r64>( arena, patternCount );
-    state->sumFrequencies = Array<r64>( arena, waveLength );
-    state->sumWeights = Array<r64>( arena, waveLength );
-    state->entropies = Array<r64>( arena, waveLength );
-    // FIXME This should actually be (width - N + 1) * (height - N + 1)
-    state->observations = Array<u32>( arena, waveLength );
 
     r64 sumFrequencies = 0;                                                     // sumOfWeights
     r64 sumWeights = 0;                                                         // sumOfWeightLogWeights
 
-    state->frequencies = state->patternsHash.Values( arena );               // weights
-    ASSERT( state->frequencies.count == patternCount );
     for( u32 p = 0; p < patternCount; ++p )
     {
         state->weights[p] = state->frequencies[p] * Log( state->frequencies[p] );
@@ -287,17 +282,26 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
 
     r64 initialEntropy = Log( sumFrequencies ) - sumWeights / sumFrequencies;
 
+
+    Snapshot snapshot0;
+
+    snapshot0.wave = Array2<bool>( arena, waveLength, patternCount );
+    snapshot0.adjacencyCounters = Array2<AdjacencyCounters>( arena, waveLength, patternCount );
+    snapshot0.compatiblesCount = Array<u32>( arena, waveLength );
+    snapshot0.sumFrequencies = Array<r64>( arena, waveLength );
+    snapshot0.sumWeights = Array<r64>( arena, waveLength );
+    snapshot0.entropies = Array<r64>( arena, waveLength );
+
     for( u32 i = 0; i < waveLength; ++i )
     {
-        state->compatiblesCount[i] = patternCount;
-        state->sumFrequencies[i] = sumFrequencies;
-        state->sumWeights[i] = sumWeights;
-        state->entropies[i] = initialEntropy;
-        state->observations[i] = U32MAX;
+        snapshot0.compatiblesCount[i] = patternCount;
+        snapshot0.sumFrequencies[i] = sumFrequencies;
+        snapshot0.sumWeights[i] = sumWeights;
+        snapshot0.entropies[i] = initialEntropy;
 
         for( u32 p = 0; p < patternCount; ++p )
         {
-            state->wave.At( i, p ) = true;
+            snapshot0.wave.At( i, p ) = true;
             for( u32 d = 0; d < Adjacency::Count; ++d )
             {
                 IndexEntry& entry = state->patternsIndex[opposites[d]].entries[p];
@@ -307,10 +311,15 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
                     if( entry.matches[m] )
                         matches++;
 
-                state->adjacencyCounters.At( i, p ).dir[d] = matches;
+                snapshot0.adjacencyCounters.At( i, p ).dir[d] = matches;
             }
         }
     }
+
+    // TODO Fit as many as possible in the given arena
+    u32 maxSnapshotCount = 1;
+    state->snapshots = RingStack<Snapshot>( arena, maxSnapshotCount );
+    state->currentSnapshot = state->snapshots.Push( snapshot0 );
 
     state->currentResult = InProgress;
 }
@@ -346,29 +355,31 @@ RandomSelect( Array<r32>& distribution )
 internal void
 BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
 {
-    state->wave.At( cellIndex, patternIndex ) = false;
+    Snapshot* snapshot = state->currentSnapshot;
 
-    // Update adjacency counters
+    snapshot->wave.At( cellIndex, patternIndex ) = false;
+
     for( u32 d = 0; d < Adjacency::Count; ++d )
-        state->adjacencyCounters.At( cellIndex, patternIndex ).dir[d] = 0;
+        snapshot->adjacencyCounters.At( cellIndex, patternIndex ).dir[d] = 0;
 
-    // Add entry to stack
-    state->propagationStack.Push( { cellIndex, patternIndex } );
-
-    state->compatiblesCount[cellIndex]--;
+    snapshot->compatiblesCount[cellIndex]--;
     // Early out
-    if( state->compatiblesCount[cellIndex] == 0 )
+    if( snapshot->compatiblesCount[cellIndex] == 0 )
         state->currentResult = Contradiction;
 
     // Weird entropy calculation
     u32 i = cellIndex;
-    state->entropies[i] += state->sumWeights[i] / state->sumFrequencies[i] - Log( state->sumFrequencies[i] );
+    snapshot->entropies[i] += snapshot->sumWeights[i] / snapshot->sumFrequencies[i] - Log( snapshot->sumFrequencies[i] );
 
+    // TODO This is now stored in 'frequencies'
     u32* frequency = state->patternsHash.Find( state->patterns[patternIndex] );
-    state->sumFrequencies[i] -= *frequency;
-    state->sumWeights[i] -= state->weights[patternIndex];
+    snapshot->sumFrequencies[i] -= *frequency;
+    snapshot->sumWeights[i] -= state->weights[patternIndex];
 
-    state->entropies[i] -= state->sumWeights[i] / state->sumFrequencies[i] - Log( state->sumFrequencies[i] );
+    snapshot->entropies[i] -= snapshot->sumWeights[i] / snapshot->sumFrequencies[i] - Log( snapshot->sumFrequencies[i] );
+
+    // Add entry to stack
+    state->propagationStack.Push( { cellIndex, patternIndex } );
 }
 
 inline bool
@@ -394,17 +405,19 @@ internal Result
 Observe( const Spec& spec, State* state, MemoryArena* arena )
 {
     Result result = InProgress;
+    Snapshot* snapshot = state->currentSnapshot;
 
     u32 selectedCellIndex = 0;
     r64 minEntropy = R64INF;
 
+    u32 observations = 0;
     u32 waveLength = spec.outputDim.x * spec.outputDim.y;
     for( u32 i = 0; i < waveLength; ++i )
     {
         if( OnBoundary( PositionFromIndex( i, spec.outputDim.x ), spec ) )
             continue;
 
-        u32 count = state->compatiblesCount[i];
+        u32 count = snapshot->compatiblesCount[i];
         if( count == 0)
         {
             result = Contradiction;
@@ -412,22 +425,11 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         }
         else if( count == 1 )
         {
-            u32 p = 0;
-            for( ; p < state->patterns.count; ++p )
-                if( state->wave.At( i, p ) )
-                    break;
-
-            if( state->observations[i] == U32MAX )
-            {
-                state->observations[i] = p;
-                state->remainingObservations--;
-            }
-            else
-                ASSERT( state->observations[i] == p );
+            observations++;
         }
         else
         {
-            r64 entropy = state->entropies[i];
+            r64 entropy = snapshot->entropies[i];
             if( entropy <= minEntropy )
             {
                 r64 noise = 1E-6 * RandomNormalizedR64();
@@ -439,6 +441,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             }
         }
     }
+    state->remainingObservations = observations;
 
     if( result == InProgress )
     {
@@ -452,13 +455,13 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             u32 patternCount = state->patterns.count;
 
             for( u32 p = 0; p < patternCount; ++p )
-                state->distributionTemp[p] = (state->wave.At( selectedCellIndex, p ) ? state->frequencies[p] : 0.f);
+                state->distributionTemp[p] = (snapshot->wave.At( selectedCellIndex, p ) ? state->frequencies[p] : 0.f);
 
             u32 selectedPattern = RandomSelect( state->distributionTemp );
 
             for( u32 p = 0; p < patternCount; ++p )
             {
-                if( state->wave.At( selectedCellIndex, p ) && p != selectedPattern )
+                if( snapshot->wave.At( selectedCellIndex, p ) && p != selectedPattern )
                     BanPatternAtCell( selectedCellIndex, p, state );
             }
         }
@@ -502,7 +505,7 @@ Propagate( const Spec& spec, State* state )
             {
                 if( bannedEntry.matches[p] )
                 {
-                    AdjacencyCounters& counters = state->adjacencyCounters.At( adjacentIndex, p );
+                    AdjacencyCounters& counters = state->currentSnapshot->adjacencyCounters.At( adjacentIndex, p );
                     counters.dir[d]--;
 
                     if( counters.dir[d] == 0 )
@@ -521,6 +524,7 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
     const u32 height = spec.outputDim.y;
     u32* out = imageBuffer;
 
+    Snapshot* snapshot = state->currentSnapshot;
     if( state->currentResult == InProgress )
     {
         for( u32 y = 0; y < height; ++y )
@@ -547,7 +551,7 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
 
                         for( u32 p = 0; p < state->patterns.count; ++p )
                         {
-                            if( state->wave.At( cellY * width + cellX, p ) )
+                            if( snapshot->wave.At( cellY * width + cellX, p ) )
                             {
                                 u32 cr, cg, cb;
                                 u8 sample = state->patterns[p].data[dy * N + dx];
@@ -557,11 +561,6 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
                                 b += cb;
                                 contributors++;
                             }
-                            //else
-                            //{
-                                //if( p == state->patterns.count - 1 && contributors == 0 )
-                                    //DebugBreak();
-                            //}
                         }
                     }
                 }
@@ -569,7 +568,6 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
                 if( contributors )
                     color = PackRGBA( r / contributors, g / contributors, b / contributors, 0xFF );
 
-                //ASSERT( color != 0 );
                 *out++ = color;
             }
         }
@@ -587,13 +585,21 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
                 u32 dx = (x < width - N + 1) ? 0 : x + N - width;
 
                 u32 color = 0;
-                u32 patternIndex = state->observations[cellY * width + cellX];
-                if( patternIndex != U32MAX )
+                u32 patternIndex = U32MAX;
+                u32 cellIndex = cellY * width + cellX;
+                for( u32 p = 0; p < state->patterns.count; ++p )
                 {
-                    u8* patternSamples = state->patterns[patternIndex].data;
-                    u8 sample = patternSamples[dy * N + dx];
-                    color = state->palette[sample];
+                    if( snapshot->wave.At( cellIndex, patternIndex ) )
+                    {
+                        patternIndex = p;
+                        break;
+                    }
                 }
+                ASSERT( patternIndex != U32MAX );
+
+                u8* patternSamples = state->patterns[patternIndex].data;
+                u8 sample = patternSamples[dy * N + dx];
+                color = state->palette[sample];
 
                 ASSERT( color != 0 );
                 *out++ = color;
@@ -611,7 +617,7 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
                 unpacked = Hadamard( unpacked, { .5f, .5f, .5f, 1.f } );
                 color = Pack01ToRGBA( unpacked );
 
-                u32 count = state->compatiblesCount[y * width + x];
+                u32 count = snapshot->compatiblesCount[y * width + x];
                 if( count == 0 )
                     color = Pack01ToRGBA( 1, 0, 1, 1 );
 
@@ -714,6 +720,23 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
         {
 			if (state->currentResult > NotStarted)
             {
+                ImGui::Columns( 2, nullptr, false );
+                ImGui::SetColumnWidth( -1, 350 );
+
+                if( state->currentResult == Contradiction )
+                    ImGui::Text( "CONTRADICTION!" );
+                else
+                    ImGui::Text( "Remaining: %d", state->remainingObservations );
+
+                ImGui::Spacing();
+                ImGui::Spacing();
+                ImGui::Text( "Name: %s", spec.name );
+                ImGui::Text( "Num. patterns: %d", state->patterns.count );
+
+                ImGui::Spacing();
+                ImGui::Spacing();
+                ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
+                ImGui::NextColumn();
                 ImVec2 imageSize = spec.outputDim * outputScale;
 
                 if( state->currentResult != displayState->lastDisplayedResult ||
@@ -733,13 +756,6 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
 
                 if( ImGui::IsItemClicked() )
                     selectedIndex = displayState->currentSpecIndex;
-
-                ImGui::SameLine();
-                ImGui::Indent();
-                if( state->currentResult == Contradiction )
-                    ImGui::Text( "CONTRADICTION!" );
-                else
-                    ImGui::Text( "Remaining: %d", state->remainingObservations );
             }
         } break;
 
@@ -748,7 +764,8 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
             if( !displayState->patternTextures )
                 displayState->patternTextures = Array<Texture>( wfcDisplayArena, state->patterns.count );
 
-            u32 row = 0;
+            bool firstRow = true;
+            ImGui::Columns( patternsCountSqrt, nullptr, false );
             for( u32 i = 0; i < state->patterns.count; ++i )
             {
                 const Pattern& p = state->patterns[i];
@@ -758,15 +775,16 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
                     t = CreatePatternTexture( p, state->palette, wfcDisplayArena );
 
                 ImGui::Image( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) );
+                ImGui::SameLine();
+                ImGui::Text( "%u", state->frequencies[i] );
 
-                row++;
-                if( row < patternsCountSqrt )
-                    ImGui::SameLine( 0, 30 );
-                else
-                {
-                    ImGui::Spacing();
-                    row = 0;
-                }
+                ImGui::NextColumn();
+
+                if( ImGui::GetColumnIndex() == 0 )
+                    firstRow = false;
+
+                if( !firstRow )
+                    ImGui::Dummy( V2( 0, 10 ) );
             }
         } break;
 

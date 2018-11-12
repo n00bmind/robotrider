@@ -81,10 +81,12 @@ InitEditor( const v2i screenDim, EditorState* editorState, World* world, MemoryA
     RandomSeed();
 
     /// WFC test
-    editorState->wfcArena = MakeSubArena( worldArena, MEGABYTES(128) );
+    if( !editorState->wfcArena.base )
+        editorState->wfcArena = MakeSubArena( worldArena, MEGABYTES(512) );
     editorState->wfcState = WFC::StartWFCAsync( editorState->wfcSpecs[0], &editorState->wfcArena );
 
-    editorState->wfcDisplayArena = MakeSubArena( worldArena, MEGABYTES(16) );
+    if( !editorState->wfcDisplayArena.base )
+        editorState->wfcDisplayArena = MakeSubArena( worldArena, MEGABYTES(16) );
 }
 
 void

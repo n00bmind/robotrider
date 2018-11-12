@@ -120,6 +120,13 @@ struct Array2
     u32 cols;
     T *data;
 
+    Array2()
+    {
+        rows = 0;
+        cols = 0;
+        data = nullptr;
+    }
+
     Array2( MemoryArena* arena, u32 rows_, u32 cols_ )
     {
         rows = rows_;
@@ -154,6 +161,86 @@ struct Array2
     }
 };
 
+
+/////     RING BUFFER    /////
+
+template <typename T>
+struct RingBuffer
+{
+    T *data;
+    u32 maxCount;
+    u32 headIndex;
+    u32 tailIndex;
+
+    RingBuffer( MemoryArena* arena, u32 maxCount_ )
+    {
+        data = PUSH_ARRAY( arena, maxCount_, T );
+        maxCount = maxCount_;
+        headIndex = 0;
+    }
+
+    // FIXME Wrong
+    T* Put( const T& item )
+    {
+        if( headIndex == tailIndex )
+        {
+            // Cover initial edge case
+            ASSERT( headIndex == 0 && tailIndex == 0 );
+            tailIndex = maxCount;
+        }
+        else
+        {
+            ++headIndex;
+            if( headIndex == maxCount )
+                headIndex = 0;
+            if( headIndex == tailIndex )
+                ++tailIndex;
+            if( tailIndex == maxCount )
+                tailIndex = 0;
+        }
+
+        data[headIndex] = item;
+        return &data[headIndex];
+    }
+
+    // FIXME Wrong
+    const T* Get() const
+    {
+        T* result = nullptr;
+
+        if( headIndex != tailIndex )
+            result = &data[headIndex];
+
+        return result;
+    }
+};
+
+
+/////     RING STACK    /////
+
+template <typename T>
+struct RingStack
+{
+    RingBuffer<T> buffer;
+
+    RingStack( MemoryArena* arena, u32 maxCount_ )
+        : buffer( arena, maxCount_ )
+    {}
+
+    T* Push( const T& item )
+    {
+        return buffer.Put( item );
+    }
+
+    // FIXME Wrong
+    const T& Pop() const
+    {
+        ASSERT( buffer.headIndex != buffer.tailIndex );
+
+        T* result = buffer.Get();
+        buffer.headIndex = buffer.headIndex ? buffer.headIndex - 1 : buffer.maxCount;
+    }
+};
 
 /////     HASH TABLE    /////
 

@@ -94,8 +94,23 @@ enum Result
     Contradiction,
 };
 
+struct Snapshot
+{
+    Array2<bool> wave;      // TODO Consider packing this into u64 flags even if that limits the maximum patterns
+
+    Array2<AdjacencyCounters> adjacencyCounters;    // compatible
+    // TODO This might be redundant? (just count how many patterns in a wave cell are still true)
+    Array<u32> compatiblesCount;                    // sumsOfOnes
+
+    Array<r64> sumFrequencies;                      // sumsOfWeights
+    Array<r64> sumWeights;                          // sumsOfWeightLogWeights
+    Array<r64> entropies;
+};
+
 struct State
 {
+    MemoryArena* arena;
+
     u8* input;
     u32 palette[256];
     u32 paletteEntries;
@@ -103,7 +118,8 @@ struct State
     // TODO Consolidate this stuff. We're duplicating data here!
     HashTable<Pattern, u32, PatternHash> patternsHash;
     Array<Pattern> patterns;
-    Array<u32> frequencies;
+    Array<u32> frequencies;                         // weights
+    Array<r64> weights;                             // weightLogWeights
 
     Array<r32> distributionTemp;
 
@@ -111,21 +127,11 @@ struct State
     IndexCell patternsIndex[Adjacency::Count];      // propagator
     Array<BannedTuple> propagationStack;
 
-    Array2<bool> wave;      // TODO Consider packing this into u64 flags even if that limits the maximum patterns
-
-    Array2<AdjacencyCounters> adjacencyCounters;    // compatible
-    // TODO This might be redundant? (just count how many patterns in a wave cell are still true)
-    Array<u32> compatiblesCount;                    // sumsOfOnes
-
-    Array<r64> weights;                             // weightLogWeights
-    Array<r64> sumFrequencies;                      // sumsOfWeights
-    Array<r64> sumWeights;                          // sumsOfWeightLogWeights
-    Array<r64> entropies;
-
-    Array<u32> observations;
-    u32 remainingObservations;
+    RingStack<Snapshot> snapshots;
+    Snapshot* currentSnapshot;
 
     Result currentResult;
+    u32 remainingObservations;
     mutable bool cancellationRequested;
 };
 
