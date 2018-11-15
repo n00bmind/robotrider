@@ -964,6 +964,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
             {
                 v2i vIK = n == 0 ? V2I( i, k ) : V2I( i, k+1 );
 
+                // FIXME
                 ARRAY(Hit, 10, rayHits);
                 FilterHits( gridHits, vIK, &rayHits );
 

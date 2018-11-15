@@ -150,9 +150,14 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     }
 
 
+    const DebugState* debugState = nullptr;
+#if !RELEASE
+    debugState = (DebugState*)memory->debugStorage;
+#endif
     v2 displayDim = V2( renderCommands->width * 0.9f, renderCommands->height * 0.9f );
     u32 selectedIndex = WFC::DrawTest( editorState.wfcSpecs, editorState.wfcState,
-                                       &editorState.wfcDisplayArena, &editorState.wfcDisplayState, displayDim );
+                                       &editorState.wfcDisplayArena, &editorState.wfcDisplayState, displayDim,
+                                       debugState );
 
     if( editorState.wfcState->cancellationRequested )
     {

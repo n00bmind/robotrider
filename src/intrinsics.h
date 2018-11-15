@@ -152,6 +152,28 @@ Abs( r32 value )
     return value >= 0.f ? value : -value;
 }
 
+inline bool
+IsPowerOf2( u64 value )
+{
+    return (value & (value - 1)) == 0;
+}
+
+inline sz
+Align( sz size, sz alignment )
+{
+    ASSERT( IsPowerOf2( alignment ) );
+    sz result = (size + (alignment - 1)) & ~(alignment - 1);
+    return result;
+}
+
+inline void*
+Align( const void* address, sz alignment )
+{
+    ASSERT( IsPowerOf2( alignment ) );
+    void* result = (void*)(((sz)address + (alignment - 1)) & ~(alignment - 1));
+    return result;
+}
+
 inline u32
 GetNextPowerOf2( u32 value )
 {

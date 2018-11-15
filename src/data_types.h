@@ -113,6 +113,7 @@ struct Array
 
 #define ARRAY(type, count, name) type _##name[count];Array<type> name( _##name, count );
 
+
 template <typename T>
 struct Array2
 {

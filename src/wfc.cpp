@@ -250,6 +250,8 @@ BuildPatternsIndex( const u32 N, State* state, MemoryArena* arena )
 internal void
 Init( const Spec& spec, State* state, MemoryArena* arena )
 {
+    TIMED_BLOCK
+
     state->arena = arena;
 
     PalettizeSource( spec.source, state, arena );
@@ -660,13 +662,11 @@ DrawFileSelectorPopup( const Array<Spec>& specs, u32 currentSpecIndex )
 
 
 u32
-DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayArena, DisplayState* displayState, const v2& displayDim )
+DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayArena, DisplayState* displayState, const v2& displayDim,
+          const DebugState* debugState )
 {
     u32 selectedIndex = U32MAX;
     const Spec& spec = specs[displayState->currentSpecIndex];
-
-    ImGui::ShowDemoWindow();
-
 
     const r32 outputScale = 4.f;
     const r32 patternScale = outputScale * 2;
@@ -718,10 +718,9 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
     {
         case TestPage::Output:
         {
-			if (state->currentResult > NotStarted)
+			//if (state->currentResult > NotStarted)
             {
-                ImGui::Columns( 2, nullptr, false );
-                ImGui::SetColumnWidth( -1, 350 );
+                ImGui::BeginChild( "child_output_meta", ImVec2( 300, 0 ) );
 
                 if( state->currentResult == Contradiction )
                     ImGui::Text( "CONTRADICTION!" );
@@ -736,7 +735,11 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
                 ImGui::Spacing();
                 ImGui::Spacing();
                 ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
-                ImGui::NextColumn();
+
+                ImGui::EndChild();
+                ImGui::SameLine();
+
+                ImGui::BeginChild( "child_output_image", ImVec2( 1100, 0 ) );
                 ImVec2 imageSize = spec.outputDim * outputScale;
 
                 if( state->currentResult != displayState->lastDisplayedResult ||
@@ -756,6 +759,16 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
 
                 if( ImGui::IsItemClicked() )
                     selectedIndex = displayState->currentSpecIndex;
+
+                ImGui::EndChild();
+                ImGui::SameLine();
+
+                ImGui::BeginChild( "child_debug", ImVec2( 0, 0 ) );
+                if( debugState )
+                {
+                    DrawPerformanceCounters( debugState );
+                }
+                ImGui::EndChild();
             }
         } break;
 
@@ -879,6 +892,9 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
     ImGui::EndChild();
 
     ImGui::End();
+
+
+    ImGui::ShowDemoWindow();
 
     return selectedIndex;
 }

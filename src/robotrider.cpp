@@ -118,9 +118,6 @@ LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     globalPlatform = *memory->platformAPI;
-#if !RELEASE
-    DebugState* debugState = (DebugState*)memory->debugStorage;
-#endif
 
     TIMED_BLOCK;
 
@@ -190,6 +187,8 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 
 #if !RELEASE
+    DebugState* debugState = (DebugState*)memory->debugStorage;
+
     float fps = ImGui::GetIO().Framerate; //1.f / input->frameElapsedSeconds;
     float frameTime = 1000.f / fps;
     char statsText[1024];
@@ -206,7 +205,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     else if( memory->DEBUGglobalDebugging )
     {
         DrawConsole( &gameState->gameConsole, width, height, statsText );
-        DrawPerformanceCounters( memory, width, height );
+        DrawPerformanceCountersWindow( debugState, width, height );
     }
     else
         DrawStats( width, height, statsText );
@@ -235,13 +234,10 @@ DEBUG_GAME_FRAME_END(DebugGameFrameEnd)
     u32 snapshotIndex = 0; //debugState->snapshotIndex;
     for( u32 i = 0; i < ARRAYCOUNT(DEBUGglobalCounters); ++i )
     {
-        DebugCycleCounter& source = DEBUGglobalCounters[i];
-        DebugCounterLog& dest = debugState->counterLogs[debugState->counterLogsCount++];
+        DebugCycleCounter* source = DEBUGglobalCounters + i;
+        DebugCounterLog* dest = debugState->counterLogs + debugState->counterLogsCount++;
 
-        dest.filename = source.filename;
-        dest.function = source.function;
-        dest.lineNumber = source.lineNumber;
-        UnpackAndResetFrameCounter( source, &dest.snapshots[snapshotIndex].cycleCount, &dest.snapshots[snapshotIndex].hitCount );
+        UnpackAndResetFrameCounter( source, dest, snapshotIndex );
     }
 
     debugState->snapshotIndex++;

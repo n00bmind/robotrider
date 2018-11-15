@@ -125,9 +125,99 @@ DrawAxisGizmos( RenderCommands *renderCommands )
     DrawAlignedQuadWithBasis( origin + V3Y * w,             V3Z, len, -V3Y, w, color, renderCommands );
 }
 
+void
+DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ... )
+{
+    char textBuffer[1024];
+
+    va_list args;
+    va_start( args, format );
+    vsnprintf( textBuffer, ARRAYCOUNT(textBuffer), format, args );
+    va_end( args );
+
+    ImVec2 textSize = ImGui::CalcTextSize( textBuffer );
+    ImGui::SetCursorPosX( cursorStartX - textSize.x - rightPadding );
+    ImGui::Text( textBuffer );
+}
+
 #if !RELEASE
 void
-DrawPerformanceCounters( const GameMemory* gameMemory, u32 windowWidth, u32 windowHeight )
+DrawPerformanceCounters( const DebugState* debugState )
+{
+    r32 windowHeight = ImGui::GetWindowHeight();
+
+    ImGui::BeginChild( "child_perf_counters_frame", ImVec2( -16, windowHeight / 2 ) );
+    r32 contentWidth = ImGui::GetWindowWidth();
+    ImGui::Columns( 4, nullptr, true );
+
+    // TODO Counter stats
+    for( u32 i = 0; i < debugState->counterLogsCount; ++i )
+    {
+        const DebugCounterLog &log = debugState->counterLogs[i];
+
+        u32 frameHitCount = log.snapshots[0].hitCount;
+        u64 frameCycleCount = log.snapshots[0].cycleCount;
+
+        if( frameHitCount > 0 )
+        {
+            // Distribute according to child region size
+            r32 currentWidth = contentWidth * 0.45f;
+            ImGui::SetColumnWidth( -1, currentWidth );
+            ImGui::Text( "%s @ %u", log.function, log.lineNumber );
+            ImGui::NextColumn();
+
+            currentWidth = contentWidth * 0.2f;
+            ImGui::SetColumnWidth( -1, currentWidth );
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + currentWidth, 5, "%llu fc", frameCycleCount );
+            ImGui::NextColumn();
+
+            currentWidth = contentWidth * 0.15f;
+            ImGui::SetColumnWidth( -1, currentWidth );
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + currentWidth, 5, "%u h", frameHitCount );
+            ImGui::NextColumn();
+
+            currentWidth = contentWidth * 0.2f;
+            ImGui::SetColumnWidth( -1, currentWidth );
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + currentWidth, 5, "%u fc/h", (u32)(frameCycleCount/frameHitCount) );
+            ImGui::NextColumn();
+        }
+    }
+    ImGui::EndChild();
+
+    // Span vertically for now
+    //ImGui::Dummy( V2( 0, 250 ) );
+
+    ImGui::BeginChild( "child_perf_counters_total", ImVec2( -16, -16 ) );
+    contentWidth = ImGui::GetWindowWidth();
+    ImGui::Columns( 3, nullptr, true );
+
+    for( u32 i = 0; i < debugState->counterLogsCount; ++i )
+    {
+        const DebugCounterLog &log = debugState->counterLogs[i];
+
+        if( log.totalHitCount > 0 )
+        {
+            r32 currentWidth = contentWidth * 0.5f;
+            ImGui::SetColumnWidth( -1, currentWidth );
+            ImGui::Text( "%s @ %u", log.function, log.lineNumber );
+            ImGui::NextColumn();
+
+            currentWidth = contentWidth * 0.25f;
+            ImGui::SetColumnWidth( -1, currentWidth );
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + currentWidth, 5, "%llu tc", log.totalCycleCount );
+            ImGui::NextColumn();
+
+            currentWidth = contentWidth * 0.25f;
+            ImGui::SetColumnWidth( -1, currentWidth );
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + currentWidth, 5, "%u th", log.totalHitCount );
+            ImGui::NextColumn();
+        }
+    }
+    ImGui::EndChild();
+}
+
+void
+DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight )
 {
     ImGui::SetNextWindowPos( ImVec2( 100.f, windowHeight * 0.25f + 100 ), ImGuiCond_FirstUseEver );
     ImGui::SetNextWindowSize( ImVec2( 500.f, windowHeight * 0.25f ), ImGuiCond_Appearing );
@@ -140,25 +230,7 @@ DrawPerformanceCounters( const GameMemory* gameMemory, u32 windowWidth, u32 wind
 
     ImGui::PushStyleColor( ImGuiCol_Text, UInormalTextColor );
 
-    // TODO Counter stats
-    DebugState* debugState = (DebugState*)gameMemory->debugStorage;
-    for( u32 i = 0; i < debugState->counterLogsCount; ++i )
-    {
-        DebugCounterLog &log = debugState->counterLogs[i];
-
-        u32 frameHitCount = log.snapshots[0].hitCount;
-        u64 frameCycleCount = log.snapshots[0].cycleCount;
-
-        if( frameHitCount > 0 )
-        {
-            ImGui::Text( "%s@%u\t%llu fc  %u h  %u fc/h",
-                         log.function,
-                         log.lineNumber,
-                         frameCycleCount,
-                         frameHitCount,
-                         (u32)(frameCycleCount/frameHitCount) );
-        }
-    }
+    DrawPerformanceCounters( debugState );
     ImGui::PopStyleColor();        
 
     ImGui::End();

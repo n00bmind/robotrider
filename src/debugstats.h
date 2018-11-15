@@ -25,29 +25,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define __DEBUGSTATS_H__ 
 
 
+// Minimal counter tied to a specific code location
 struct DebugCycleCounter
 {
     const char* filename;
     const char* function;
     u32 lineNumber;
 
-    volatile u32 totalHitCount;
-    volatile u64 totalCycleCount;
     volatile u64 frameHitCount24CycleCount40;
 };
-
-inline void
-UnpackAndResetFrameCounter( DebugCycleCounter& c, u64* frameCycleCount, u32* frameHitCount )
-{
-    u64 result = AtomicExchangeU64( &c.frameHitCount24CycleCount40, 0 );
-    
-    *frameHitCount = (u32)(result >> 40);
-    *frameCycleCount = (result & 0xFFFFFFFFFF);
-
-    AtomicAddU32( &c.totalHitCount, *frameHitCount );
-    AtomicAddU64( &c.totalCycleCount, *frameCycleCount );
-}
-
 
 struct DebugCounterSnapshot
 {
@@ -66,6 +52,27 @@ struct DebugCounterLog
 
     DebugCounterSnapshot snapshots[300];
 };
+
+inline void
+UnpackAndResetFrameCounter( DebugCycleCounter* c, DebugCounterLog* dest, u32 snapshotIndex )
+{
+    u64 result = AtomicExchangeU64( &c->frameHitCount24CycleCount40, 0 );
+
+    u32 frameHitCount = (u32)(result >> 40);
+    u64 frameCycleCount = (result & 0xFFFFFFFFFF);
+
+    if( !dest->filename )
+    {
+        dest->filename = c->filename;
+        dest->function = c->function;
+        dest->lineNumber = c->lineNumber;
+    }
+    dest->snapshots[snapshotIndex].hitCount = frameHitCount;
+    dest->snapshots[snapshotIndex].cycleCount = frameCycleCount;
+    AtomicAddU32( &dest->totalHitCount, frameHitCount );
+    AtomicAddU64( &dest->totalCycleCount, frameCycleCount );
+}
+
 
 struct DebugState
 {

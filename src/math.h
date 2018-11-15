@@ -75,16 +75,10 @@ RandomSeed()
     srand( (u32)time( nullptr ) );
 }
 
-inline u32
-RandomU32()
-{
-    return rand();
-}
-
 inline r32
 RandomNormalizedR32()
 {
-    r32 result = (r32)(rand() / (RAND_MAX + 1.));
+    r32 result = (r32)rand() / ((r32)RAND_MAX + 1.f);
     return result;
 }
 
@@ -98,7 +92,7 @@ RandomBinormalizedR32()
 inline r64
 RandomNormalizedR64()
 {
-    r64 result = rand() / (RAND_MAX + 1.);
+    r64 result = (r64)rand() / ((r64)RAND_MAX + 1.);
     return result;
 }
 
@@ -109,6 +103,18 @@ RandomBinormalizedR64()
     return result;
 }
 
+inline i32
+RandomI32()
+{
+    return (i32)(RandomNormalizedR32() * U32MAX);
+}
+
+inline u32
+RandomU32()
+{
+    return (u32)(RandomNormalizedR32() * U32MAX);
+}
+
 // Includes min & max
 inline i32
 RandomRangeI32( i32 min, i32 max )
@@ -117,33 +123,18 @@ RandomRangeI32( i32 min, i32 max )
     return result;
 }
 
+inline u32
+RandomRangeU32( u32 min, u32 max )
+{
+    u32 result = min + rand() / (RAND_MAX / max + 1);
+    return result;
+}
+
 inline r32
 RandomRangeR32( r32 min, r32 max )
 {
-    r32 t = rand() / ((r32)RAND_MAX + 1);
+    r32 t = RandomNormalizedR32();
     r32 result = min + t * (max - min);
-    return result;
-}
-
-inline bool
-IsPowerOf2( u64 value )
-{
-    return (value & (value - 1)) == 0;
-}
-
-inline sz
-Align( sz size, sz alignment )
-{
-    ASSERT( IsPowerOf2( alignment ) );
-    sz result = (size + (alignment - 1)) & ~(alignment - 1);
-    return result;
-}
-
-inline void*
-Align( const void* address, sz alignment )
-{
-    ASSERT( IsPowerOf2( alignment ) );
-    void* result = (void*)(((sz)address + (alignment - 1)) & ~(alignment - 1));
     return result;
 }
 
@@ -231,6 +222,29 @@ UnpackRGBA( u32 c, u32* r, u32* g, u32* b, u32* a = nullptr )
     if( b ) *b = (c >> 16) & 0xFF;
     if( g ) *g = (c >>  8) & 0xFF;
     if( r ) *r = c & 0xFF;
+}
+
+void
+InsertSort( Array<i32>* input, bool ascending )
+{
+    i32* data = input->data;
+    for( u32 i = 1; i < input->count; ++i )
+    {
+        int key = data[i];
+
+        int j = i - 1;
+        bool ordered = false;
+        while( j >= 0 && !ordered )
+        {
+            ordered = ascending ? data[j] <= key : key <= data[j];
+            if( !ordered )
+            {
+                data[j + 1] = data[j];
+                --j;
+            }
+        }
+        data[j + 1] = key;
+    }
 }
 
 #endif /* __MATH_H__ */
