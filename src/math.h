@@ -225,29 +225,33 @@ UnpackRGBA( u32 c, u32* r, u32* g, u32* b, u32* a = nullptr )
 }
 
 void
-InsertSort( Array<i32>* input, bool ascending )
+InsertSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
 {
     i32* data = input->data;
-    for( u32 i = 1; i < input->count; ++i )
+    if( hi == -1 )
+        hi = input->count - 1;
+
+    for( int i = lo + 1; i <= hi; ++i )
     {
         int key = data[i];
 
-        int j = i - 1;
-        bool ordered = false;
-        while( j >= 0 && !ordered )
+        for( int j = i; j >= lo; --j )
         {
-            ordered = ascending ? data[j] <= key : key <= data[j];
-            if( !ordered )
+            bool ordered = ascending ? data[j-1] <= key : key <= data[j-1];
+            if( j == lo || ordered )
             {
-                data[j + 1] = data[j];
-                --j;
+                data[j] = key;
+                break;
             }
+            else
+                data[j] = data[j-1];
         }
-        data[j + 1] = key;
     }
 }
 
-// Assumes pivot is the last element
+// TODO Look into how to optimize all that follow to take advantage of the first copy into an output array?
+
+// NOTE Assumes pivot is the last element
 /*internal*/ bool
 Partition( Array<i32>* input, bool ascending, int lo, int hi, int pivot, int* pivotIndex )
 {
@@ -262,9 +266,7 @@ Partition( Array<i32>* input, bool ascending, int lo, int hi, int pivot, int* pi
         if( swap )
         {
             if( i < j )
-            {
                 Swap( &data[i], &data[j] );
-            }
             ++i;
             
             allEqual = allEqual && data[j] == pivot;
@@ -289,7 +291,10 @@ QuickSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
     if( hi == -1 )
         hi = input->count - 1;
 
-    if( lo < hi )
+    int n = hi - lo + 1;
+    if( n <= 10 )
+        InsertSort( input, ascending, lo, hi );
+    else
     {
         int med = (lo + hi) / 2;
         i32 pivot = Median( data[lo], data[med], data[hi] );
@@ -341,6 +346,7 @@ CountSort( Array<i32>* input, u32 digit, bool ascending, Array<i32> tmp )
         out[--(digitCounts[digitIdx])] = in[i];
     }
 
+    // TODO Look into swapping in & out arrays to eliminate copies!
     for( u32 i = 0; i < input->count; ++i )
         in[i] = out[i];
 }
