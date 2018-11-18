@@ -93,6 +93,7 @@ internal T Average( const Array<T>& array )
 struct SortingBenchmark
 {
     MemoryArena* tmpArena;
+    bool ascending;
 
     Array<i32> sorted;
     Array<i32> reversed;
@@ -117,6 +118,7 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
 {
     SortingBenchmark result = {};
     result.tmpArena = tmpArena;
+    result.ascending = ascending;
 
     {
         // Almost sorted
@@ -270,7 +272,7 @@ VerifySorted( const Array<i32>& input, bool ascending )
 }
 
 void
-TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes, bool ascending )
+TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes )
 {
 #if 0
     if( benchmark->sorted.count < 10000 )
@@ -279,8 +281,8 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes, bool ascending )
         for( u32 i = 0; i < passes; ++i )
         {
             Array<i32> sorted = CopyArray( benchmark->sorted );
-            insertionSort.sortedTimes[i] = TIME( InsertSort( &sorted, ascending ) );
-            EXPECT_TRUE( VerifySorted( sorted, ascending ) );
+            insertionSort.sortedTimes[i] = TIME( InsertSort( &sorted, benchmark->ascending ) );
+            EXPECT_TRUE( VerifySorted( sorted, benchmark->ascending ) );
             //printf( "%s (sorted, %u) :: %llu cycles\n", insertionSort.name, benchmark->sorted.count, insertionSort.sortedTimes[i] );
         }
         printf( "%s (sorted, %u) :: %llu cycles\n", insertionSort.name, benchmark->sorted.count, Average( insertionSort.sortedTimes ) );
@@ -291,30 +293,32 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes, bool ascending )
     for( u32 i = 0; i < passes; ++i )
     {
         Array<i32> sorted = CopyArray( benchmark->sorted );
-        quickSort.sortedTimes[i] = TIME( QuickSort( &sorted, ascending ) );
-        EXPECT_TRUE( VerifySorted( sorted, ascending ) );
+        quickSort.sortedTimes[i] = TIME( QuickSort( &sorted, benchmark->ascending ) );
+        EXPECT_TRUE( VerifySorted( sorted, benchmark->ascending ) );
 
         Array<i32> reversed = CopyArray( benchmark->reversed );
-        quickSort.reversedTimes[i] = TIME( QuickSort( &reversed, ascending ) );
-        EXPECT_TRUE( VerifySorted( reversed, ascending ) );
+        quickSort.reversedTimes[i] = TIME( QuickSort( &reversed, benchmark->ascending ) );
+        EXPECT_TRUE( VerifySorted( reversed, benchmark->ascending ) );
 
         Array<i32> random = CopyArray( benchmark->random );
-        quickSort.randomTimes[i] = TIME( QuickSort( &random, ascending ) );
-        EXPECT_TRUE( VerifySorted( random, ascending ) );
+        quickSort.randomTimes[i] = TIME( QuickSort( &random, benchmark->ascending ) );
+        EXPECT_TRUE( VerifySorted( random, benchmark->ascending ) );
 
         Array<i32> duplicated = CopyArray( benchmark->duplicated );
-        quickSort.duplicatedTimes[i] = TIME( QuickSort( &duplicated, ascending ) );
-        EXPECT_TRUE( VerifySorted( duplicated, ascending ) );
+        quickSort.duplicatedTimes[i] = TIME( QuickSort( &duplicated, benchmark->ascending ) );
+        EXPECT_TRUE( VerifySorted( duplicated, benchmark->ascending ) );
 
         Array<i32> allEqual = CopyArray( benchmark->allEqual );
-        quickSort.allEqualTimes[i] = TIME( QuickSort( &allEqual, ascending ) );
-        EXPECT_TRUE( VerifySorted( allEqual, ascending ) );
+        quickSort.allEqualTimes[i] = TIME( QuickSort( &allEqual, benchmark->ascending ) );
+        EXPECT_TRUE( VerifySorted( allEqual, benchmark->ascending ) );
     }
-    printf( "%s (sorted, %u)\t:: %llu cycles\n", quickSort.name, benchmark->sorted.count, Average( quickSort.sortedTimes ) );
-    printf( "%s (reversed, %u)\t:: %llu cycles\n", quickSort.name, benchmark->reversed.count, Average( quickSort.reversedTimes ) );
-    printf( "%s (random, %u)\t:: %llu cycles\n", quickSort.name, benchmark->random.count, Average( quickSort.randomTimes ) );
-    printf( "%s (duplicated, %u)\t:: %llu cycles\n", quickSort.name, benchmark->duplicated.count, Average( quickSort.duplicatedTimes ) );
-    printf( "%s (allEqual, %u)\t:: %llu cycles\n", quickSort.name, benchmark->allEqual.count, Average( quickSort.allEqualTimes ) );
+    printf( "%s (sorted,     %8u) :: %12llu cycles\n", quickSort.name, benchmark->sorted.count, Average( quickSort.sortedTimes ) );
+    printf( "%s (reversed,   %8u) :: %12llu cycles\n", quickSort.name, benchmark->reversed.count, Average( quickSort.reversedTimes ) );
+    printf( "%s (random,     %8u) :: %12llu cycles\n", quickSort.name, benchmark->random.count, Average( quickSort.randomTimes ) );
+    printf( "%s (duplicated, %8u) :: %12llu cycles\n", quickSort.name, benchmark->duplicated.count, Average( quickSort.duplicatedTimes ) );
+    printf( "%s (allEqual,   %8u) :: %12llu cycles\n", quickSort.name, benchmark->allEqual.count, Average( quickSort.allEqualTimes ) );
+
+    printf( "---\n" );
 
     DeleteTimings( &quickSort );
 
@@ -323,36 +327,38 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes, bool ascending )
     {
         ClearArena( benchmark->tmpArena );
         Array<i32> sorted = CopyArray( benchmark->sorted );
-        radixSort.sortedTimes[i] = TIME( RadixSort( &sorted, ascending, benchmark->tmpArena ) );
-        EXPECT_TRUE( VerifySorted( sorted, ascending ) );
+        radixSort.sortedTimes[i] = TIME( RadixSort( &sorted, benchmark->ascending, benchmark->tmpArena ) );
+        EXPECT_TRUE( VerifySorted( sorted, benchmark->ascending ) );
 
         ClearArena( benchmark->tmpArena );
         Array<i32> reversed = CopyArray( benchmark->reversed );
-        radixSort.reversedTimes[i] = TIME( RadixSort( &reversed, ascending, benchmark->tmpArena ) );
-        EXPECT_TRUE( VerifySorted( reversed, ascending ) );
+        radixSort.reversedTimes[i] = TIME( RadixSort( &reversed, benchmark->ascending, benchmark->tmpArena ) );
+        EXPECT_TRUE( VerifySorted( reversed, benchmark->ascending ) );
 
         ClearArena( benchmark->tmpArena );
         Array<i32> random = CopyArray( benchmark->random );
-        radixSort.randomTimes[i] = TIME( RadixSort( &random, ascending, benchmark->tmpArena ) );
-        EXPECT_TRUE( VerifySorted( random, ascending ) );
+        radixSort.randomTimes[i] = TIME( RadixSort( &random, benchmark->ascending, benchmark->tmpArena ) );
+        EXPECT_TRUE( VerifySorted( random, benchmark->ascending ) );
 
         ClearArena( benchmark->tmpArena );
         Array<i32> duplicated = CopyArray( benchmark->duplicated );
-        radixSort.duplicatedTimes[i] = TIME( RadixSort( &duplicated, ascending, benchmark->tmpArena ) );
-        EXPECT_TRUE( VerifySorted( duplicated, ascending ) );
+        radixSort.duplicatedTimes[i] = TIME( RadixSort( &duplicated, benchmark->ascending, benchmark->tmpArena ) );
+        EXPECT_TRUE( VerifySorted( duplicated, benchmark->ascending ) );
 
         ClearArena( benchmark->tmpArena );
         Array<i32> allEqual = CopyArray( benchmark->allEqual );
-        radixSort.allEqualTimes[i] = TIME( RadixSort( &allEqual, ascending, benchmark->tmpArena ) );
-        EXPECT_TRUE( VerifySorted( allEqual, ascending ) );
+        radixSort.allEqualTimes[i] = TIME( RadixSort( &allEqual, benchmark->ascending, benchmark->tmpArena ) );
+        EXPECT_TRUE( VerifySorted( allEqual, benchmark->ascending ) );
 
     }
-    printf( "%s (sorted, %u)\t:: %llu cycles\n", radixSort.name, benchmark->sorted.count, Average( radixSort.sortedTimes ) );
-    printf( "%s (reversed, %u)\t:: %llu cycles\n", radixSort.name, benchmark->reversed.count, Average( radixSort.reversedTimes ) );
-    printf( "%s (random, %u)\t:: %llu cycles\n", radixSort.name, benchmark->random.count, Average( radixSort.randomTimes ) );
-    printf( "%s (duplicated, %u)\t:: %llu cycles\n", radixSort.name, benchmark->duplicated.count, Average( radixSort.duplicatedTimes ) );
-    printf( "%s (allEqual, %u)\t:: %llu cycles\n", radixSort.name, benchmark->allEqual.count, Average( radixSort.allEqualTimes ) );
+    printf( "%s (sorted,     %8u) :: %12llu cycles\n", radixSort.name, benchmark->sorted.count, Average( radixSort.sortedTimes ) );
+    printf( "%s (reversed,   %8u) :: %12llu cycles\n", radixSort.name, benchmark->reversed.count, Average( radixSort.reversedTimes ) );
+    printf( "%s (random,     %8u) :: %12llu cycles\n", radixSort.name, benchmark->random.count, Average( radixSort.randomTimes ) );
+    printf( "%s (duplicated, %8u) :: %12llu cycles\n", radixSort.name, benchmark->duplicated.count, Average( radixSort.duplicatedTimes ) );
+    printf( "%s (allEqual,   %8u) :: %12llu cycles\n", radixSort.name, benchmark->allEqual.count, Average( radixSort.allEqualTimes ) );
 
+    printf( "\n" );
+    printf( "---\n" );
     printf( "\n" );
 }
 
@@ -372,20 +378,20 @@ main( int argC, char** argV )
 
     if( testSortingBenchmark )
     {
-        SortingBenchmark sortingBenchmark = SetUpSortingBenchmark( 100, true, &tmpArena );
-        TestSortingBenchmark( &sortingBenchmark, 10, true );
+        SortingBenchmark sortingBenchmark = SetUpSortingBenchmark( 100, false, &tmpArena );
+        TestSortingBenchmark( &sortingBenchmark, 10 );
         TearDownSortingBenchmark( &sortingBenchmark );
 
         sortingBenchmark = SetUpSortingBenchmark( 1000, true, &tmpArena );
-        TestSortingBenchmark( &sortingBenchmark, 10, true );
+        TestSortingBenchmark( &sortingBenchmark, 10 );
         TearDownSortingBenchmark( &sortingBenchmark );
 
-        sortingBenchmark = SetUpSortingBenchmark( 10000, true, &tmpArena );
-        TestSortingBenchmark( &sortingBenchmark, 10, true );
+        sortingBenchmark = SetUpSortingBenchmark( 10000, false, &tmpArena );
+        TestSortingBenchmark( &sortingBenchmark, 10 );
         TearDownSortingBenchmark( &sortingBenchmark );
 
         sortingBenchmark = SetUpSortingBenchmark( 1000000, true, &tmpArena );
-        TestSortingBenchmark( &sortingBenchmark, 10, true );
+        TestSortingBenchmark( &sortingBenchmark, 10 );
         TearDownSortingBenchmark( &sortingBenchmark );
     }
 }

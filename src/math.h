@@ -308,7 +308,7 @@ QuickSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
 }
 
 /*internal*/ void
-CountSort( Array<i32>* input, u32 digit, Array<i32> tmp )
+CountSort( Array<i32>* input, u32 digit, bool ascending, Array<i32> tmp )
 {
     ASSERT( tmp.count == input->count );
 
@@ -323,20 +323,29 @@ CountSort( Array<i32>* input, u32 digit, Array<i32> tmp )
     i32* out = tmp.data;
 
     for( u32 i = 0; i < input->count; ++i )
-        digitCounts[(in[i] & Mask) >> Exp]++;
+    {
+        u32 digitIdx = (in[i] & Mask) >> Exp;
+        if( !ascending )
+            digitIdx = Radix - digitIdx - 1;
+        digitCounts[digitIdx]++;
+    }
 
     for( u32 i = 1; i < Radix; ++i )
         digitCounts[i] += digitCounts[i-1];
 
     for( int i = input->count - 1; i >= 0; --i )
-        out[--(digitCounts[(in[i] & Mask) >> Exp])] = in[i];
+    {
+        u32 digitIdx = (in[i] & Mask) >> Exp;
+        if( !ascending )
+            digitIdx = Radix - digitIdx - 1;
+        out[--(digitCounts[digitIdx])] = in[i];
+    }
 
-    // TODO Descending
-    // TODO Test with floats
     for( u32 i = 0; i < input->count; ++i )
         in[i] = out[i];
 }
 
+// TODO Test with floats
 void
 RadixSort( Array<i32>* input, bool ascending, MemoryArena* tmpArena )
 {
@@ -354,31 +363,30 @@ RadixSort( Array<i32>* input, bool ascending, MemoryArena* tmpArena )
     u32 digit = 0;
     while( maxValue > 0 )
     {
-        CountSort( input, digit, tmp );
+        CountSort( input, digit, ascending, tmp );
         maxValue = maxValue >> RadixBits;
         ++digit;
     }
 
     // TODO Do this as part of the last copy from tmp to in
-    u32 negativeIndex = 0;
+    u32 swapIndex = 0;
     for( u32 i = 0; i < input->count; ++i )
     {
-        // Find first index whose value is negative
-        if( (*input)[i] < 0 )
+        // Find first index whose value is negative/positive
+        bool swapped = ascending ? ((*input)[i] < 0) : ((*input)[i] >= 0);
+        if( swapped )
         {
-            negativeIndex = i;
+            swapIndex = i;
             break;
         }
     }
-    if( negativeIndex > 0 )
+    if( swapIndex > 0 )
     {
-        u32 negativeCount = input->count - negativeIndex;
+        u32 swapCount = input->count - swapIndex;
         for( u32 i = 0; i < input->count; ++i )
         {
             tmp[i] = (*input)[i];
-            (*input)[i] = (i < negativeCount)
-                ? (*input)[negativeIndex + i]
-                : tmp[i - negativeCount];
+            (*input)[i] = (i < swapCount) ? (*input)[swapIndex + i] : tmp[i - swapCount];
         }
     }
 }
