@@ -50,7 +50,7 @@ inline void * _PushSize( MemoryArena *arena, sz size );
 inline void * _PushSize( MemoryArena *arena, sz size, sz alignment );
 
 inline void
-InitializeArena( MemoryArena *arena, u8 *base, sz size )
+InitArena( MemoryArena *arena, u8 *base, sz size )
 {
     arena->base = base;
     arena->size = size;
@@ -69,7 +69,7 @@ MakeSubArena( MemoryArena* arena, sz size )
 }
 
 inline void
-ClearArena( MemoryArena* arena, bool clearToZero )
+ClearArena( MemoryArena* arena, bool clearToZero = true )
 {
     arena->used = 0;
     // TODO We should properly track this and invalidate existing TemporaryMemory blocks

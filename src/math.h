@@ -306,4 +306,81 @@ QuickSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
         }
     }
 }
+
+/*internal*/ void
+CountSort( Array<i32>* input, u32 digit, Array<i32> tmp )
+{
+    ASSERT( tmp.count == input->count );
+
+    // TODO Test different bases
+    const u32 RadixBits = 4;
+    const u32 Radix = 1 << RadixBits;
+    const u32 Exp = digit * RadixBits;
+    const u32 Mask = (Radix - 1) << Exp;
+
+    u32 digitCounts[Radix] = {0};
+    i32* in = input->data;
+    i32* out = tmp.data;
+
+    for( u32 i = 0; i < input->count; ++i )
+        digitCounts[(in[i] & Mask) >> Exp]++;
+
+    for( u32 i = 1; i < Radix; ++i )
+        digitCounts[i] += digitCounts[i-1];
+
+    for( int i = input->count - 1; i >= 0; --i )
+        out[--(digitCounts[(in[i] & Mask) >> Exp])] = in[i];
+
+    // TODO Descending
+    // TODO Test with floats
+    for( u32 i = 0; i < input->count; ++i )
+        in[i] = out[i];
+}
+
+void
+RadixSort( Array<i32>* input, bool ascending, MemoryArena* tmpArena )
+{
+    const u32 RadixBits = 4;
+    const u32 Radix = 1 << RadixBits;
+
+    Array<i32> tmp = Array<i32>( tmpArena, input->count );
+    tmp.count = input->count;
+
+    u32 maxValue = (*input)[0];
+    for( u32 i = 1; i < input->count; ++i )
+        if( (u32)(*input)[i] > maxValue )
+            maxValue = (*input)[i];
+
+    u32 digit = 0;
+    while( maxValue > 0 )
+    {
+        CountSort( input, digit, tmp );
+        maxValue = maxValue >> RadixBits;
+        ++digit;
+    }
+
+    // TODO Do this as part of the last copy from tmp to in
+    u32 negativeIndex = 0;
+    for( u32 i = 0; i < input->count; ++i )
+    {
+        // Find first index whose value is negative
+        if( (*input)[i] < 0 )
+        {
+            negativeIndex = i;
+            break;
+        }
+    }
+    if( negativeIndex > 0 )
+    {
+        u32 negativeCount = input->count - negativeIndex;
+        for( u32 i = 0; i < input->count; ++i )
+        {
+            tmp[i] = (*input)[i];
+            (*input)[i] = (i < negativeCount)
+                ? (*input)[negativeIndex + i]
+                : tmp[i - negativeCount];
+        }
+    }
+}
+
 #endif /* __MATH_H__ */

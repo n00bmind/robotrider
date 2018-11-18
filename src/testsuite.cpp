@@ -92,6 +92,8 @@ internal T Average( const Array<T>& array )
 
 struct SortingBenchmark
 {
+    MemoryArena* tmpArena;
+
     Array<i32> sorted;
     Array<i32> reversed;
     Array<i32> random;
@@ -111,11 +113,10 @@ struct SortingBenchmark
 };
 
 internal SortingBenchmark
-SetUpSortingBenchmark( u32 N, bool ascending )
+SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
 {
     SortingBenchmark result = {};
-
-    // TODO Ensure there's a fair (configurable) amount of duplicate elements
+    result.tmpArena = tmpArena;
 
     {
         // Almost sorted
@@ -223,6 +224,8 @@ TearDownSortingBenchmark( SortingBenchmark* benchmark )
     DeleteArray( benchmark->random );
     DeleteArray( benchmark->duplicated );
     DeleteArray( benchmark->allEqual );
+
+    ClearArena( benchmark->tmpArena );
 }
 
 internal SortingBenchmark::Timings
@@ -314,6 +317,43 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes, bool ascending )
     printf( "%s (allEqual, %u)\t:: %llu cycles\n", quickSort.name, benchmark->allEqual.count, Average( quickSort.allEqualTimes ) );
 
     DeleteTimings( &quickSort );
+
+    SortingBenchmark::Timings radixSort = InitTimings( "Radix Sort", passes );
+    for( u32 i = 0; i < passes; ++i )
+    {
+        ClearArena( benchmark->tmpArena );
+        Array<i32> sorted = CopyArray( benchmark->sorted );
+        radixSort.sortedTimes[i] = TIME( RadixSort( &sorted, ascending, benchmark->tmpArena ) );
+        EXPECT_TRUE( VerifySorted( sorted, ascending ) );
+
+        ClearArena( benchmark->tmpArena );
+        Array<i32> reversed = CopyArray( benchmark->reversed );
+        radixSort.reversedTimes[i] = TIME( RadixSort( &reversed, ascending, benchmark->tmpArena ) );
+        EXPECT_TRUE( VerifySorted( reversed, ascending ) );
+
+        ClearArena( benchmark->tmpArena );
+        Array<i32> random = CopyArray( benchmark->random );
+        radixSort.randomTimes[i] = TIME( RadixSort( &random, ascending, benchmark->tmpArena ) );
+        EXPECT_TRUE( VerifySorted( random, ascending ) );
+
+        ClearArena( benchmark->tmpArena );
+        Array<i32> duplicated = CopyArray( benchmark->duplicated );
+        radixSort.duplicatedTimes[i] = TIME( RadixSort( &duplicated, ascending, benchmark->tmpArena ) );
+        EXPECT_TRUE( VerifySorted( duplicated, ascending ) );
+
+        ClearArena( benchmark->tmpArena );
+        Array<i32> allEqual = CopyArray( benchmark->allEqual );
+        radixSort.allEqualTimes[i] = TIME( RadixSort( &allEqual, ascending, benchmark->tmpArena ) );
+        EXPECT_TRUE( VerifySorted( allEqual, ascending ) );
+
+    }
+    printf( "%s (sorted, %u)\t:: %llu cycles\n", radixSort.name, benchmark->sorted.count, Average( radixSort.sortedTimes ) );
+    printf( "%s (reversed, %u)\t:: %llu cycles\n", radixSort.name, benchmark->reversed.count, Average( radixSort.reversedTimes ) );
+    printf( "%s (random, %u)\t:: %llu cycles\n", radixSort.name, benchmark->random.count, Average( radixSort.randomTimes ) );
+    printf( "%s (duplicated, %u)\t:: %llu cycles\n", radixSort.name, benchmark->duplicated.count, Average( radixSort.duplicatedTimes ) );
+    printf( "%s (allEqual, %u)\t:: %llu cycles\n", radixSort.name, benchmark->allEqual.count, Average( radixSort.allEqualTimes ) );
+
+    printf( "\n" );
 }
 
 
@@ -324,23 +364,27 @@ main( int argC, char** argV )
 {
     RandomSeed();
 
+    MemoryArena tmpArena;
+    u32 memorySize = 4*1024*1024;
+    InitArena( &tmpArena, new u8[memorySize], memorySize );
+
     bool testSortingBenchmark = true;
 
     if( testSortingBenchmark )
     {
-        SortingBenchmark sortingBenchmark = SetUpSortingBenchmark( 100, true );
+        SortingBenchmark sortingBenchmark = SetUpSortingBenchmark( 100, true, &tmpArena );
         TestSortingBenchmark( &sortingBenchmark, 10, true );
         TearDownSortingBenchmark( &sortingBenchmark );
 
-        sortingBenchmark = SetUpSortingBenchmark( 1000, true );
+        sortingBenchmark = SetUpSortingBenchmark( 1000, true, &tmpArena );
         TestSortingBenchmark( &sortingBenchmark, 10, true );
         TearDownSortingBenchmark( &sortingBenchmark );
 
-        sortingBenchmark = SetUpSortingBenchmark( 10000, true );
+        sortingBenchmark = SetUpSortingBenchmark( 10000, true, &tmpArena );
         TestSortingBenchmark( &sortingBenchmark, 10, true );
         TearDownSortingBenchmark( &sortingBenchmark );
 
-        sortingBenchmark = SetUpSortingBenchmark( 1000000, true );
+        sortingBenchmark = SetUpSortingBenchmark( 1000000, true, &tmpArena );
         TestSortingBenchmark( &sortingBenchmark, 10, true );
         TearDownSortingBenchmark( &sortingBenchmark );
     }

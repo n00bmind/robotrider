@@ -127,13 +127,13 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // Init game arenas & world state
     if( !memory->isInitialized )
     {
-        InitializeArena( &gameState->worldArena,
-                         (u8 *)memory->permanentStorage + sizeof(GameState),
-                         memory->permanentStorageSize - sizeof(GameState) );
+        InitArena( &gameState->worldArena,
+                   (u8 *)memory->permanentStorage + sizeof(GameState),
+                   memory->permanentStorageSize - sizeof(GameState) );
 
-        InitializeArena( &gameState->transientArena,
-                         (u8 *)memory->transientStorage,
-                         memory->transientStorageSize );
+        InitArena( &gameState->transientArena,
+                   (u8 *)memory->transientStorage,
+                   memory->transientStorageSize );
 
         auxArena = &gameState->worldArena;
 
