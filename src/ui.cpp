@@ -140,7 +140,6 @@ DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ..
     ImGui::Text( textBuffer );
 }
 
-#if !RELEASE
 void
 DrawPerformanceCounters( const DebugState* debugState )
 {
@@ -237,4 +236,4 @@ DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u3
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
 }
-#endif
+

@@ -104,6 +104,12 @@ Min( r64 a, r64 b )
     return a < b ? a : b;
 }
 
+inline i32
+Min( i32 a, i32 b )
+{
+    return a < b ? a : b;
+}
+
 inline u32
 Min( u32 a, u32 b )
 {
@@ -116,16 +122,29 @@ Min( u64 a, u64 b )
     return a < b ? a : b;
 }
 
+inline i32
+Max( i32 a, i32 b )
+{
+    return a > b ? a : b;
+}
+
 inline r32
 Max( r32 a, r32 b )
 {
     return a > b ? a : b;
 }
 
+inline i32
+Median( i32 a, i32 b, i32 c )
+{
+    i32 result = Max( Min( a, b ), Min( Max( a, b ), c ) );
+    return result;
+}
+
 inline r32
 Clamp0( r32 value )
 {
-    return Max( 0, value );
+    return Max( 0.f, value );
 }
 
 inline i32
@@ -150,6 +169,14 @@ inline r32
 Abs( r32 value )
 {
     return value >= 0.f ? value : -value;
+}
+
+inline void
+Swap( i32* a, i32* b )
+{
+    i32 tmp = *a;
+    *a = *b;
+    *b = tmp;
 }
 
 inline bool
@@ -252,4 +279,12 @@ AtomicAddU64( volatile u64* value, u64 addend )
     return previousValue;
 }
 
+inline u64
+ReadCycles()
+{
+    // Flush the pipeline
+    int cpuInfo[4];
+    __cpuid( cpuInfo, 0 );
+    return __rdtsc();
+}
 #endif /* __INTRINSICS_H__ */

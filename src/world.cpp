@@ -450,7 +450,9 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     }
 
 
+#if !RELEASE
     if( !gameMemory->DEBUGglobalEditing )
+#endif
         UpdateWorldGeneration( input, world, &gameState->worldArena );
 
 
@@ -459,7 +461,9 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     ///// Render
     PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
 
+#if !RELEASE
     if( !gameMemory->DEBUGglobalEditing )
+#endif
     {
         PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
         auto it = world->liveEntities.First();

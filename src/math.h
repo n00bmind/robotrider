@@ -247,4 +247,63 @@ InsertSort( Array<i32>* input, bool ascending )
     }
 }
 
+// Assumes pivot is the last element
+/*internal*/ bool
+Partition( Array<i32>* input, bool ascending, int lo, int hi, int pivot, int* pivotIndex )
+{
+    i32* data = input->data;
+
+    int i = lo;
+    bool allEqual = true;
+
+    for( int j = lo; j < hi; ++j )
+    {
+        bool swap = ascending ? (data[j] <= pivot) : (data[j] >= pivot);
+        if( swap )
+        {
+            if( i < j )
+            {
+                Swap( &data[i], &data[j] );
+            }
+            ++i;
+            
+            allEqual = allEqual && data[j] == pivot;
+        }
+    }
+    if( i != hi )
+    {
+        Swap( &data[hi], &data[i] );
+        allEqual = false;
+    }
+
+    *pivotIndex = i;
+
+    bool result = i != lo && !allEqual;
+    return result;
+}
+
+void
+QuickSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
+{
+    i32* data = input->data;
+    if( hi == -1 )
+        hi = input->count - 1;
+
+    if( lo < hi )
+    {
+        int med = (lo + hi) / 2;
+        i32 pivot = Median( data[lo], data[med], data[hi] );
+        if( pivot == data[lo] )
+            Swap( &data[lo], &data[hi] );
+        else if( pivot == data[med] )
+            Swap( &data[med], &data[hi] );
+
+        int p;
+        if( Partition( input, ascending, lo, hi, pivot, &p ) )
+        {
+            QuickSort( input, ascending, lo, p - 1 );
+            QuickSort( input, ascending, p + 1, hi );
+        }
+    }
+}
 #endif /* __MATH_H__ */

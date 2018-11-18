@@ -1,5 +1,4 @@
-/*
-The MIT License
+/*The MIT License
 
 Copyright (c) 2017 Oscar Peñas Pariente <oscarpp80@gmail.com>
 
@@ -39,7 +38,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 u64 __rdtsc_start;
-#define TIME(f) ( __rdtsc_start = __rdtsc(), f, __rdtsc() - __rdtsc_start )
+//#define TIME(f) ( __rdtsc_start = __rdtsc(), f, __rdtsc() - __rdtsc_start )
+#define TIME(f) ( __rdtsc_start = ReadCycles(), f, ReadCycles() - __rdtsc_start )
 
 ASSERT_HANDLER(DefaultAssertHandler)
 {
@@ -63,6 +63,7 @@ internal Array<T> CopyArray( const Array<T>& source )
 {
     Array<T> result = source;
     result.data = new T[source.maxCount];
+    COPY( source.data, result.data, source.count * sizeof(T) );
     return result;
 }
 
@@ -73,6 +74,20 @@ internal void DeleteArray( Array<T>& array )
     array.data = nullptr;
 }
 
+template <typename T>
+internal T Average( const Array<T>& array )
+{
+    T result = 0;
+    for( u32 i = 0; i < array.count; ++i )
+    {
+        T prevResult = result;
+        result += array[i];
+        // Check for overflow
+        ASSERT( result >= prevResult );
+    }
+    result /= array.count;
+    return result;
+}
 
 
 struct SortingBenchmark
@@ -81,6 +96,7 @@ struct SortingBenchmark
     Array<i32> reversed;
     Array<i32> random;
     Array<i32> duplicated;
+    Array<i32> allEqual;
 
     struct Timings
     {
@@ -90,6 +106,7 @@ struct SortingBenchmark
         Array<u64> reversedTimes;
         Array<u64> randomTimes;
         Array<u64> duplicatedTimes;
+        Array<u64> allEqualTimes;
     };
 };
 
@@ -188,6 +205,13 @@ SetUpSortingBenchmark( u32 N, bool ascending )
         }
     }
 
+    {
+        // All items equal
+        result.allEqual = NewArray<i32>( N );
+        i32 value = RandomI32();
+        SET( result.allEqual.data, value, N * sizeof(i32) );
+    }
+
     return result;
 }
 
@@ -198,6 +222,7 @@ TearDownSortingBenchmark( SortingBenchmark* benchmark )
     DeleteArray( benchmark->reversed );
     DeleteArray( benchmark->random );
     DeleteArray( benchmark->duplicated );
+    DeleteArray( benchmark->allEqual );
 }
 
 internal SortingBenchmark::Timings
@@ -210,8 +235,19 @@ InitTimings( const char* name, u32 passes )
     result.reversedTimes = NewArray<u64>( passes );
     result.randomTimes = NewArray<u64>( passes );
     result.duplicatedTimes = NewArray<u64>( passes );
+    result.allEqualTimes = NewArray<u64>( passes );
 
     return result;
+}
+
+internal void
+DeleteTimings( SortingBenchmark::Timings* timings )
+{
+    DeleteArray( timings->sortedTimes );
+    DeleteArray( timings->reversedTimes );
+    DeleteArray( timings->randomTimes );
+    DeleteArray( timings->duplicatedTimes );
+    DeleteArray( timings->allEqualTimes );
 }
 
 internal bool
@@ -233,15 +269,51 @@ VerifySorted( const Array<i32>& input, bool ascending )
 void
 TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes, bool ascending )
 {
-    SortingBenchmark::Timings insertionSort = InitTimings( "Insertion Sort", passes );
-    for( u32 i = 0; i < insertionSort.sortedTimes.maxCount; ++i )
+#if 0
+    if( benchmark->sorted.count < 10000 )
+    {
+        SortingBenchmark::Timings insertionSort = InitTimings( "Insertion Sort", passes );
+        for( u32 i = 0; i < passes; ++i )
+        {
+            Array<i32> sorted = CopyArray( benchmark->sorted );
+            insertionSort.sortedTimes[i] = TIME( InsertSort( &sorted, ascending ) );
+            EXPECT_TRUE( VerifySorted( sorted, ascending ) );
+            //printf( "%s (sorted, %u) :: %llu cycles\n", insertionSort.name, benchmark->sorted.count, insertionSort.sortedTimes[i] );
+        }
+        printf( "%s (sorted, %u) :: %llu cycles\n", insertionSort.name, benchmark->sorted.count, Average( insertionSort.sortedTimes ) );
+    }
+#endif
+
+    SortingBenchmark::Timings quickSort = InitTimings( "Quick Sort", passes );
+    for( u32 i = 0; i < passes; ++i )
     {
         Array<i32> sorted = CopyArray( benchmark->sorted );
-        insertionSort.sortedTimes[i] = TIME( InsertSort( &sorted, ascending ) );
+        quickSort.sortedTimes[i] = TIME( QuickSort( &sorted, ascending ) );
         EXPECT_TRUE( VerifySorted( sorted, ascending ) );
 
-        printf( "%s (sorted) :: %llu cycles\n", insertionSort.name, insertionSort.sortedTimes[i] );
+        Array<i32> reversed = CopyArray( benchmark->reversed );
+        quickSort.reversedTimes[i] = TIME( QuickSort( &reversed, ascending ) );
+        EXPECT_TRUE( VerifySorted( reversed, ascending ) );
+
+        Array<i32> random = CopyArray( benchmark->random );
+        quickSort.randomTimes[i] = TIME( QuickSort( &random, ascending ) );
+        EXPECT_TRUE( VerifySorted( random, ascending ) );
+
+        Array<i32> duplicated = CopyArray( benchmark->duplicated );
+        quickSort.duplicatedTimes[i] = TIME( QuickSort( &duplicated, ascending ) );
+        EXPECT_TRUE( VerifySorted( duplicated, ascending ) );
+
+        Array<i32> allEqual = CopyArray( benchmark->allEqual );
+        quickSort.allEqualTimes[i] = TIME( QuickSort( &allEqual, ascending ) );
+        EXPECT_TRUE( VerifySorted( allEqual, ascending ) );
     }
+    printf( "%s (sorted, %u)\t:: %llu cycles\n", quickSort.name, benchmark->sorted.count, Average( quickSort.sortedTimes ) );
+    printf( "%s (reversed, %u)\t:: %llu cycles\n", quickSort.name, benchmark->reversed.count, Average( quickSort.reversedTimes ) );
+    printf( "%s (random, %u)\t:: %llu cycles\n", quickSort.name, benchmark->random.count, Average( quickSort.randomTimes ) );
+    printf( "%s (duplicated, %u)\t:: %llu cycles\n", quickSort.name, benchmark->duplicated.count, Average( quickSort.duplicatedTimes ) );
+    printf( "%s (allEqual, %u)\t:: %llu cycles\n", quickSort.name, benchmark->allEqual.count, Average( quickSort.allEqualTimes ) );
+
+    DeleteTimings( &quickSort );
 }
 
 
@@ -265,10 +337,6 @@ main( int argC, char** argV )
         TearDownSortingBenchmark( &sortingBenchmark );
 
         sortingBenchmark = SetUpSortingBenchmark( 10000, true );
-        TestSortingBenchmark( &sortingBenchmark, 10, true );
-        TearDownSortingBenchmark( &sortingBenchmark );
-
-        sortingBenchmark = SetUpSortingBenchmark( 100000, true );
         TestSortingBenchmark( &sortingBenchmark, 10, true );
         TearDownSortingBenchmark( &sortingBenchmark );
 

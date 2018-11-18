@@ -87,7 +87,7 @@ DEBUG_PLATFORM_JOIN_PATHS(Win32JoinPaths)
 {
     char buffer[PLATFORM_PATH_MAX] = {};
 
-    sz len = Min( strlen( root ), PLATFORM_PATH_MAX );
+    sz len = Min( strlen( root ), (sz)PLATFORM_PATH_MAX );
     strncpy( buffer, root, len );
 
     // Add separator if root path is not empty and there's none at either of the two
