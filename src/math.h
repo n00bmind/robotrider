@@ -313,10 +313,8 @@ QuickSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
 }
 
 /*internal*/ void
-CountSort( Array<i32>* input, u32 digit, bool ascending, Array<i32> tmp )
+CountSort( u32* in, const u32 N, u32 digit, bool ascending, u32* out )
 {
-    ASSERT( tmp.count == input->count );
-
     // TODO Test different bases
     const u32 RadixBits = 4;
     const u32 Radix = 1 << RadixBits;
@@ -324,10 +322,8 @@ CountSort( Array<i32>* input, u32 digit, bool ascending, Array<i32> tmp )
     const u32 Mask = (Radix - 1) << Exp;
 
     u32 digitCounts[Radix] = {0};
-    i32* in = input->data;
-    i32* out = tmp.data;
 
-    for( u32 i = 0; i < input->count; ++i )
+    for( u32 i = 0; i < N; ++i )
     {
         u32 digitIdx = (in[i] & Mask) >> Exp;
         if( !ascending )
@@ -338,7 +334,7 @@ CountSort( Array<i32>* input, u32 digit, bool ascending, Array<i32> tmp )
     for( u32 i = 1; i < Radix; ++i )
         digitCounts[i] += digitCounts[i-1];
 
-    for( int i = input->count - 1; i >= 0; --i )
+    for( int i = N - 1; i >= 0; --i )
     {
         u32 digitIdx = (in[i] & Mask) >> Exp;
         if( !ascending )
@@ -347,54 +343,50 @@ CountSort( Array<i32>* input, u32 digit, bool ascending, Array<i32> tmp )
     }
 
     // TODO Look into swapping in & out arrays to eliminate copies!
-    for( u32 i = 0; i < input->count; ++i )
+    for( u32 i = 0; i < N; ++i )
         in[i] = out[i];
 }
 
-// TODO Test with floats
 void
 RadixSort( Array<i32>* input, bool ascending, MemoryArena* tmpArena )
 {
     const u32 RadixBits = 4;
     const u32 Radix = 1 << RadixBits;
 
-    Array<i32> tmp = Array<i32>( tmpArena, input->count );
+    Array<u32> tmp = Array<u32>( tmpArena, input->count );
     tmp.count = input->count;
 
-    u32 maxValue = (*input)[0];
-    for( u32 i = 1; i < input->count; ++i )
-        if( (u32)(*input)[i] > maxValue )
-            maxValue = (*input)[i];
+    u32* in = (u32*)input->data;
+
+#pragma warning(push)
+#pragma warning(disable : 4307)
+#define U32WRAP (u32)(I32MAX + 1)
+    // For signed ints: add 32768
+    u32 maxValue = 0;
+    for( u32 i = 0; i < input->count; ++i )
+    {
+        in[i] += U32WRAP;
+        if( in[i] > maxValue )
+            maxValue = in[i];
+    }
 
     u32 digit = 0;
     while( maxValue > 0 )
     {
-        CountSort( input, digit, ascending, tmp );
+        CountSort( in, input->count, digit, ascending, tmp.data );
         maxValue = maxValue >> RadixBits;
         ++digit;
     }
 
+    // Undo pre transformation
     // TODO Do this as part of the last copy from tmp to in
-    u32 swapIndex = 0;
     for( u32 i = 0; i < input->count; ++i )
-    {
-        // Find first index whose value is negative/positive
-        bool swapped = ascending ? ((*input)[i] < 0) : ((*input)[i] >= 0);
-        if( swapped )
-        {
-            swapIndex = i;
-            break;
-        }
-    }
-    if( swapIndex > 0 )
-    {
-        u32 swapCount = input->count - swapIndex;
-        for( u32 i = 0; i < input->count; ++i )
-        {
-            tmp[i] = (*input)[i];
-            (*input)[i] = (i < swapCount) ? (*input)[swapIndex + i] : tmp[i - swapCount];
-        }
-    }
+        in[i] -= U32WRAP;
+#undef U32WRAP
+#pragma warning(pop)
 }
+
+// TODO Float: flip everybit if negative, flip only the sign bit if positive
+
 
 #endif /* __MATH_H__ */
