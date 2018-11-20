@@ -347,6 +347,7 @@ CountSort( u32* in, const u32 N, u32 digit, bool ascending, u32* out )
         in[i] = out[i];
 }
 
+// TODO Float: flip everybit if negative, flip only the sign bit if positive
 void
 RadixSort( Array<i32>* input, bool ascending, MemoryArena* tmpArena )
 {
@@ -386,7 +387,105 @@ RadixSort( Array<i32>* input, bool ascending, MemoryArena* tmpArena )
 #pragma warning(pop)
 }
 
-// TODO Float: flip everybit if negative, flip only the sign bit if positive
+enum class RadixTransform
+{
+    None = 0,
+    Integer,
+    FloatingPoint,
+};
 
+// For 32 bits
+// TODO Descending
+// TODO Transforms
+void RadixSort11( u32* in, u32 count, RadixTransform transform, u32* out )
+{
+#define MASK0(x) (x & 0x7FF)
+#define MASK1(x) ((x >> 11) & 0x7FF)
+#define MASK2(x) (x >> 22)
+
+    const u32 kHistSize = 2048;
+    u32 hist0[kHistSize * 3] = {0};
+    u32* hist1 = hist0 + kHistSize;
+    u32* hist2 = hist1 + kHistSize;
+
+    // Build counts
+    for( u32 i = 0; i < count; ++i )
+    {
+        // TODO Prefetch pf(array)
+
+        u32 it = in[i];
+        // Transform input value
+        if( transform == RadixTransform::Integer )
+            it += 0x80000000u;
+
+        hist0[MASK0(it)]++;
+        hist1[MASK1(it)]++;
+        hist2[MASK2(it)]++;
+    }
+
+    // TODO Watch this live
+    // Each histogram entry records the number of values preceding itself
+    u32 totalSum, sum0 = 0, sum1 = 0, sum2 = 0;
+    for( u32 i = 0; i < kHistSize; ++i )
+    {
+        totalSum = hist0[i] + sum0;
+        hist0[i] = sum0 - 1u;
+        sum0 = totalSum;
+
+        totalSum = hist1[i] + sum1;
+        hist1[i] = sum1 - 1u;
+        sum1 = totalSum;
+
+        totalSum = hist2[i] + sum2;
+        hist2[i] = sum2 - 1u;
+        sum2 = totalSum;
+    }
+
+    // Offset 0: Transform entire input value, read/write histogram, write to out
+    for( u32 i = 0; i < count; ++i )
+    {
+        u32 it = in[i];
+        // Transform input value
+        if( transform == RadixTransform::Integer )
+            it += 0x80000000u;
+
+        u32 idx = MASK0(it);
+        // TODO Prefetch pf2(array)
+        out[++hist0[idx]] = it;
+    }
+
+    // Offset 1: Read/write histogram, copy to in
+    for( u32 i = 0; i < count; ++i )
+    {
+        u32 it = out[i];
+        u32 idx = MASK1(it);
+        // TODO Prefetch pf2(sort)
+        in[++hist1[idx]] = it;
+    }
+
+    // Offset 2: Read/write histogram, undo transform, write to out
+    for( u32 i = 0; i < count; ++i )
+    {
+        u32 it = in[i];
+        u32 idx = MASK2(it);
+        // TODO Prefetch pf2(array)
+        // Undo input transformation
+        if( transform == RadixTransform::Integer )
+            it -= 0x80000000u;
+
+        out[++hist2[idx]] = it;
+    }
+#undef MASK0
+#undef MASK1
+#undef MASK2
+}
+
+void
+RadixSort11( Array<i32>* inputOutput, bool ascending, MemoryArena* tmpArena )
+{
+    Array<i32> tmpOut = inputOutput->Copy( tmpArena );
+    RadixSort11( (u32*)inputOutput->data, inputOutput->count, RadixTransform::Integer, (u32*)tmpOut.data );
+    tmpOut.CopyTo( inputOutput );
+}
 
 #endif /* __MATH_H__ */

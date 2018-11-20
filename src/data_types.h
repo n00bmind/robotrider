@@ -100,7 +100,23 @@ struct Array
         return data[count];
     }
 
-    void BlitTo( T* buffer ) const
+    // Deep copy
+    Array<T> Copy( MemoryArena* arena ) const
+    {
+        Array<T> result = Array<T>( arena, count );
+        COPY( data, result.data, count * sizeof(T) );
+        result.count = count;
+        return result;
+    }
+
+    void CopyTo( Array<T>* out ) const
+    {
+        ASSERT( out->maxCount >= count );
+        COPY( data, out->data, count * sizeof(T) );
+        out->count = count;
+    }
+
+    void CopyTo( T* buffer ) const
     {
         COPY( data, buffer, count * sizeof(T) );
     }
