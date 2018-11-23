@@ -172,6 +172,7 @@ Log2( u32 value )
     return result;
 }
 
+// TODO Substitute with Meow Hash?
 inline u32
 Fletcher32( const void* buffer, sz len )
 {

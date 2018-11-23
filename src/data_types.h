@@ -1212,6 +1212,58 @@ struct ConcurrentQueue
 };
 
 
+/////     GENERAL RESOURCE HANDLER     /////
+// NOTE Not too sure we want to use so much C++ nonsense,
+// but I want to capture the general idea
+// TODO Test!
+
+// TODO Would be good to have some kind of type marker so their type can be enforce in function signatures, etc
+template <typename T>
+struct ResourceHandle
+{
+    u32 locator;
+};
+
+template <typename T>
+struct ResourcePool
+{
+    Array<T> pool;
+    u32 nextFreeItem;
+    u32 _locatorIndexMask;
+
+    ResourcePool( MemoryArena* arena, u32 maxResourceCount )
+    {
+        resourceBase = Array<T>( arena, maxResourceCount );
+        _locatorIndexMask = NextPowerOf2( maxResourceCount ) - 1;
+    }
+
+    ResourceHandle Add( const T& item )
+    {
+        // Generate fingerprint
+        u32 fingerprint = Fletcher32( &item, sizeof(T) );
+        u32 index = FindNextFreeIndex();
+        u32 locator = (fingerprint & ~_locatorIndexMask) | (index & _locatorIndexMask);
+
+        // TODO Enforce this somehow in the template?
+        item.locator = locator;
+        pool.Insert( item, index );
+
+        ResourceHandle result = { locator };
+        return result;
+    }
+
+    // NOTE Returned pointer should never be stored or passed around!
+    T* GetTransientPointer( ResourceHandle handle )
+    {
+        u32 index = handle.locator & _locatorIndexMask;
+        ASSERT( index < pool.count );
+        T* result = resourceBase + index;
+        // Make sure the high bits are also the same
+        // NOTE Expects a 'locator' field in the resource type
+        ASSERT( handle.locator == result->locator );
+        return result;
+    }
+};
 
 
 /////     TESTS     /////

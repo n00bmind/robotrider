@@ -201,8 +201,9 @@ Align( const void* address, sz alignment )
     return result;
 }
 
+// TODO What if the value already is a power of two?
 inline u32
-GetNextPowerOf2( u32 value )
+NextPowerOf2( u32 value )
 {
     u32 result = 0;
 
