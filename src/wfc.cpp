@@ -662,8 +662,8 @@ DrawFileSelectorPopup( const Array<Spec>& specs, u32 currentSpecIndex )
 
 
 u32
-DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayArena, DisplayState* displayState, const v2& displayDim,
-          const DebugState* debugState )
+DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displayState, const v2& displayDim,
+          const DebugState* debugState, MemoryArena* wfcDisplayArena, MemoryArena* tmpArena )
 {
     u32 selectedIndex = U32MAX;
     const Spec& spec = specs[displayState->currentSpecIndex];
@@ -766,7 +766,7 @@ DrawTest( const Array<Spec>& specs, const State* state, MemoryArena* wfcDisplayA
                 ImGui::BeginChild( "child_debug", ImVec2( 0, 0 ) );
                 if( debugState )
                 {
-                    DrawPerformanceCounters( debugState );
+                    DrawPerformanceCounters( debugState, tmpArena );
                 }
                 ImGui::EndChild();
             }

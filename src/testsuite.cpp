@@ -36,6 +36,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "memory.h"
 #include "data_types.h"
 #include "math.h"
+#include "util.h"
 #include "util.cpp"
 
 

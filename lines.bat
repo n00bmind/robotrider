@@ -1,1 +1,1 @@
-cloc src/ --exclude-dir=imgui --not-match-f=glext 
+cloc src --exclude-dir=imgui,stb --not-match-f="w?glext" %*

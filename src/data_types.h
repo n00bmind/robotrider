@@ -121,6 +121,12 @@ struct Array
         COPY( data, buffer, count * sizeof(T) );
     }
 
+    void CopyFrom( const T* buffer, u32 count_ )
+    {
+        count = count_;
+        COPY( buffer, data, count * sizeof(T) );
+    }
+
     void Clear()
     {
         count = 0;

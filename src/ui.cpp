@@ -141,13 +141,22 @@ DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ..
 }
 
 void
-DrawPerformanceCounters( const DebugState* debugState )
+DrawPerformanceCounters( const DebugState* debugState, MemoryArena* tmpArena )
 {
     r32 windowHeight = ImGui::GetWindowHeight();
 
     ImGui::BeginChild( "child_perf_counters_frame", ImVec2( -16, windowHeight / 2 ) );
     r32 contentWidth = ImGui::GetWindowWidth();
     ImGui::Columns( 4, nullptr, true );
+
+#if 0
+    Array<u64> sortedCounters;
+    Array<DebugCounterLog> counters
+        Array<DebugCounterLog>( tmpArena, debugState->counterLogsCount );
+    sortedCounters.CopyFrom( debugState->counterLogs, debugState->counterLogsCount );
+    // TODO Use RadixSort11 if this gets big
+    RadixSort( &sortedCounters, false, tmpArena );
+#endif
 
     // TODO Counter stats
     for( u32 i = 0; i < debugState->counterLogsCount; ++i )
@@ -216,7 +225,7 @@ DrawPerformanceCounters( const DebugState* debugState )
 }
 
 void
-DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight )
+DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight, MemoryArena* tmpArena )
 {
     ImGui::SetNextWindowPos( ImVec2( 100.f, windowHeight * 0.25f + 100 ), ImGuiCond_FirstUseEver );
     ImGui::SetNextWindowSize( ImVec2( 500.f, windowHeight * 0.25f ), ImGuiCond_Appearing );
@@ -229,7 +238,7 @@ DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u3
 
     ImGui::PushStyleColor( ImGuiCol_Text, UInormalTextColor );
 
-    DrawPerformanceCounters( debugState );
+    DrawPerformanceCounters( debugState, tmpArena );
     ImGui::PopStyleColor();        
 
     ImGui::End();

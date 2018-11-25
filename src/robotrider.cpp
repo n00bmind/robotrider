@@ -31,6 +31,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "wfc.h"
 #include "editor.h"
 #include "robotrider.h"
+#include "util.h"
 
 #include "renderer.cpp"
 
@@ -53,6 +54,7 @@ void  LibFree( void* p );
 #define STB_IMAGE_STATIC
 #include "stb/stb_image.h"
 
+#include "util.cpp"
 #include "ui.cpp"
 #include "console.cpp"
 #include "asset_loaders.cpp"
@@ -205,7 +207,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     else if( memory->DEBUGglobalDebugging )
     {
         DrawConsole( &gameState->gameConsole, width, height, statsText );
-        DrawPerformanceCountersWindow( debugState, width, height );
+        DrawPerformanceCountersWindow( debugState, width, height, &gameState->transientArena );
     }
     else
         DrawStats( width, height, statsText );
