@@ -90,8 +90,9 @@ config_win_release = Config(
 
 
 default_platform = platform_win
-default_config = config_win_develop
-#default_config = config_win_debug
+# default_config = config_win_debug
+# default_config = config_win_develop
+default_config = config_win_release
 
 
 
@@ -165,6 +166,22 @@ if __name__ == '__main__':
         args.extend(config.linker_flags)
         args.append('-subsystem:console,5.2')
         args.extend(platform.libs)
+
+        if verbose:
+            print('Building platform executable...')
+            print(args)
+        ret |= subprocess.call(args, cwd=binpath)
+
+        # Build test suite
+        args = [platform.compiler]
+        args.extend(platform.common_compiler_flags)
+        args.extend(config.compiler_flags)
+        args.append(os.path.join(srcpath, 'testsuite.cpp'))
+        args.append('/link')
+        args.extend(platform.common_linker_flags)
+        args.extend(config.linker_flags)
+        args.append('-subsystem:console,5.2')
+        # args.extend(platform.libs)
 
         if verbose:
             print('Building platform executable...')
