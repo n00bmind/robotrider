@@ -288,4 +288,5 @@ ReadCycles()
     __cpuid( cpuInfo, 0 );
     return __rdtsc();
 }
+
 #endif /* __INTRINSICS_H__ */
