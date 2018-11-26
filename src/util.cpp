@@ -120,38 +120,46 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
     const u32 Radix = 1 << RadixBits;
 
     bool firstPass = true;
-    u32 digit = 0, maxValue = 0;
+    bool is32Bits = keyType < RadixKey::U64;
+    u32 digit = 0;
+    u64 maxValue = 0;
     while( firstPass || maxValue > 0 )
     {
         // CountSort
         {
-            const u32 Exp = digit * RadixBits;
-            const u32 Mask = (Radix - 1) << Exp;
+            const u64 Exp = digit * RadixBits;
+            const u64 Mask = (Radix - 1) << Exp;
 
             u32 digitCounts[Radix] = {0};
 
             // Build digit count
-            u32* key = (u32*)(in + offset);
+            u64* inKey = (u64*)(in + offset);
             for( u32 i = 0; i < count; ++i )
             {
+                u64 key = *inKey;
+                if( is32Bits )
+                    key &= 0xFFFFFFFFu;
+
                 // On the first pass, also transform input and calc maximum value
                 if( firstPass )
                 {
-                    if( keyType == RadixKey::Integer )
-                        *key += 0x80000000;
-                    else if( keyType == RadixKey::FloatingPoint )
-                        *key ^= (-i32(*key >> 31) | 0x80000000);
+                    if( keyType == RadixKey::I32 )
+                        key |= 0x80000000u;
+                    else if( keyType == RadixKey::R32 )
+                        key ^= !!(key & 0x80000000u) ? 0xFFFFFFFFu : 0x80000000u;
 
-                    if( *key > maxValue )
-                        maxValue = *key;
+                    if( key > maxValue )
+                        maxValue = key;
+
+                    *inKey = is32Bits ? (*inKey & 0xFFFFFFFF00000000u | key) : key; 
                 }
 
-                u32 digitIdx = (*key & Mask) >> Exp;
+                u64 digitIdx = (key & Mask) >> Exp;
                 if( !ascending )
                     digitIdx = Radix - digitIdx - 1;
                 digitCounts[digitIdx]++;
 
-                key = (u32*)((u8*)key + stride);
+                inKey = (u64*)((u8*)inKey + stride);
             }
             firstPass = false;
 
@@ -167,26 +175,32 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
                 }
             }
 
-            u8* it = in;
-            for( u32 i = 0; i < count; ++i, it += stride )
+            u8* inIt = in;
+            for( u32 i = 0; i < count; ++i, inIt += stride )
             {
-                key = (u32*)(it + offset);
-                u32 digitIdx = (*key & Mask) >> Exp;
+                inKey = (u64*)(inIt + offset);
+                u64 key = *inKey;
+                if( is32Bits )
+                    key &= 0xFFFFFFFFu;
+
+                u64 digitIdx = (key & Mask) >> Exp;
                 if( !ascending )
                     digitIdx = Radix - digitIdx - 1;
 
                 bool lastPass = (maxValue & ~(Radix - 1)) == 0;
                 if( lastPass )
                 {
-                    if( keyType == RadixKey::Integer )
-                        *key -= 0x80000000;
-                    else if( keyType == RadixKey::FloatingPoint )
-                        *key ^= (((*key >> 31) - 1) | 0x80000000);
+                    if( keyType == RadixKey::I32 )
+                        key |= 0x80000000u;
+                    else if( keyType == RadixKey::R32 )
+                        key ^= !!(key & 0x80000000u) ? 0x80000000u : 0xFFFFFFFFu;
+
+                    *inKey = is32Bits ? (*inKey & 0xFFFFFFFF00000000u | key) : key; 
                 }
 
                 u32 outIdx = ++(digitCounts[digitIdx]);
                 u8* outIt = out + outIdx * stride;
-                COPY( it, outIt, stride );
+                COPY( inIt, outIt, stride );
             }
         }
 
@@ -205,21 +219,21 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
 void
 RadixSort( Array<u32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::Unsigned,
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::U32,
                ascending, tmpArena );
 }
 
 void
 RadixSort( Array<i32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::Integer,
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::I32,
                ascending, tmpArena );
 }
 
 void
 RadixSort( Array<r32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::FloatingPoint,
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::R32,
                ascending, tmpArena );
 }
 
@@ -252,9 +266,9 @@ void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, Mem
     for( u32 i = 0; i < count; ++i, ++it )
     {
         // Transform input value
-        if( transform == RadixKey::Integer )
+        if( transform == RadixKey::I32 )
             *it += 0x80000000u;
-        else if( transform == RadixKey::FloatingPoint )
+        else if( transform == RadixKey::R32 )
             *it ^= (-i32(*it >> 31) | 0x80000000);
 
         hist0[MASK0(*it)]++;
@@ -312,9 +326,9 @@ void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, Mem
         u32 idx = MASK2(*it);
 
         // Undo input transformation
-        if( transform == RadixKey::Integer )
+        if( transform == RadixKey::I32 )
             *it -= 0x80000000u;
-        else if( transform == RadixKey::FloatingPoint )
+        else if( transform == RadixKey::R32 )
             *it ^= (((*it >> 31) - 1) | 0x80000000);
 
         out[++hist2[idx]] = *it;
@@ -330,13 +344,13 @@ void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, Mem
 void
 RadixSort11( Array<i32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort11( (u32*)inputOutput->data, inputOutput->count, ascending, RadixKey::Integer, tmpArena );
+    RadixSort11( (u32*)inputOutput->data, inputOutput->count, ascending, RadixKey::I32, tmpArena );
 }
 
 void
 RadixSort11( Array<r32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort11( (u32*)inputOutput->data, inputOutput->count, ascending, RadixKey::FloatingPoint, tmpArena );
+    RadixSort11( (u32*)inputOutput->data, inputOutput->count, ascending, RadixKey::R32, tmpArena );
 }
 
 

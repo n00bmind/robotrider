@@ -3,9 +3,12 @@
 
 enum class RadixKey
 {
-    Unsigned = 0,
-    Integer,
-    FloatingPoint,
+    U32 = 0,
+    I32,
+    R32,
+    U64,
+    I64,
+    R64,
 };
 
 struct KeyIndex
