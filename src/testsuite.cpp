@@ -133,6 +133,7 @@ struct SortingBenchmark
     Array<i32> allEqual;
     Array<i32> smallish;
     Array<r32> randomFloat;
+    Array<u64> randomLong;
 
     struct Timings
     {
@@ -152,6 +153,8 @@ struct SortingBenchmark
         Array<r64> smallishMillis;
         Array<u64> randomFloatTimes;
         Array<r64> randomFloatMillis;
+        Array<u64> randomLongTimes;
+        Array<r64> randomLongMillis;
     };
 };
 
@@ -275,6 +278,15 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
         }
     }
 
+    {
+        // Random long
+        result.randomLong = NewArray<u64>( N );
+        for( u32 i = 0; i < result.randomLong.maxCount; ++i )
+        {
+            result.randomLong[i] = RandomU64();
+        }
+    }
+
 
     return result;
 }
@@ -289,6 +301,7 @@ TearDownSortingBenchmark( SortingBenchmark* benchmark )
     DeleteArray( benchmark->allEqual );
     DeleteArray( benchmark->smallish );
     DeleteArray( benchmark->randomFloat );
+    DeleteArray( benchmark->randomLong );
 
     ClearArena( benchmark->tmpArena );
 }
@@ -306,6 +319,7 @@ InitTimings( const char* name, u32 passes )
     result.allEqualTimes = NewArray<u64>( passes );
     result.smallishTimes = NewArray<u64>( passes );
     result.randomFloatTimes = NewArray<u64>( passes );
+    result.randomLongTimes = NewArray<u64>( passes );
 
     result.sortedMillis = NewArray<r64>( passes );
     result.reversedMillis = NewArray<r64>( passes );
@@ -314,6 +328,7 @@ InitTimings( const char* name, u32 passes )
     result.allEqualMillis = NewArray<r64>( passes );
     result.smallishMillis = NewArray<r64>( passes );
     result.randomFloatMillis = NewArray<r64>( passes );
+    result.randomLongMillis = NewArray<r64>( passes );
 
     return result;
 }
@@ -328,6 +343,7 @@ DeleteTimings( SortingBenchmark::Timings* timings )
     DeleteArray( timings->allEqualTimes );
     DeleteArray( timings->smallishTimes );
     DeleteArray( timings->randomFloatTimes );
+    DeleteArray( timings->randomLongTimes );
 
     DeleteArray( timings->sortedMillis );
     DeleteArray( timings->reversedMillis );
@@ -336,6 +352,7 @@ DeleteTimings( SortingBenchmark::Timings* timings )
     DeleteArray( timings->allEqualMillis );
     DeleteArray( timings->smallishMillis );
     DeleteArray( timings->randomFloatMillis );
+    DeleteArray( timings->randomLongMillis );
 }
 
 template <typename T>
@@ -469,6 +486,13 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes )
         radixSort.randomFloatTimes[i] = TIME( RadixSort( &randomFloat, ascending, benchmark->tmpArena ) );
         radixSort.randomFloatMillis[i] = GetCounterUs();
         EXPECT_TRUE( VerifySorted( randomFloat, ascending ) );
+
+        ClearArena( benchmark->tmpArena );
+        Array<u64> randomLong = CopyArray( benchmark->randomLong );
+        StartCounter();
+        radixSort.randomLongTimes[i] = TIME( RadixSort( &randomLong, ascending, benchmark->tmpArena ) );
+        radixSort.randomLongMillis[i] = GetCounterUs();
+        EXPECT_TRUE( VerifySorted( randomLong, ascending ) );
     }
     printf( "%15s (sorted,     %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->sorted.count, Average( radixSort.sortedTimes ), Average( radixSort.sortedMillis ) );
     printf( "%15s (reversed,   %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->reversed.count, Average( radixSort.reversedTimes ), Average( radixSort.reversedMillis ) );
@@ -477,6 +501,7 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes )
     printf( "%15s (allEqual,   %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->allEqual.count, Average( radixSort.allEqualTimes ), Average( radixSort.allEqualMillis ) );
     printf( "%15s (smallish,   %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->smallish.count, Average( radixSort.smallishTimes ), Average( radixSort.smallishMillis ) );
     printf( "%15s (randomFlt,  %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->randomFloat.count, Average( radixSort.randomFloatTimes ), Average( radixSort.randomFloatMillis ) );
+    printf( "%15s (randomLong, %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->randomLong.count, Average( radixSort.randomLongTimes ), Average( radixSort.randomLongMillis ) );
     DeleteTimings( &radixSort );
 
     printf( "---\n" );
@@ -562,7 +587,7 @@ main( int argC, char** argV )
     globalCounterFreqSecs = r64(li.QuadPart);
 
     MemoryArena tmpArena;
-    u32 memorySize = 4*1024*1024;
+    u32 memorySize = 8*1024*1024;
     InitArena( &tmpArena, new u8[memorySize], memorySize );
 
     bool testSortingBenchmark = true;

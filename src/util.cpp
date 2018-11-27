@@ -117,13 +117,13 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
     u8* out = PUSH_ARRAY( tmpArena, count * stride, u8 );
 
     const u32 RadixBits = 8;
-    const u32 Radix = 1 << RadixBits;
+    const u64 Radix = 1 << RadixBits;
 
     bool firstPass = true;
     bool is32Bits = keyType < RadixKey::U64;
     u32 digit = 0;
-    u64 maxValue = 0;
-    while( firstPass || maxValue > 0 )
+    u64 maxKey = 0;
+    while( firstPass || maxKey > 0 )
     {
         // CountSort
         {
@@ -148,8 +148,8 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
                     else if( keyType == RadixKey::R32 )
                         key ^= !!(key & 0x80000000u) ? 0xFFFFFFFFu : 0x80000000u;
 
-                    if( key > maxValue )
-                        maxValue = key;
+                    if( key > maxKey )
+                        maxKey = key;
 
                     *inKey = is32Bits ? (*inKey & 0xFFFFFFFF00000000u | key) : key; 
                 }
@@ -187,7 +187,7 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
                 if( !ascending )
                     digitIdx = Radix - digitIdx - 1;
 
-                bool lastPass = (maxValue & ~(Radix - 1)) == 0;
+                bool lastPass = maxKey < Radix;
                 if( lastPass )
                 {
                     if( keyType == RadixKey::I32 )
@@ -204,7 +204,7 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
             }
         }
 
-        maxValue = maxValue >> RadixBits;
+        maxKey = maxKey >> RadixBits;
         digit++;
 
         u8* swap = in;
@@ -237,10 +237,17 @@ RadixSort( Array<r32>* inputOutput, bool ascending, MemoryArena* tmpArena )
                ascending, tmpArena );
 }
 
-template <typename T> void
-RadixSort( Array<T>* inputOutput, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
+void
+RadixSort( Array<u64>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, sizeof(T), keyType, ascending, tmpArena );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::U64,
+               ascending, tmpArena );
+}
+
+template <typename T> void
+RadixSort( Array<T>* inputOutput, sz offset, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
+{
+    RadixSort( inputOutput->data, inputOutput->count, offset, sizeof(T), keyType, ascending, tmpArena );
 }
 
 // Adapted from http://stereopsis.com/radix.html

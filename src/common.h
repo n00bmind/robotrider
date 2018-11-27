@@ -68,6 +68,9 @@ typedef size_t sz;
 #define I32MAX INT32_MAX
 #define I32MIN INT32_MIN
 #define U32MAX UINT32_MAX
+#define U64MAX UINT64_MAX
+#define I64MAX INT64_MAX
+#define I64MIN INT64_MIN
 
 #define R32MAX FLT_MAX
 #define R32MIN FLT_MIN

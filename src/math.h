@@ -103,16 +103,22 @@ RandomBinormalizedR64()
     return result;
 }
 
+inline u32
+RandomU32()
+{
+    return (u32)(RandomNormalizedR32() * U32MAX);
+}
+
 inline i32
 RandomI32()
 {
     return (i32)(RandomNormalizedR32() * U32MAX);
 }
 
-inline u32
-RandomU32()
+inline u64
+RandomU64()
 {
-    return (u32)(RandomNormalizedR32() * U32MAX);
+    return (u64)(RandomNormalizedR64() * U64MAX);
 }
 
 // Includes min & max
