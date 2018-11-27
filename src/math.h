@@ -121,6 +121,12 @@ RandomU64()
     return (u64)(RandomNormalizedR64() * U64MAX);
 }
 
+inline u64
+RandomI64()
+{
+    return (i64)(RandomNormalizedR64() * U64MAX);
+}
+
 // Includes min & max
 inline i32
 RandomRangeI32( i32 min, i32 max )
@@ -141,6 +147,14 @@ RandomRangeR32( r32 min, r32 max )
 {
     r32 t = RandomNormalizedR32();
     r32 result = min + t * (max - min);
+    return result;
+}
+
+inline r64
+RandomRangeR64( r64 min, r64 max )
+{
+    r64 t = RandomNormalizedR64();
+    r64 result = min + t * (max - min);
     return result;
 }
 

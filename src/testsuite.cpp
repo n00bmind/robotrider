@@ -133,7 +133,9 @@ struct SortingBenchmark
     Array<i32> allEqual;
     Array<i32> smallish;
     Array<r32> randomFloat;
-    Array<u64> randomLong;
+    Array<i64> randomLong;
+    Array<r64> randomDouble;
+    Array<KeyIndex64> randomStruct;
 
     struct Timings
     {
@@ -155,6 +157,10 @@ struct SortingBenchmark
         Array<r64> randomFloatMillis;
         Array<u64> randomLongTimes;
         Array<r64> randomLongMillis;
+        Array<u64> randomDoubleTimes;
+        Array<r64> randomDoubleMillis;
+        Array<u64> randomStructTimes;
+        Array<r64> randomStructMillis;
     };
 };
 
@@ -280,10 +286,28 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
 
     {
         // Random long
-        result.randomLong = NewArray<u64>( N );
+        result.randomLong = NewArray<i64>( N );
         for( u32 i = 0; i < result.randomLong.maxCount; ++i )
         {
-            result.randomLong[i] = RandomU64();
+            result.randomLong[i] = RandomI64();
+        }
+    }
+
+    {
+        // Random double
+        result.randomDouble = NewArray<r64>( N );
+        for( u32 i = 0; i < result.randomDouble.maxCount; ++i )
+        {
+            result.randomDouble[i] = RandomRangeR64( -1000000000, 100000000000 );
+        }
+    }
+
+    {
+        // Random struct
+        result.randomStruct = NewArray<KeyIndex64>( N );
+        for( u32 i = 0; i < result.randomStruct.maxCount; ++i )
+        {
+            result.randomStruct[i] = { RandomU64(), i };
         }
     }
 
@@ -302,6 +326,8 @@ TearDownSortingBenchmark( SortingBenchmark* benchmark )
     DeleteArray( benchmark->smallish );
     DeleteArray( benchmark->randomFloat );
     DeleteArray( benchmark->randomLong );
+    DeleteArray( benchmark->randomDouble );
+    DeleteArray( benchmark->randomStruct );
 
     ClearArena( benchmark->tmpArena );
 }
@@ -320,6 +346,8 @@ InitTimings( const char* name, u32 passes )
     result.smallishTimes = NewArray<u64>( passes );
     result.randomFloatTimes = NewArray<u64>( passes );
     result.randomLongTimes = NewArray<u64>( passes );
+    result.randomDoubleTimes = NewArray<u64>( passes );
+    result.randomStructTimes = NewArray<u64>( passes );
 
     result.sortedMillis = NewArray<r64>( passes );
     result.reversedMillis = NewArray<r64>( passes );
@@ -329,6 +357,8 @@ InitTimings( const char* name, u32 passes )
     result.smallishMillis = NewArray<r64>( passes );
     result.randomFloatMillis = NewArray<r64>( passes );
     result.randomLongMillis = NewArray<r64>( passes );
+    result.randomDoubleMillis = NewArray<r64>( passes );
+    result.randomStructMillis = NewArray<r64>( passes );
 
     return result;
 }
@@ -344,6 +374,8 @@ DeleteTimings( SortingBenchmark::Timings* timings )
     DeleteArray( timings->smallishTimes );
     DeleteArray( timings->randomFloatTimes );
     DeleteArray( timings->randomLongTimes );
+    DeleteArray( timings->randomDoubleTimes );
+    DeleteArray( timings->randomStructTimes );
 
     DeleteArray( timings->sortedMillis );
     DeleteArray( timings->reversedMillis );
@@ -353,6 +385,18 @@ DeleteTimings( SortingBenchmark::Timings* timings )
     DeleteArray( timings->smallishMillis );
     DeleteArray( timings->randomFloatMillis );
     DeleteArray( timings->randomLongMillis );
+    DeleteArray( timings->randomDoubleMillis );
+    DeleteArray( timings->randomStructMillis );
+}
+
+// NOTE Only needed so that VerifySorted() compiles for this type
+bool operator <=( const KeyIndex64& a, const KeyIndex64& b )
+{
+    return a.key <= b.key;
+}
+bool operator >=( const KeyIndex64& a, const KeyIndex64& b )
+{
+    return a.key >= b.key;
 }
 
 template <typename T>
@@ -488,11 +532,25 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes )
         EXPECT_TRUE( VerifySorted( randomFloat, ascending ) );
 
         ClearArena( benchmark->tmpArena );
-        Array<u64> randomLong = CopyArray( benchmark->randomLong );
+        Array<i64> randomLong = CopyArray( benchmark->randomLong );
         StartCounter();
         radixSort.randomLongTimes[i] = TIME( RadixSort( &randomLong, ascending, benchmark->tmpArena ) );
         radixSort.randomLongMillis[i] = GetCounterUs();
         EXPECT_TRUE( VerifySorted( randomLong, ascending ) );
+
+        ClearArena( benchmark->tmpArena );
+        Array<r64> randomDouble = CopyArray( benchmark->randomDouble );
+        StartCounter();
+        radixSort.randomDoubleTimes[i] = TIME( RadixSort( &randomDouble, ascending, benchmark->tmpArena ) );
+        radixSort.randomDoubleMillis[i] = GetCounterUs();
+        EXPECT_TRUE( VerifySorted( randomDouble, ascending ) );
+
+        ClearArena( benchmark->tmpArena );
+        Array<KeyIndex64> randomStruct = CopyArray( benchmark->randomStruct );
+        StartCounter();
+        radixSort.randomStructTimes[i] = TIME( RadixSort( &randomStruct, 0, RadixKey::U64, ascending, benchmark->tmpArena ) );
+        radixSort.randomStructMillis[i] = GetCounterUs();
+        EXPECT_TRUE( VerifySorted( randomStruct, ascending ) );
     }
     printf( "%15s (sorted,     %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->sorted.count, Average( radixSort.sortedTimes ), Average( radixSort.sortedMillis ) );
     printf( "%15s (reversed,   %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->reversed.count, Average( radixSort.reversedTimes ), Average( radixSort.reversedMillis ) );
@@ -502,6 +560,8 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes )
     printf( "%15s (smallish,   %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->smallish.count, Average( radixSort.smallishTimes ), Average( radixSort.smallishMillis ) );
     printf( "%15s (randomFlt,  %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->randomFloat.count, Average( radixSort.randomFloatTimes ), Average( radixSort.randomFloatMillis ) );
     printf( "%15s (randomLong, %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->randomLong.count, Average( radixSort.randomLongTimes ), Average( radixSort.randomLongMillis ) );
+    printf( "%15s (randomDbl,  %8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->randomDouble.count, Average( radixSort.randomDoubleTimes ), Average( radixSort.randomDoubleMillis ) );
+    printf( "%15s (randomStrct,%8u) :: %12llu cycles :: %9.3f us\n", radixSort.name, benchmark->randomStruct.count, Average( radixSort.randomStructTimes ), Average( radixSort.randomStructMillis ) );
     DeleteTimings( &radixSort );
 
     printf( "---\n" );
@@ -587,7 +647,7 @@ main( int argC, char** argV )
     globalCounterFreqSecs = r64(li.QuadPart);
 
     MemoryArena tmpArena;
-    u32 memorySize = 8*1024*1024;
+    u32 memorySize = 16*1024*1024;
     InitArena( &tmpArena, new u8[memorySize], memorySize );
 
     bool testSortingBenchmark = true;

@@ -147,6 +147,10 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
                         key |= 0x80000000u;
                     else if( keyType == RadixKey::R32 )
                         key ^= !!(key & 0x80000000u) ? 0xFFFFFFFFu : 0x80000000u;
+                    else if( keyType == RadixKey::I64 )
+                        key |= 0x8000000000000000u;
+                    else if( keyType == RadixKey::R64 )
+                        key ^= !!(key & 0x8000000000000000u) ? 0xFFFFFFFFFFFFFFFFu : 0x8000000000000000u;
 
                     if( key > maxKey )
                         maxKey = key;
@@ -194,6 +198,10 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
                         key |= 0x80000000u;
                     else if( keyType == RadixKey::R32 )
                         key ^= !!(key & 0x80000000u) ? 0x80000000u : 0xFFFFFFFFu;
+                    else if( keyType == RadixKey::I64 )
+                        key |= 0x8000000000000000u;
+                    else if( keyType == RadixKey::R64 )
+                        key ^= !!(key & 0x8000000000000000u) ? 0x8000000000000000u : 0xFFFFFFFFFFFFFFFFu;
 
                     *inKey = is32Bits ? (*inKey & 0xFFFFFFFF00000000u | key) : key; 
                 }
@@ -241,6 +249,20 @@ void
 RadixSort( Array<u64>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
     RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::U64,
+               ascending, tmpArena );
+}
+
+void
+RadixSort( Array<i64>* inputOutput, bool ascending, MemoryArena* tmpArena )
+{
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::I64,
+               ascending, tmpArena );
+}
+
+void
+RadixSort( Array<r64>* inputOutput, bool ascending, MemoryArena* tmpArena )
+{
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::R64,
                ascending, tmpArena );
 }
 
