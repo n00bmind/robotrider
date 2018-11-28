@@ -149,22 +149,21 @@ DrawPerformanceCounters( const DebugState* debugState, MemoryArena* tmpArena )
     r32 contentWidth = ImGui::GetWindowWidth();
     ImGui::Columns( 4, nullptr, true );
 
-#if 0
-    Array<u64> sortedCounters;
-    Array<DebugCounterLog> counters
-        Array<DebugCounterLog>( tmpArena, debugState->counterLogsCount );
-    sortedCounters.CopyFrom( debugState->counterLogs, debugState->counterLogsCount );
+    Array<KeyIndex64> counterFrameKeys;
+    Array<DebugCounterLog> counterLogs = Array<DebugCounterLog>( (DebugCounterLog*)debugState->counterLogs, debugState->counterLogsCount,
+                                                                 (u32)ARRAYCOUNT(debugState->counterLogs) );
+    u32 snapshotIndex = debugState->counterSnapshotIndex;
+    BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, snapshots[snapshotIndex].cycleCount), &counterFrameKeys, tmpArena );
     // TODO Use RadixSort11 if this gets big
-    RadixSort( &sortedCounters, false, tmpArena );
-#endif
+    RadixSort( &counterFrameKeys, RadixKey::U64, false, tmpArena );
 
     // TODO Counter stats
-    for( u32 i = 0; i < debugState->counterLogsCount; ++i )
+    for( u32 i = 0; i < counterFrameKeys.count; ++i )
     {
-        const DebugCounterLog &log = debugState->counterLogs[i];
+        const DebugCounterLog &log = counterLogs[counterFrameKeys[i].index];
 
-        u32 frameHitCount = log.snapshots[0].hitCount;
-        u64 frameCycleCount = log.snapshots[0].cycleCount;
+        u32 frameHitCount = log.snapshots[snapshotIndex].hitCount;
+        u64 frameCycleCount = log.snapshots[snapshotIndex].cycleCount;
 
         if( frameHitCount > 0 )
         {
@@ -199,9 +198,13 @@ DrawPerformanceCounters( const DebugState* debugState, MemoryArena* tmpArena )
     contentWidth = ImGui::GetWindowWidth();
     ImGui::Columns( 3, nullptr, true );
 
-    for( u32 i = 0; i < debugState->counterLogsCount; ++i )
+    Array<KeyIndex64> counterTotalKeys;
+    BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, totalCycleCount), &counterTotalKeys, tmpArena );
+    RadixSort( &counterTotalKeys, RadixKey::U64, false, tmpArena );
+
+    for( u32 i = 0; i < counterTotalKeys.count; ++i )
     {
-        const DebugCounterLog &log = debugState->counterLogs[i];
+        const DebugCounterLog &log = debugState->counterLogs[counterTotalKeys[i].index];
 
         if( log.totalHitCount > 0 )
         {

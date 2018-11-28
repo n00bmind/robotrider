@@ -51,10 +51,10 @@ struct Array
         maxCount = maxCount_;
     }
 
-    Array( T* data_, u32 maxCount_ )
+    Array( T* data_, u32 count_, u32 maxCount_ )
     {
         data = data_;
-        count = 0;
+        count = count_;
         maxCount = maxCount_;
     }
 
@@ -133,7 +133,7 @@ struct Array
     }
 };
 
-#define ARRAY(type, count, name) type _##name[count];Array<type> name( _##name, count );
+#define ARRAY(type, count, name) type _##name[count];Array<type> name( _##name, 0, count );
 
 
 template <typename T>

@@ -79,8 +79,7 @@ struct DebugState
     // NOTE Since we use __COUNTER__ for indexing, we'd need a separate array for platform counters
     DebugCounterLog counterLogs[1024];
     u32 counterLogsCount;
-
-    u32 snapshotIndex;
+    u32 counterSnapshotIndex;
 
     u32 totalDrawCalls;
     u32 totalVertexCount;

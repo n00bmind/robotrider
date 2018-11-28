@@ -227,43 +227,51 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
 void
 RadixSort( Array<u32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::U32,
-               ascending, tmpArena );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::U32, ascending, tmpArena );
 }
 
 void
 RadixSort( Array<i32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::I32,
-               ascending, tmpArena );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::I32, ascending, tmpArena );
 }
 
 void
 RadixSort( Array<r32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::R32,
-               ascending, tmpArena );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::R32, ascending, tmpArena );
+}
+
+void
+RadixSort( Array<KeyIndex>* inputOutput, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
+{
+    ASSERT( keyType < RadixKey::U64 );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(KeyIndex), keyType, ascending, tmpArena );
 }
 
 void
 RadixSort( Array<u64>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::U64,
-               ascending, tmpArena );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::U64, ascending, tmpArena );
 }
 
 void
 RadixSort( Array<i64>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::I64,
-               ascending, tmpArena );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::I64, ascending, tmpArena );
 }
 
 void
 RadixSort( Array<r64>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::R64,
-               ascending, tmpArena );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::R64, ascending, tmpArena );
+}
+
+void
+RadixSort( Array<KeyIndex64>* inputOutput, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
+{
+    ASSERT( keyType >= RadixKey::U64 );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(KeyIndex64), keyType, ascending, tmpArena );
 }
 
 template <typename T> void
@@ -384,7 +392,7 @@ RadixSort11( Array<r32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 
 
 template <typename T> void
-BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex>** result, MemoryArena* tmpArena )
+BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex>* result, MemoryArena* tmpArena )
 {
     *result = Array<KeyIndex>( tmpArena, sourceTypeArray.count );
 
@@ -392,6 +400,20 @@ BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array
     {
         u8* base = (u8*)&sourceTypeArray[i];
         u32* key = (u32*)(base + typeKeyOffset);
-        (*result)->Add( { *key, i } );
+        result->Add( { *key, i } );
     }
 }
+
+template <typename T> void
+BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex64>* result, MemoryArena* tmpArena )
+{
+    *result = Array<KeyIndex64>( tmpArena, sourceTypeArray.count );
+
+    for( u32 i = 0; i < sourceTypeArray.count; ++i )
+    {
+        u8* base = (u8*)&sourceTypeArray[i];
+        u64* key = (u64*)(base + typeKeyOffset);
+        result->Add( { *key, i } );
+    }
+}
+

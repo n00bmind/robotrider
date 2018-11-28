@@ -59,7 +59,7 @@ ASSERT_HANDLER(DefaultAssertHandler)
 template <typename T>
 internal Array<T> NewArray( u32 n )
 {
-    Array<T> result = Array<T>( new T[n], n );
+    Array<T> result = Array<T>( new T[n], 0, n );
     result.count = n;
     return result;
 }

@@ -233,7 +233,7 @@ DEBUG_GAME_FRAME_END(DebugGameFrameEnd)
     debugState->counterLogsCount = 0;
 
     // TODO Counter stats
-    u32 snapshotIndex = 0; //debugState->snapshotIndex;
+    u32 snapshotIndex = debugState->counterSnapshotIndex;
     for( u32 i = 0; i < ARRAYCOUNT(DEBUGglobalCounters); ++i )
     {
         DebugCycleCounter* source = DEBUGglobalCounters + i;
@@ -242,8 +242,8 @@ DEBUG_GAME_FRAME_END(DebugGameFrameEnd)
         UnpackAndResetFrameCounter( source, dest, snapshotIndex );
     }
 
-    debugState->snapshotIndex++;
-    if( debugState->snapshotIndex >= ARRAYCOUNT(DebugCounterLog::snapshots) )
-        debugState->snapshotIndex = 0;
+    debugState->counterSnapshotIndex++;
+    if( debugState->counterSnapshotIndex >= ARRAYCOUNT(DebugCounterLog::snapshots) )
+        debugState->counterSnapshotIndex = 0;
 }
 #endif
