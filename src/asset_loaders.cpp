@@ -288,11 +288,11 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
         }
     }
 
-    Array<u32> indices( arena, indexCount );
+    Array<u32> indices( arena, 0, indexCount );
 
-    Array<v3> positions( tmpArena, vertexCount );
-    Array<v2> uvs( tmpArena, uvCount );
-    Array<v3> normals( tmpArena, normalCount );
+    Array<v3> positions( tmpArena, 0, vertexCount );
+    Array<v2> uvs( tmpArena, 0, uvCount );
+    Array<v3> normals( tmpArena, 0, normalCount );
 
     // Map vertex pos+uv+normal to final vertex index
     // Initially every vertex would map to exactly one entry in the table, but due to
@@ -320,14 +320,14 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
             v3 p;
             int matches = line.Scan( "%f %f %f", &p.x, &p.y, &p.z );
             ASSERT( matches == 3 );
-            positions.Add( p );
+            positions.Push( p );
         }
         else if( firstWord.IsEqual( "vt" ) )
         {
             v2 uv;
             int matches = line.Scan( "%f %f", &uv.u, &uv.v );
             ASSERT( matches == 2 );
-            uvs.Add( uv );
+            uvs.Push( uv );
         }
         else if( firstWord.IsEqual( "vn" ) )
         {
@@ -335,7 +335,7 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
             int matches = line.Scan( "%f %f %f", &n.x, &n.y, &n.z );
             ASSERT( matches == 3 );
             Normalize( n );
-            normals.Add( n );
+            normals.Push( n );
         }
         else if( firstWord.IsEqual( "f" ) )
         {
@@ -432,23 +432,23 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
             u32 polyVertices = i;
             ASSERT( polyVertices == 3 || polyVertices == 4 );
             
-            indices.Add( vertexIndex[0] );
-            indices.Add( vertexIndex[1] );
-            indices.Add( vertexIndex[2] );
+            indices.Push( vertexIndex[0] );
+            indices.Push( vertexIndex[1] );
+            indices.Push( vertexIndex[2] );
 
             if( polyVertices == 4 )
             {
-                indices.Add( vertexIndex[2] );
-                indices.Add( vertexIndex[3] );
-                indices.Add( vertexIndex[0] );
+                indices.Push( vertexIndex[2] );
+                indices.Push( vertexIndex[3] );
+                indices.Push( vertexIndex[0] );
             }
         }
     }
 
     globalPlatform.DEBUGFreeFileMemory( read.contents );
 
-    Array<TexturedVertex> packedVertices( arena, vertices.count );
-    vertices.BlitTo( packedVertices.data );
+    Array<TexturedVertex> packedVertices( arena, 0, vertices.count );
+    vertices.CopyTo( packedVertices.data );
     packedVertices.count = vertices.count;
 
     // Pre apply transform

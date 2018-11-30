@@ -44,10 +44,10 @@ struct Array
         maxCount = 0;
     }
 
-    Array( MemoryArena* arena, u32 maxCount_ )
+    Array( MemoryArena* arena, u32 count_, u32 maxCount_ )
     {
         data = PUSH_ARRAY( arena, maxCount_, T );
-        count = 0;
+        count = count_;
         maxCount = maxCount_;
     }
 
@@ -82,15 +82,10 @@ struct Array
         return data + count++;
     }
 
-    void Add( const T& item )
+    void Push( const T& item )
     {
         T* slot = Reserve();
         *slot = item;
-    }
-
-    void Push( const T& item )
-    {
-        Add( item );
     }
 
     T Pop()
@@ -181,6 +176,14 @@ struct Array2
     {
         ASSERT( r < rows );
         return &data[r * cols];
+    }
+
+    // Deep copy
+    void CopyTo( Array2<T>* out ) const
+    {
+        ASSERT( rows == out->rows );
+        ASSERT( cols == out->cols );
+        COPY( data, out->data, rows * cols * sizeof(T) );
     }
 };
 
@@ -385,18 +388,18 @@ struct HashTable
 
     Array<K> Keys( MemoryArena* arena ) const
     {
-        Array<K> result( arena, count );
+        Array<K> result( arena, 0, count );
         for( u32 i = 0; i < tableSize; ++i )
         {
             if( table[i].occupied )
             {
-                result.Add( table[i].key );
+                result.Push( table[i].key );
                 if( table[i].nextInHash )
                 {
                     Slot* slot = table[i].nextInHash;
                     while( slot )
                     {
-                        result.Add( slot->key );
+                        result.Push( slot->key );
                         slot = slot->nextInHash;
                     }
                 }
@@ -407,18 +410,18 @@ struct HashTable
 
     Array<V> Values( MemoryArena* arena ) const
     {
-        Array<V> result( arena, count );
+        Array<V> result( arena, 0, count );
         for( u32 i = 0; i < tableSize; ++i )
         {
             if( table[i].occupied )
             {
-                result.Add( table[i].value );
+                result.Push( table[i].value );
                 if( table[i].nextInHash )
                 {
                     Slot* slot = table[i].nextInHash;
                     while( slot )
                     {
-                        result.Add( slot->value );
+                        result.Push( slot->value );
                         slot = slot->nextInHash;
                     }
                 }
@@ -616,11 +619,11 @@ struct String
             if( *(atNL - 1) == '\r' )
                 atNL--;
 
-            lineLen = SafeTruncToU32( onePastNL - data );
+            lineLen = SafeU64ToU32( onePastNL - data );
         }
 
         ASSERT( lineLen <= size );
-        String line( data, SafeTruncToU32( atNL - data ), maxSize );
+        String line( data, SafeU64ToU32( atNL - data ), maxSize );
 
         data = onePastNL;
         size -= lineLen;
@@ -661,7 +664,7 @@ struct String
             while( *end && IsWord( *end ) )
                 end++;
 
-            wordLen = SafeTruncToU32( end - data );
+            wordLen = SafeU64ToU32( end - data );
         }
 
         String result( data, wordLen, maxSize );
@@ -686,7 +689,7 @@ struct String
             remaining--;
         }
 
-        u32 len = SafeTruncToU32( next - data );
+        u32 len = SafeU64ToU32( next - data );
         String result( data, len, maxSize );
 
         data = next;
@@ -735,7 +738,7 @@ struct String
 
             ++start;
             result.data = start;
-            result.size = SafeTruncToU32(next - start);
+            result.size = SafeU64ToU32(next - start);
             result.maxSize = maxSize;
         }
 
@@ -951,7 +954,7 @@ struct BucketArray
         return result;
     }
 
-    void BlitTo( T* buffer ) const
+    void CopyTo( T* buffer ) const
     {
         const Bucket* bucket = &first;
         while( bucket )
@@ -964,8 +967,8 @@ struct BucketArray
 
     Array<T> ToArray( MemoryArena* arena_ ) const
     {
-        Array<T> result( arena_, count );
-        BlitTo( result.data );
+        Array<T> result( arena_, count, count );
+        CopyTo( result.data );
         result.count = count;
 
         return result;

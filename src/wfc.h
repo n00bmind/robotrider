@@ -105,6 +105,14 @@ struct Snapshot
     Array<r64> sumFrequencies;                      // sumsOfWeights
     Array<r64> sumWeights;                          // sumsOfWeightLogWeights
     Array<r64> entropies;
+
+    Array<r32> distribution;
+    // TODO Put the last random choice that was made here,
+    // so we know which option to discard next time we come back to this snapshot
+    // When a contradiction is found, go back to the last available snapshot, put a 0 in the corresponding distribution entry, and RandomSelect again
+    u32 selectedDistributionIndex;
+
+    sz highWaterMark;
 };
 
 struct State
@@ -121,13 +129,11 @@ struct State
     Array<u32> frequencies;                         // weights
     Array<r64> weights;                             // weightLogWeights
 
-    Array<r32> distributionTemp;
-
     // TODO Layout this differently (and rename it)
     IndexCell patternsIndex[Adjacency::Count];      // propagator
     Array<BannedTuple> propagationStack;
 
-    RingStack<Snapshot> snapshots;
+    RingStack<Snapshot> snapshotStack;
     Snapshot* currentSnapshot;
 
     Result currentResult;

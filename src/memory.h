@@ -69,6 +69,14 @@ MakeSubArena( MemoryArena* arena, sz size )
 }
 
 inline void
+RewindArena( MemoryArena* arena, sz newUsed )
+{
+    // In principle we don't allow rewinding forward
+    ASSERT( newUsed < arena->used );
+    arena->used = newUsed;
+}
+
+inline void
 ClearArena( MemoryArena* arena, bool clearToZero = true )
 {
     arena->used = 0;

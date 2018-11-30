@@ -394,26 +394,26 @@ RadixSort11( Array<r32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 template <typename T> void
 BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex>* result, MemoryArena* tmpArena )
 {
-    *result = Array<KeyIndex>( tmpArena, sourceTypeArray.count );
+    *result = Array<KeyIndex>( tmpArena, 0, sourceTypeArray.count );
 
     for( u32 i = 0; i < sourceTypeArray.count; ++i )
     {
         u8* base = (u8*)&sourceTypeArray[i];
         u32* key = (u32*)(base + typeKeyOffset);
-        result->Add( { *key, i } );
+        result->Push( { *key, i } );
     }
 }
 
 template <typename T> void
 BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex64>* result, MemoryArena* tmpArena )
 {
-    *result = Array<KeyIndex64>( tmpArena, sourceTypeArray.count );
+    *result = Array<KeyIndex64>( tmpArena, 0, sourceTypeArray.count );
 
     for( u32 i = 0; i < sourceTypeArray.count; ++i )
     {
         u8* base = (u8*)&sourceTypeArray[i];
         u64* key = (u64*)(base + typeKeyOffset);
-        result->Add( { *key, i } );
+        result->Push( { *key, i } );
     }
 }
 

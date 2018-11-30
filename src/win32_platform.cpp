@@ -249,7 +249,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
         LARGE_INTEGER fileSize;
         if( GetFileSizeEx( fileHandle, &fileSize ) )
         {
-            u32 fileSize32 = SafeTruncToU32( fileSize.QuadPart );
+            u32 fileSize32 = SafeU64ToU32( fileSize.QuadPart );
             result.contents = VirtualAlloc( 0, fileSize32 + 1, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
             if( result.contents )
@@ -1209,7 +1209,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 bool wasDown = ((message.lParam & (1 << 30)) != 0);
                 bool isDown =  ((message.lParam & (1 << 31)) == 0);
 
-                u32 vkCode = SafeTruncToU32( message.wParam );
+                u32 vkCode = SafeU64ToU32( message.wParam );
                 if( vkCode < 256 )
                     imGuiIO.KeysDown[vkCode] = isDown ? 1 : 0;
 

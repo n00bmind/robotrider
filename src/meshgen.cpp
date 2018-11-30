@@ -109,10 +109,10 @@ AllocateMeshFromScratchBuffers( MeshPool* pool )
     Mesh* result = AllocateMesh( pool, pool->scratchVertices.count,
                                  pool->scratchIndices.count );
 
-    pool->scratchVertices.BlitTo( result->vertices );
+    pool->scratchVertices.CopyTo( result->vertices );
     result->vertexCount = pool->scratchVertices.count;
 
-    pool->scratchIndices.BlitTo( result->indices );
+    pool->scratchIndices.CopyTo( result->indices );
     result->indexCount = pool->scratchIndices.count;
 
     return result;
@@ -128,8 +128,8 @@ CopyMeshFromScratchBuffers( Mesh* mesh, MeshPool* pool )
     }
     else
     {
-        pool->scratchVertices.BlitTo( mesh->vertices );
-        pool->scratchIndices.BlitTo( mesh->indices );
+        pool->scratchVertices.CopyTo( mesh->vertices );
+        pool->scratchIndices.CopyTo( mesh->indices );
     }
 
     return mesh;
@@ -385,7 +385,7 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, March
             //r32 y = RandomRange( -halfSideMeters, halfSideMeters );
             //r32 z = RandomRange( -halfSideMeters, halfSideMeters );
             r32 r = RandomRangeR32( 1.0f, 5.0f );
-            balls.Add( { V3Zero, r } );
+            balls.Push( { V3Zero, r } );
         }
     }
 
@@ -563,8 +563,8 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, M
     // Identify boundary vertices
     if( iteration == 0 )
     {
-        Array<u32> vCount( tmpArena, 1000 );
-        Array<u32> vIds( tmpArena, 1000 );
+        Array<u32> vCount( tmpArena, 0, 1000 );
+        Array<u32> vIds( tmpArena, 0, 1000 );
 
         for( u32 i = 0; i < mesh->vertices.count; ++i )
             mesh->vertices[i].border = false;
@@ -594,8 +594,8 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, M
 
                     if( ofs == vCount.count )
                     {
-                        vCount.Add( 1 );
-                        vIds.Add( id );
+                        vCount.Push( 1 );
+                        vIds.Push( id );
                     }
                     else
                         vCount[ofs]++;
@@ -672,7 +672,7 @@ UpdateTriangles( u32 i0, const InflatedVertex& v, const Array<bool>& deleted,
         tri.error[1] = CalculateError( mesh, tri.v[1], tri.v[2], &p );
         tri.error[2] = CalculateError( mesh, tri.v[2], tri.v[0], &p );
         tri.error[3] = Min( tri.error[0], Min( tri.error[1], tri.error[2] ) );
-        refs->Add( ref );
+        refs->Push( ref );
     }
 }
 
@@ -721,7 +721,7 @@ CompactMesh( InflatedMesh* mesh )
 // Taken from https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification
 void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, MemoryArena* tmpArena, r32 agressiveness = 7 )
 {
-    Array<InflatedVertexRef> refs( tmpArena, 500000 );
+    Array<InflatedVertexRef> refs( tmpArena, 0, 500000 );
 
     u32 triangleCount = mesh->triangles.count;
     u32 deletedTriangleCount = 0;
@@ -758,8 +758,8 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, MemoryArena* t
             {
                 if( tri.error[j] < threshold )
                 {
-                    Array<bool> deleted0( tmpArena, 1000 );
-                    Array<bool> deleted1( tmpArena, 1000 );
+                    Array<bool> deleted0( tmpArena, 0, 1000 );
+                    Array<bool> deleted1( tmpArena, 0, 1000 );
 
                     u32 i0 = tri.v[j];          InflatedVertex& v0 = mesh->vertices[i0];
                     u32 i1 = tri.v[(j+1)%3];    InflatedVertex& v1 = mesh->vertices[i1];
@@ -881,7 +881,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
     // For example, for X rays, the Y|Z coords are the hash, for Y rays, the X|Z coords, etc.
     // NOTE This can be heavily compressed if needed by using a more compact hash, since most entries will be empty anyway
     u32 rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
-    Array<Hit> gridHits( tmpArena, 100000 );
+    Array<Hit> gridHits( tmpArena, 0, 100000 );
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMaterial( nullptr, renderCommands );
@@ -935,7 +935,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
                         {
                             // Store intersection coords relative to grid
                             r32 hitCoord = (pI - pGridOrigin).y;
-                            gridHits.Add( { V2I( x, z ), hitCoord } );
+                            gridHits.Push( { V2I( x, z ), hitCoord } );
                         }
                     }
                 }

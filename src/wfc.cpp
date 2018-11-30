@@ -228,23 +228,49 @@ BuildPatternsIndex( const u32 N, State* state, MemoryArena* arena )
 
     for( u32 d = 0; d < ARRAYCOUNT(state->patternsIndex); ++d )
     {
-        Array<IndexEntry> entries( arena, patternCount );
+        Array<IndexEntry> entries( arena, 0, patternCount );
 
         for( u32 p = 0; p < patternCount; ++p )
         {
             u8* pData = state->patterns[p].data;
 
-            Array<bool> matches( arena, patternCount );
+            Array<bool> matches( arena, 0, patternCount );
 
             for( u32 q = 0; q < patternCount; ++q )
             {
                 u8* qData = state->patterns[q].data;
-                matches.Add( Matches( pData, cellDeltas[d], qData, N ) );
+                matches.Push( Matches( pData, cellDeltas[d], qData, N ) );
             }
-            entries.Add( { matches } );
+            entries.Push( { matches } );
         }
         state->patternsIndex[d] = { entries };
     }
+}
+
+internal void
+AllocSnapshot( Snapshot* result, u32 waveLength, u32 patternCount, MemoryArena* arena )
+{
+    result->wave = Array2<bool>( arena, waveLength, patternCount );
+    result->adjacencyCounters = Array2<AdjacencyCounters>( arena, waveLength, patternCount );
+    result->compatiblesCount = Array<u32>( arena, waveLength, waveLength );
+    result->sumFrequencies = Array<r64>( arena, waveLength, waveLength );
+    result->sumWeights = Array<r64>( arena, waveLength, waveLength );
+    result->entropies = Array<r64>( arena, waveLength, waveLength );
+    result->distribution = Array<r32>( arena, patternCount, patternCount );
+
+    result->highWaterMark = arena->used;
+}
+
+internal void
+CopySnapshot( Snapshot* source, Snapshot* target )
+{
+    source->wave.CopyTo( &target->wave );
+    source->adjacencyCounters.CopyTo( &target->adjacencyCounters );
+    source->compatiblesCount.CopyTo( &target->compatiblesCount );
+    source->sumFrequencies.CopyTo( &target->sumFrequencies );
+    source->sumWeights.CopyTo( &target->sumWeights );
+    source->entropies.CopyTo( &target->entropies );
+    source->distribution.CopyTo( &target->distribution );
 }
 
 internal void
@@ -254,45 +280,56 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
 
     state->arena = arena;
 
+    // Process input data
     PalettizeSource( spec.source, state, arena );
     BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, state, arena );
     BuildPatternsIndex( spec.N, state, arena );
 
-
-    const v2i outputDim = spec.outputDim;
-    // FIXME This should actually be (width - N + 1) * (height - N + 1)
-    u32 waveLength = outputDim.x * outputDim.y;
+    // Init global state
+    // FIXME This should actually be (width - N + 1) * (height - N + 1) ?
+    u32 waveLength = spec.outputDim.x * spec.outputDim.y;
     u32 patternCount = state->patterns.count;
-
-    state->remainingObservations = waveLength;
     state->frequencies = state->patternsHash.Values( arena );
     ASSERT( state->frequencies.count == patternCount );
-    state->weights = Array<r64>( arena, patternCount );
-    state->distributionTemp = Array<r32>( arena, patternCount );
-    // Increase as needed
-    state->propagationStack = Array<BannedTuple>( arena, waveLength * 2 );
+    state->weights = Array<r64>( arena, patternCount, patternCount );
+    const u32 propagationStackSize = waveLength * 2;                            // Increase as needed
+    state->propagationStack = Array<BannedTuple>( arena, 0, propagationStackSize );
 
+    // Create initial snapshot
+    Snapshot snapshot0;
+    sz lowWaterMark = arena->used;
+
+    AllocSnapshot( &snapshot0, waveLength, patternCount, arena );
+
+    // So we want to calculate the max number of snapshots that will fit in our arena,
+    // but we still need to allocate the snapshot stack, whose size depends on the number of snapshots
+    // Now, given:
+    sz S = arena->used - lowWaterMark;                                          // Size in memory for all the snapshot's data
+    sz A = arena->size - lowWaterMark;                                          // Total available for all snapshots + stack
+    sz s = sizeof(Snapshot);                                                    // Size of the snapshot struct itself
+    // We find that:
+    // The size of the snapshot stack content (barring the struct itself) would be x = n * s, where n is the number of snapshots
+    // Conversely, n = (A - x) / S
+    // So if we substitute x and solve for n we have:
+    u32 maxSnapshotCount = SafeR64ToU32( (r32)A / (S + s) );
+    ASSERT( maxSnapshotCount * s + maxSnapshotCount * S < A );
+
+    // We need to allocate the stack before any snapshot, so that rewinding snapshots will work properly
+    RewindArena( arena, lowWaterMark );
+    state->snapshotStack = RingStack<Snapshot>( arena, maxSnapshotCount );
+    AllocSnapshot( &snapshot0, waveLength, patternCount, arena );
+    state->currentSnapshot = state->snapshotStack.Push( snapshot0 );
+
+    // Calc initial entropy, counters, etc.
     r64 sumFrequencies = 0;                                                     // sumOfWeights
     r64 sumWeights = 0;                                                         // sumOfWeightLogWeights
-
     for( u32 p = 0; p < patternCount; ++p )
     {
         state->weights[p] = state->frequencies[p] * Log( state->frequencies[p] );
         sumFrequencies += state->frequencies[p];
         sumWeights += state->weights[p];
     }
-
     r64 initialEntropy = Log( sumFrequencies ) - sumWeights / sumFrequencies;
-
-
-    Snapshot snapshot0;
-
-    snapshot0.wave = Array2<bool>( arena, waveLength, patternCount );
-    snapshot0.adjacencyCounters = Array2<AdjacencyCounters>( arena, waveLength, patternCount );
-    snapshot0.compatiblesCount = Array<u32>( arena, waveLength );
-    snapshot0.sumFrequencies = Array<r64>( arena, waveLength );
-    snapshot0.sumWeights = Array<r64>( arena, waveLength );
-    snapshot0.entropies = Array<r64>( arena, waveLength );
 
     for( u32 i = 0; i < waveLength; ++i )
     {
@@ -318,34 +355,31 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
         }
     }
 
-    // TODO Fit as many as possible in the given arena
-    u32 maxSnapshotCount = 1;
-    state->snapshots = RingStack<Snapshot>( arena, maxSnapshotCount );
-    state->currentSnapshot = state->snapshots.Push( snapshot0 );
-
+    state->remainingObservations = waveLength;
     state->currentResult = InProgress;
 }
 
 internal u32
-RandomSelect( Array<r32>& distribution )
+RandomSelect( Array<r32>* distribution )
 {
     r32 r = RandomNormalizedR32();
+    r32* d = distribution->data;
 
     r32 sum = 0.f;
-    for( u32 i = 0; i < distribution.maxCount; ++i )
-        sum += distribution[i];
+    for( u32 i = 0; i < distribution->maxCount; ++i )
+        sum += d[i];
 
     ASSERT( sum != 0.f );
 
-    for( u32 i = 0; i < distribution.maxCount; ++i )
-        distribution[i] /= sum;
+    for( u32 i = 0; i < distribution->maxCount; ++i )
+        d[i] /= sum;
 
     u32 i = 0;
     r32 x = 0.f;
 
-    while( i < distribution.maxCount )
+    while( i < distribution->maxCount )
     {
-        x += distribution[i];
+        x += d[i];
         if (r <= x)
             break;
         i++;
@@ -457,13 +491,20 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             u32 patternCount = state->patterns.count;
 
             for( u32 p = 0; p < patternCount; ++p )
-                state->distributionTemp[p] = (snapshot->wave.At( selectedCellIndex, p ) ? state->frequencies[p] : 0.f);
+                snapshot->distribution[p] = (snapshot->wave.At( selectedCellIndex, p ) ? state->frequencies[p] : 0.f);
 
-            u32 selectedPattern = RandomSelect( state->distributionTemp );
+            snapshot->selectedDistributionIndex = RandomSelect( &snapshot->distribution );
+
+            Snapshot newSnapshot;
+            AllocSnapshot( &newSnapshot, waveLength, patternCount, arena );
+            CopySnapshot( state->currentSnapshot, &newSnapshot );
+
+            // FIXME Fix RingBuffer & RingStack
+            state->currentSnapshot = state->snapshotStack.Push( newSnapshot );
 
             for( u32 p = 0; p < patternCount; ++p )
             {
-                if( snapshot->wave.At( selectedCellIndex, p ) && p != selectedPattern )
+                if( snapshot->wave.At( selectedCellIndex, p ) && p != snapshot->selectedDistributionIndex )
                     BanPatternAtCell( selectedCellIndex, p, state );
             }
         }
@@ -711,7 +752,8 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
     ImGui::EndChild();
     ImGui::SameLine();
 
-    u32 patternsCountSqrt = (u32)Round( Sqrt( (r32)state->patterns.count ) );
+    const u32 patternsCount = state->patterns.count;
+    const u32 patternsCountSqrt = (u32)Round( Sqrt( (r32)patternsCount ) );
 
     ImGui::BeginChild( "child_wfc_right", ImVec2( 0, 0 ), true, 0 );
     switch( displayState->currentPage )
@@ -730,7 +772,7 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 ImGui::Spacing();
                 ImGui::Spacing();
                 ImGui::Text( "Name: %s", spec.name );
-                ImGui::Text( "Num. patterns: %d", state->patterns.count );
+                ImGui::Text( "Num. patterns: %d", patternsCount );
 
                 ImGui::Spacing();
                 ImGui::Spacing();
@@ -775,11 +817,11 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
         case TestPage::Patterns:
         {
             if( !displayState->patternTextures )
-                displayState->patternTextures = Array<Texture>( wfcDisplayArena, state->patterns.count );
+                displayState->patternTextures = Array<Texture>( wfcDisplayArena, patternsCount, patternsCount );
 
             bool firstRow = true;
             ImGui::Columns( patternsCountSqrt, nullptr, false );
-            for( u32 i = 0; i < state->patterns.count; ++i )
+            for( u32 i = 0; i < patternsCount; ++i )
             {
                 const Pattern& p = state->patterns[i];
                 Texture& t = displayState->patternTextures[i];
@@ -804,10 +846,10 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
         case TestPage::Index:
         {
             if( !displayState->patternTextures )
-                displayState->patternTextures = Array<Texture>( wfcDisplayArena, state->patterns.count );
+                displayState->patternTextures = Array<Texture>( wfcDisplayArena, patternsCount, patternsCount );
 
             ImGui::BeginChild( "child_index_entries", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
-            for( u32 i = 0; i < state->patterns.count; ++i )
+            for( u32 i = 0; i < patternsCount; ++i )
             {
                 const Pattern& p = state->patterns[i];
                 Texture& t = displayState->patternTextures[i];
@@ -856,7 +898,7 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                         {
                             const Array<bool>& matches = state->patternsIndex[d].entries[displayState->currentIndexEntry].matches;
 
-                            for( u32 m = 0; m < state->patterns.count; ++m )
+                            for( u32 m = 0; m < patternsCount; ++m )
                             {
                                 if( !matches[m] )
                                     continue;
