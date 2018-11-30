@@ -73,11 +73,12 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
 
     world->cacheBuffers = PUSH_ARRAY( worldArena, globalPlatform.workerThreadsCount, MarchingCacheBuffers );
     world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.workerThreadsCount, MeshPool );
+    sz arenaAvailable = Available( worldArena );
+    sz maxPerThread = arenaAvailable / 2 / globalPlatform.workerThreadsCount;
     for( u32 i = 0; i < globalPlatform.workerThreadsCount; ++i )
     {
         world->cacheBuffers[i] = InitMarchingCacheBuffers( worldArena, 10 );
-        // TODO Re-evaluate size of each pool now that we have many
-        Init( &world->meshPools[i], worldArena, MEGABYTES(64) );
+        Init( &world->meshPools[i], worldArena, maxPerThread );
     }
 }
 

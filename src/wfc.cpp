@@ -495,12 +495,14 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
 
             snapshot->selectedDistributionIndex = RandomSelect( &snapshot->distribution );
 
-            Snapshot newSnapshot;
-            AllocSnapshot( &newSnapshot, waveLength, patternCount, arena );
-            CopySnapshot( state->currentSnapshot, &newSnapshot );
+            // Get a new snapshot from the stack
+            // NOTE If the snapshot space was previously allocated, use that same space, otherwise allocate
+            snapshot = state->snapshotStack.Push( false );
+            if( !snapshot->wave )
+                AllocSnapshot( snapshot, waveLength, patternCount, arena );
+            CopySnapshot( state->currentSnapshot, snapshot );
 
-            // FIXME Fix RingBuffer & RingStack
-            state->currentSnapshot = state->snapshotStack.Push( newSnapshot );
+            state->currentSnapshot = snapshot;
 
             for( u32 p = 0; p < patternCount; ++p )
             {

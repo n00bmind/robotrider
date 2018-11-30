@@ -178,6 +178,12 @@ struct Array2
         return &data[r * cols];
     }
 
+    // TODO Not too sure about this!
+    operator bool() const
+    {
+        return data != nullptr;
+    }
+
     // Deep copy
     void CopyTo( Array2<T>* out ) const
     {
@@ -190,81 +196,62 @@ struct Array2
 
 /////     RING BUFFER    /////
 
-template <typename T>
-struct RingBuffer
-{
-    T *data;
-    u32 maxCount;
-    u32 headIndex;
-    u32 tailIndex;
-
-    RingBuffer( MemoryArena* arena, u32 maxCount_ )
-    {
-        data = PUSH_ARRAY( arena, maxCount_, T );
-        maxCount = maxCount_;
-        headIndex = 0;
-    }
-
-    // FIXME Wrong
-    T* Put( const T& item )
-    {
-        if( headIndex == tailIndex )
-        {
-            // Cover initial edge case
-            ASSERT( headIndex == 0 && tailIndex == 0 );
-            tailIndex = maxCount;
-        }
-        else
-        {
-            ++headIndex;
-            if( headIndex == maxCount )
-                headIndex = 0;
-            if( headIndex == tailIndex )
-                ++tailIndex;
-            if( tailIndex == maxCount )
-                tailIndex = 0;
-        }
-
-        data[headIndex] = item;
-        return &data[headIndex];
-    }
-
-    // FIXME Wrong
-    const T* Get() const
-    {
-        T* result = nullptr;
-
-        if( headIndex != tailIndex )
-            result = &data[headIndex];
-
-        return result;
-    }
-};
-
 
 /////     RING STACK    /////
+// Circular stack that can push an infinite number of elements, by discarding elements from the bottom when needed
 
 template <typename T>
 struct RingStack
 {
-    RingBuffer<T> buffer;
+    Array<T> buffer;
+    u32 headIndex;
+
 
     RingStack( MemoryArena* arena, u32 maxCount_ )
-        : buffer( arena, maxCount_ )
-    {}
+        : buffer( arena, 0, maxCount_ )
+    {
+        headIndex = 0;
+    }
+
+    u32 Count()
+    {
+        return buffer.count;
+    }
+
+    T* Push( bool clear = true )
+    {
+        T* result = buffer.data + headIndex++;
+        if( headIndex == buffer.maxCount )
+            headIndex = 0;
+        if( buffer.count < buffer.maxCount )
+            ++buffer.count;
+
+        if( clear )
+            ZERO( result, sizeof(T) );
+
+        return result;
+    }
 
     T* Push( const T& item )
     {
-        return buffer.Put( item );
+        T* result = Push();
+        *result = item;
+        return result;
     }
 
-    // FIXME Wrong
     const T& Pop() const
     {
-        ASSERT( buffer.headIndex != buffer.tailIndex );
+        if( count > 0 )
+        {
+            headIndex = headIndex > 0 ? --headIndex : buffer.maxCount - 1;
+            --count;
+        }
+        else
+        {
+            INVALID_CODE_PATH
+        }
 
-        T* result = buffer.Get();
-        buffer.headIndex = buffer.headIndex ? buffer.headIndex - 1 : buffer.maxCount;
+        return buffer.data[headIndex];
     }
 };
 

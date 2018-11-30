@@ -87,6 +87,12 @@ ClearArena( MemoryArena* arena, bool clearToZero = true )
         ZERO( arena->base, arena->size );
 }
 
+inline sz
+Available( MemoryArena* arena )
+{
+    return arena->size - arena->used;
+}
+
 struct TemporaryMemory
 {
     MemoryArena *arena;
