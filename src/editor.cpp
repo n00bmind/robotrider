@@ -162,11 +162,11 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     if( editorState.wfcState->cancellationRequested )
     {
         // Simply wait until cancelled or done
-        if( editorState.wfcState->currentResult > WFC::Result::InProgress )
+        if( editorState.wfcState->currentResult > WFC::Result::Contradiction )
         {
             ClearArena( &editorState.wfcArena, true );
             ClearArena( &editorState.wfcDisplayArena, true );
-            u32 savedIndex = editorState.wfcDisplayState.currentSpecIndex;
+            u32 savedIndex = editorState.wfcDisplayState.requestedSpecIndex;
             editorState.wfcDisplayState = {};
             editorState.wfcDisplayState.currentSpecIndex = savedIndex;
 
@@ -178,8 +178,8 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     {
         if( selectedIndex != U32MAX )
         {
-            editorState.wfcDisplayState.currentSpecIndex = selectedIndex;
             editorState.wfcState->cancellationRequested = true;
+            editorState.wfcDisplayState.requestedSpecIndex = selectedIndex;
         }
     }
 

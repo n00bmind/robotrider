@@ -257,8 +257,6 @@ AllocSnapshot( Snapshot* result, u32 waveLength, u32 patternCount, MemoryArena* 
     result->sumWeights = Array<r64>( arena, waveLength, waveLength );
     result->entropies = Array<r64>( arena, waveLength, waveLength );
     result->distribution = Array<r32>( arena, patternCount, patternCount );
-
-    result->highWaterMark = arena->used;
 }
 
 internal void
@@ -271,6 +269,8 @@ CopySnapshot( Snapshot* source, Snapshot* target )
     source->sumWeights.CopyTo( &target->sumWeights );
     source->entropies.CopyTo( &target->entropies );
     source->distribution.CopyTo( &target->distribution );
+
+    target->selectedDistributionIndex = source->selectedDistributionIndex;
 }
 
 internal void
@@ -294,6 +294,7 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
     state->weights = Array<r64>( arena, patternCount, patternCount );
     const u32 propagationStackSize = waveLength * 2;                            // Increase as needed
     state->propagationStack = Array<BannedTuple>( arena, 0, propagationStackSize );
+    state->distributionTemp = Array<r32>( arena, patternCount, patternCount );
 
     // Create initial snapshot
     Snapshot snapshot0;
@@ -355,42 +356,48 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
         }
     }
 
+    state->snapshotCount = 1;
     state->remainingObservations = waveLength;
     state->currentResult = InProgress;
 }
 
-internal u32
-RandomSelect( Array<r32>* distribution )
+internal bool
+RandomSelect( const Array<r32>& distribution, Array<r32>* temp, u32* selection )
 {
-    r32 r = RandomNormalizedR32();
-    r32* d = distribution->data;
+    bool result = false;
 
     r32 sum = 0.f;
-    for( u32 i = 0; i < distribution->maxCount; ++i )
-        sum += d[i];
+    for( u32 i = 0; i < distribution.count; ++i )
+        sum += distribution[i];
 
-    ASSERT( sum != 0.f );
-
-    for( u32 i = 0; i < distribution->maxCount; ++i )
-        d[i] /= sum;
-
-    u32 i = 0;
-    r32 x = 0.f;
-
-    while( i < distribution->maxCount )
+    r32* d = temp->data;
+    r32 r = RandomNormalizedR32();
+    if( sum != 0.f )
     {
-        x += d[i];
-        if (r <= x)
-            break;
-        i++;
+        for( u32 i = 0; i < distribution.count; ++i )
+            d[i] = distribution[i] / sum;
+
+        u32 i = 0;
+        r32 x = 0.f;
+
+        while( i < distribution.count )
+        {
+            x += d[i];
+            if (r <= x)
+                break;
+            i++;
+        }
+        *selection = i;
+        result = true;
     }
 
-    return i;
+    return result;
 }
 
-internal void
+internal bool
 BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
 {
+    bool result = true;
     Snapshot* snapshot = state->currentSnapshot;
 
     snapshot->wave.At( cellIndex, patternIndex ) = false;
@@ -399,9 +406,8 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
         snapshot->adjacencyCounters.At( cellIndex, patternIndex ).dir[d] = 0;
 
     snapshot->compatiblesCount[cellIndex]--;
-    // Early out
     if( snapshot->compatiblesCount[cellIndex] == 0 )
-        state->currentResult = Contradiction;
+        result = false;
 
     // Weird entropy calculation
     u32 i = cellIndex;
@@ -415,7 +421,10 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
     snapshot->entropies[i] -= snapshot->sumWeights[i] / snapshot->sumFrequencies[i] - Log( snapshot->sumFrequencies[i] );
 
     // Add entry to stack
-    state->propagationStack.Push( { cellIndex, patternIndex } );
+    if( result )
+        state->propagationStack.Push( { cellIndex, patternIndex } );
+
+    return result;
 }
 
 inline bool
@@ -445,6 +454,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
 
     u32 selectedCellIndex = 0;
     r64 minEntropy = R64INF;
+    u32 patternCount = state->patterns.count;
 
     u32 observations = 0;
     u32 waveLength = spec.outputDim.x * spec.outputDim.y;
@@ -457,7 +467,43 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         if( count == 0)
         {
             result = Contradiction;
-            break;
+
+#if 1
+            Sleep( 1000 );
+#endif
+            bool haveNewSelection = false;
+            while( snapshot && !haveNewSelection )
+            {
+                // Get previous snapshot from the stack, if available
+                state->snapshotStack.Pop();
+                snapshot = state->snapshotStack.Top();
+                --state->snapshotCount;
+
+                if( snapshot )
+                {
+                    // Discard the random selection we chose last time, and try again
+                    snapshot->distribution[snapshot->selectedDistributionIndex] = 0.f;
+                    haveNewSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &snapshot->selectedDistributionIndex );
+                }
+            }
+
+            if( haveNewSelection )
+            {
+                state->currentSnapshot = snapshot;
+
+                for( u32 p = 0; p < patternCount; ++p )
+                {
+                    if( snapshot->wave.At( selectedCellIndex, p ) && p != snapshot->selectedDistributionIndex )
+                        BanPatternAtCell( selectedCellIndex, p, state );
+                }
+
+                result = InProgress;
+            }
+            else
+                result = Failed;
+
+            // FIXME
+            return result;
         }
         else if( count == 1 )
         {
@@ -488,12 +534,11 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         }
         else
         {
-            u32 patternCount = state->patterns.count;
-
             for( u32 p = 0; p < patternCount; ++p )
                 snapshot->distribution[p] = (snapshot->wave.At( selectedCellIndex, p ) ? state->frequencies[p] : 0.f);
 
-            snapshot->selectedDistributionIndex = RandomSelect( &snapshot->distribution );
+            bool haveSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &snapshot->selectedDistributionIndex );
+            ASSERT( haveSelection );
 
             // Get a new snapshot from the stack
             // NOTE If the snapshot space was previously allocated, use that same space, otherwise allocate
@@ -503,6 +548,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             CopySnapshot( state->currentSnapshot, snapshot );
 
             state->currentSnapshot = snapshot;
+            ++state->snapshotCount;
 
             for( u32 p = 0; p < patternCount; ++p )
             {
@@ -554,7 +600,14 @@ Propagate( const Spec& spec, State* state )
                     counters.dir[d]--;
 
                     if( counters.dir[d] == 0 )
-                        BanPatternAtCell( adjacentIndex, p, state );
+                    {
+                        bool compatiblesRemaining = BanPatternAtCell( adjacentIndex, p, state );
+                        if( !compatiblesRemaining )
+                        {
+                            state->currentResult = Contradiction;
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -634,7 +687,7 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
                 u32 cellIndex = cellY * width + cellX;
                 for( u32 p = 0; p < state->patterns.count; ++p )
                 {
-                    if( snapshot->wave.At( cellIndex, patternIndex ) )
+                    if( snapshot->wave.At( cellIndex, p ) )
                     {
                         patternIndex = p;
                         break;
@@ -651,7 +704,7 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
             }
         }
     }
-    else if( state->currentResult == Contradiction )
+    else if( state->currentResult == Contradiction || state->currentResult == Failed )
     {
         for( u32 y = 0; y < height; ++y )
         {
@@ -768,6 +821,8 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
 
                 if( state->currentResult == Contradiction )
                     ImGui::Text( "CONTRADICTION!" );
+                else if( state->currentResult == Failed )
+                    ImGui::Text( "FAILED!" );
                 else
                     ImGui::Text( "Remaining: %d", state->remainingObservations );
 
@@ -775,6 +830,11 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 ImGui::Spacing();
                 ImGui::Text( "Name: %s", spec.name );
                 ImGui::Text( "Num. patterns: %d", patternsCount );
+
+                ImGui::Spacing();
+                ImGui::Spacing();
+                ImGui::Text( "Snapshot count: %d", state->snapshotCount );
+                ImGui::Text( "Backtracking depth: %d", state->snapshotStack.buffer.maxCount );
 
                 ImGui::Spacing();
                 ImGui::Spacing();
@@ -960,6 +1020,9 @@ StartWFCSync( const Spec& spec, State* state, MemoryArena* wfcArena )
 
         if( state->cancellationRequested )
             state->currentResult = Cancelled;
+
+        if( state->currentResult == Contradiction )
+            state->currentResult = Observe( spec, state, wfcArena );
     }
 }
 

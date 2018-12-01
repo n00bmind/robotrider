@@ -89,9 +89,10 @@ enum Result
 {
     NotStarted = 0,
     InProgress,
-    Cancelled,
-    Done,
     Contradiction,
+    Cancelled,
+    Failed,
+    Done,
 };
 
 struct Snapshot
@@ -111,8 +112,6 @@ struct Snapshot
     // so we know which option to discard next time we come back to this snapshot
     // When a contradiction is found, go back to the last available snapshot, put a 0 in the corresponding distribution entry, and RandomSelect again
     u32 selectedDistributionIndex;
-
-    sz highWaterMark;
 };
 
 struct State
@@ -132,12 +131,15 @@ struct State
     // TODO Layout this differently (and rename it)
     IndexCell patternsIndex[Adjacency::Count];      // propagator
     Array<BannedTuple> propagationStack;
+    Array<r32> distributionTemp;
 
     RingStack<Snapshot> snapshotStack;
     Snapshot* currentSnapshot;
 
-    Result currentResult;
+    u32 snapshotCount;
     u32 remainingObservations;
+    Result currentResult;
+
     mutable bool cancellationRequested;
 };
 
@@ -152,6 +154,7 @@ struct DisplayState
 {
     TestPage currentPage;
     u32 currentSpecIndex;
+    u32 requestedSpecIndex;
     u32 currentIndexEntry;
 
     Array<Texture> patternTextures;

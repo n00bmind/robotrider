@@ -204,13 +204,13 @@ template <typename T>
 struct RingStack
 {
     Array<T> buffer;
-    u32 headIndex;
+    u32 topIndex;
 
 
     RingStack( MemoryArena* arena, u32 maxCount_ )
         : buffer( arena, 0, maxCount_ )
     {
-        headIndex = 0;
+        topIndex = 0;
     }
 
     u32 Count()
@@ -218,11 +218,22 @@ struct RingStack
         return buffer.count;
     }
 
+    T* Top()
+    {
+        T* result = nullptr;
+        if( buffer.count )
+        {
+            u32 top = topIndex ? topIndex - 1 : buffer.maxCount - 1;
+            result = buffer.data + top;
+        }
+        return result;
+    }
+
     T* Push( bool clear = true )
     {
-        T* result = buffer.data + headIndex++;
-        if( headIndex == buffer.maxCount )
-            headIndex = 0;
+        T* result = buffer.data + topIndex++;
+        if( topIndex == buffer.maxCount )
+            topIndex = 0;
         if( buffer.count < buffer.maxCount )
             ++buffer.count;
 
@@ -239,19 +250,19 @@ struct RingStack
         return result;
     }
 
-    const T& Pop() const
+    const T& Pop()
     {
-        if( count > 0 )
+        if( buffer.count )
         {
-            headIndex = headIndex > 0 ? --headIndex : buffer.maxCount - 1;
-            --count;
+            topIndex = topIndex ? --topIndex : buffer.maxCount - 1;
+            --buffer.count;
         }
         else
         {
             INVALID_CODE_PATH
         }
 
-        return buffer.data[headIndex];
+        return buffer.data[topIndex];
     }
 };
 
