@@ -229,6 +229,15 @@ struct RingStack
         return result;
     }
 
+    // Return the item that is at the given distance from the top (0 equals the top item)
+    const T& At( u32 fromTop ) const
+    {
+        ASSERT( fromTop < buffer.count );
+        u32 index = (topIndex - fromTop - 1) % buffer.maxCount;
+
+        return buffer[index];
+    }
+
     T* Push( bool clear = true )
     {
         T* result = buffer.data + topIndex++;

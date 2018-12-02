@@ -354,7 +354,6 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
         }
     }
 
-    state->remainingObservations = waveLength;
     state->currentResult = InProgress;
 }
 
@@ -483,7 +482,8 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             }
         }
     }
-    state->remainingObservations = snapshot->compatiblesCount.maxCount - observations;
+    state->observationCount = observations;
+    ASSERT( state->observationCount >= state->lastSnapshotObservationCount );
 
     if( result == InProgress )
     {
@@ -503,17 +503,23 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             bool haveSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &observedDistributionIndex );
             ASSERT( haveSelection );
 
-            snapshot->lastObservedCellIndex = observedCellIndex;
-            snapshot->lastObservedDistributionIndex = observedDistributionIndex;
+            // Check is we should create a new snapshot
+            if( state->observationCount - state->lastSnapshotObservationCount >= 10 )
+            {
+                snapshot->lastObservedCellIndex = observedCellIndex;
+                snapshot->lastObservedDistributionIndex = observedDistributionIndex;
+                snapshot->lastObservationCount = state->observationCount;
+                state->lastSnapshotObservationCount = snapshot->lastObservationCount;
 
-            // Get a new snapshot from the stack
-            // NOTE If the snapshot space was previously allocated, use that same space, otherwise allocate
-            snapshot = state->snapshotStack.Push( false );
-            if( !snapshot->wave )
-                AllocSnapshot( snapshot, waveLength, patternCount, arena );
-            CopySnapshot( state->currentSnapshot, snapshot );
+                // Get a new snapshot from the stack
+                // NOTE If the snapshot space was previously allocated, use that same space, otherwise allocate
+                snapshot = state->snapshotStack.Push( false );
+                if( !snapshot->wave )
+                    AllocSnapshot( snapshot, waveLength, patternCount, arena );
+                CopySnapshot( state->currentSnapshot, snapshot );
 
-            state->currentSnapshot = snapshot;
+                state->currentSnapshot = snapshot;
+            }
 
             for( u32 p = 0; p < patternCount; ++p )
             {
@@ -597,8 +603,8 @@ RewindSnapshot( State* state )
     Snapshot* snapshot = state->currentSnapshot;
 
     // TODO Better compress this snapshot handling business, to make all this less confusing
-#if 0
-    Sleep( 500 );
+#if 1
+    Sleep( 250 );
 #endif
     bool haveNewSelection = false;
     while( snapshot && !haveNewSelection )
@@ -620,6 +626,7 @@ RewindSnapshot( State* state )
         // We're back on track
         result = InProgress;
         state->currentSnapshot = snapshot;
+        state->lastSnapshotObservationCount = snapshot->lastObservationCount;
 
         u32 observedCellIndex = snapshot->lastObservedCellIndex;
         u32 observedDistributionIndex = snapshot->lastObservedDistributionIndex;
@@ -847,6 +854,16 @@ DrawFileSelectorPopup( const Array<Spec>& specs, u32 currentSpecIndex )
     return result;
 }
 
+internal u32
+CountNonZero( const Array<r32>& distribution )
+{
+    u32 result = 0;
+    for( u32 i = 0; i < distribution.count; ++i )
+        if( distribution[i] != 0.f )
+            result++;
+
+    return result;
+}
 
 u32
 DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displayState, const v2& displayDim,
@@ -900,6 +917,7 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
 
     const u32 patternsCount = state->patterns.count;
     const u32 patternsCountSqrt = (u32)Round( Sqrt( (r32)patternsCount ) );
+    const u32 waveLength = spec.outputDim.x * spec.outputDim.y;
 
     ImGui::BeginChild( "child_wfc_right", ImVec2( 0, 0 ), true, 0 );
     switch( displayState->currentPage )
@@ -908,27 +926,37 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
         {
 			//if (state->currentResult > NotStarted)
             {
-                ImGui::BeginChild( "child_output_meta", ImVec2( 300, 0 ) );
+                ImGui::BeginChild( "child_output_meta", ImVec2( 350, 0 ) );
 
-                if( state->currentResult == Contradiction )
-                    ImGui::Text( "CONTRADICTION!" );
+                if( state->currentResult == Done )
+                    ImGui::Text( "DONE!" );
                 else if( state->currentResult == Failed )
                     ImGui::Text( "FAILED!" );
                 else
-                    ImGui::Text( "Remaining: %d", state->remainingObservations );
+                    ImGui::Text( "Remaining: %d (%d)", waveLength - state->observationCount, state->observationCount );
 
                 ImGui::Spacing();
                 ImGui::Spacing();
                 ImGui::Text( "Name: %s", spec.name );
                 ImGui::Text( "Num. patterns: %d", patternsCount );
+                ImGui::Spacing();
+                ImGui::Spacing();
+                ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
 
                 ImGui::Spacing();
                 ImGui::Spacing();
                 ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.buffer.count, state->snapshotStack.buffer.maxCount );
+                ImGui::Spacing();
+                ImGui::Spacing();
 
-                ImGui::Spacing();
-                ImGui::Spacing();
-                ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
+                const u32 maxLines = 50;
+                //r32 step = (r32)maxLines / state->snapshotStack.buffer.maxCount;
+                for( u32 i = 0; i < state->snapshotStack.buffer.count; ++i )
+                {
+                    const Snapshot& s = state->snapshotStack.At( i );
+                    ImGui::Text( "snapshot[%d] : width %2d, observations %d ",
+                                 i, CountNonZero( s.distribution ), s.lastObservationCount );
+                }
 
                 ImGui::EndChild();
                 ImGui::SameLine();
@@ -937,11 +965,11 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 ImVec2 imageSize = spec.outputDim * outputScale;
 
                 if( state->currentResult != displayState->lastDisplayedResult ||
-                    state->remainingObservations != displayState->lastRemainingObservations )
+                    state->observationCount != displayState->lastTotalObservations )
                 {
                     // NOTE Very Broken Synchronization, but I don't really want to synchronize..
                     displayState->lastDisplayedResult = state->currentResult;
-                    displayState->lastRemainingObservations = state->remainingObservations;
+                    displayState->lastTotalObservations = state->observationCount;
 
                     if( !displayState->outputImageBuffer )
                         displayState->outputImageBuffer = PUSH_ARRAY( wfcDisplayArena, spec.outputDim.x * spec.outputDim.y, u32 );

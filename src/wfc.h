@@ -111,6 +111,7 @@ struct Snapshot
     // Last random choice that was made in this snapshot, so we can undo it when rewinding
     u32 lastObservedDistributionIndex;
     u32 lastObservedCellIndex;
+    u32 lastObservationCount;
 };
 
 struct State
@@ -135,7 +136,8 @@ struct State
     RingStack<Snapshot> snapshotStack;
     Snapshot* currentSnapshot;
 
-    u32 remainingObservations;
+    u32 observationCount;
+    u32 lastSnapshotObservationCount;
     Result currentResult;
 
     mutable bool cancellationRequested;
@@ -160,7 +162,7 @@ struct DisplayState
     Texture outputTexture;
 
     Result lastDisplayedResult;
-    u32 lastRemainingObservations;
+    u32 lastTotalObservations ;
 };
 
 struct WFCJob
