@@ -354,7 +354,6 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
         }
     }
 
-    state->snapshotCount = 1;
     state->remainingObservations = waveLength;
     state->currentResult = InProgress;
 }
@@ -464,6 +463,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         if( count == 0)
         {
             result = Contradiction;
+            break;
         }
         else if( count == 1 )
         {
@@ -483,7 +483,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             }
         }
     }
-    state->remainingObservations = observations;
+    state->remainingObservations = snapshot->compatiblesCount.maxCount - observations;
 
     if( result == InProgress )
     {
@@ -514,7 +514,6 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             CopySnapshot( state->currentSnapshot, snapshot );
 
             state->currentSnapshot = snapshot;
-            ++state->snapshotCount;
 
             for( u32 p = 0; p < patternCount; ++p )
             {
@@ -597,8 +596,9 @@ RewindSnapshot( State* state )
     Result result = Contradiction;
     Snapshot* snapshot = state->currentSnapshot;
 
-#if 1
-    Sleep( 1000 );
+    // TODO Better compress this snapshot handling business, to make all this less confusing
+#if 0
+    Sleep( 500 );
 #endif
     bool haveNewSelection = false;
     while( snapshot && !haveNewSelection )
@@ -606,11 +606,10 @@ RewindSnapshot( State* state )
         // Get previous snapshot from the stack, if available
         state->snapshotStack.Pop();
         snapshot = state->snapshotStack.Top();
-        --state->snapshotCount;
 
         if( snapshot )
         {
-            // Discard the random selection we chose last time, and try again
+            // Discard the random selection we chose last time, and try a different one
             snapshot->distribution[snapshot->lastObservedDistributionIndex] = 0.f;
             haveNewSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &snapshot->lastObservedDistributionIndex );
         }
@@ -618,14 +617,22 @@ RewindSnapshot( State* state )
 
     if( haveNewSelection )
     {
+        // We're back on track
         result = InProgress;
-
         state->currentSnapshot = snapshot;
+
         u32 observedCellIndex = snapshot->lastObservedCellIndex;
+        u32 observedDistributionIndex = snapshot->lastObservedDistributionIndex;
+
+        // Create a brand new snapshot that stems from the new selection
+        // (since we've at least backtracked one, this one _has_ to be allocated already)
+        snapshot = state->snapshotStack.Push( false );
+        CopySnapshot( state->currentSnapshot, snapshot );
+        state->currentSnapshot = snapshot;
 
         for( u32 p = 0; p < state->patterns.count; ++p )
         {
-            if( snapshot->wave.At( observedCellIndex, p ) && p != snapshot->lastObservedDistributionIndex )
+            if( snapshot->wave.At( observedCellIndex, p ) && p != observedDistributionIndex )
             {
                 bool compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state );
                 if( !compatiblesRemaining )
@@ -642,26 +649,30 @@ RewindSnapshot( State* state )
     return result;
 }
 
+internal bool
+IsFinished( const State& state )
+{
+    return state.currentResult >= Cancelled;
+}
+
 void
 StartWFCSync( const Spec& spec, State* state, MemoryArena* wfcArena )
 {
     Init( spec, state, wfcArena ); 
 
-    if( state->cancellationRequested )
-        state->currentResult = Cancelled;
-
-    while( state->currentResult == InProgress )
+    while( !IsFinished( *state ) )
     {
-        state->currentResult = Observe( spec, state, wfcArena );
+        if( state->cancellationRequested )
+            state->currentResult = Cancelled;
+
+        if( state->currentResult == InProgress )
+            state->currentResult = Observe( spec, state, wfcArena );
 
         if( state->currentResult == Contradiction )
             state->currentResult = RewindSnapshot( state );
 
         if( state->currentResult == InProgress )
             state->currentResult = Propagate( spec, state );
-
-        if( state->cancellationRequested )
-            state->currentResult = Cancelled;
     }
 }
 
@@ -913,8 +924,7 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
 
                 ImGui::Spacing();
                 ImGui::Spacing();
-                ImGui::Text( "Snapshot count: %d", state->snapshotCount );
-                ImGui::Text( "Backtracking depth: %d", state->snapshotStack.buffer.maxCount );
+                ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.buffer.count, state->snapshotStack.buffer.maxCount );
 
                 ImGui::Spacing();
                 ImGui::Spacing();

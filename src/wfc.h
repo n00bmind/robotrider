@@ -135,7 +135,6 @@ struct State
     RingStack<Snapshot> snapshotStack;
     Snapshot* currentSnapshot;
 
-    u32 snapshotCount;
     u32 remainingObservations;
     Result currentResult;
 
