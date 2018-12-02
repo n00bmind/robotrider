@@ -269,8 +269,6 @@ CopySnapshot( Snapshot* source, Snapshot* target )
     source->sumWeights.CopyTo( &target->sumWeights );
     source->entropies.CopyTo( &target->entropies );
     source->distribution.CopyTo( &target->distribution );
-
-    target->selectedDistributionIndex = source->selectedDistributionIndex;
 }
 
 internal void
@@ -452,9 +450,8 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
     Result result = InProgress;
     Snapshot* snapshot = state->currentSnapshot;
 
-    u32 selectedCellIndex = 0;
+    u32 observedCellIndex = 0;
     r64 minEntropy = R64INF;
-    u32 patternCount = state->patterns.count;
 
     u32 observations = 0;
     u32 waveLength = spec.outputDim.x * spec.outputDim.y;
@@ -467,43 +464,6 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         if( count == 0)
         {
             result = Contradiction;
-
-#if 1
-            Sleep( 1000 );
-#endif
-            bool haveNewSelection = false;
-            while( snapshot && !haveNewSelection )
-            {
-                // Get previous snapshot from the stack, if available
-                state->snapshotStack.Pop();
-                snapshot = state->snapshotStack.Top();
-                --state->snapshotCount;
-
-                if( snapshot )
-                {
-                    // Discard the random selection we chose last time, and try again
-                    snapshot->distribution[snapshot->selectedDistributionIndex] = 0.f;
-                    haveNewSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &snapshot->selectedDistributionIndex );
-                }
-            }
-
-            if( haveNewSelection )
-            {
-                state->currentSnapshot = snapshot;
-
-                for( u32 p = 0; p < patternCount; ++p )
-                {
-                    if( snapshot->wave.At( selectedCellIndex, p ) && p != snapshot->selectedDistributionIndex )
-                        BanPatternAtCell( selectedCellIndex, p, state );
-                }
-
-                result = InProgress;
-            }
-            else
-                result = Failed;
-
-            // FIXME
-            return result;
         }
         else if( count == 1 )
         {
@@ -518,7 +478,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
                 if( entropy + noise < minEntropy )
                 {
                     minEntropy = entropy + noise;
-                    selectedCellIndex = i;
+                    observedCellIndex = i;
                 }
             }
         }
@@ -534,11 +494,17 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         }
         else
         {
-            for( u32 p = 0; p < patternCount; ++p )
-                snapshot->distribution[p] = (snapshot->wave.At( selectedCellIndex, p ) ? state->frequencies[p] : 0.f);
+            u32 patternCount = state->patterns.count;
 
-            bool haveSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &snapshot->selectedDistributionIndex );
+            for( u32 p = 0; p < patternCount; ++p )
+                snapshot->distribution[p] = (snapshot->wave.At( observedCellIndex, p ) ? state->frequencies[p] : 0.f);
+
+            u32 observedDistributionIndex;
+            bool haveSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &observedDistributionIndex );
             ASSERT( haveSelection );
+
+            snapshot->lastObservedCellIndex = observedCellIndex;
+            snapshot->lastObservedDistributionIndex = observedDistributionIndex;
 
             // Get a new snapshot from the stack
             // NOTE If the snapshot space was previously allocated, use that same space, otherwise allocate
@@ -552,8 +518,15 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
 
             for( u32 p = 0; p < patternCount; ++p )
             {
-                if( snapshot->wave.At( selectedCellIndex, p ) && p != snapshot->selectedDistributionIndex )
-                    BanPatternAtCell( selectedCellIndex, p, state );
+                if( snapshot->wave.At( observedCellIndex, p ) && p != observedDistributionIndex )
+                {
+                    bool compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state );
+                    if( !compatiblesRemaining )
+                    {
+                        result = Contradiction;
+                        break;
+                    }
+                }
             }
         }
     }
@@ -561,14 +534,16 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
     return result;
 }
 
-internal void
+internal Result
 Propagate( const Spec& spec, State* state )
 {
+    Result result = InProgress;
+
     u32 width = spec.outputDim.x;
     u32 height = spec.outputDim.y;
     u32 patternCount = state->patterns.count;
 
-    while( state->currentResult == InProgress && state->propagationStack.count > 0 )
+    while( result == InProgress && state->propagationStack.count > 0 )
     {
         BannedTuple ban = state->propagationStack.Pop();
         v2i pCell = PositionFromIndex( ban.cellIndex, width );
@@ -604,7 +579,7 @@ Propagate( const Spec& spec, State* state )
                         bool compatiblesRemaining = BanPatternAtCell( adjacentIndex, p, state );
                         if( !compatiblesRemaining )
                         {
-                            state->currentResult = Contradiction;
+                            result = Contradiction;
                             break;
                         }
                     }
@@ -612,7 +587,112 @@ Propagate( const Spec& spec, State* state )
             }
         }
     }
+
+    return result;
 }
+
+internal Result
+RewindSnapshot( State* state )
+{
+    Result result = Contradiction;
+    Snapshot* snapshot = state->currentSnapshot;
+
+#if 1
+    Sleep( 1000 );
+#endif
+    bool haveNewSelection = false;
+    while( snapshot && !haveNewSelection )
+    {
+        // Get previous snapshot from the stack, if available
+        state->snapshotStack.Pop();
+        snapshot = state->snapshotStack.Top();
+        --state->snapshotCount;
+
+        if( snapshot )
+        {
+            // Discard the random selection we chose last time, and try again
+            snapshot->distribution[snapshot->lastObservedDistributionIndex] = 0.f;
+            haveNewSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &snapshot->lastObservedDistributionIndex );
+        }
+    }
+
+    if( haveNewSelection )
+    {
+        result = InProgress;
+
+        state->currentSnapshot = snapshot;
+        u32 observedCellIndex = snapshot->lastObservedCellIndex;
+
+        for( u32 p = 0; p < state->patterns.count; ++p )
+        {
+            if( snapshot->wave.At( observedCellIndex, p ) && p != snapshot->lastObservedDistributionIndex )
+            {
+                bool compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state );
+                if( !compatiblesRemaining )
+                {
+                    result = Contradiction;
+                    break;
+                }
+            }
+        }
+    }
+    else
+        result = Failed;
+
+    return result;
+}
+
+void
+StartWFCSync( const Spec& spec, State* state, MemoryArena* wfcArena )
+{
+    Init( spec, state, wfcArena ); 
+
+    if( state->cancellationRequested )
+        state->currentResult = Cancelled;
+
+    while( state->currentResult == InProgress )
+    {
+        state->currentResult = Observe( spec, state, wfcArena );
+
+        if( state->currentResult == Contradiction )
+            state->currentResult = RewindSnapshot( state );
+
+        if( state->currentResult == InProgress )
+            state->currentResult = Propagate( spec, state );
+
+        if( state->cancellationRequested )
+            state->currentResult = Cancelled;
+    }
+}
+
+internal
+PLATFORM_JOBQUEUE_CALLBACK(DoWFC)
+{
+    WFCJob* job = (WFCJob*)userData;
+    StartWFCSync( job->spec, job->state, job->arena );
+}
+
+const State*
+StartWFCAsync( const Spec& spec, MemoryArena* wfcArena )
+{
+    const State* result = PUSH_STRUCT( wfcArena, State );
+
+    // We may want to have this passed independently?
+    WFCJob* job = PUSH_STRUCT( wfcArena, WFCJob );
+    *job =
+    {
+        spec,
+        (State*)result,     // const for the starting thread only
+        wfcArena,
+    };
+
+    globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
+                              DoWFC,
+                              job );
+
+    return result;
+}
+
 
 internal void
 CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Texture* result )
@@ -1003,55 +1083,5 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
     return selectedIndex;
 }
 
-
-
-void
-StartWFCSync( const Spec& spec, State* state, MemoryArena* wfcArena )
-{
-    Init( spec, state, wfcArena ); 
-
-    if( state->cancellationRequested )
-        state->currentResult = Cancelled;
-
-    while( state->currentResult == InProgress )
-    {
-        state->currentResult = Observe( spec, state, wfcArena );
-        Propagate( spec, state );
-
-        if( state->cancellationRequested )
-            state->currentResult = Cancelled;
-
-        if( state->currentResult == Contradiction )
-            state->currentResult = Observe( spec, state, wfcArena );
-    }
-}
-
-internal
-PLATFORM_JOBQUEUE_CALLBACK(DoWFC)
-{
-    WFCJob* job = (WFCJob*)userData;
-    StartWFCSync( job->spec, job->state, job->arena );
-}
-
-const State*
-StartWFCAsync( const Spec& spec, MemoryArena* wfcArena )
-{
-    const State* result = PUSH_STRUCT( wfcArena, State );
-
-    // We may want to have this passed independently?
-    WFCJob* job = PUSH_STRUCT( wfcArena, WFCJob );
-    *job =
-    {
-        spec,
-        (State*)result,     // const for the starting thread only
-        wfcArena,
-    };
-
-    globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
-                              DoWFC,
-                              job );
-
-    return result;
-}
 
 } // namespace WFC

@@ -108,10 +108,9 @@ struct Snapshot
     Array<r64> entropies;
 
     Array<r32> distribution;
-    // TODO Put the last random choice that was made here,
-    // so we know which option to discard next time we come back to this snapshot
-    // When a contradiction is found, go back to the last available snapshot, put a 0 in the corresponding distribution entry, and RandomSelect again
-    u32 selectedDistributionIndex;
+    // Last random choice that was made in this snapshot, so we can undo it when rewinding
+    u32 lastObservedDistributionIndex;
+    u32 lastObservedCellIndex;
 };
 
 struct State
