@@ -1071,6 +1071,16 @@ private:
 template <typename T>
 struct LinkedList
 {
+    // Convenience struct that can be embedded in user types
+    // TODO Provide all methods overloaded for Node<T>* too, so we can cater for the rare case where we want a T
+    // in more than one LinkedList (need to find a 'clean' way to retrieve the T* from the node pointer)
+    template <typename T>
+    struct Node
+    {
+        Node<T>* next;
+        Node<T>* prev;
+    };
+
     u32 count;
     // Dummy value so that the list always has something in it, and we don't have to check
     // for that edge case when inserting/removing (and we never have nullptrs!)

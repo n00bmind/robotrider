@@ -444,6 +444,51 @@ IndexFromPosition( const v2i& p, u32 stride )
     return p.y * stride + p.x;
 }
 
+internal bool
+BuildDistributionAndSelectAt( u32 cellIndex, Snapshot* snapshot, State* state, u32* selection )
+{
+    for( u32 p = 0; p < state->patterns.count; ++p )
+        snapshot->distribution[p] = (snapshot->wave.At( cellIndex, p ) ? state->frequencies[p] : 0.f);
+
+    bool result = RandomSelect( snapshot->distribution, &state->distributionTemp, selection );
+    return result;
+}
+
+// NOTE If the snapshot space was previously allocated, uses that same space, otherwise allocates
+internal Snapshot*
+PushNewSnapshot( Snapshot* source, State* state, MemoryArena* arena )
+{
+    Snapshot* result = state->snapshotStack.Push( false );
+
+    if( !result->wave )
+        AllocSnapshot( result, source->wave.rows, state->patterns.count, arena );
+    CopySnapshot( source, result );
+
+    result->lastObservedDistributionIndex = 0;
+    result->lastObservedCellIndex = 0;
+    result->lastObservationCount = 0;
+
+    return result;
+}
+
+internal bool
+ApplyObservedPatternAt( u32 observedCellIndex, u32 observedDistributionIndex, Snapshot* snapshot, State* state )
+{
+    bool compatiblesRemaining = true;
+
+    for( u32 p = 0; p < state->patterns.count; ++p )
+    {
+        if( snapshot->wave.At( observedCellIndex, p ) && p != observedDistributionIndex )
+        {
+            compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state );
+            if( !compatiblesRemaining )
+                break;
+        }
+    }
+
+    return compatiblesRemaining;
+}
+
 internal Result
 Observe( const Spec& spec, State* state, MemoryArena* arena )
 {
@@ -454,8 +499,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
     r64 minEntropy = R64INF, minEntropyBase = R64INF;
 
     u32 observations = 0;
-    u32 waveLength = spec.outputDim.x * spec.outputDim.y;
-    for( u32 i = 0; i < waveLength; ++i )
+    for( u32 i = 0; i < snapshot->wave.rows; ++i )
     {
         if( OnBoundary( PositionFromIndex( i, spec.outputDim.x ), spec ) )
             continue;
@@ -516,11 +560,9 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         {
             u32 patternCount = state->patterns.count;
 
-            for( u32 p = 0; p < patternCount; ++p )
-                snapshot->distribution[p] = (snapshot->wave.At( observedCellIndex, p ) ? state->frequencies[p] : 0.f);
-
             u32 observedDistributionIndex;
-            bool haveSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &observedDistributionIndex );
+            bool haveSelection = BuildDistributionAndSelectAt( observedCellIndex, snapshot, state,
+                                                               &observedDistributionIndex );
             ASSERT( haveSelection );
 
             // Check if we should create a new snapshot
@@ -531,28 +573,13 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
                 snapshot->lastObservationCount = state->observationCount;
                 state->lastSnapshotObservationCount = snapshot->lastObservationCount;
 
-                // Get a new snapshot from the stack
-                // NOTE If the snapshot space was previously allocated, use that same space, otherwise allocate
-                snapshot = state->snapshotStack.Push( false );
-                if( !snapshot->wave )
-                    AllocSnapshot( snapshot, waveLength, patternCount, arena );
-                CopySnapshot( state->currentSnapshot, snapshot );
-
+                snapshot = PushNewSnapshot( state->currentSnapshot, state, arena );
                 state->currentSnapshot = snapshot;
             }
 
-            for( u32 p = 0; p < patternCount; ++p )
-            {
-                if( snapshot->wave.At( observedCellIndex, p ) && p != observedDistributionIndex )
-                {
-                    bool compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state );
-                    if( !compatiblesRemaining )
-                    {
-                        result = Contradiction;
-                        break;
-                    }
-                }
-            }
+            bool compatiblesRemaining = ApplyObservedPatternAt( observedCellIndex, observedDistributionIndex, snapshot, state );
+            if( !compatiblesRemaining )
+                result = Contradiction;
         }
     }
 
@@ -623,17 +650,14 @@ RewindSnapshot( State* state )
     Snapshot* snapshot = state->currentSnapshot;
     u32 patternCount = state->patterns.count;
 
-    // Make sure to clear the propagation stack
     state->propagationStack.Clear();
 
-    // TODO Better compress this snapshot handling business, to make all this less confusing!
     bool haveNewSelection = false;
     while( snapshot && !haveNewSelection )
     {
         // Get previous snapshot from the stack, if available
         state->snapshotStack.Pop();
         snapshot = state->snapshotStack.Top();
-
         if( snapshot )
         {
             // Discard the random selection we chose last time, and try a different one
@@ -647,11 +671,8 @@ RewindSnapshot( State* state )
                 if( snapshot->lastObservedCellIndex < snapshot->searchedCellIndices.count )
                 {
                     u32 observedCellIndex = snapshot->searchedCellIndices[snapshot->lastObservedCellIndex];
-
-                    for( u32 p = 0; p < patternCount; ++p )
-                        snapshot->distribution[p] = (snapshot->wave.At( observedCellIndex, p ) ? state->frequencies[p] : 0.f);
-
-                    haveNewSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &snapshot->lastObservedDistributionIndex );
+                    haveNewSelection = BuildDistributionAndSelectAt( observedCellIndex, snapshot, state,
+                                                                     &snapshot->lastObservedDistributionIndex );
                     ASSERT( haveNewSelection );
                 }
 #if 0
@@ -666,32 +687,18 @@ RewindSnapshot( State* state )
 
     if( haveNewSelection )
     {
-        // We're back on track
-        result = InProgress;
         state->currentSnapshot = snapshot;
         state->lastSnapshotObservationCount = snapshot->lastObservationCount;
 
         u32 observedCellIndex = snapshot->searchedCellIndices[snapshot->lastObservedCellIndex];
         u32 observedDistributionIndex = snapshot->lastObservedDistributionIndex;
 
-        // Create a brand new snapshot that stems from the new selection
-        // (since we've at least backtracked one, this one _has_ to be allocated already)
-        snapshot = state->snapshotStack.Push( false );
-        CopySnapshot( state->currentSnapshot, snapshot );
+        // NOTE We know we have backtracked at least once, so the storage for the snapshot is guaranteed to be allocated
+        snapshot = PushNewSnapshot( state->currentSnapshot, state, nullptr );
         state->currentSnapshot = snapshot;
 
-        for( u32 p = 0; p < patternCount; ++p )
-        {
-            if( snapshot->wave.At( observedCellIndex, p ) && p != observedDistributionIndex )
-            {
-                bool compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state );
-                if( !compatiblesRemaining )
-                {
-                    result = Contradiction;
-                    break;
-                }
-            }
-        }
+        bool compatiblesRemaining = ApplyObservedPatternAt( observedCellIndex, observedDistributionIndex, snapshot, state );
+        result = compatiblesRemaining ? InProgress : Contradiction;
     }
     else
         result = Failed;

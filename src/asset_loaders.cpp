@@ -256,11 +256,11 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
     u32 vertexCount = 0, indexCount = 0, uvCount = 0, normalCount = 0;
 
     String contents( (char *)read.contents );
-    while( true )
+    while( contents )
     {
         String line = contents.ConsumeLine();
         if( line.IsNullOrEmpty() )
-            break;
+            continue;
 
         // This trims all initial whitespace
         String firstWord = line.ConsumeWord();
@@ -303,11 +303,11 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
     BucketArray<TexturedVertex> vertices( tmpArena, 1024 );
 
     contents = (char*)read.contents;
-    while( true )
+    while( contents )
     {
         String line = contents.ConsumeLine();
         if( line.IsNullOrEmpty() )
-            break;
+            continue;
 
         String firstWord = line.ConsumeWord();
 
