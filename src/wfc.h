@@ -108,10 +108,14 @@ struct Snapshot
     Array<r64> entropies;
 
     Array<r32> distribution;
+    Array<u32> searchedCellIndices;
     // Last random choice that was made in this snapshot, so we can undo it when rewinding
     u32 lastObservedDistributionIndex;
+    // Last index into the searched cells array above
     u32 lastObservedCellIndex;
+
     u32 lastObservationCount;
+    //u32 lastObservationWidth;
 };
 
 struct State

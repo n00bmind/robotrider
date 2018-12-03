@@ -56,6 +56,23 @@ LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
     return a < b || AlmostEqual( a, b, absoluteEpsilon );
 }
 
+inline bool
+AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon = 0 )
+{
+    bool result = false;
+
+    if( absoluteEpsilon == 0 )
+    {
+        result = Abs( a - b ) <= Abs( Max( a, b ) ) * FLT_EPSILON;
+    }
+    else
+    {
+        result = Abs( a - b ) <= absoluteEpsilon;
+    }
+
+    return result;
+}
+
 inline r32
 Radians( r32 degrees )
 {

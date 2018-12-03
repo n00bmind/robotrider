@@ -142,6 +142,12 @@ Max( r32 a, r32 b )
     return a > b ? a : b;
 }
 
+inline r64
+Max( r64 a, r64 b )
+{
+    return a > b ? a : b;
+}
+
 inline i32
 Median( i32 a, i32 b, i32 c )
 {
@@ -177,6 +183,12 @@ inline r32
 Abs( r32 value )
 {
     return value >= 0.f ? value : -value;
+}
+
+inline r64
+Abs( r64 value )
+{
+    return value >= 0.0 ? value : -value;
 }
 
 inline void

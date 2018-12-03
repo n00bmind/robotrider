@@ -126,6 +126,11 @@ struct Array
     {
         count = 0;
     }
+
+    u32 Available()
+    {
+        return maxCount - count;
+    }
 };
 
 #define ARRAY(type, count, name) type _##name[count];Array<type> name( _##name, 0, count );

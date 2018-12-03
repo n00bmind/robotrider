@@ -257,6 +257,8 @@ AllocSnapshot( Snapshot* result, u32 waveLength, u32 patternCount, MemoryArena* 
     result->sumWeights = Array<r64>( arena, waveLength, waveLength );
     result->entropies = Array<r64>( arena, waveLength, waveLength );
     result->distribution = Array<r32>( arena, patternCount, patternCount );
+    const u32 maxSnapshotWidth = 64;
+    result->searchedCellIndices = Array<u32>( arena, 0, maxSnapshotWidth );
 }
 
 internal void
@@ -449,7 +451,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
     Snapshot* snapshot = state->currentSnapshot;
 
     u32 observedCellIndex = 0;
-    r64 minEntropy = R64INF;
+    r64 minEntropy = R64INF, minEntropyBase = R64INF;
 
     u32 observations = 0;
     u32 waveLength = spec.outputDim.x * spec.outputDim.y;
@@ -471,13 +473,31 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         else
         {
             r64 entropy = snapshot->entropies[i];
-            if( entropy <= minEntropy )
+            if( entropy < minEntropyBase )
             {
+                if( !AlmostEqual( entropy, minEntropyBase, 0.1 ) )
+                    snapshot->searchedCellIndices.Clear();
+                minEntropyBase = entropy;
+            }
+
+            if( AlmostEqual( entropy, minEntropyBase, 0.1 ) )
+            {
+                u32 lastCellIndex = 0;
+
+                if( snapshot->searchedCellIndices.Available() )
+                {
+                    lastCellIndex = snapshot->searchedCellIndices.count;
+                    snapshot->searchedCellIndices.Push( i );
+                }
+
                 r64 noise = 1E-6 * RandomNormalizedR64();
                 if( entropy + noise < minEntropy )
                 {
                     minEntropy = entropy + noise;
                     observedCellIndex = i;
+                    if( lastCellIndex )
+                        snapshot->searchedCellIndices[lastCellIndex] = snapshot->searchedCellIndices[0];
+                    snapshot->searchedCellIndices[0] = i;
                 }
             }
         }
@@ -503,10 +523,10 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             bool haveSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &observedDistributionIndex );
             ASSERT( haveSelection );
 
-            // Check is we should create a new snapshot
+            // Check if we should create a new snapshot
             if( state->observationCount - state->lastSnapshotObservationCount >= 10 )
             {
-                snapshot->lastObservedCellIndex = observedCellIndex;
+                snapshot->lastObservedCellIndex = 0;
                 snapshot->lastObservedDistributionIndex = observedDistributionIndex;
                 snapshot->lastObservationCount = state->observationCount;
                 state->lastSnapshotObservationCount = snapshot->lastObservationCount;
@@ -601,11 +621,12 @@ RewindSnapshot( State* state )
 {
     Result result = Contradiction;
     Snapshot* snapshot = state->currentSnapshot;
+    u32 patternCount = state->patterns.count;
 
-    // TODO Better compress this snapshot handling business, to make all this less confusing
-#if 1
-    Sleep( 250 );
-#endif
+    // Make sure to clear the propagation stack
+    state->propagationStack.Clear();
+
+    // TODO Better compress this snapshot handling business, to make all this less confusing!
     bool haveNewSelection = false;
     while( snapshot && !haveNewSelection )
     {
@@ -618,6 +639,28 @@ RewindSnapshot( State* state )
             // Discard the random selection we chose last time, and try a different one
             snapshot->distribution[snapshot->lastObservedDistributionIndex] = 0.f;
             haveNewSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &snapshot->lastObservedDistributionIndex );
+
+            if( !haveNewSelection )
+            {
+                // Discard this cell index entirely and try a different one
+                snapshot->lastObservedCellIndex++;
+                if( snapshot->lastObservedCellIndex < snapshot->searchedCellIndices.count )
+                {
+                    u32 observedCellIndex = snapshot->searchedCellIndices[snapshot->lastObservedCellIndex];
+
+                    for( u32 p = 0; p < patternCount; ++p )
+                        snapshot->distribution[p] = (snapshot->wave.At( observedCellIndex, p ) ? state->frequencies[p] : 0.f);
+
+                    haveNewSelection = RandomSelect( snapshot->distribution, &state->distributionTemp, &snapshot->lastObservedDistributionIndex );
+                    ASSERT( haveNewSelection );
+                }
+#if 0
+                else
+                {
+                    Sleep( 250 );
+                }
+#endif
+            }
         }
     }
 
@@ -628,7 +671,7 @@ RewindSnapshot( State* state )
         state->currentSnapshot = snapshot;
         state->lastSnapshotObservationCount = snapshot->lastObservationCount;
 
-        u32 observedCellIndex = snapshot->lastObservedCellIndex;
+        u32 observedCellIndex = snapshot->searchedCellIndices[snapshot->lastObservedCellIndex];
         u32 observedDistributionIndex = snapshot->lastObservedDistributionIndex;
 
         // Create a brand new snapshot that stems from the new selection
@@ -637,7 +680,7 @@ RewindSnapshot( State* state )
         CopySnapshot( state->currentSnapshot, snapshot );
         state->currentSnapshot = snapshot;
 
-        for( u32 p = 0; p < state->patterns.count; ++p )
+        for( u32 p = 0; p < patternCount; ++p )
         {
             if( snapshot->wave.At( observedCellIndex, p ) && p != observedDistributionIndex )
             {
@@ -955,7 +998,7 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 {
                     const Snapshot& s = state->snapshotStack.At( i );
                     ImGui::Text( "snapshot[%d] : width %2d, observations %d ",
-                                 i, CountNonZero( s.distribution ), s.lastObservationCount );
+                                 i, s.searchedCellIndices.count /*, CountNonZero( s.distribution )*/, s.lastObservationCount );
                 }
 
                 ImGui::EndChild();
