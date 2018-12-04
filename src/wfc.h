@@ -108,7 +108,6 @@ struct Snapshot
     Array<r64> entropies;
 
     Array<r32> distribution;
-    Array<u32> searchedCellIndices;
     // Last random choice that was made in this snapshot, so we can undo it when rewinding
     u32 lastObservedDistributionIndex;
     // Last index into the searched cells array above
@@ -137,6 +136,7 @@ struct State
     Array<BannedTuple> propagationStack;
     Array<r32> distributionTemp;
 
+    RingBuffer<u32> backtrackedCellIndices;
     RingStack<Snapshot> snapshotStack;
     Snapshot* currentSnapshot;
 

@@ -822,7 +822,7 @@ internal void
 AddSorted( const Hit& hit, Array<Hit>* result )
 {
     Array<Hit>& out = *result;
-    out.Reserve();
+    out.PushEmpty();
 
     u32 i = out.count - 1;
     for( ; i > 0; --i )

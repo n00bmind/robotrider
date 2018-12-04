@@ -257,8 +257,6 @@ AllocSnapshot( Snapshot* result, u32 waveLength, u32 patternCount, MemoryArena* 
     result->sumWeights = Array<r64>( arena, waveLength, waveLength );
     result->entropies = Array<r64>( arena, waveLength, waveLength );
     result->distribution = Array<r32>( arena, patternCount, patternCount );
-    const u32 maxSnapshotWidth = 64;
-    result->searchedCellIndices = Array<u32>( arena, 0, maxSnapshotWidth );
 }
 
 internal void
@@ -295,6 +293,8 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
     const u32 propagationStackSize = waveLength * 2;                            // Increase as needed
     state->propagationStack = Array<BannedTuple>( arena, 0, propagationStackSize );
     state->distributionTemp = Array<r32>( arena, patternCount, patternCount );
+    const u32 maxRememberedCells = 64;
+    state->backtrackedCellIndices = RingBuffer<u32>( arena, maxRememberedCells );
 
     // Create initial snapshot
     Snapshot snapshot0;
@@ -458,7 +458,7 @@ BuildDistributionAndSelectAt( u32 cellIndex, Snapshot* snapshot, State* state, u
 internal Snapshot*
 PushNewSnapshot( Snapshot* source, State* state, MemoryArena* arena )
 {
-    Snapshot* result = state->snapshotStack.Push( false );
+    Snapshot* result = state->snapshotStack.PushEmpty( false );
 
     if( !result->wave )
         AllocSnapshot( result, source->wave.rows, state->patterns.count, arena );
@@ -496,7 +496,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
     Snapshot* snapshot = state->currentSnapshot;
 
     u32 observedCellIndex = 0;
-    r64 minEntropy = R64INF, minEntropyBase = R64INF;
+    r64 minEntropy = R64INF;
 
     u32 observations = 0;
     for( u32 i = 0; i < snapshot->wave.rows; ++i )
@@ -517,31 +517,13 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         else
         {
             r64 entropy = snapshot->entropies[i];
-            if( entropy < minEntropyBase )
+            if( entropy <= minEntropy && !state->backtrackedCellIndices.Contains( i ) )
             {
-                if( !AlmostEqual( entropy, minEntropyBase, 0.1 ) )
-                    snapshot->searchedCellIndices.Clear();
-                minEntropyBase = entropy;
-            }
-
-            if( AlmostEqual( entropy, minEntropyBase, 0.1 ) )
-            {
-                u32 lastCellIndex = 0;
-
-                if( snapshot->searchedCellIndices.Available() )
-                {
-                    lastCellIndex = snapshot->searchedCellIndices.count;
-                    snapshot->searchedCellIndices.Push( i );
-                }
-
                 r64 noise = 1E-6 * RandomNormalizedR64();
                 if( entropy + noise < minEntropy )
                 {
                     minEntropy = entropy + noise;
                     observedCellIndex = i;
-                    if( lastCellIndex )
-                        snapshot->searchedCellIndices[lastCellIndex] = snapshot->searchedCellIndices[0];
-                    snapshot->searchedCellIndices[0] = i;
                 }
             }
         }
@@ -568,8 +550,9 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             // Check if we should create a new snapshot
             if( state->observationCount - state->lastSnapshotObservationCount >= 10 )
             {
-                snapshot->lastObservedCellIndex = 0;
+                snapshot->lastObservedCellIndex = observedCellIndex;
                 snapshot->lastObservedDistributionIndex = observedDistributionIndex;
+                // FIXME This doesn't seem to be working
                 snapshot->lastObservationCount = state->observationCount;
                 state->lastSnapshotObservationCount = snapshot->lastObservationCount;
 
@@ -667,19 +650,10 @@ RewindSnapshot( State* state )
             if( !haveNewSelection )
             {
                 // Discard this cell index entirely and try a different one
-                snapshot->lastObservedCellIndex++;
-                if( snapshot->lastObservedCellIndex < snapshot->searchedCellIndices.count )
-                {
-                    u32 observedCellIndex = snapshot->searchedCellIndices[snapshot->lastObservedCellIndex];
-                    haveNewSelection = BuildDistributionAndSelectAt( observedCellIndex, snapshot, state,
-                                                                     &snapshot->lastObservedDistributionIndex );
-                    ASSERT( haveNewSelection );
-                }
-#if 0
-                else
-                {
-                    Sleep( 250 );
-                }
+                state->backtrackedCellIndices.Push( snapshot->lastObservedCellIndex );
+                // TODO Do we somehow want to retry distribution options once we discard new cells?
+#if 1
+                Sleep( 250 );
 #endif
             }
         }
@@ -690,7 +664,7 @@ RewindSnapshot( State* state )
         state->currentSnapshot = snapshot;
         state->lastSnapshotObservationCount = snapshot->lastObservationCount;
 
-        u32 observedCellIndex = snapshot->searchedCellIndices[snapshot->lastObservedCellIndex];
+        u32 observedCellIndex = snapshot->lastObservedCellIndex;
         u32 observedDistributionIndex = snapshot->lastObservedDistributionIndex;
 
         // NOTE We know we have backtracked at least once, so the storage for the snapshot is guaranteed to be allocated
@@ -996,6 +970,7 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 ImGui::Spacing();
                 ImGui::Spacing();
                 ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.buffer.count, state->snapshotStack.buffer.maxCount );
+                ImGui::Text( "Backtracked cells cache: %d", state->backtrackedCellIndices.Count() );
                 ImGui::Spacing();
                 ImGui::Spacing();
 
@@ -1004,8 +979,8 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 for( u32 i = 0; i < state->snapshotStack.buffer.count; ++i )
                 {
                     const Snapshot& s = state->snapshotStack.At( i );
-                    ImGui::Text( "snapshot[%d] : width %2d, observations %d ",
-                                 i, s.searchedCellIndices.count /*, CountNonZero( s.distribution )*/, s.lastObservationCount );
+                    ImGui::Text( "snapshot[%d] : observations %d ",
+                                 i, /*, CountNonZero( s.distribution ),*/ s.lastObservationCount );
                 }
 
                 ImGui::EndChild();

@@ -76,16 +76,22 @@ struct Array
         return data != nullptr;
     }
 
-    T* Reserve()
+    T* PushEmpty( bool clear = true )
     {
         ASSERT( count < maxCount );
-        return data + count++;
+        T* result = data + count++;
+        if( clear )
+            ZERO( result, sizeof(T) );
+
+        return result;
     }
 
-    void Push( const T& item )
+    T* Push( const T& item )
     {
-        T* slot = Reserve();
+        T* slot = PushEmpty( false );
         *slot = item;
+
+        return slot;
     }
 
     T Pop()
@@ -201,6 +207,66 @@ struct Array2
 
 /////     RING BUFFER    /////
 
+template <typename T>
+struct RingBuffer
+{
+    Array<T> buffer;
+    u32 headIndex;
+
+
+    RingBuffer( MemoryArena* arena, u32 maxCount_ )
+        : buffer( arena, 0, maxCount_ )
+    {
+        headIndex = 0;
+    }
+
+    u32 Count() const
+    {
+        return buffer.count;
+    }
+
+    T* PushEmpty( bool clear = true )
+    {
+        T* result = buffer.data + headIndex++;
+        if( headIndex == buffer.maxCount )
+            headIndex = 0;
+        if( buffer.count < buffer.maxCount )
+            buffer.count++;
+        if( clear )
+            ZERO( result, sizeof(T) );
+
+        return result;
+    }
+
+    T* Push( const T& item )
+    {
+        T* result = PushEmpty( false );
+        *result = item;
+        return result;
+    }
+
+    T Pop()
+    {
+        ASSERT( buffer.count > 0 );
+        headIndex = headIndex ? --headIndex : buffer.maxCount - 1;
+        return data[headIndex];
+    }
+
+    bool Contains( const T& item ) const
+    {
+        bool result = false;
+        for( u32 i = 0; i < buffer.count; ++i )
+        {
+            if( buffer.data[i] == item )
+            {
+                result = true;
+                break;
+            }
+        }
+
+        return result;
+    }
+};
 
 /////     RING STACK    /////
 // Circular stack that can push an infinite number of elements, by discarding elements from the bottom when needed
@@ -218,7 +284,7 @@ struct RingStack
         topIndex = 0;
     }
 
-    u32 Count()
+    u32 Count() const
     {
         return buffer.count;
     }
@@ -243,13 +309,13 @@ struct RingStack
         return buffer[index];
     }
 
-    T* Push( bool clear = true )
+    T* PushEmpty( bool clear = true )
     {
         T* result = buffer.data + topIndex++;
         if( topIndex == buffer.maxCount )
             topIndex = 0;
         if( buffer.count < buffer.maxCount )
-            ++buffer.count;
+            buffer.count++;
 
         if( clear )
             ZERO( result, sizeof(T) );
@@ -259,12 +325,12 @@ struct RingStack
 
     T* Push( const T& item )
     {
-        T* result = Push();
+        T* result = PushEmpty( false );
         *result = item;
         return result;
     }
 
-    const T& Pop()
+    T Pop()
     {
         if( buffer.count )
         {
