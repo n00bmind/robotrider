@@ -245,13 +245,6 @@ struct RingBuffer
         return result;
     }
 
-    T Pop()
-    {
-        ASSERT( buffer.count > 0 );
-        headIndex = headIndex ? --headIndex : buffer.maxCount - 1;
-        return data[headIndex];
-    }
-
     bool Contains( const T& item ) const
     {
         bool result = false;

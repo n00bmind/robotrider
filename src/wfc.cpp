@@ -293,8 +293,7 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
     const u32 propagationStackSize = waveLength * 2;                            // Increase as needed
     state->propagationStack = Array<BannedTuple>( arena, 0, propagationStackSize );
     state->distributionTemp = Array<r32>( arena, patternCount, patternCount );
-    const u32 maxRememberedCells = 64;
-    state->backtrackedCellIndices = RingBuffer<u32>( arena, maxRememberedCells );
+    state->backtrackedCellIndices = RingBuffer<u32>( arena, BacktrackedCellsCacheCount );
 
     // Create initial snapshot
     Snapshot snapshot0;
@@ -548,7 +547,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             ASSERT( haveSelection );
 
             // Check if we should create a new snapshot
-            if( state->observationCount - state->lastSnapshotObservationCount >= 10 )
+            if( state->observationCount - state->lastSnapshotObservationCount >= MinObservationsBetweenSnapshots )
             {
                 snapshot->lastObservedCellIndex = observedCellIndex;
                 snapshot->lastObservedDistributionIndex = observedDistributionIndex;
@@ -980,7 +979,8 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 {
                     const Snapshot& s = state->snapshotStack.At( i );
                     ImGui::Text( "snapshot[%d] : observations %d ",
-                                 i, /*, CountNonZero( s.distribution ),*/ s.lastObservationCount );
+                                 state->snapshotStack.Count() - i - 1,
+                                 /*, CountNonZero( s.distribution ),*/ s.lastObservationCount );
                 }
 
                 ImGui::EndChild();
