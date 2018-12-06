@@ -109,9 +109,14 @@ AddPatternWithData( u8* data, const u32 N, State* state, MemoryArena* arena )
         ++(*patternCount);
     else
     {
-        u8* patternData = PUSH_ARRAY( arena, N * N, u8 );
-        COPY( data, patternData, N * N );
-        state->patternsHash.Add( { patternData, N }, 1, arena );
+        if( state->patternsHash.count <= MaxAdjacencyCount + 1 )
+        {
+            u8* patternData = PUSH_ARRAY( arena, N * N, u8 );
+            COPY( data, patternData, N * N );
+            state->patternsHash.Add( { patternData, N }, 1, arena );
+        }
+        else
+            LOG( "WARN :: Truncating input patterns at %d!", MaxAdjacencyCount );
     }
 }
 
@@ -122,7 +127,7 @@ BuildPatternsFromSource( const u32 N, const v2i& inputDim, State* state, MemoryA
     u8* rotatedPatternData = PUSH_ARRAY( arena, N * N, u8 );
     u8* reflectedPatternData = PUSH_ARRAY( arena, N * N, u8 );
 
-    // Totally arbitrary number for the entry count
+    // NOTE Totally arbitrary number for the entry count
     new (&state->patternsHash) HashTable<Pattern, u32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
 
     // NOTE We assume 'periodicInput' to be true
@@ -204,23 +209,6 @@ Matches( u8* basePattern, v2i offset, u8* testPattern, u32 N )
     return result;
 }
 
-// TODO Is this order relevant?
-internal const v2i cellDeltas[Adjacency::Count] =
-{
-    { -1,  0 },     // Left
-    {  0,  1 },     // Bottom
-    {  1,  0 },     // Right
-    {  0, -1 },     // Top
-};
-
-internal const u32 opposites[Adjacency::Count] =
-{
-    2,
-    3,
-    0,
-    1,
-};
-
 internal void
 BuildPatternsIndex( const u32 N, State* state, MemoryArena* arena )
 {
@@ -239,7 +227,7 @@ BuildPatternsIndex( const u32 N, State* state, MemoryArena* arena )
             for( u32 q = 0; q < patternCount; ++q )
             {
                 u8* qData = state->patterns[q].data;
-                matches.Push( Matches( pData, cellDeltas[d], qData, N ) );
+                matches.Push( Matches( pData, adjacencyMeta[d].cellDelta.xy, qData, N ) );
             }
             entries.Push( { matches } );
         }
@@ -251,7 +239,7 @@ internal void
 AllocSnapshot( Snapshot* result, u32 waveLength, u32 patternCount, MemoryArena* arena )
 {
     result->wave = Array2<bool>( arena, waveLength, patternCount );
-    result->adjacencyCounters = Array2<AdjacencyCounters>( arena, waveLength, patternCount );
+    result->adjacencyCounters = Array2<u64>( arena, waveLength, patternCount );
     result->compatiblesCount = Array<u32>( arena, waveLength, waveLength );
     result->sumFrequencies = Array<r64>( arena, waveLength, waveLength );
     result->sumWeights = Array<r64>( arena, waveLength, waveLength );
@@ -269,6 +257,34 @@ CopySnapshot( Snapshot* source, Snapshot* target )
     source->sumWeights.CopyTo( &target->sumWeights );
     source->entropies.CopyTo( &target->entropies );
     source->distribution.CopyTo( &target->distribution );
+}
+
+inline void
+SetAdjacencyCounterAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirIndex, u32 adjacencyCount )
+{
+    u64& counter = snapshot->adjacencyCounters.At( cellIndex, patternIndex );
+
+    u64 exp = dirIndex * BitsPerAxis;
+    u64 value = (u64)adjacencyCount << exp;
+    u64 mask = adjacencyMeta[dirIndex].counterMask;
+
+    counter = (counter & ~mask) | (value & mask);
+}
+
+inline bool
+DecreaseAndTestAdjacencyAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirIndex )
+{
+    u64& counter = snapshot->adjacencyCounters.At( cellIndex, patternIndex );
+
+    u64 exp = dirIndex * BitsPerAxis;
+    u64 one = 1ULL << exp;
+    u64 mask = adjacencyMeta[dirIndex].counterMask;
+
+    //ASSERT( counter & mask );
+    u64 newValue = (counter & mask) - one;
+    counter = (counter & ~mask) | (newValue & mask);
+
+    return newValue == 0;
 }
 
 internal void
@@ -343,14 +359,15 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
             snapshot0.wave.At( i, p ) = true;
             for( u32 d = 0; d < Adjacency::Count; ++d )
             {
-                IndexEntry& entry = state->patternsIndex[opposites[d]].entries[p];
+                u32 oppositeIndex = adjacencyMeta[d].oppositeIndex;
+                IndexEntry& entry = state->patternsIndex[oppositeIndex].entries[p];
 
-                u32 matches = 0;
+                u32 matchCount = 0;
                 for( u32 m = 0; m < entry.matches.count; ++m )
                     if( entry.matches[m] )
-                        matches++;
+                        matchCount++;
 
-                snapshot0.adjacencyCounters.At( i, p ).dir[d] = matches;
+                SetAdjacencyCounterAt( &snapshot0, i, p, d, matchCount );
             }
         }
     }
@@ -400,7 +417,7 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
     snapshot->wave.At( cellIndex, patternIndex ) = false;
 
     for( u32 d = 0; d < Adjacency::Count; ++d )
-        snapshot->adjacencyCounters.At( cellIndex, patternIndex ).dir[d] = 0;
+        SetAdjacencyCounterAt( snapshot, cellIndex, patternIndex, d, 0 );
 
     snapshot->compatiblesCount[cellIndex]--;
     if( snapshot->compatiblesCount[cellIndex] == 0 )
@@ -600,7 +617,7 @@ Propagate( const Spec& spec, State* state )
 
         for( u32 d = 0; d < Adjacency::Count; ++d )
         {
-            v2i pAdjacent = pCell + cellDeltas[d];
+            v2i pAdjacent = pCell + adjacencyMeta[d].cellDelta.xy;
 
             if( OnBoundary( pAdjacent, spec ) )
                 continue;
@@ -621,10 +638,7 @@ Propagate( const Spec& spec, State* state )
             {
                 if( bannedEntry.matches[p] )
                 {
-                    AdjacencyCounters& counters = state->currentSnapshot->adjacencyCounters.At( adjacentIndex, p );
-                    counters.dir[d]--;
-
-                    if( counters.dir[d] == 0 )
+                    if( DecreaseAndTestAdjacencyAt( state->currentSnapshot, adjacentIndex, p, d ) )
                     {
                         bool compatiblesRemaining = BanPatternAtCell( adjacentIndex, p, state );
                         if( !compatiblesRemaining )

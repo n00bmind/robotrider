@@ -39,7 +39,7 @@ namespace WFC
 
     enum Adjacency
     {
-        Left,
+        Left = 0,
         Bottom,
         Right,
         Top,
@@ -47,6 +47,25 @@ namespace WFC
         // Back,
 
         Count
+    };
+
+    const u32 BitsPerAxis = 10;
+    const u32 MaxAdjacencyCount = 1 << BitsPerAxis;
+
+    struct AdjacencyMeta
+    {
+        Adjacency dir;
+        v3i cellDelta;
+        u32 oppositeIndex;
+        u64 counterExp;
+        u64 counterMask;
+    };
+    const AdjacencyMeta adjacencyMeta[] =
+    {
+        { Left,     { -1,  0,  0 }, Right,  Left * BitsPerAxis,     (MaxAdjacencyCount - 1) << (Left * BitsPerAxis) },
+        { Bottom,   {  0,  1,  0 }, Top,    Bottom * BitsPerAxis,   (MaxAdjacencyCount - 1) << (Bottom * BitsPerAxis) },
+        { Right,    {  1,  0,  0 }, Left,   Right * BitsPerAxis,    (MaxAdjacencyCount - 1) << (Right * BitsPerAxis) },
+        { Top,      {  0, -1,  0 }, Bottom, Top * BitsPerAxis,      (MaxAdjacencyCount - 1) << (Top * BitsPerAxis) },
     };
 
     // How many patterns are still compatible in each direction
@@ -62,6 +81,7 @@ namespace WFC
         u32 patternIndex;
     };
 
+    // Overlapping 2D
     struct Spec
     {
         const char* name;
@@ -72,19 +92,18 @@ namespace WFC
         v2i outputDim;
         bool periodic;
     };
-    inline Spec
-        DefaultSpec()
+    inline Spec DefaultSpec()
+    {
+        Spec result =
         {
-            Spec result =
-            {
-                "default",
-                {},
-                2,
-                { 256, 256 },
-                true,
-            };
-            return result;
-        }
+            "default",
+            {},
+            2,
+            { 256, 256 },
+            true,
+        };
+        return result;
+    }
 
     enum Result
     {
@@ -100,7 +119,8 @@ namespace WFC
     {
         Array2<bool> wave;      // TODO Consider packing this into u64 flags even if that limits the maximum patterns
 
-        Array2<AdjacencyCounters> adjacencyCounters;    // compatible
+        // NOTE Still 4 bits per entry free here
+        Array2<u64> adjacencyCounters;                  // compatible
         // TODO This might be redundant? (just count how many patterns in a wave cell are still true)
         Array<u32> compatiblesCount;                    // sumsOfOnes
 
