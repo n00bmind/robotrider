@@ -498,7 +498,7 @@ NeedSnapshot( State* state, u32 totalObservationCount )
     r32 SC = (r32)state->snapshotStack.buffer.maxCount;
 
     // Using a n-th degree parabola, calc the observations count corresponding to the next snapshot
-    r32 n = 4;
+    r32 n = 6;
     r32 targetValue = ((r32)totalObservationCount / Pow( SC, n )) * Pow( x, n );
 
     return value >= targetValue;
@@ -664,9 +664,12 @@ RewindSnapshot( State* state )
 
             if( !haveNewSelection )
             {
-                // Discard this cell index entirely and try a different one
-                state->backtrackedCellIndices.Push( snapshot->lastObservedCellIndex );
-                // TODO Do we somehow want to retry distribution options once we discard new cells?
+                if( BacktrackedCellsCacheCount )
+                {
+                    // Discard this cell index entirely and try a different one
+                    // TODO Do we somehow want to retry distribution options once we discard new cells?
+                    state->backtrackedCellIndices.Push( snapshot->lastObservedCellIndex );
+                }
 #if 0
                 Sleep( 250 );
 #endif

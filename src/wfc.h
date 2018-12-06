@@ -3,8 +3,6 @@
 
 namespace WFC
 {
-
-    const u32 MinObservationsBetweenSnapshots = 25;
     const u32 BacktrackedCellsCacheCount = 0;
 
 

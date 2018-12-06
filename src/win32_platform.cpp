@@ -2327,6 +2327,9 @@ main( int argC, char **argV )
         LOG( ".ERROR: Couldn't register window class!" );
     }
 
+    // FIXME This is causing a hang. Investigate!
+    //Win32CompleteAllJobs( globalPlatform.hiPriorityQueue );
+
     LOG( "\n\nFPS: %.1f imm. / %.1f avg.",
          ImGui::GetIO().Framerate, (r32)runningFrameCounter / totalElapsedSeconds );
 

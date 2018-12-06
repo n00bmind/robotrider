@@ -128,12 +128,27 @@ struct Array
         COPY( buffer, data, count * sizeof(T) );
     }
 
+    bool Contains( const T& item ) const
+    {
+        bool result = false;
+        for( u32 i = 0; i < count; ++i )
+        {
+            if( data[i] == item )
+            {
+                result = true;
+                break;
+            }
+        }
+
+        return result;
+    }
+
     void Clear()
     {
         count = 0;
     }
 
-    u32 Available()
+    u32 Available() const
     {
         return maxCount - count;
     }
@@ -227,11 +242,14 @@ struct RingBuffer
 
     T* PushEmpty( bool clear = true )
     {
+        ASSERT( headIndex < buffer.maxCount );
+
         T* result = buffer.data + headIndex++;
         if( headIndex == buffer.maxCount )
             headIndex = 0;
         if( buffer.count < buffer.maxCount )
             buffer.count++;
+
         if( clear )
             ZERO( result, sizeof(T) );
 
@@ -247,17 +265,7 @@ struct RingBuffer
 
     bool Contains( const T& item ) const
     {
-        bool result = false;
-        for( u32 i = 0; i < buffer.count; ++i )
-        {
-            if( buffer.data[i] == item )
-            {
-                result = true;
-                break;
-            }
-        }
-
-        return result;
+        return buffer.Contains( item );
     }
 };
 
@@ -304,6 +312,8 @@ struct RingStack
 
     T* PushEmpty( bool clear = true )
     {
+        ASSERT( topIndex < buffer.maxCount );
+
         T* result = buffer.data + topIndex++;
         if( topIndex == buffer.maxCount )
             topIndex = 0;
