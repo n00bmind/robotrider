@@ -167,8 +167,14 @@ Square( i32 value )
     return value * value;
 }
 
+inline r32
+Pow( r32 b, r32 exp )
+{
+    return powf( b, exp );
+}
+
 inline r64
-Pow( r64 b, r64 exp )
+PowR64( r64 b, r64 exp )
 {
     return pow( b, exp );
 }

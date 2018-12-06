@@ -4,8 +4,8 @@
 namespace WFC
 {
 
-    const u32 MinObservationsBetweenSnapshots = 10;
-    const u32 BacktrackedCellsCacheCount = 128;
+    const u32 MinObservationsBetweenSnapshots = 25;
+    const u32 BacktrackedCellsCacheCount = 0;
 
 
     struct Pattern

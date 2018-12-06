@@ -743,7 +743,7 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, MemoryArena* t
 
         // All triangles with edges below the threshold will be removed
         // NOTE The following numbers usually work. Adjust as needed
-        r64 threshold = 0.000000001 * Pow( r64(iteration + 3), agressiveness );
+        r64 threshold = 0.000000001 * PowR64( r64(iteration + 3), agressiveness );
 
         if( iteration % 5 == 0 )
             LOG( "Iteration %d - tris %d  threshold %g", iteration, triangleCount - deletedTriangleCount, threshold );

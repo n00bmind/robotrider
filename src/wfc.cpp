@@ -488,6 +488,22 @@ ApplyObservedPatternAt( u32 observedCellIndex, u32 observedDistributionIndex, Sn
     return compatiblesRemaining;
 }
 
+internal bool
+NeedSnapshot( State* state, u32 totalObservationCount )
+{
+    u32 value = state->observationCount;
+    //u32 lastValue = state->lastSnapshotObservationCount;
+    
+    r32 x = (r32)state->snapshotStack.buffer.count;
+    r32 SC = (r32)state->snapshotStack.buffer.maxCount;
+
+    // Using a n-th degree parabola, calc the observations count corresponding to the next snapshot
+    r32 n = 4;
+    r32 targetValue = ((r32)totalObservationCount / Pow( SC, n )) * Pow( x, n );
+
+    return value >= targetValue;
+}
+
 internal Result
 Observe( const Spec& spec, State* state, MemoryArena* arena )
 {
@@ -547,7 +563,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             ASSERT( haveSelection );
 
             // Check if we should create a new snapshot
-            if( state->observationCount - state->lastSnapshotObservationCount >= MinObservationsBetweenSnapshots )
+            if( NeedSnapshot( state, snapshot->wave.rows ) )
             {
                 snapshot->lastObservedCellIndex = observedCellIndex;
                 snapshot->lastObservedDistributionIndex = observedDistributionIndex;
@@ -651,7 +667,7 @@ RewindSnapshot( State* state )
                 // Discard this cell index entirely and try a different one
                 state->backtrackedCellIndices.Push( snapshot->lastObservedCellIndex );
                 // TODO Do we somehow want to retry distribution options once we discard new cells?
-#if 1
+#if 0
                 Sleep( 250 );
 #endif
             }
@@ -978,9 +994,9 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 for( u32 i = 0; i < state->snapshotStack.buffer.count; ++i )
                 {
                     const Snapshot& s = state->snapshotStack.At( i );
-                    ImGui::Text( "snapshot[%d] : observations %d ",
+                    ImGui::Text( "snapshot[%d] : n %d, observations %d ",
                                  state->snapshotStack.Count() - i - 1,
-                                 /*, CountNonZero( s.distribution ),*/ s.lastObservationCount );
+                                 CountNonZero( s.distribution ), s.lastObservationCount );
                 }
 
                 ImGui::EndChild();
