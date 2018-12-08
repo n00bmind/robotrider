@@ -109,14 +109,14 @@ AddPatternWithData( u8* data, const u32 N, State* state, MemoryArena* arena )
         ++(*patternCount);
     else
     {
-        if( state->patternsHash.count <= MaxAdjacencyCount + 1 )
+        if (state->patternsHash.count <= MaxAdjacencyCount + 1)
         {
-            u8* patternData = PUSH_ARRAY( arena, N * N, u8 );
-            COPY( data, patternData, N * N );
-            state->patternsHash.Add( { patternData, N }, 1, arena );
+            u8* patternData = PUSH_ARRAY(arena, N * N, u8);
+            COPY(data, patternData, N * N);
+            state->patternsHash.Add({ patternData, N }, 1, arena);
         }
         else
-            LOG( "WARN :: Truncating input patterns at %d!", MaxAdjacencyCount );
+            LOG("WARN :: Truncating input patterns at %d!", MaxAdjacencyCount);
     }
 }
 
@@ -259,32 +259,32 @@ CopySnapshot( Snapshot* source, Snapshot* target )
     source->distribution.CopyTo( &target->distribution );
 }
 
-inline void
-SetAdjacencyCounterAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirIndex, u32 adjacencyCount )
+internal void
+SetAdjacencyAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirIndex, u32 adjacencyCount )
 {
-    u64& counter = snapshot->adjacencyCounters.At( cellIndex, patternIndex );
-
     u64 exp = dirIndex * BitsPerAxis;
     u64 value = (u64)adjacencyCount << exp;
     u64 mask = adjacencyMeta[dirIndex].counterMask;
+
+    u64& counter = snapshot->adjacencyCounters.At( cellIndex, patternIndex );
 
     counter = (counter & ~mask) | (value & mask);
 }
 
 inline bool
-DecreaseAndTestAdjacencyAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirIndex )
+DecreaseAdjacencyAndTestZAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirIndex )
 {
-    u64& counter = snapshot->adjacencyCounters.At( cellIndex, patternIndex );
-
     u64 exp = dirIndex * BitsPerAxis;
     u64 one = 1ULL << exp;
     u64 mask = adjacencyMeta[dirIndex].counterMask;
 
-    //ASSERT( counter & mask );
-    u64 newValue = (counter & mask) - one;
-    counter = (counter & ~mask) | (newValue & mask);
+    u64& counter = snapshot->adjacencyCounters.At( cellIndex, patternIndex );
 
-    return newValue == 0;
+    // NOTE This has been seen to underflow (trying to prevent that actually seems to break things!)
+    u64 value = (counter & mask) - one;
+    counter = (counter & ~mask) | (value & mask);
+
+    return value == 0;
 }
 
 internal void
@@ -362,12 +362,12 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
                 u32 oppositeIndex = adjacencyMeta[d].oppositeIndex;
                 IndexEntry& entry = state->patternsIndex[oppositeIndex].entries[p];
 
-                u32 matchCount = 0;
+                u32 matches = 0;
                 for( u32 m = 0; m < entry.matches.count; ++m )
                     if( entry.matches[m] )
-                        matchCount++;
+                        matches++;
 
-                SetAdjacencyCounterAt( &snapshot0, i, p, d, matchCount );
+                SetAdjacencyAt( &snapshot0, i, p, d, matches );
             }
         }
     }
@@ -417,7 +417,7 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
     snapshot->wave.At( cellIndex, patternIndex ) = false;
 
     for( u32 d = 0; d < Adjacency::Count; ++d )
-        SetAdjacencyCounterAt( snapshot, cellIndex, patternIndex, d, 0 );
+        SetAdjacencyAt( snapshot, cellIndex, patternIndex, d, 0 );
 
     snapshot->compatiblesCount[cellIndex]--;
     if( snapshot->compatiblesCount[cellIndex] == 0 )
@@ -515,7 +515,7 @@ NeedSnapshot( State* state, u32 totalObservationCount )
     r32 SC = (r32)state->snapshotStack.buffer.maxCount;
 
     // Using a n-th degree parabola, calc the observations count corresponding to the next snapshot
-    r32 n = 6;
+    r32 n = 8;
     r32 targetValue = ((r32)totalObservationCount / Pow( SC, n )) * Pow( x, n );
 
     return value >= targetValue;
@@ -638,7 +638,8 @@ Propagate( const Spec& spec, State* state )
             {
                 if( bannedEntry.matches[p] )
                 {
-                    if( DecreaseAndTestAdjacencyAt( state->currentSnapshot, adjacentIndex, p, d ) )
+                    bool isZero = DecreaseAdjacencyAndTestZAt( state->currentSnapshot, adjacentIndex, p, d );
+                    if( isZero )
                     {
                         bool compatiblesRemaining = BanPatternAtCell( adjacentIndex, p, state );
                         if( !compatiblesRemaining )

@@ -62,17 +62,10 @@ namespace WFC
     };
     const AdjacencyMeta adjacencyMeta[] =
     {
-        { Left,     { -1,  0,  0 }, Right,  Left * BitsPerAxis,     (MaxAdjacencyCount - 1) << (Left * BitsPerAxis) },
-        { Bottom,   {  0,  1,  0 }, Top,    Bottom * BitsPerAxis,   (MaxAdjacencyCount - 1) << (Bottom * BitsPerAxis) },
-        { Right,    {  1,  0,  0 }, Left,   Right * BitsPerAxis,    (MaxAdjacencyCount - 1) << (Right * BitsPerAxis) },
-        { Top,      {  0, -1,  0 }, Bottom, Top * BitsPerAxis,      (MaxAdjacencyCount - 1) << (Top * BitsPerAxis) },
-    };
-
-    // How many patterns are still compatible in each direction
-    // TODO Consider packing all counts into a u64 even if that limits the maximum patterns
-    struct AdjacencyCounters
-    {
-        u32 dir[Adjacency::Count];
+        { Left,     { -1,  0,  0 }, Right,  (u64)Left * BitsPerAxis,     u64(MaxAdjacencyCount - 1) << (Left * BitsPerAxis) },
+        { Bottom,   {  0,  1,  0 }, Top,    (u64)Bottom * BitsPerAxis,   u64(MaxAdjacencyCount - 1) << (Bottom * BitsPerAxis) },
+        { Right,    {  1,  0,  0 }, Left,   (u64)Right * BitsPerAxis,    u64(MaxAdjacencyCount - 1) << (Right * BitsPerAxis) },
+        { Top,      {  0, -1,  0 }, Bottom, (u64)Top * BitsPerAxis,      u64(MaxAdjacencyCount - 1) << (Top * BitsPerAxis) },
     };
 
     struct BannedTuple
@@ -81,7 +74,6 @@ namespace WFC
         u32 patternIndex;
     };
 
-    // Overlapping 2D
     struct Spec
     {
         const char* name;
@@ -119,7 +111,8 @@ namespace WFC
     {
         Array2<bool> wave;      // TODO Consider packing this into u64 flags even if that limits the maximum patterns
 
-        // NOTE Still 4 bits per entry free here
+        // How many patterns are still compatible in each direction
+        // (still 4 bits free here)
         Array2<u64> adjacencyCounters;                  // compatible
         // TODO This might be redundant? (just count how many patterns in a wave cell are still true)
         Array<u32> compatiblesCount;                    // sumsOfOnes
