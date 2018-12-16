@@ -274,6 +274,8 @@ SetAdjacencyAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirInde
 inline bool
 DecreaseAdjacencyAndTestZAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirIndex )
 {
+    TIMED_BLOCK;
+
     u64 exp = dirIndex * BitsPerAxis;
     u64 one = 1ULL << exp;
     u64 mask = adjacencyMeta[dirIndex].counterMask;
@@ -330,9 +332,12 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
     u32 maxSnapshotCount = SafeR64ToU32( (r32)A / (S + s) );
     ASSERT( maxSnapshotCount * s + maxSnapshotCount * S < A );
 
+    // Truncate at 64, since having more does actually seems less effective
+    maxSnapshotCount = Min( maxSnapshotCount, 64u );
+
     // We need to allocate the stack before any snapshot, so that rewinding snapshots will work properly
     RewindArena( arena, lowWaterMark );
-    state->snapshotStack = RingStack<Snapshot>( arena, maxSnapshotCount );
+    state->snapshotStack = Array<Snapshot>( arena, 0, maxSnapshotCount );
     AllocSnapshot( &snapshot0, waveLength, patternCount, arena );
     state->currentSnapshot = state->snapshotStack.Push( snapshot0 );
 
@@ -411,6 +416,8 @@ RandomSelect( const Array<r32>& distribution, Array<r32>* temp, u32* selection )
 internal bool
 BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
 {
+    TIMED_BLOCK;
+
     bool result = true;
     Snapshot* snapshot = state->currentSnapshot;
 
@@ -511,8 +518,8 @@ NeedSnapshot( State* state, u32 totalObservationCount )
     u32 value = state->observationCount;
     //u32 lastValue = state->lastSnapshotObservationCount;
     
-    r32 x = (r32)state->snapshotStack.buffer.count;
-    r32 SC = (r32)state->snapshotStack.buffer.maxCount;
+    r32 x = (r32)state->snapshotStack.count;
+    r32 SC = (r32)state->snapshotStack.maxCount;
 
     // Using a n-th degree parabola, calc the observations count corresponding to the next snapshot
     r32 n = 8;
@@ -524,6 +531,8 @@ NeedSnapshot( State* state, u32 totalObservationCount )
 internal Result
 Observe( const Spec& spec, State* state, MemoryArena* arena )
 {
+    TIMED_BLOCK;
+
     Result result = InProgress;
     Snapshot* snapshot = state->currentSnapshot;
 
@@ -579,7 +588,6 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
                                                                &observedDistributionIndex );
             ASSERT( haveSelection );
 
-            // Check if we should create a new snapshot
             if( NeedSnapshot( state, snapshot->wave.rows ) )
             {
                 snapshot->lastObservedCellIndex = observedCellIndex;
@@ -612,6 +620,8 @@ Propagate( const Spec& spec, State* state )
 
     while( result == InProgress && state->propagationStack.count > 0 )
     {
+        TIMED_BLOCK;
+
         BannedTuple ban = state->propagationStack.Pop();
         v2i pCell = PositionFromIndex( ban.cellIndex, width );
 
@@ -659,6 +669,8 @@ Propagate( const Spec& spec, State* state )
 internal Result
 RewindSnapshot( State* state )
 {
+    TIMED_BLOCK;
+
     Result result = Contradiction;
     Snapshot* snapshot = state->currentSnapshot;
     u32 patternCount = state->patterns.count;
@@ -670,7 +682,7 @@ RewindSnapshot( State* state )
     {
         // Get previous snapshot from the stack, if available
         state->snapshotStack.Pop();
-        snapshot = state->snapshotStack.Top();
+        snapshot = &state->snapshotStack.Last();
         if( snapshot )
         {
             // Discard the random selection we chose last time, and try a different one
@@ -726,6 +738,8 @@ StartWFCSync( const Spec& spec, State* state, MemoryArena* wfcArena )
 
     while( !IsFinished( *state ) )
     {
+        TIMED_BLOCK;
+
         if( state->cancellationRequested )
             state->currentResult = Cancelled;
 
@@ -733,7 +747,10 @@ StartWFCSync( const Spec& spec, State* state, MemoryArena* wfcArena )
             state->currentResult = Observe( spec, state, wfcArena );
 
         if( state->currentResult == Contradiction )
+        {
+            state->contradictionCount++;
             state->currentResult = RewindSnapshot( state );
+        }
 
         if( state->currentResult == InProgress )
             state->currentResult = Propagate( spec, state );
@@ -1002,19 +1019,19 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
 
                 ImGui::Spacing();
                 ImGui::Spacing();
-                ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.buffer.count, state->snapshotStack.buffer.maxCount );
+                ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.count, state->snapshotStack.maxCount );
                 ImGui::Text( "Backtracked cells cache: %d", state->backtrackedCellIndices.Count() );
+                ImGui::Text( "Total contradictions: %d", state->contradictionCount );
                 ImGui::Spacing();
                 ImGui::Spacing();
 
                 const u32 maxLines = 50;
                 //r32 step = (r32)maxLines / state->snapshotStack.buffer.maxCount;
-                for( u32 i = 0; i < state->snapshotStack.buffer.count; ++i )
+                for( u32 i = 0; i < state->snapshotStack.count; ++i )
                 {
-                    const Snapshot& s = state->snapshotStack.At( i );
+                    const Snapshot& s = state->snapshotStack[i];
                     ImGui::Text( "snapshot[%d] : n %d, observations %d ",
-                                 state->snapshotStack.Count() - i - 1,
-                                 CountNonZero( s.distribution ), s.lastObservationCount );
+                                 i, CountNonZero( s.distribution ), s.lastObservationCount );
                 }
 
                 ImGui::EndChild();

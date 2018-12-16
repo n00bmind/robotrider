@@ -1,6 +1,17 @@
 #ifndef __WFC_H__
 #define __WFC_H__ 
 
+
+
+// TODO Review all TODOs!!
+// x Add counters so we can start getting a sense of what's what
+// x Add a maximum snapshot stack size and tweak the snapshot sampling curve so it's easier to get to early snapshots
+// - Make the snapshot stack non-circular and make sure we're always backtracking from the correct snapshot
+// - Pack wave data in bits similar to the adjacency counters to keep lowering memory consumption
+// - Do tiled multithreading
+// - 3D ffs!!
+//
+
 namespace WFC
 {
     const u32 BacktrackedCellsCacheCount = 0;
@@ -109,12 +120,12 @@ namespace WFC
 
     struct Snapshot
     {
-        Array2<bool> wave;      // TODO Consider packing this into u64 flags even if that limits the maximum patterns
+        Array2<bool> wave;      // TODO Consider packing this into (several) u64 flags even if that limits the maximum patterns
 
-        // How many patterns are still compatible in each direction
+        // How many patterns are still compatible (with every pattern at every cell) in each direction
         // (still 4 bits free here)
         Array2<u64> adjacencyCounters;                  // compatible
-        // TODO This might be redundant? (just count how many patterns in a wave cell are still true)
+        // NOTE This could be extracted from the wave (although slower)
         Array<u32> compatiblesCount;                    // sumsOfOnes
 
         Array<r64> sumFrequencies;                      // sumsOfWeights
@@ -124,12 +135,13 @@ namespace WFC
         Array<r32> distribution;
         // Last random choice that was made in this snapshot, so we can undo it when rewinding
         u32 lastObservedDistributionIndex;
-        // Last index into the searched cells array above
+        // Last observed cell during this snapshot, so we can discard it when backtracking
         u32 lastObservedCellIndex;
 
         u32 lastObservationCount;
         //u32 lastObservationWidth;
     };
+
 
     struct State
     {
@@ -151,11 +163,12 @@ namespace WFC
         Array<r32> distributionTemp;
 
         RingBuffer<u32> backtrackedCellIndices;
-        RingStack<Snapshot> snapshotStack;
+        Array<Snapshot> snapshotStack;
         Snapshot* currentSnapshot;
 
         u32 observationCount;
         u32 lastSnapshotObservationCount;
+        u32 contradictionCount;
         Result currentResult;
 
         mutable bool cancellationRequested;

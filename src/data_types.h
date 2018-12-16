@@ -70,6 +70,18 @@ struct Array
         return data[i];
     }
 
+    T& Last()
+    {
+        ASSERT( count );
+        return data[count - 1];
+    }
+
+    const T& Last() const
+    {
+        ASSERT( count );
+        return data[count - 1];
+    }
+
     // TODO Not too sure about this!
     operator bool() const
     {
