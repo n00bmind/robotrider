@@ -14,7 +14,15 @@
 
 namespace WFC
 {
+    // Determines the size of the ring cache for cells that are "blacklisted" temporarily during the backtracking process
+    // (0 = disabled)
     const u32 BacktrackedCellsCacheCount = 0;
+    // Cap for the size of the snapshot stack, since beyond a certain point, more continuous snapshots means backtracking is less effective
+    // Probably will need to be calibrated against the final sets that we use
+    const u32 MaxBacktrackingDepth = 64;
+    // Bigger means more U shaped, which makes it more likely to revisit very early steps in the solving process when backtracking
+    // This will also need some tweaking with for final examples
+    const r32 ObservationCountParabolaDegree = 8;
 
 
     struct Pattern
@@ -167,7 +175,6 @@ namespace WFC
         Snapshot* currentSnapshot;
 
         u32 observationCount;
-        u32 lastSnapshotObservationCount;
         u32 contradictionCount;
         Result currentResult;
 

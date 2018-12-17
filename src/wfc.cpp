@@ -377,7 +377,7 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
     ASSERT( maxSnapshotCount * s + maxSnapshotCount * S < A );
 
     // Truncate at 64, since having more does actually seems less effective
-    maxSnapshotCount = Min( maxSnapshotCount, 64u );
+    maxSnapshotCount = Min( maxSnapshotCount, MaxBacktrackingDepth );
 
     // We need to allocate the stack before any snapshot, so that rewinding snapshots will work properly
     RewindArena( arena, lowWaterMark );
@@ -562,13 +562,12 @@ internal bool
 NeedSnapshot( State* state, u32 totalObservationCount )
 {
     u32 value = state->observationCount;
-    //u32 lastValue = state->lastSnapshotObservationCount;
     
     r32 x = (r32)state->snapshotStack.count;
     r32 SC = (r32)state->snapshotStack.maxCount;
 
     // Using a n-th degree parabola, calc the observations count corresponding to the next snapshot
-    r32 n = 8;
+    r32 n = ObservationCountParabolaDegree;
     r32 targetValue = ((r32)totalObservationCount / Pow( SC, n )) * Pow( x, n );
 
     return value >= targetValue;
@@ -616,7 +615,6 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         }
     }
     state->observationCount = observations;
-    ASSERT( state->observationCount >= state->lastSnapshotObservationCount );
 
     if( result == InProgress )
     {
@@ -638,9 +636,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
             {
                 snapshot->lastObservedCellIndex = observedCellIndex;
                 snapshot->lastObservedDistributionIndex = observedDistributionIndex;
-                // FIXME This doesn't seem to be working
                 snapshot->lastObservationCount = state->observationCount;
-                state->lastSnapshotObservationCount = snapshot->lastObservationCount;
 
                 snapshot = PushNewSnapshot( state->currentSnapshot, state, arena );
                 state->currentSnapshot = snapshot;
@@ -753,7 +749,6 @@ RewindSnapshot( State* state )
     if( haveNewSelection )
     {
         state->currentSnapshot = snapshot;
-        state->lastSnapshotObservationCount = snapshot->lastObservationCount;
 
         u32 observedCellIndex = snapshot->lastObservedCellIndex;
         u32 observedDistributionIndex = snapshot->lastObservedDistributionIndex;
@@ -1076,8 +1071,11 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 for( u32 i = 0; i < state->snapshotStack.count; ++i )
                 {
                     const Snapshot& s = state->snapshotStack[i];
-                    ImGui::Text( "snapshot[%d] : n %d, observations %d ",
-                                 i, CountNonZero( s.distribution ), s.lastObservationCount );
+                    if( &s == state->currentSnapshot )
+                        ImGui::Text( "snapshot[%d] : current", i );
+                    else
+                        ImGui::Text( "snapshot[%d] : n %d, observations %d",
+                                     i, CountNonZero( s.distribution ), s.lastObservationCount );
                 }
 
                 ImGui::EndChild();
