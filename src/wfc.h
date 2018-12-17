@@ -7,7 +7,7 @@
 // x Add counters so we can start getting a sense of what's what
 // x Add a maximum snapshot stack size and tweak the snapshot sampling curve so it's easier to get to early snapshots
 // - Make the snapshot stack non-circular and make sure we're always backtracking from the correct snapshot
-// - Pack wave data in bits similar to the adjacency counters to keep lowering memory consumption
+// - Pack wave data in bits similar to the adjacency counters to keep lowering memory consumption (check sizes!)
 // - Do tiled multithreading
 // - 3D ffs!!
 //
@@ -120,7 +120,7 @@ namespace WFC
 
     struct Snapshot
     {
-        Array2<bool> wave;      // TODO Consider packing this into (several) u64 flags even if that limits the maximum patterns
+        Array2<u64> wave;
 
         // How many patterns are still compatible (with every pattern at every cell) in each direction
         // (still 4 bits free here)

@@ -54,14 +54,14 @@ SafeR64ToU32( r64 value )
 inline u32
 Ceil( r32 value )
 {
-    u32 result = (u32)(value + 0.5f);
+    u32 result = (u32)ceilf( value );
     return result;
 }
 
 inline u32
 Ceil( r64 value )
 {
-    u32 result = (u32)(value + 0.5);
+    u32 result = (u32)ceil( value );
     return result;
 }
 

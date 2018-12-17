@@ -238,7 +238,8 @@ BuildPatternsIndex( const u32 N, State* state, MemoryArena* arena )
 internal void
 AllocSnapshot( Snapshot* result, u32 waveLength, u32 patternCount, MemoryArena* arena )
 {
-    result->wave = Array2<bool>( arena, waveLength, patternCount );
+    u32 patternGroupCount = Ceil( (r32)patternCount / 64.f );
+    result->wave = Array2<u64>( arena, waveLength, patternGroupCount );
     result->adjacencyCounters = Array2<u64>( arena, waveLength, patternCount );
     result->compatiblesCount = Array<u32>( arena, waveLength, waveLength );
     result->sumFrequencies = Array<r64>( arena, waveLength, waveLength );
@@ -248,7 +249,7 @@ AllocSnapshot( Snapshot* result, u32 waveLength, u32 patternCount, MemoryArena* 
 }
 
 internal void
-CopySnapshot( Snapshot* source, Snapshot* target )
+CopySnapshot( const Snapshot* source, Snapshot* target )
 {
     source->wave.CopyTo( &target->wave );
     source->adjacencyCounters.CopyTo( &target->adjacencyCounters );
@@ -287,6 +288,49 @@ DecreaseAdjacencyAndTestZAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex
     counter = (counter & ~mask) | (value & mask);
 
     return value == 0;
+}
+
+inline bool
+GetWaveAt( const Snapshot* snapshot, u32 cellIndex, u32 patternIndex, const State* state )
+{
+    ASSERT( patternIndex < state->patterns.count );
+    
+    const u64* row = snapshot->wave.AtRow( cellIndex );
+    u32 patternSubIndex = patternIndex / 64;
+    u64 bitset = row[patternSubIndex];
+    u32 bitIndex = patternIndex % 64;
+    u64 mask = 1ULL << bitIndex;
+
+    return (bitset & mask) != 0;
+}
+
+inline void
+DisableWaveAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, const State* state )
+{
+    ASSERT( patternIndex < state->patterns.count );
+
+    u64* row = snapshot->wave.AtRow( cellIndex );
+    u32 patternSubIndex = patternIndex / 64;
+    u64& bitset = row[patternSubIndex];
+
+    u32 bitIndex = patternIndex % 64;
+    u64 mask = ~(1ULL << bitIndex);
+
+    bitset = bitset & mask;
+}
+
+inline void
+ResetWaveAt( Snapshot* snapshot, u32 cellIndex, State* state )
+{
+    u64* row = snapshot->wave.AtRow( cellIndex );
+
+    u32 groupCount = state->patterns.count / 64;
+    for( u32 p = 0; p < groupCount; ++p )
+        row[p] = ~0ULL;
+
+    u32 spareCount = state->patterns.count % 64;
+    if( spareCount )
+        row[groupCount] = (~0ULL); // >> (64 - spareCount);
 }
 
 internal void
@@ -354,6 +398,7 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
 
     for( u32 i = 0; i < waveLength; ++i )
     {
+        ResetWaveAt( &snapshot0, i, state );
         snapshot0.compatiblesCount[i] = patternCount;
         snapshot0.sumFrequencies[i] = sumFrequencies;
         snapshot0.sumWeights[i] = sumWeights;
@@ -361,7 +406,6 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
 
         for( u32 p = 0; p < patternCount; ++p )
         {
-            snapshot0.wave.At( i, p ) = true;
             for( u32 d = 0; d < Adjacency::Count; ++d )
             {
                 u32 oppositeIndex = adjacencyMeta[d].oppositeIndex;
@@ -421,7 +465,7 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
     bool result = true;
     Snapshot* snapshot = state->currentSnapshot;
 
-    snapshot->wave.At( cellIndex, patternIndex ) = false;
+    DisableWaveAt( snapshot, cellIndex, patternIndex, state );
 
     for( u32 d = 0; d < Adjacency::Count; ++d )
         SetAdjacencyAt( snapshot, cellIndex, patternIndex, d, 0 );
@@ -471,7 +515,7 @@ internal bool
 BuildDistributionAndSelectAt( u32 cellIndex, Snapshot* snapshot, State* state, u32* selection )
 {
     for( u32 p = 0; p < state->patterns.count; ++p )
-        snapshot->distribution[p] = (snapshot->wave.At( cellIndex, p ) ? state->frequencies[p] : 0.f);
+        snapshot->distribution[p] = (GetWaveAt( snapshot, cellIndex, p, state ) ? state->frequencies[p] : 0.f);
 
     bool result = RandomSelect( snapshot->distribution, &state->distributionTemp, selection );
     return result;
@@ -497,11 +541,13 @@ PushNewSnapshot( Snapshot* source, State* state, MemoryArena* arena )
 internal bool
 ApplyObservedPatternAt( u32 observedCellIndex, u32 observedDistributionIndex, Snapshot* snapshot, State* state )
 {
+    TIMED_BLOCK;
+
     bool compatiblesRemaining = true;
 
     for( u32 p = 0; p < state->patterns.count; ++p )
     {
-        if( snapshot->wave.At( observedCellIndex, p ) && p != observedDistributionIndex )
+        if( GetWaveAt( snapshot, observedCellIndex, p, state ) && p != observedDistributionIndex )
         {
             compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state );
             if( !compatiblesRemaining )
@@ -821,7 +867,7 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
 
                         for( u32 p = 0; p < state->patterns.count; ++p )
                         {
-                            if( snapshot->wave.At( cellY * width + cellX, p ) )
+                            if( GetWaveAt( snapshot, cellY * width + cellX, p, state ) )
                             {
                                 u32 cr, cg, cb;
                                 u8 sample = state->patterns[p].data[dy * N + dx];
@@ -859,7 +905,7 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
                 u32 cellIndex = cellY * width + cellX;
                 for( u32 p = 0; p < state->patterns.count; ++p )
                 {
-                    if( snapshot->wave.At( cellIndex, p ) )
+                    if( GetWaveAt( snapshot, cellIndex, p, state ) )
                     {
                         patternIndex = p;
                         break;
