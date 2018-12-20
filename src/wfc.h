@@ -100,7 +100,8 @@ namespace WFC
         Texture source;
         u32 N;
 
-        v2i outputDim;
+        v2i outputChunkDim;         // In voxels
+        v2i outputChunkCount;
         bool periodic;
     };
     inline Spec DefaultSpec()
@@ -110,7 +111,8 @@ namespace WFC
             "default",
             {},
             2,
-            { 256, 256 },
+            { 64, 64 },
+            { 4, 4 },
             true,
         };
         return result;
@@ -174,6 +176,7 @@ namespace WFC
         Array<Snapshot> snapshotStack;
         Snapshot* currentSnapshot;
 
+        v2i pOutputChunk;
         u32 observationCount;
         u32 contradictionCount;
         Result currentResult;
@@ -206,6 +209,7 @@ namespace WFC
     struct WFCJob
     {
         Spec spec;
+        v2i pOutputChunk;
         State* state;
         MemoryArena* arena;
     };

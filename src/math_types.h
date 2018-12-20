@@ -75,6 +75,13 @@ operator +( const v2i& a, const v2i& b )
     return result;
 }
 
+inline v2i
+Hadamard( const v2i& a, const v2i& b )
+{
+    v2i result = { a.x * b.x, a.y * b.y };
+    return result;
+}
+
 // Vector 2
 
 union v2

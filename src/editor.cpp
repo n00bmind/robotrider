@@ -83,7 +83,7 @@ InitEditor( const v2i screenDim, EditorState* editorState, World* world, MemoryA
     /// WFC test
     if( !editorState->wfcArena.base )
         editorState->wfcArena = MakeSubArena( worldArena, MEGABYTES(512) );
-    editorState->wfcState = WFC::StartWFCAsync( editorState->wfcSpecs[0], &editorState->wfcArena );
+    editorState->wfcState = WFC::StartWFCAsync( editorState->wfcSpecs[0], { 2, 2 }, &editorState->wfcArena );
 
     if( !editorState->wfcDisplayArena.base )
         editorState->wfcDisplayArena = MakeSubArena( worldArena, MEGABYTES(16) );
@@ -171,7 +171,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
             editorState.wfcDisplayState.currentSpecIndex = savedIndex;
 
             WFC::Spec& spec = editorState.wfcSpecs[editorState.wfcDisplayState.currentSpecIndex];
-            editorState.wfcState = WFC::StartWFCAsync( spec, &editorState.wfcArena );
+            editorState.wfcState = WFC::StartWFCAsync( spec, { 0, 0 }, &editorState.wfcArena );
         }
     }
     else

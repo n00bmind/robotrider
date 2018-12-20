@@ -334,11 +334,12 @@ ResetWaveAt( Snapshot* snapshot, u32 cellIndex, State* state )
 }
 
 internal void
-Init( const Spec& spec, State* state, MemoryArena* arena )
+Init( const Spec& spec, const v2i& pOutputChunk, State* state, MemoryArena* arena )
 {
     TIMED_BLOCK
 
     state->arena = arena;
+    state->pOutputChunk = pOutputChunk;
 
     // Process input data
     PalettizeSource( spec.source, state, arena );
@@ -347,7 +348,7 @@ Init( const Spec& spec, State* state, MemoryArena* arena )
 
     // Init global state
     // FIXME This should actually be (width - N + 1) * (height - N + 1) ?
-    u32 waveLength = spec.outputDim.x * spec.outputDim.y;
+    u32 waveLength = spec.outputChunkDim.x * spec.outputChunkDim.y;
     u32 patternCount = state->patterns.count;
     state->frequencies = state->patternsHash.Values( arena );
     ASSERT( state->frequencies.count == patternCount );
@@ -496,7 +497,7 @@ inline bool
 OnBoundary( const v2i& p, const Spec& spec )
 {
     const int N = spec.N;
-    return !spec.periodic && (p.x < 0 || p.y < 0 || p.x + N > spec.outputDim.x || p.y + N > spec.outputDim.y);
+    return !spec.periodic && (p.x < 0 || p.y < 0 || p.x + N > spec.outputChunkDim.x || p.y + N > spec.outputChunkDim.y);
 }
 
 inline v2i
@@ -587,7 +588,7 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
     u32 observations = 0;
     for( u32 i = 0; i < snapshot->wave.rows; ++i )
     {
-        if( OnBoundary( PositionFromIndex( i, spec.outputDim.x ), spec ) )
+        if( OnBoundary( PositionFromIndex( i, spec.outputChunkDim.x ), spec ) )
             continue;
 
         u32 count = snapshot->compatiblesCount[i];
@@ -656,8 +657,8 @@ Propagate( const Spec& spec, State* state )
 {
     Result result = InProgress;
 
-    u32 width = spec.outputDim.x;
-    u32 height = spec.outputDim.y;
+    u32 width = spec.outputChunkDim.x;
+    u32 height = spec.outputChunkDim.y;
     u32 patternCount = state->patterns.count;
 
     while( result == InProgress && state->propagationStack.count > 0 )
@@ -773,9 +774,9 @@ IsFinished( const State& state )
 }
 
 void
-StartWFCSync( const Spec& spec, State* state, MemoryArena* wfcArena )
+StartWFCSync( const Spec& spec, const v2i& pOutputChunk, State* state, MemoryArena* wfcArena )
 {
-    Init( spec, state, wfcArena ); 
+    Init( spec, pOutputChunk, state, wfcArena ); 
 
     while( !IsFinished( *state ) )
     {
@@ -802,11 +803,11 @@ internal
 PLATFORM_JOBQUEUE_CALLBACK(DoWFC)
 {
     WFCJob* job = (WFCJob*)userData;
-    StartWFCSync( job->spec, job->state, job->arena );
+    StartWFCSync( job->spec, job->pOutputChunk, job->state, job->arena );
 }
 
 const State*
-StartWFCAsync( const Spec& spec, MemoryArena* wfcArena )
+StartWFCAsync( const Spec& spec, const v2i& pOutputChunk, MemoryArena* wfcArena )
 {
     const State* result = PUSH_STRUCT( wfcArena, State );
 
@@ -815,6 +816,7 @@ StartWFCAsync( const Spec& spec, MemoryArena* wfcArena )
     *job =
     {
         spec,
+        pOutputChunk,
         (State*)result,     // const for the starting thread only
         wfcArena,
     };
@@ -827,19 +829,26 @@ StartWFCAsync( const Spec& spec, MemoryArena* wfcArena )
 }
 
 
+// TODO Clarify inputs & outputs
 internal void
 CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Texture* result )
 {
     const u32 N = spec.N;
-    const u32 width = spec.outputDim.x;
-    const u32 height = spec.outputDim.y;
-    u32* out = imageBuffer;
+    const u32 width = spec.outputChunkDim.x;
+    const u32 height = spec.outputChunkDim.y;
+    const v2i totalOutputDim = Hadamard( spec.outputChunkDim, spec.outputChunkCount );
+    const v2i chunkCoords = Hadamard( spec.outputChunkDim, state->pOutputChunk );
+    const u32 pitch = totalOutputDim.x;
+
+    u32* chunkOrig = imageBuffer + chunkCoords.y * pitch + chunkCoords.x;
+    u32* out;
 
     Snapshot* snapshot = state->currentSnapshot;
     if( state->currentResult == InProgress )
     {
         for( u32 y = 0; y < height; ++y )
         {
+            out = chunkOrig + y * pitch;
             for( u32 x = 0; x < width; ++x )
             {
                 int contributors = 0, r = 0, g = 0, b = 0;
@@ -848,6 +857,7 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
                 for( u32 dy = 0; dy < N; ++dy )
                 {
                     int cellY = (int)(y - dy);
+                    // FIXME Change this to account for chunk partitioning, etc
                     if( cellY < 0 )
                         cellY += height;
 
@@ -887,6 +897,8 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
     {
         for( u32 y = 0; y < height; ++y )
         {
+            out = chunkOrig + y * pitch;
+
             u32 cellY = (y < height - N + 1) ? y : y - N + 1;
             u32 dy = (y < height - N + 1) ? 0 : y + N - height;
 
@@ -921,6 +933,7 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
     {
         for( u32 y = 0; y < height; ++y )
         {
+            out = chunkOrig + y * pitch;
             for( u32 x = 0; x < width; ++x )
             {
                 u32 color = *out;
@@ -938,11 +951,11 @@ CreateOutputTexture( const Spec& spec, const State* state, u32* imageBuffer, Tex
     }
 
     // Use existing handle if we have one
-    result->handle = globalPlatform.AllocateOrUpdateTexture( imageBuffer, spec.outputDim.x, spec.outputDim.y, false,
+    result->handle = globalPlatform.AllocateOrUpdateTexture( imageBuffer, totalOutputDim.x, totalOutputDim.y, false,
                                                              result->handle );
     result->imageBuffer = imageBuffer;
-    result->width = spec.outputDim.x;
-    result->height = spec.outputDim.y;
+    result->width = totalOutputDim.x;
+    result->height = totalOutputDim.y;
     result->channelCount = 4;
 }
 
@@ -1032,7 +1045,7 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
 
     const u32 patternsCount = state->patterns.count;
     const u32 patternsCountSqrt = (u32)Round( Sqrt( (r32)patternsCount ) );
-    const u32 waveLength = spec.outputDim.x * spec.outputDim.y;
+    const u32 waveLength = spec.outputChunkDim.x * spec.outputChunkDim.y;
 
     ImGui::BeginChild( "child_wfc_right", ImVec2( 0, 0 ), true, 0 );
     switch( displayState->currentPage )
@@ -1082,7 +1095,7 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 ImGui::SameLine();
 
                 ImGui::BeginChild( "child_output_image", ImVec2( 1100, 0 ) );
-                ImVec2 imageSize = spec.outputDim * outputScale;
+                v2i imageSize = { displayState->outputTexture.width, displayState->outputTexture.height };
 
                 if( state->currentResult != displayState->lastDisplayedResult ||
                     state->observationCount != displayState->lastTotalObservations )
@@ -1092,12 +1105,12 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                     displayState->lastTotalObservations = state->observationCount;
 
                     if( !displayState->outputImageBuffer )
-                        displayState->outputImageBuffer = PUSH_ARRAY( wfcDisplayArena, spec.outputDim.x * spec.outputDim.y, u32 );
+                        displayState->outputImageBuffer = PUSH_ARRAY( wfcDisplayArena, imageSize.x * imageSize.y, u32 );
 
                     CreateOutputTexture( spec, state, displayState->outputImageBuffer, &displayState->outputTexture );
                 }
 
-                ImGui::Image( displayState->outputTexture.handle, imageSize );
+                ImGui::Image( displayState->outputTexture.handle, imageSize * outputScale );
 
                 if( ImGui::IsItemClicked() )
                     selectedIndex = displayState->currentSpecIndex;

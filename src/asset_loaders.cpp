@@ -172,6 +172,8 @@ LoadWFCVars( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
                 else
                     currentSpec->N = n;
             }
+#if 0
+            // Ignore for now
             else if( var.IsEqual( "outputDim", false ) )
             {
                 String xWord = line.ConsumeWord();
@@ -188,6 +190,7 @@ LoadWFCVars( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
                         currentSpec->outputDim = V2I( x, y );
                 }
             }
+#endif
             else if( var.IsEqual( "periodic", false ) )
             {
                 String boolWord = line.ConsumeWord();
