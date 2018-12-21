@@ -48,6 +48,7 @@ INPUT
 - Find a way to calibrate different relative movement amounts from the different input methods
 
 DEBUGGING
+- Make sure out-of-frame counters are handled and shown correctly so we can properly profile multithreaded code
 - Hot reloading seems to be broken for ImGui elements
 - Memory stats for arenas and pools
 - Habemus leak! Memory usage grows non-stop currently

@@ -229,6 +229,11 @@ struct Array2
         ASSERT( cols == out->cols );
         COPY( data, out->data, rows * cols * sizeof(T) );
     }
+
+    sz Size() const
+    {
+        return rows * cols * sizeof(T);
+    }
 };
 
 

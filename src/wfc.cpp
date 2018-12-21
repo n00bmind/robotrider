@@ -1069,6 +1069,11 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 ImGui::Text( "Num. patterns: %d", patternsCount );
                 ImGui::Spacing();
                 ImGui::Spacing();
+                if( state->currentSnapshot )
+                {
+                    ImGui::Text( "Wave size: %zu", state->currentSnapshot->wave.Size() );
+                    ImGui::Text( "Adjacency size: %zu", state->currentSnapshot->adjacencyCounters.Size() );
+                }
                 ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
 
                 ImGui::Spacing();
