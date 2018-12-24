@@ -27,9 +27,10 @@ struct EditorState
 #endif
 
     Array<WFC::Spec> wfcSpecs;
+    u32 selectedSpecIndex;
     MemoryArena wfcArena;
-    const WFC::State* wfcState;
     MemoryArena wfcDisplayArena;
+    WFC::WFCJob* wfcJob;
     WFC::DisplayState wfcDisplayState;
 
     r32 drawingDistance;

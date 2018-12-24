@@ -75,16 +75,14 @@ InitEditor( const v2i screenDim, EditorState* editorState, World* world, MemoryA
     editorState->cacheBuffers = InitMarchingCacheBuffers( worldArena, 50 );
 #endif
 
+    RandomSeed();
+
     editorState->wfcSpecs = LoadWFCVars( "wfc.vars", worldArena, tmpArena );
     ASSERT( editorState->wfcSpecs.count );
-
-    RandomSeed();
 
     /// WFC test
     if( !editorState->wfcArena.base )
         editorState->wfcArena = MakeSubArena( worldArena, MEGABYTES(512) );
-    editorState->wfcState = WFC::StartWFCAsync( editorState->wfcSpecs[0], { 2, 2 }, &editorState->wfcArena );
-
     if( !editorState->wfcDisplayArena.base )
         editorState->wfcDisplayArena = MakeSubArena( worldArena, MEGABYTES(16) );
 }
@@ -96,19 +94,24 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     float dT = input->frameElapsedSeconds;
     float elapsedT = input->totalElapsedSeconds;
 
-    GameState *gameState = (GameState *)memory->permanentStorage;
-    EditorState &editorState = gameState->DEBUGeditorState;
+    GameState* gameState = (GameState*)memory->permanentStorage;
+    EditorState* editorState = &gameState->DEBUGeditorState;
     World* world = gameState->world;
 
+    const DebugState* debugState = nullptr;
+#if !RELEASE
+    debugState = (DebugState*)memory->debugStorage;
+#endif
+
     // Setup a zenithal camera initially
-    if( editorState.pCamera == V3Zero )
+    if( editorState->pCamera == V3Zero )
     {
-        editorState.pCamera = V3( 0, -20, 20 );
-        editorState.camYaw = 0;
-        editorState.camPitch = 0;
+        editorState->pCamera = V3( 0, -20, 20 );
+        editorState->camYaw = 0;
+        editorState->camPitch = 0;
         //v3 pLookAt = gameState->pPlayer;
-        //m4 mInitialRot = CameraLookAt( editorState.pCamera, pLookAt, V3Up() );
-        editorState.camPitch = -PI / 4.f;
+        //m4 mInitialRot = CameraLookAt( editorState->pCamera, pLookAt, V3Up() );
+        editorState->camPitch = -PI / 4.f;
     }
 
     // Update camera based on input
@@ -134,85 +137,83 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
 
         if( input0->rightStick.avgX || input0->rightStick.avgY )
         {
-            editorState.camPitch += input0->rightStick.avgY / 15.f * dT;
-            editorState.camYaw += input0->rightStick.avgX / 15.f * dT; 
+            editorState->camPitch += input0->rightStick.avgY / 15.f * dT;
+            editorState->camYaw += input0->rightStick.avgX / 15.f * dT; 
         }
 
-        m4 mCamRot = XRotation( editorState.camPitch )
-            * ZRotation( editorState.camYaw );
+        m4 mCamRot = XRotation( editorState->camPitch )
+            * ZRotation( editorState->camYaw );
 
         v3 vCamForward = GetColumn( mCamRot, 2 ).xyz;
         v3 vCamRight = GetColumn( mCamRot, 0 ).xyz;
-        editorState.pCamera += Transposed( mCamRot ) * vCamDelta;
+        editorState->pCamera += Transposed( mCamRot ) * vCamDelta;
 
         renderCommands->camera = DefaultCamera();
-        renderCommands->camera.mTransform = mCamRot * Translation( -editorState.pCamera );
+        renderCommands->camera.mTransform = mCamRot * Translation( -editorState->pCamera );
     }
 
 
-    const DebugState* debugState = nullptr;
-#if !RELEASE
-    debugState = (DebugState*)memory->debugStorage;
-#endif
+    if( !editorState->wfcJob )
+    {
+        WFC::Spec& spec = editorState->wfcSpecs[editorState->wfcDisplayState.currentSpecIndex];
+        editorState->wfcJob = WFC::StartWFCAsync( spec, { 0, 0 }, &editorState->wfcArena );
+    }
+
     v2 displayDim = V2( renderCommands->width * 0.9f, renderCommands->height * 0.9f );
-    u32 selectedIndex = WFC::DrawTest( editorState.wfcSpecs, editorState.wfcState,
-                                       &editorState.wfcDisplayState, displayDim, debugState,
-                                       &editorState.wfcDisplayArena, tmpArena );
+    u32 selectedSpecIndex = WFC::DrawTest( editorState->wfcSpecs, editorState->wfcJob->state,
+                                           &editorState->wfcDisplayState, displayDim, debugState,
+                                           &editorState->wfcDisplayArena, tmpArena );
 
-    if( editorState.wfcState->cancellationRequested )
+    if( selectedSpecIndex != U32MAX )
     {
+        editorState->selectedSpecIndex = selectedSpecIndex;
+        editorState->wfcJob->cancellationRequested = true;
+    }
+
+    if( editorState->wfcJob->cancellationRequested )
+    {
+        ASSERT( editorState->selectedSpecIndex != U32MAX );
+
         // Simply wait until cancelled or done
-        if( editorState.wfcState->currentResult > WFC::Result::Contradiction )
+        if( editorState->wfcJob->state->currentResult >= WFC::Result::Cancelled )
         {
-            ClearArena( &editorState.wfcArena, true );
-            ClearArena( &editorState.wfcDisplayArena, true );
-            u32 savedIndex = editorState.wfcDisplayState.requestedSpecIndex;
-            editorState.wfcDisplayState = {};
-            editorState.wfcDisplayState.currentSpecIndex = savedIndex;
-
-            WFC::Spec& spec = editorState.wfcSpecs[editorState.wfcDisplayState.currentSpecIndex];
-            editorState.wfcState = WFC::StartWFCAsync( spec, { 0, 0 }, &editorState.wfcArena );
+            ClearArena( &editorState->wfcArena, true );
+            ClearArena( &editorState->wfcDisplayArena, true );
+            editorState->wfcDisplayState = {};
+            editorState->wfcDisplayState.currentSpecIndex = editorState->selectedSpecIndex;
+            editorState->wfcJob = nullptr;
         }
     }
-    else
-    {
-        if( selectedIndex != U32MAX )
-        {
-            editorState.wfcState->cancellationRequested = true;
-            editorState.wfcDisplayState.requestedSpecIndex = selectedIndex;
-        }
-    }
-
 
 
     // Mesh resampling test
     // TODO Move out of the way
 #if 0
-    if( !editorState.testIsoSurfaceMesh || input->executableReloaded )
+    if( !editorState->testIsoSurfaceMesh || input->executableReloaded )
     {
-        editorState.displayedLayer = (editorState.displayedLayer + 1) % editorState.cacheBuffers.cellsPerAxis;
-        editorState.lastUpdateTimeSeconds = input->totalElapsedSeconds;
-        editorState.drawingDistance = Distance( GetTranslation( editorState.testMesh.mTransform ), editorState.pCamera );
-        editorState.displayedLayer = 172;
+        editorState->displayedLayer = (editorState->displayedLayer + 1) % editorState->cacheBuffers.cellsPerAxis;
+        editorState->lastUpdateTimeSeconds = input->totalElapsedSeconds;
+        editorState->drawingDistance = Distance( GetTranslation( editorState->testMesh.mTransform ), editorState->pCamera );
+        editorState->displayedLayer = 172;
 
         MeshPool* meshPool = &world->meshPools[0];
-        if( editorState.testIsoSurfaceMesh )
-            ReleaseMesh( &editorState.testIsoSurfaceMesh );
-        editorState.testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( editorState.testMesh, &editorState.cacheBuffers,
+        if( editorState->testIsoSurfaceMesh )
+            ReleaseMesh( &editorState->testIsoSurfaceMesh );
+        editorState->testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( editorState->testMesh, &editorState->cacheBuffers,
                                                                   meshPool, tmpArena, renderCommands, editorState );
     }
 
     PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
-    //PushMesh( editorState.testMesh, renderCommands );
-    PushMesh( *editorState.testIsoSurfaceMesh, renderCommands );
+    //PushMesh( editorState->testMesh, renderCommands );
+    PushMesh( *editorState->testIsoSurfaceMesh, renderCommands );
 #endif
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMaterial( nullptr, renderCommands );
 
 #if 0
-	editorState.testEditorEntity = CreateEditorEntityFor(editorState.testIsoSurfaceMesh, editorState.cacheBuffers.cellsPerAxis);
-	DrawEditorEntity( editorState.testEditorEntity, editorState, renderCommands );
+	editorState->testEditorEntity = CreateEditorEntityFor(editorState->testIsoSurfaceMesh, editorState->cacheBuffers.cellsPerAxis);
+	DrawEditorEntity( editorState->testEditorEntity, editorState, renderCommands );
 #endif
 
 	DrawFloorGrid(CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands);

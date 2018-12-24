@@ -178,8 +178,6 @@ namespace WFC
         u32 observationCount;
         u32 contradictionCount;
         Result currentResult;
-
-        mutable bool cancellationRequested;
     };
 
     enum class TestPage
@@ -193,7 +191,6 @@ namespace WFC
     {
         TestPage currentPage;
         u32 currentSpecIndex;
-        u32 requestedSpecIndex;
         u32 currentIndexEntry;
 
         Array<Texture> patternTextures;
@@ -206,10 +203,14 @@ namespace WFC
 
     struct WFCJob
     {
+        // In
         Spec spec;
         v2i pOutputChunk;
-        State* state;
+        const State* state;
         MemoryArena* arena;
+        volatile bool cancellationRequested;
+        // Out
+        volatile bool done;
     };
 
 } // namespace WFC

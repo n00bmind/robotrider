@@ -202,8 +202,7 @@ LoadWFCVars( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
             }
             else
             {
-                String word = line.ConsumeWord();
-                LOG( "WARNING :: Unknown var '%s' ignored at line %d", word.CString( tmpArena ), currentLineNumber );
+                LOG( "WARNING :: Unknown var '%s' ignored at line %d", var.CString( tmpArena ), currentLineNumber );
             }
         }
 

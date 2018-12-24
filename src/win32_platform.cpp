@@ -1756,7 +1756,7 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
 internal bool
 Win32DoNextQueuedJob( PlatformJobQueue* queue, u32 workerThreadIndex )
 {
-    bool didJob = false;
+    bool workAvailable = true;
 
     u32 observedValue = queue->nextJobToRead;
     u32 desiredValue = (observedValue + 1) % ARRAYCOUNT(queue->jobs);
@@ -1772,10 +1772,12 @@ Win32DoNextQueuedJob( PlatformJobQueue* queue, u32 workerThreadIndex )
             job.callback( job.userData, workerThreadIndex );
             
             AtomicAddU32( &queue->completionCount, 1 );
-            didJob = true;
         }
     }
-    return didJob;
+    else
+        workAvailable = false;
+
+    return workAvailable;
 }
 
 internal DWORD WINAPI

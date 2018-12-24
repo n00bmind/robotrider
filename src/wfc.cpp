@@ -774,19 +774,22 @@ IsFinished( const State& state )
 }
 
 void
-StartWFCSync( const Spec& spec, const v2i& pOutputChunk, State* state, MemoryArena* wfcArena )
+StartWFCSync( WFCJob* job )
 {
-    Init( spec, pOutputChunk, state, wfcArena ); 
+    const Spec& spec = job->spec;
+    State* state = (State*)job->state;
+
+    Init( spec, job->pOutputChunk, state, job->arena ); 
 
     while( !IsFinished( *state ) )
     {
         TIMED_BLOCK;
 
-        if( state->cancellationRequested )
+        if( job->cancellationRequested )
             state->currentResult = Cancelled;
 
         if( state->currentResult == InProgress )
-            state->currentResult = Observe( spec, state, wfcArena );
+            state->currentResult = Observe( spec, state, job->arena );
 
         if( state->currentResult == Contradiction )
         {
@@ -797,35 +800,35 @@ StartWFCSync( const Spec& spec, const v2i& pOutputChunk, State* state, MemoryAre
         if( state->currentResult == InProgress )
             state->currentResult = Propagate( spec, state );
     }
+
+    AtomicExchange( &job->done, true );
 }
 
 internal
 PLATFORM_JOBQUEUE_CALLBACK(DoWFC)
 {
     WFCJob* job = (WFCJob*)userData;
-    StartWFCSync( job->spec, job->pOutputChunk, job->state, job->arena );
+    StartWFCSync( job );
 }
 
-const State*
+WFCJob*
 StartWFCAsync( const Spec& spec, const v2i& pOutputChunk, MemoryArena* wfcArena )
 {
-    const State* result = PUSH_STRUCT( wfcArena, State );
-
-    // We may want to have this passed independently?
     WFCJob* job = PUSH_STRUCT( wfcArena, WFCJob );
+    State* state = PUSH_STRUCT( wfcArena, State );
+
     *job =
     {
         spec,
         pOutputChunk,
-        (State*)result,     // const for the starting thread only
+        state,
         wfcArena,
     };
 
     globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
                               DoWFC,
                               job );
-
-    return result;
+    return job;
 }
 
 
@@ -1062,40 +1065,44 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                     ImGui::Text( "FAILED!" );
                 else
                     ImGui::Text( "Remaining: %d (%d)", waveLength - state->observationCount, state->observationCount );
+                ImGui::Spacing();
+                ImGui::Spacing();
 
-                ImGui::Spacing();
-                ImGui::Spacing();
                 ImGui::Text( "Name: %s", spec.name );
                 ImGui::Text( "Num. patterns: %d", patternsCount );
                 ImGui::Spacing();
                 ImGui::Spacing();
+
                 if( state->currentSnapshot )
                 {
                     ImGui::Text( "Wave size: %zu", state->currentSnapshot->wave.Size() );
                     ImGui::Text( "Adjacency size: %zu", state->currentSnapshot->adjacencyCounters.Size() );
                 }
-                ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
-
-                ImGui::Spacing();
-                ImGui::Spacing();
-                ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.count, state->snapshotStack.maxCount );
-                ImGui::Text( "Backtracked cells cache: %d", state->backtrackedCellIndices.Count() );
-                ImGui::Text( "Total contradictions: %d", state->contradictionCount );
+                if( state->arena )
+                    ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
                 ImGui::Spacing();
                 ImGui::Spacing();
 
-                const u32 maxLines = 50;
-                //r32 step = (r32)maxLines / state->snapshotStack.buffer.maxCount;
-                for( u32 i = 0; i < state->snapshotStack.count; ++i )
+                if( state->snapshotStack )
                 {
-                    const Snapshot& s = state->snapshotStack[i];
-                    if( &s == state->currentSnapshot )
-                        ImGui::Text( "snapshot[%d] : current", i );
-                    else
-                        ImGui::Text( "snapshot[%d] : n %d, observations %d",
-                                     i, CountNonZero( s.distribution ), s.lastObservationCount );
-                }
+                    ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.count, state->snapshotStack.maxCount );
+                    ImGui::Text( "Backtracked cells cache: %d", state->backtrackedCellIndices.Count() );
+                    ImGui::Text( "Total contradictions: %d", state->contradictionCount );
+                    ImGui::Spacing();
+                    ImGui::Spacing();
 
+                    const u32 maxLines = 50;
+                    //r32 step = (r32)maxLines / state->snapshotStack.buffer.maxCount;
+                    for( u32 i = 0; i < state->snapshotStack.count; ++i )
+                    {
+                        const Snapshot& s = state->snapshotStack[i];
+                        if( &s == state->currentSnapshot )
+                            ImGui::Text( "snapshot[%d] : current", i );
+                        else
+                            ImGui::Text( "snapshot[%d] : n %d, observations %d",
+                                         i, CountNonZero( s.distribution ), s.lastObservationCount );
+                    }
+                }
                 ImGui::EndChild();
                 ImGui::SameLine();
 
