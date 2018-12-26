@@ -192,7 +192,7 @@ struct PlatformAPI
     PlatformJobQueue* hiPriorityQueue;
     //PlatformJobQueue* loPriorityQueue;
     // NOTE Includes the main thread! (0)
-    u32 workerThreadsCount;
+    u32 coreThreadsCount;
 
     PlatformAllocateOrUpdateTextureFunc* AllocateOrUpdateTexture;
     PlatformDeallocateTextureFunc* DeallocateTexture;

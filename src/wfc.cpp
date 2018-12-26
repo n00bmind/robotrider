@@ -774,12 +774,13 @@ IsFinished( const State& state )
 }
 
 void
-StartWFCSync( WFCJob* job )
+StartWFCSync( Job* job )
 {
-    const Spec& spec = job->spec;
+    const Spec& spec = *job->spec;
     State* state = (State*)job->state;
 
-    Init( spec, job->pOutputChunk, state, job->arena ); 
+    // TODO We need to do most (or all!) of this in advance
+    Init( spec, job->pOutputChunk, state, &job->memory->arena ); 
 
     while( !IsFinished( *state ) )
     {
@@ -789,7 +790,7 @@ StartWFCSync( WFCJob* job )
             state->currentResult = Cancelled;
 
         if( state->currentResult == InProgress )
-            state->currentResult = Observe( spec, state, job->arena );
+            state->currentResult = Observe( spec, state, &job->memory->arena );
 
         if( state->currentResult == Contradiction )
         {
@@ -800,35 +801,93 @@ StartWFCSync( WFCJob* job )
         if( state->currentResult == InProgress )
             state->currentResult = Propagate( spec, state );
     }
+}
 
-    AtomicExchange( &job->done, true );
+inline JobMemory*
+BeginJobWithMemory( Array<JobMemory>* jobsSpace )
+{
+    JobMemory* result = nullptr;
+
+    for( u32 i = 0; i < jobsSpace->count; ++i )
+    {
+        JobMemory* memory = &(*jobsSpace)[i];
+        bool inUse = AtomicLoad( &memory->inUse );
+        if( !inUse )
+        {
+            AtomicExchange( &memory->inUse, true );
+            result = memory;
+            break;
+        }
+    }
+
+    return result;
+}
+
+inline void
+EndJobWithMemory( JobMemory* memory )
+{
+    AtomicExchange( &memory->inUse, false );
 }
 
 internal
 PLATFORM_JOBQUEUE_CALLBACK(DoWFC)
 {
-    WFCJob* job = (WFCJob*)userData;
+    Job* job = (Job*)userData;
     StartWFCSync( job );
+
+    EndJobWithMemory( job->memory );
 }
 
-WFCJob*
-StartWFCAsync( const Spec& spec, const v2i& pOutputChunk, MemoryArena* wfcArena )
+JobsInfo*
+StartWFCAsync( const Spec& spec, const v2i& pStartChunk, MemoryArena* wfcArena, Job** displayedJob )
 {
-    WFCJob* job = PUSH_STRUCT( wfcArena, WFCJob );
-    State* state = PUSH_STRUCT( wfcArena, State );
+    u32 maxJobCount = 8;
 
-    *job =
+    // TODO We wanna place all this memory in the transient storage!
+    JobsInfo* result = PUSH_STRUCT( wfcArena, JobsInfo );
+    *result =
     {
         spec,
-        pOutputChunk,
-        state,
+        Array<JobMemory>( wfcArena, maxJobCount, maxJobCount ),
         wfcArena,
+        (u32)(spec.outputChunkCount.x * spec.outputChunkCount.y),
     };
 
-    globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
-                              DoWFC,
-                              job );
-    return job;
+    // Partition parent arena
+    // FIXME
+    sz perJobArenaSize = (Available( wfcArena ) - MEGABYTES(1)) / maxJobCount;
+    for( u32 i = 0; i < maxJobCount; ++i )
+    {
+        JobMemory& memory = result->jobsSpace[i];
+        memory.arena = MakeSubArena( wfcArena, perJobArenaSize );
+        memory.inUse = false;
+    }
+
+    // TODO See what to do with this in the future (can we use temporary memory instead?)
+    sz wastedArenaSize = Available( wfcArena );
+
+    // Start first job
+    JobMemory* memory = BeginJobWithMemory( &result->jobsSpace );
+    if( memory )
+    {
+        Job* job = PUSH_STRUCT( result->globalWFCArena, Job );
+        *job =
+        {
+            &result->spec,
+            PUSH_STRUCT( &memory->arena, State ),
+            memory,
+            pStartChunk,
+        };
+
+        globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
+                                  DoWFC,
+                                  job );
+        *displayedJob = job;
+    }
+    else
+        INVALID_CODE_PATH;
+
+    return result;
 }
 
 

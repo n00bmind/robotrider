@@ -153,35 +153,39 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     }
 
 
-    if( !editorState->wfcJob )
+    if( !editorState->wfcJobsInfo )
     {
         WFC::Spec& spec = editorState->wfcSpecs[editorState->wfcDisplayState.currentSpecIndex];
-        editorState->wfcJob = WFC::StartWFCAsync( spec, { 0, 0 }, &editorState->wfcArena );
+        editorState->wfcJobsInfo = WFC::StartWFCAsync( spec, { 0, 0 }, &editorState->wfcArena,
+                                                       &editorState->wfcDisplayState.displayedJob );
     }
 
-    v2 displayDim = V2( renderCommands->width * 0.9f, renderCommands->height * 0.9f );
-    u32 selectedSpecIndex = WFC::DrawTest( editorState->wfcSpecs, editorState->wfcJob->state,
-                                           &editorState->wfcDisplayState, displayDim, debugState,
-                                           &editorState->wfcDisplayArena, tmpArena );
-
-    if( selectedSpecIndex != U32MAX )
+    WFC::Job* displayedJob = editorState->wfcDisplayState.displayedJob;
+    if( displayedJob )
     {
-        editorState->selectedSpecIndex = selectedSpecIndex;
-        editorState->wfcJob->cancellationRequested = true;
-    }
+        v2 displayDim = V2( renderCommands->width * 0.9f, renderCommands->height * 0.9f );
+        u32 selectedSpecIndex = WFC::DrawTest( editorState->wfcSpecs, displayedJob->state,
+                                               &editorState->wfcDisplayState, displayDim, debugState,
+                                               &editorState->wfcDisplayArena, tmpArena );
 
-    if( editorState->wfcJob->cancellationRequested )
-    {
-        ASSERT( editorState->selectedSpecIndex != U32MAX );
-
-        // Simply wait until cancelled or done
-        if( editorState->wfcJob->state->currentResult >= WFC::Result::Cancelled )
+        if( selectedSpecIndex != U32MAX )
         {
-            ClearArena( &editorState->wfcArena, true );
-            ClearArena( &editorState->wfcDisplayArena, true );
-            editorState->wfcDisplayState = {};
-            editorState->wfcDisplayState.currentSpecIndex = editorState->selectedSpecIndex;
-            editorState->wfcJob = nullptr;
+            editorState->selectedSpecIndex = selectedSpecIndex;
+            displayedJob->cancellationRequested = true;
+        }
+
+        if( displayedJob->cancellationRequested )
+        {
+            ASSERT( editorState->selectedSpecIndex != U32MAX );
+
+            // Simply wait until cancelled or done
+            if( displayedJob->state->currentResult >= WFC::Result::Cancelled )
+            {
+                ClearArena( &editorState->wfcArena, true );
+                ClearArena( &editorState->wfcDisplayArena, true );
+                editorState->wfcDisplayState = {};
+                editorState->wfcDisplayState.currentSpecIndex = editorState->selectedSpecIndex;
+            }
         }
     }
 

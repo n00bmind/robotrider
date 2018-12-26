@@ -71,11 +71,11 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
     // TODO Check if we need to reinstate these pointers after a reload
     world->meshGenerators[0] = hullGenerator;
 
-    world->cacheBuffers = PUSH_ARRAY( worldArena, globalPlatform.workerThreadsCount, MarchingCacheBuffers );
-    world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.workerThreadsCount, MeshPool );
+    world->cacheBuffers = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MarchingCacheBuffers );
+    world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MeshPool );
     sz arenaAvailable = Available( worldArena );
-    sz maxPerThread = arenaAvailable / 2 / globalPlatform.workerThreadsCount;
-    for( u32 i = 0; i < globalPlatform.workerThreadsCount; ++i )
+    sz maxPerThread = arenaAvailable / 2 / globalPlatform.coreThreadsCount;
+    for( u32 i = 0; i < globalPlatform.coreThreadsCount; ++i )
     {
         world->cacheBuffers[i] = InitMarchingCacheBuffers( worldArena, 10 );
         Init( &world->meshPools[i], worldArena, maxPerThread );

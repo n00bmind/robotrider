@@ -180,6 +180,33 @@ namespace WFC
         Result currentResult;
     };
 
+    struct JobMemory
+    {
+        MemoryArena arena;
+        volatile bool inUse;
+    };
+
+    struct Job
+    {
+        // In
+        const Spec* spec;
+        State* state;
+        JobMemory* memory;
+        v2i pOutputChunk;
+
+        volatile bool cancellationRequested;
+    };
+
+    struct JobsInfo
+    {
+        Spec spec;
+        Array<JobMemory> jobsSpace;
+        MemoryArena* globalWFCArena;
+        u32 totalChunkCount;
+
+        u32 processedChunkCount;
+    };
+
     enum class TestPage
     {
         Output,
@@ -197,20 +224,9 @@ namespace WFC
         u32* outputImageBuffer;
         Texture outputTexture;
 
+        Job* displayedJob;
         Result lastDisplayedResult;
         u32 lastTotalObservations ;
-    };
-
-    struct WFCJob
-    {
-        // In
-        Spec spec;
-        v2i pOutputChunk;
-        const State* state;
-        MemoryArena* arena;
-        volatile bool cancellationRequested;
-        // Out
-        volatile bool done;
     };
 
 } // namespace WFC

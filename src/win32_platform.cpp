@@ -45,6 +45,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <shlwapi.h>
 #include <stdio.h>
 
+// Prefer discrete graphics where available
+extern "C"
+{
+    __declspec(dllexport) DWORD NvOptimusEnablement = 0x01;
+    __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x01;
+}
 
 #define VIDEO_TARGET_FRAMERATE 60
 #define AUDIO_BITDEPTH 16
@@ -1809,6 +1815,7 @@ Win32InitJobQueue( PlatformJobQueue* queue,
 
     for( u32 i = 0; i < threadCount; ++i )
     {
+        // FIXME Separate platform thread infos from the queues!
         threadContexts[i] = { i, queue };
 
         // Worker thread index 0 is reserved for the main thread!
@@ -1908,12 +1915,12 @@ main( int argC, char **argV )
 
     // FIXME Should be dynamic, but can't be bothered!
     Win32WorkerThreadContext threadContexts[32];
-    u32 workerThreadsCount = systemInfo.dwNumberOfProcessors;
-    ASSERT( workerThreadsCount <= ARRAYCOUNT(threadContexts) );
+    u32 coreCount = systemInfo.dwNumberOfProcessors;
+    ASSERT( coreCount <= ARRAYCOUNT(threadContexts) );
 
-    Win32InitJobQueue( &globalPlatformState.hiPriorityQueue, threadContexts, workerThreadsCount );
+    Win32InitJobQueue( &globalPlatformState.hiPriorityQueue, threadContexts, coreCount );
     globalPlatform.hiPriorityQueue = &globalPlatformState.hiPriorityQueue;
-    globalPlatform.workerThreadsCount = workerThreadsCount;
+    globalPlatform.coreThreadsCount = coreCount;
 
     globalPlatformState.renderer = Renderer::OpenGL;
 
