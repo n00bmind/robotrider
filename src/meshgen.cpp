@@ -176,7 +176,7 @@ MarchCube( const v3& pOrigin, r32 cubeSize,
 {
     TIMED_BLOCK;
 
-    v3i pLayerOrigin3D = V3I( pLayerOrigin.x, pLayerOrigin.y, 0 );
+    v3i pLayerOrigin3D = V3i( pLayerOrigin.x, pLayerOrigin.y, 0 );
 
     // Construct case mask from 8 corner samples
     u32 caseIndex = 0;
@@ -314,7 +314,7 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters, Marche
 
                 r32* sampledLayer = n ? topSamples : bottomSamples;
 
-                v3 p = pCenter + cornerOffset + V3I( 0, 0, k + n ) * cubeSizeMeters;
+                v3 p = pCenter + cornerOffset + V3i( 0, 0, k + n ) * cubeSizeMeters;
 
                 r32* sample = sampledLayer;
                 for( u32 i = 0; i < gridLinesPerAxis; ++i )
@@ -332,13 +332,13 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters, Marche
             // Keep a cache of already calculated vertices to eliminate duplication
             ClearVertexCaches( cacheBuffers, firstLayer );
 
-            v3 p = pCenter + cornerOffset + V3I( 0, 0, k ) * cubeSizeMeters;
+            v3 p = pCenter + cornerOffset + V3i( 0, 0, k ) * cubeSizeMeters;
             for( u32 i = 0; i < cellsPerAxis; ++i )
             {
                 v3 pAtRowStart = p;
                 for( u32 j = 0; j < cellsPerAxis; ++j )
                 {
-                    MarchCube( p, cubeSizeMeters, V2I( i, j ), cacheBuffers, gridLinesPerAxis,
+                    MarchCube( p, cubeSizeMeters, V2i( i, j ), cacheBuffers, gridLinesPerAxis,
                                &meshPool->scratchVertices, &meshPool->scratchIndices );
                     p += vYDelta;
                 }
@@ -937,7 +937,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
                         {
                             // Store intersection coords relative to grid
                             r32 hitCoord = (pI - pGridOrigin).y;
-                            gridHits.Push( { V2I( x, z ), hitCoord } );
+                            gridHits.Push( { V2i( x, z ), hitCoord } );
                         }
                     }
                 }
@@ -964,7 +964,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
             r32* sample = sampledLayer;
             for( u32 i = 0; i < gridLinesPerAxis; ++i )
             {
-                v2i vIK = n == 0 ? V2I( i, k ) : V2I( i, k+1 );
+                v2i vIK = n == 0 ? V2i( i, k ) : V2i( i, k+1 );
 
                 // FIXME
                 ARRAY(Hit, 10, rayHits);
@@ -996,7 +996,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
         {
             for( u32 j = 0; j < cellsPerAxis; ++j )
             {
-                v3 p = pGridOrigin + V3I( i, j, k ) * step;
+                v3 p = pGridOrigin + V3i( i, j, k ) * step;
 
 #if 1
                 if( editorState.displayedLayer == k )
@@ -1012,7 +1012,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
                 }
 #endif
 
-                MarchCube( p, step, V2I( i, j ), cacheBuffers, gridLinesPerAxis,
+                MarchCube( p, step, V2i( i, j ), cacheBuffers, gridLinesPerAxis,
                            &meshPool->scratchVertices, &meshPool->scratchIndices );
             }
         }
@@ -1217,14 +1217,14 @@ namespace
     // Offsets from the minimal corner to other corners
     v3i cornerOffsets[8] =
     {
-        V3I( 0, 0, 0 ),    // Bottom layer
-        V3I( 1, 0, 0 ),
-        V3I( 1, 1, 0 ),
-        V3I( 0, 1, 0 ),
-        V3I( 0, 0, 1 ),    // Top layer
-        V3I( 1, 0, 1 ),
-        V3I( 1, 1, 1 ),
-        V3I( 0, 1, 1 )
+        V3i( 0, 0, 0 ),    // Bottom layer
+        V3i( 1, 0, 0 ),
+        V3i( 1, 1, 0 ),
+        V3i( 0, 1, 0 ),
+        V3i( 0, 0, 1 ),    // Top layer
+        V3i( 1, 0, 1 ),
+        V3i( 1, 1, 1 ),
+        V3i( 0, 1, 1 )
     };
 
     // Offsets from the minimal corner to 2 ends of the edges

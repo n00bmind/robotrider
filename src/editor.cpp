@@ -65,7 +65,7 @@ DrawEditorEntity( const EditorEntity& editorEntity, const EditorState& editorSta
 
 void
 InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState, TransientState* transientState,
-            MemoryArena* transientArena )
+            MemoryArena* editorArena, MemoryArena* transientArena )
 {
     // Mesh resampling test
     // TODO Move out of the way
@@ -86,7 +86,7 @@ InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState,
 
     TemporaryMemory tempMemory = BeginTemporaryMemory( transientArena );
 
-    transientState->wfcSpecs = LoadWFCVars( "wfc.vars", &transientState->wfcArena, tempMemory );
+    transientState->wfcSpecs = LoadWFCVars( "wfc.vars", editorArena, tempMemory );
     ASSERT( transientState->wfcSpecs.count );
 
     EndTemporaryMemory( tempMemory );
@@ -153,18 +153,17 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
     }
 
 
-    if( !transientState->wfcJobsInfo )
+    if( !transientState->wfcGlobalState )
     {
         WFC::Spec& spec = transientState->wfcSpecs[transientState->wfcDisplayState.currentSpecIndex];
-        transientState->wfcJobsInfo = WFC::StartWFCAsync( spec, { 0, 0 }, &transientState->wfcArena,
-                                                          &transientState->wfcDisplayState.displayedJob );
+        transientState->wfcGlobalState = WFC::StartWFCAsync( spec, { 0, 0 }, &transientState->wfcArena );
     }
 
-    WFC::Job* displayedJob = transientState->wfcDisplayState.displayedJob;
+    WFC::Job* displayedJob = WFC::UpdateWFCAsync( transientState->wfcGlobalState ); // transientState->wfcDisplayState.displayedJob;
     if( displayedJob )
     {
         v2 displayDim = V2( renderCommands->width * 0.9f, renderCommands->height * 0.9f );
-        u32 selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, displayedJob->state,
+        u32 selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, transientState->wfcGlobalState,
                                                &transientState->wfcDisplayState, displayDim, debugState,
                                                &transientState->wfcDisplayArena, frameMemory );
 
@@ -185,6 +184,7 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
                 ClearArena( &transientState->wfcDisplayArena, true );
                 transientState->wfcDisplayState = {};
                 transientState->wfcDisplayState.currentSpecIndex = transientState->selectedSpecIndex;
+                transientState->wfcGlobalState = nullptr;
             }
         }
     }

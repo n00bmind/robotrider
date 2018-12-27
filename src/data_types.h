@@ -183,25 +183,39 @@ struct Array2
         data = nullptr;
     }
 
-    Array2( MemoryArena* arena, u32 rows_, u32 cols_ )
+    Array2( MemoryArena* arena, u32 rows_, u32 cols_, MemoryParams params = DefaultMemoryParams() )
     {
         rows = rows_;
         cols = cols_;
-        data = PUSH_ARRAY( arena, rows * cols, T );
+        data = PUSH_ARRAY( arena, rows * cols, T, params );
     }
 
-    T& At( u32 r, u32 c )
+    T& AtRowCol( u32 r, u32 c )
     {
         ASSERT( r < rows );
         ASSERT( c < cols );
         return data[r * cols + c];
     }
 
-    const T& At( u32 r, u32 c ) const
+    const T& AtRowCol( u32 r, u32 c ) const
     {
         ASSERT( r < rows );
         ASSERT( c < cols );
         return data[r * cols + c];
+    }
+
+    T& At( const v2u& v )
+    {
+        ASSERT( v.y < rows );
+        ASSERT( v.x < cols );
+        return data[v.y * cols + v.x];
+    }
+
+    const T& At( const v2u& v ) const
+    {
+        ASSERT( v.y < rows );
+        ASSERT( v.x < cols );
+        return data[v.y * cols + v.x];
     }
 
     T* AtRow( u32 r )
@@ -230,6 +244,11 @@ struct Array2
         COPY( data, out->data, rows * cols * sizeof(T) );
     }
 
+    u32 Count() const
+    {
+        return rows * cols;
+    }
+
     sz Size() const
     {
         return rows * cols * sizeof(T);
@@ -246,8 +265,8 @@ struct RingBuffer
     u32 headIndex;
 
 
-    RingBuffer( MemoryArena* arena, u32 maxCount_ )
-        : buffer( arena, 0, maxCount_ )
+    RingBuffer( MemoryArena* arena, u32 maxCount_, MemoryParams params = DefaultMemoryParams() )
+        : buffer( arena, 0, maxCount_, params )
     {
         headIndex = 0;
     }
@@ -296,8 +315,8 @@ struct RingStack
     u32 topIndex;
 
 
-    RingStack( MemoryArena* arena, u32 maxCount_ )
-        : buffer( arena, 0, maxCount_ )
+    RingStack( MemoryArena* arena, u32 maxCount_, MemoryParams params = DefaultMemoryParams() )
+        : buffer( arena, 0, maxCount_, params )
     {
         topIndex = 0;
     }
@@ -1166,7 +1185,9 @@ struct LinkedList
 {
     // Convenience struct that can be embedded in user types
     // TODO Provide all methods overloaded for Node<T>* too, so we can cater for the rare case where we want a T
-    // in more than one LinkedList (need to find a 'clean' way to retrieve the T* from the node pointer)
+    // in more than one LinkedList
+    // (need to find a 'clean' way to retrieve the T* from the node pointer, specify Node field as part of the
+    // template signature somehow)
     template <typename T>
     struct Node
     {

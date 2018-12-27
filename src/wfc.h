@@ -100,8 +100,8 @@ namespace WFC
         Texture source;
         u32 N;
 
-        v2i outputChunkDim;         // In voxels
-        v2i outputChunkCount;
+        v2u outputChunkDim;         // In voxels
+        v2u outputChunkCount;
         bool periodic;
     };
     inline Spec DefaultSpec()
@@ -174,7 +174,6 @@ namespace WFC
         Array<Snapshot> snapshotStack;
         Snapshot* currentSnapshot;
 
-        v2i pOutputChunk;
         u32 observationCount;
         u32 contradictionCount;
         Result currentResult;
@@ -190,19 +189,29 @@ namespace WFC
     {
         // In
         const Spec* spec;
-        State* state;
-        JobMemory* memory;
-        v2i pOutputChunk;
+        v2u pOutputChunk;
 
+        State* state;           // Only here for visualization
+        JobMemory* memory;
+
+        volatile bool inUse;
         volatile bool cancellationRequested;
     };
 
-    struct JobsInfo
+    struct ChunkInfo
+    {
+        Job* buildJob;
+        bool done;
+    };
+
+    struct GlobalState
     {
         Spec spec;
+        Array<Job> jobs;
+        // NOTE We keep these separate from the jobs because we may want to decouple them in the future
         Array<JobMemory> jobMemoryChunks;
+        Array2<ChunkInfo> outputChunks;
         MemoryArena* globalWFCArena;
-        u32 totalChunkCount;
 
         u32 processedChunkCount;
     };
@@ -224,7 +233,6 @@ namespace WFC
         u32* outputImageBuffer;
         Texture outputTexture;
 
-        Job* displayedJob;
         Result lastDisplayedResult;
         u32 lastTotalObservations ;
     };

@@ -76,7 +76,7 @@ struct TransientState
     u32 selectedSpecIndex;
     MemoryArena wfcArena;
     MemoryArena wfcDisplayArena;
-    WFC::JobsInfo* wfcJobsInfo;
+    WFC::GlobalState* wfcGlobalState;
     WFC::DisplayState wfcDisplayState;
 };
 

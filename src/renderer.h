@@ -71,9 +71,9 @@ struct Texture
     void* handle;
     void* imageBuffer;
 
-    i32 width;
-    i32 height;
-    i32 channelCount;
+    u32 width;
+    u32 height;
+    u32 channelCount;
 };
 
 struct Material

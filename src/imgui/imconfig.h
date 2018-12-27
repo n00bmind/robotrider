@@ -54,7 +54,9 @@
         ImVec2(const v2& f) { x = f.x; y = f.y; }                       \
         operator v2() const { return V2(x,y); }                         \
         ImVec2(const v2i& f) { x = (r32)f.x; y = (r32)f.y; }            \
-        operator v2i() const { return V2I((i32)x, (i32)y); }                       
+        operator v2i() const { return V2i((i32)x, (i32)y); }            \
+        ImVec2(const v2u& f) { x = (r32)f.x; y = (r32)f.y; }            \
+        operator v2u() const { return V2u((u32)x, (u32)y); }            
 
 
 /*

@@ -36,7 +36,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /// When referring to Euler angles, 'pitch' is the rotation about the +X axis, 'yaw' is
 /// the rotation about the +Z ('up') axis, and 'roll' is the rotation about the +Y
 /// ('forward') axis, and they're applied in that order.
-/// Position rotation angles go in the direction determined by the right hand screw rule,
+/// Rotation angles go in the direction determined by the right hand screw rule,
 /// as any sane person knows.
 
 // TODO IMPORTANT Write a nice test suite for this whole file
@@ -56,7 +56,7 @@ union v2i
 const v2i V2iZero = { 0, 0 };
 
 inline v2i
-V2I( i32 x, i32 y )
+V2i( i32 x, i32 y )
 {
     v2i result = { x, y };
     return result;
@@ -79,6 +79,47 @@ inline v2i
 Hadamard( const v2i& a, const v2i& b )
 {
     v2i result = { a.x * b.x, a.y * b.y };
+    return result;
+}
+
+// Vector 2 unsigned
+
+union v2u
+{
+    struct
+    {
+        u32 x, y;
+    };
+    u32 e[2];
+};
+
+inline v2u
+V2u( u32 x, u32 y )
+{
+    v2u result = { x, y };
+    return result;
+}
+
+inline v2u
+V2u( const v2i& v )
+{
+    ASSERT( v.x >= 0 && v.y >= 0 );
+    v2u result = { (u32)v.x, (u32)v.y };
+    return result;
+}
+
+inline v2i
+V2i( const v2u& v )
+{
+    ASSERT( v.x <= I32MAX && v.y <= I32MAX );
+    v2i result = { (i32)v.x, (i32)v.y };
+    return result;
+}
+
+inline v2u
+Hadamard( const v2u& a, const v2u& b )
+{
+    v2u result = { a.x * b.x, a.y * b.y };
     return result;
 }
 
@@ -162,7 +203,7 @@ union v3i
 };
 
 inline v3i
-V3I( i32 x, i32 y, i32 z )
+V3i( i32 x, i32 y, i32 z )
 {
     v3i result = { x, y, z };
     return result;

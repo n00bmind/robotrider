@@ -34,8 +34,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "common.h"
 #include "intrinsics.h"
 #include "memory.h"
-#include "data_types.h"
 #include "math.h"
+#include "math_types.h"
+#include "data_types.h"
 #include "util.h"
 #include "util.cpp"
 

@@ -37,7 +37,7 @@ EntityHash( const u32& entityId, u32 tableSize )
     return entityId;
 }
 
-#define INITIAL_CLUSTER_COORDS V3I( I32MAX, I32MAX, I32MAX )
+#define INITIAL_CLUSTER_COORDS V3i( I32MAX, I32MAX, I32MAX )
 
 void
 InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
@@ -320,7 +320,7 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
             {
                 for( int k = -SIM_REGION_WIDTH; k <= SIM_REGION_WIDTH; ++k )
                 {
-                    v3i pLastClusterCoords = world->pLastWorldOrigin + V3I( i, j, k );
+                    v3i pLastClusterCoords = world->pLastWorldOrigin + V3i( i, j, k );
 
                     // Evict all entities contained in a cluster which is now out of bounds
                     if( !IsInSimRegion( pLastClusterCoords, world->pWorldOrigin ) )
@@ -344,7 +344,7 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
             {
                 for( int k = -SIM_REGION_WIDTH; k <= SIM_REGION_WIDTH; ++k )
                 {
-                    v3i pClusterCoords = world->pWorldOrigin + V3I( i, j, k );
+                    v3i pClusterCoords = world->pWorldOrigin + V3i( i, j, k );
 
                     // Retrieve all entities contained in a cluster which is now inside bounds
                     // and put them in the live entities list
