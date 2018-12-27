@@ -70,4 +70,14 @@ struct GameState
     GameConsole gameConsole;
 };
 
+struct TransientState
+{
+    Array<WFC::Spec> wfcSpecs;
+    u32 selectedSpecIndex;
+    MemoryArena wfcArena;
+    MemoryArena wfcDisplayArena;
+    WFC::JobsInfo* wfcJobsInfo;
+    WFC::DisplayState wfcDisplayState;
+};
+
 #endif /* __ROBOTRIDER_H__ */

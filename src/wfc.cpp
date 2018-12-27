@@ -113,7 +113,7 @@ AddPatternWithData( u8* data, const u32 N, State* state, MemoryArena* arena )
         {
             u8* patternData = PUSH_ARRAY(arena, N * N, u8);
             COPY(data, patternData, N * N);
-            state->patternsHash.Add({ patternData, N }, 1, arena);
+            state->patternsHash.Add({ patternData, N }, 1 );
         }
         else
             LOG("WARN :: Truncating input patterns at %d!", MaxAdjacencyCount);
@@ -336,8 +336,10 @@ ResetWaveAt( Snapshot* snapshot, u32 cellIndex, State* state )
 internal void
 Init( const Spec& spec, const v2i& pOutputChunk, State* state, MemoryArena* arena )
 {
-    TIMED_BLOCK
+    TIMED_BLOCK;
 
+    // NOTE We probably don't need to clear the whole thing
+    ZERO( state, sizeof(State) );
     state->arena = arena;
     state->pOutputChunk = pOutputChunk;
 
@@ -381,6 +383,7 @@ Init( const Spec& spec, const v2i& pOutputChunk, State* state, MemoryArena* aren
     maxSnapshotCount = Min( maxSnapshotCount, MaxBacktrackingDepth );
 
     // We need to allocate the stack before any snapshot, so that rewinding snapshots will work properly
+    // TODO Do this using TemporaryMemory and remove RewindArena
     RewindArena( arena, lowWaterMark );
     state->snapshotStack = Array<Snapshot>( arena, 0, maxSnapshotCount );
     AllocSnapshot( &snapshot0, waveLength, patternCount, arena );
@@ -815,6 +818,7 @@ BeginJobWithMemory( Array<JobMemory>* jobsSpace )
         if( !inUse )
         {
             AtomicExchange( &memory->inUse, true );
+            ClearArena( &memory->arena );
             result = memory;
             break;
         }
@@ -843,7 +847,6 @@ StartWFCAsync( const Spec& spec, const v2i& pStartChunk, MemoryArena* wfcArena, 
 {
     u32 maxJobCount = 8;
 
-    // TODO We wanna place all this memory in the transient storage!
     JobsInfo* result = PUSH_STRUCT( wfcArena, JobsInfo );
     *result =
     {
@@ -854,20 +857,20 @@ StartWFCAsync( const Spec& spec, const v2i& pStartChunk, MemoryArena* wfcArena, 
     };
 
     // Partition parent arena
-    // FIXME
-    sz perJobArenaSize = (Available( wfcArena ) - MEGABYTES(1)) / maxJobCount;
+    // FIXME Add the Job struct itself to JobMemory (or viceversa?)
+    sz perJobArenaSize = (Available( *wfcArena ) - MEGABYTES(1)) / maxJobCount;
     for( u32 i = 0; i < maxJobCount; ++i )
     {
-        JobMemory& memory = result->jobsSpace[i];
+        JobMemory& memory = result->jobMemoryChunks[i];
         memory.arena = MakeSubArena( wfcArena, perJobArenaSize );
         memory.inUse = false;
     }
 
     // TODO See what to do with this in the future (can we use temporary memory instead?)
-    sz wastedArenaSize = Available( wfcArena );
+    sz wastedArenaSize = Available( *wfcArena );
 
     // Start first job
-    JobMemory* memory = BeginJobWithMemory( &result->jobsSpace );
+    JobMemory* memory = BeginJobWithMemory( &result->jobMemoryChunks );
     if( memory )
     {
         Job* job = PUSH_STRUCT( result->globalWFCArena, Job );
@@ -1057,7 +1060,7 @@ CountNonZero( const Array<r32>& distribution )
 
 u32
 DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displayState, const v2& displayDim,
-          const DebugState* debugState, MemoryArena* wfcDisplayArena, MemoryArena* tmpArena )
+          const DebugState* debugState, MemoryArena* wfcDisplayArena, const TemporaryMemory& tmpMemory )
 {
     u32 selectedIndex = U32MAX;
     const Spec& spec = specs[displayState->currentSpecIndex];
@@ -1192,7 +1195,7 @@ DrawTest( const Array<Spec>& specs, const State* state, DisplayState* displaySta
                 ImGui::BeginChild( "child_debug", ImVec2( 0, 0 ) );
                 if( debugState )
                 {
-                    DrawPerformanceCounters( debugState, tmpArena );
+                    DrawPerformanceCounters( debugState, tmpMemory );
                 }
                 ImGui::EndChild();
             }

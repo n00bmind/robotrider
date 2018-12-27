@@ -124,7 +124,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     TIMED_BLOCK;
 
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
-    GameState *gameState = (GameState *)memory->permanentStorage;
+    GameState* gameState = (GameState*)memory->permanentStorage;
+    ASSERT( sizeof(TransientState) <= memory->transientStorageSize );
+    TransientState* transientState = (TransientState*)memory->transientStorage;
 
     // Init game arenas & world state
     if( !memory->isInitialized )
@@ -134,9 +136,10 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                    memory->permanentStorageSize - sizeof(GameState) );
 
         InitArena( &gameState->transientArena,
-                   (u8 *)memory->transientStorage,
-                   memory->transientStorageSize );
+                   (u8 *)memory->transientStorage + sizeof(TransientState),
+                   memory->transientStorageSize - sizeof(TransientState) );
 
+        // TODO Remove this
         auxArena = &gameState->worldArena;
 
         gameState->world = PUSH_STRUCT( &gameState->worldArena, World );
@@ -144,8 +147,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         memory->isInitialized = true;
     }
-
-    TemporaryMemory tempMemory = BeginTemporaryMemory( &gameState->transientArena );
 
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
@@ -162,10 +163,12 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 #if !RELEASE
         memory->DEBUGglobalEditing = true;
-        InitEditor( { width, height }, &gameState->DEBUGeditorState, gameState->world,
-                    &gameState->worldArena, &gameState->transientArena );
+        InitEditor( { width, height }, gameState, &gameState->DEBUGeditorState, transientState,
+                    &gameState->transientArena );
 #endif
     }
+
+    TemporaryMemory frameMemory = BeginTemporaryMemory( &gameState->transientArena );
 
     {
         GameInput* gameInput = input;
@@ -202,21 +205,22 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     if( memory->DEBUGglobalEditing )
     {
-        UpdateAndRenderEditor( input, memory, renderCommands, statsText, &gameState->worldArena, &gameState->transientArena );
+        UpdateAndRenderEditor( input, gameState, transientState, debugState, renderCommands, statsText,
+                               frameMemory );
     }
     else if( memory->DEBUGglobalDebugging )
     {
         DrawConsole( &gameState->gameConsole, width, height, statsText );
-        DrawPerformanceCountersWindow( debugState, width, height, &gameState->transientArena );
+        DrawPerformanceCountersWindow( debugState, width, height, frameMemory );
     }
     else
         DrawStats( width, height, statsText );
 #endif
 
-    EndTemporaryMemory( tempMemory );
+    EndTemporaryMemory( frameMemory );
 
-    CheckTemporaryBlock( &gameState->worldArena );
-    CheckTemporaryBlock( &gameState->transientArena );
+    CheckTemporaryBlocks( &gameState->worldArena );
+    CheckTemporaryBlocks( &gameState->transientArena );
 }
 
 

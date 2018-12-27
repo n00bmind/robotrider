@@ -25,12 +25,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define __MEMORY_H__ 
 
 
-#define PUSH_STRUCT(arena, type) (type *)_PushSize( arena, sizeof(type) )
-#define PUSH_ARRAY(arena, count, type) (type *)_PushSize( arena, (count)*sizeof(type) )
-#define PUSH_SIZE(arena, size) _PushSize( arena, size )
-
-#define PUSH_ARRAY_ALIGNED(arena, count, type, alignment) (type *)_PushSize( arena, (count)*sizeof(type), alignment )
-#define PUSH_SIZE_ALIGNED(arena, size, alignment) _PushSize( arena, size, alignment )
+#define PUSH_STRUCT(arena, type, ...) (type *)_PushSize( arena, sizeof(type), ## __VA_ARGS__ )
+#define PUSH_ARRAY(arena, count, type, ...) (type *)_PushSize( arena, (count)*sizeof(type), ## __VA_ARGS__ )
+#define PUSH_SIZE(arena, size, ...) _PushSize( arena, size, ## __VA_ARGS__ )
 
 
 ///// STATIC MEMORY ARENA
@@ -46,8 +43,18 @@ struct MemoryArena
     u32 tempCount;
 };
 
-inline void * _PushSize( MemoryArena *arena, sz size );
-inline void * _PushSize( MemoryArena *arena, sz size, sz alignment );
+enum MemoryFlags
+{
+    MemoryFlags_None = 0,
+    MemoryFlags_ClearToZero = 0x1,                  // Zeroed upon allocation
+    MemoryFlags_TemporaryMemory = 0x2,              // No guaranteed persistence beyond allocation scope
+};
+
+struct MemoryParams
+{
+    u32 flags;
+    u32 alignment;
+};
 
 inline void
 InitArena( MemoryArena *arena, u8 *base, sz size )
@@ -56,16 +63,6 @@ InitArena( MemoryArena *arena, u8 *base, sz size )
     arena->size = size;
     arena->used = 0;
     arena->tempCount = 0;
-}
-
-inline MemoryArena
-MakeSubArena( MemoryArena* arena, sz size )
-{
-    MemoryArena result = {};
-    result.base = (u8*)PUSH_SIZE( arena, size );
-    result.size = size;
-
-    return result;
 }
 
 inline void
@@ -88,9 +85,83 @@ ClearArena( MemoryArena* arena, bool clearToZero = true )
 }
 
 inline sz
-Available( MemoryArena* arena )
+Available( const MemoryArena& arena )
 {
-    return arena->size - arena->used;
+    return arena.size - arena.used;
+}
+
+inline bool
+IsInitialized( const MemoryArena& arena )
+{
+    return arena.base && arena.size;
+}
+
+inline MemoryParams
+DefaultMemoryParams()
+{
+    MemoryParams result = {};
+    result.flags = MemoryFlags_ClearToZero;
+    result.alignment = 0;
+    return result;
+}
+
+inline MemoryParams
+NoClear()
+{
+    MemoryParams result = DefaultMemoryParams();
+    result.flags &= ~MemoryFlags_ClearToZero;
+    return result;
+}
+
+inline MemoryParams
+Align( u32 alignment )
+{
+    MemoryParams result = DefaultMemoryParams();
+    result.alignment = alignment;
+    return result;
+}
+
+inline MemoryParams
+Temporary()
+{
+    MemoryParams result = DefaultMemoryParams();
+    result.flags |= MemoryFlags_TemporaryMemory;
+    return result;
+}
+
+inline void *
+_PushSize( MemoryArena *arena, sz size, MemoryParams params = DefaultMemoryParams() )
+{
+    ASSERT( arena->used + size <= arena->size );
+    if( !(params.flags & MemoryFlags_TemporaryMemory) )
+        ASSERT( arena->tempCount == 0 );
+
+    void* free = arena->base + arena->used;
+    void* result = free;
+    sz waste = 0;
+
+    if( params.alignment )
+    {
+        result = Align( free, params.alignment );
+        waste = (u8*)result - (u8*)free;
+    }
+
+    arena->used += size + waste;
+
+    if( params.flags & MemoryFlags_ClearToZero )
+        ZERO( result, size );
+
+    return result;
+}
+
+inline MemoryArena
+MakeSubArena( MemoryArena* arena, sz size, MemoryParams params = DefaultMemoryParams() )
+{
+    MemoryArena result = {};
+    result.base = (u8*)PUSH_SIZE( arena, size, params );
+    result.size = size;
+
+    return result;
 }
 
 struct TemporaryMemory
@@ -113,7 +184,7 @@ BeginTemporaryMemory( MemoryArena *arena )
 }
 
 inline void
-EndTemporaryMemory( TemporaryMemory tempMem )
+EndTemporaryMemory( TemporaryMemory& tempMem )
 {
     MemoryArena *arena = tempMem.arena;
 
@@ -125,34 +196,9 @@ EndTemporaryMemory( TemporaryMemory tempMem )
 }
 
 inline void
-CheckTemporaryBlock( MemoryArena *arena )
+CheckTemporaryBlocks( MemoryArena *arena )
 {
     ASSERT( arena->tempCount == 0 );
-}
-
-inline void *
-_PushSize( MemoryArena *arena, sz size )
-{
-    ASSERT( arena->used + size <= arena->size );
-    // TODO Clear to zero option
-
-    void *result = arena->base + arena->used;
-    arena->used += size;
-    return result;
-}
-
-inline void *
-_PushSize( MemoryArena *arena, sz size, sz alignment )
-{
-    ASSERT( arena->used + size <= arena->size );
-    // TODO Clear to zero option
-
-    void *free = arena->base + arena->used;
-    void* result = Align( free, alignment );
-    sz waste = (u8*)result - (u8*)free;
-
-    arena->used += size + waste;
-    return result;
 }
 
 

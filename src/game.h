@@ -179,6 +179,8 @@ struct GameMemory
     u64 debugStorageSize;
     void *debugStorage;             // NOTE Required to be cleared to zero at startup
 
+    // TODO Put these inside DebugState
+    // (and make the platform not modify them directly, just pass the relevant input so the game can do that!)
     bool DEBUGglobalDebugging;
     bool DEBUGglobalEditing;
 #endif

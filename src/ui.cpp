@@ -141,7 +141,7 @@ DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ..
 }
 
 void
-DrawPerformanceCounters( const DebugState* debugState, MemoryArena* tmpArena )
+DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tmpMemory )
 {
     r32 windowHeight = ImGui::GetWindowHeight();
 
@@ -149,13 +149,16 @@ DrawPerformanceCounters( const DebugState* debugState, MemoryArena* tmpArena )
     r32 contentWidth = ImGui::GetWindowWidth();
     ImGui::Columns( 4, nullptr, true );
 
-    Array<KeyIndex64> counterFrameKeys;
-    Array<DebugCounterLog> counterLogs = Array<DebugCounterLog>( (DebugCounterLog*)debugState->counterLogs, debugState->counterLogsCount,
+    Array<DebugCounterLog> counterLogs = Array<DebugCounterLog>( (DebugCounterLog*)debugState->counterLogs,
+                                                                 debugState->counterLogsCount,
                                                                  (u32)ARRAYCOUNT(debugState->counterLogs) );
+
     u32 snapshotIndex = debugState->counterSnapshotIndex;
-    BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, snapshots[snapshotIndex].cycleCount), &counterFrameKeys, tmpArena );
+    Array<KeyIndex64> counterFrameKeys = Array<KeyIndex64>( tmpMemory.arena, 0, counterLogs.count, Temporary() );
+    BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, snapshots[snapshotIndex].cycleCount),
+                            &counterFrameKeys );
     // TODO Use RadixSort11 if this gets big
-    RadixSort( &counterFrameKeys, RadixKey::U64, false, tmpArena );
+    RadixSort( &counterFrameKeys, RadixKey::U64, false, tmpMemory.arena );
 
     // TODO Counter stats
     for( u32 i = 0; i < counterFrameKeys.count; ++i )
@@ -198,9 +201,9 @@ DrawPerformanceCounters( const DebugState* debugState, MemoryArena* tmpArena )
     contentWidth = ImGui::GetWindowWidth();
     ImGui::Columns( 3, nullptr, true );
 
-    Array<KeyIndex64> counterTotalKeys;
-    BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, totalCycleCount), &counterTotalKeys, tmpArena );
-    RadixSort( &counterTotalKeys, RadixKey::U64, false, tmpArena );
+    Array<KeyIndex64> counterTotalKeys = Array<KeyIndex64>( tmpMemory.arena, 0, counterLogs.count, Temporary() );
+    BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, totalCycleCount), &counterTotalKeys );
+    RadixSort( &counterTotalKeys, RadixKey::U64, false, tmpMemory.arena );
 
     for( u32 i = 0; i < counterTotalKeys.count; ++i )
     {
@@ -228,7 +231,8 @@ DrawPerformanceCounters( const DebugState* debugState, MemoryArena* tmpArena )
 }
 
 void
-DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight, MemoryArena* tmpArena )
+DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight,
+                               const TemporaryMemory& tmpMemory )
 {
     ImGui::SetNextWindowPos( ImVec2( 100.f, windowHeight * 0.25f + 100 ), ImGuiCond_FirstUseEver );
     ImGui::SetNextWindowSize( ImVec2( 500.f, windowHeight * 0.25f ), ImGuiCond_Appearing );
@@ -241,7 +245,7 @@ DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u3
 
     ImGui::PushStyleColor( ImGuiCol_Text, UInormalTextColor );
 
-    DrawPerformanceCounters( debugState, tmpArena );
+    DrawPerformanceCounters( debugState, tmpMemory );
     ImGui::PopStyleColor();        
 
     ImGui::End();

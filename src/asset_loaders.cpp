@@ -49,10 +49,10 @@ LoadTexture( const char* path, bool flipVertically, bool filtered = true, int de
 }
 
 Array<WFC::Spec>
-LoadWFCVars( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
+LoadWFCVars( const char* path, MemoryArena* arena, const TemporaryMemory& tempMemory )
 {
     Array<WFC::Spec> empty;
-    BucketArray<WFC::Spec> result( tmpArena, 128 );
+    BucketArray<WFC::Spec> result( tempMemory.arena, 128, Temporary() );
 
     const u32 minVersionNumber = 1;
 
@@ -86,13 +86,15 @@ LoadWFCVars( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
     i32 versionNumber;
     if( !version.ToI32( &versionNumber ) )
     {
-        LOG( "ERROR :: version argument '%s' is not an integer number", version.CString( tmpArena ) );
+        LOG( "ERROR :: version argument '%s' is not an integer number",
+             version.CString( tempMemory.arena ), Temporary() );
         return empty;
     }
 
     if( versionNumber < minVersionNumber )
     {
-        LOG( "ERROR :: WFC vars file %s has version %d, minimum supported version is %d", path, versionNumber, minVersionNumber );
+        LOG( "ERROR :: WFC vars file %s has version %d, minimum supported version is %d", 
+             path, versionNumber, minVersionNumber );
         return empty;
     }
 
@@ -112,11 +114,13 @@ LoadWFCVars( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
             {
                 if( specHasName && specHasSource )
                 {
-                    currentSpec->source = LoadTexture( specSourceImage.CString( tmpArena ), false, false, 4 );
+                    currentSpec->source = LoadTexture( specSourceImage.CString( tempMemory.arena, Temporary() ), 
+                                                       false, false, 4 );
                 }
                 else
                 {
-                    LOG( "ERROR :: WFC spec requires at least 'name' and 'sourceImage' attributes at line %d", currentLineNumber );
+                    LOG( "ERROR :: WFC spec requires at least 'name' and 'sourceImage' attributes at line %d", 
+                         currentLineNumber );
                     *currentSpec = WFC::DefaultSpec();
                 }
             }
@@ -179,13 +183,15 @@ LoadWFCVars( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
                 String xWord = line.ConsumeWord();
                 u32 x;
                 if( !xWord || !xWord.ToU32( &x ) )
-                    LOG( "ERROR :: Argument to 'outputDim' must be a vector2 of unsigned integer at line %d", currentLineNumber );
+                    LOG( "ERROR :: Argument to 'outputDim' must be a vector2 of unsigned integer at line %d", 
+                         currentLineNumber );
                 else
                 {
                     String yWord = line.ConsumeWord();
                     u32 y;
                     if( !yWord || !yWord.ToU32( &y ) )
-                        LOG( "ERROR :: Argument to 'outputDim' must be a vector2 of unsigned integer at line %d", currentLineNumber );
+                        LOG( "ERROR :: Argument to 'outputDim' must be a vector2 of unsigned integer at line %d",
+                             currentLineNumber );
                     else
                         currentSpec->outputDim = V2I( x, y );
                 }
@@ -202,7 +208,8 @@ LoadWFCVars( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
             }
             else
             {
-                LOG( "WARNING :: Unknown var '%s' ignored at line %d", var.CString( tmpArena ), currentLineNumber );
+                LOG( "WARNING :: Unknown var '%s' ignored at line %d", var.CString( tempMemory.arena, Temporary() ),
+                     currentLineNumber );
             }
         }
 
@@ -213,11 +220,13 @@ LoadWFCVars( const char* path, MemoryArena* arena, MemoryArena* tmpArena )
     {
         if( specHasName && specHasSource )
         {
-            currentSpec->source = LoadTexture( specSourceImage.CString( tmpArena ), false, false, 4 );
+            currentSpec->source = LoadTexture( specSourceImage.CString( tempMemory.arena, Temporary() ),
+                                               false, false, 4 );
         }
         else
         {
-            LOG( "ERROR :: WFC spec requires at least 'name' and 'sourceImage' attributes at line %d", currentLineNumber );
+            LOG( "ERROR :: WFC spec requires at least 'name' and 'sourceImage' attributes at line %d",
+                 currentLineNumber );
             result.Pop();
         }
     }
@@ -247,7 +256,7 @@ VertexHash( const VertexKey& key, u32 tableSize )
 }
 
 Mesh
-LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
+LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory,
          const m4& appliedTransform = M4Identity )
 {
     // TODO Centralize asset loading in the platform layer (through a 'bundle' file),
@@ -292,17 +301,17 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
 
     Array<u32> indices( arena, 0, indexCount );
 
-    Array<v3> positions( tmpArena, 0, vertexCount );
-    Array<v2> uvs( tmpArena, 0, uvCount );
-    Array<v3> normals( tmpArena, 0, normalCount );
+    Array<v3> positions( tmpMemory.arena, 0, vertexCount, Temporary() );
+    Array<v2> uvs( tmpMemory.arena, 0, uvCount, Temporary() );
+    Array<v3> normals( tmpMemory.arena, 0, normalCount, Temporary() );
 
     // Map vertex pos+uv+normal to final vertex index
     // Initially every vertex would map to exactly one entry in the table, but due to
     // the way face data is specified, we may need to spawn additional vertices
     // that will share the same position but differ in tex coord and/or normal
     u32 tableSize = NextPowerOf2( vertexCount );
-    HashTable<VertexKey, u32, VertexHash> cachedVertices( tmpArena, tableSize );
-    BucketArray<TexturedVertex> vertices( tmpArena, 1024 );
+    HashTable<VertexKey, u32, VertexHash> cachedVertices( tmpMemory.arena, tableSize, Temporary() );
+    BucketArray<TexturedVertex> vertices( tmpMemory.arena, 1024, Temporary() );
 
     contents = (char*)read.contents;
     while( contents )
@@ -424,7 +433,7 @@ LoadOBJ( const char* path, MemoryArena* arena, MemoryArena* tmpArena,
                     };
                     vertexIndex[i] = vertices.count;
                     vertices.Add( newVertex );
-                    cachedVertices.Add( key, vertexIndex[i], tmpArena );
+                    cachedVertices.Add( key, vertexIndex[i] );
                 }
 
                 i++;

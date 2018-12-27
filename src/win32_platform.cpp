@@ -1816,6 +1816,7 @@ Win32InitJobQueue( PlatformJobQueue* queue,
     for( u32 i = 0; i < threadCount; ++i )
     {
         // FIXME Separate platform thread infos from the queues!
+        // TODO Consider creating an arena per thread (specially for hi-prio threads!)
         threadContexts[i] = { i, queue };
 
         // Worker thread index 0 is reserved for the main thread!
@@ -1929,8 +1930,8 @@ main( int argC, char **argV )
 
     LOG( "Initializing Win32 platform with game DLL at: %s", globalPlatformState.sourceDLLPath );
     GameMemory gameMemory = {};
-    gameMemory.permanentStorageSize = GIGABYTES(2);
-    gameMemory.transientStorageSize = GIGABYTES(1);
+    gameMemory.permanentStorageSize = GIGABYTES(1);
+    gameMemory.transientStorageSize = GIGABYTES(2);
 #if !RELEASE
     gameMemory.debugStorageSize = MEGABYTES(64);
 #endif

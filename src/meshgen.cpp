@@ -465,7 +465,7 @@ CalculateError( InflatedMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
 }
 
 internal void
-UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, MemoryArena* tmpArena )
+UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, const TemporaryMemory& tmpMemory )
 {
     if( iteration > 0 )
     {
@@ -563,8 +563,8 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, M
     // Identify boundary vertices
     if( iteration == 0 )
     {
-        Array<u32> vCount( tmpArena, 0, 1000 );
-        Array<u32> vIds( tmpArena, 0, 1000 );
+        Array<u32> vCount( tmpMemory.arena, 0, 1000 );
+        Array<u32> vIds( tmpMemory.arena, 0, 1000 );
 
         for( u32 i = 0; i < mesh->vertices.count; ++i )
             mesh->vertices[i].border = false;
@@ -719,9 +719,10 @@ CompactMesh( InflatedMesh* mesh )
 }
 
 // Taken from https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification
-void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, MemoryArena* tmpArena, r32 agressiveness = 7 )
+void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, const TemporaryMemory& tmpMemory,
+                          r32 agressiveness = 7 )
 {
-    Array<InflatedVertexRef> refs( tmpArena, 0, 500000 );
+    Array<InflatedVertexRef> refs( tmpMemory.arena, 0, 500000 );
 
     u32 triangleCount = mesh->triangles.count;
     u32 deletedTriangleCount = 0;
@@ -736,7 +737,7 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, MemoryArena* t
 
         // Update mesh every few cycles (including first time through)
         if( iteration % 5 == 0 )
-            UpdateMesh( mesh, &refs, iteration, tmpArena );
+            UpdateMesh( mesh, &refs, iteration, tmpMemory );
 
         for( u32 i = 0; i < mesh->triangles.count; ++i )
             mesh->triangles[i].dirty = false;
@@ -758,8 +759,8 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, MemoryArena* t
             {
                 if( tri.error[j] < threshold )
                 {
-                    Array<bool> deleted0( tmpArena, 0, 1000 );
-                    Array<bool> deleted1( tmpArena, 0, 1000 );
+                    Array<bool> deleted0( tmpMemory.arena, 0, 1000 );
+                    Array<bool> deleted1( tmpMemory.arena, 0, 1000 );
 
                     u32 i0 = tri.v[j];          InflatedVertex& v0 = mesh->vertices[i0];
                     u32 i1 = tri.v[(j+1)%3];    InflatedVertex& v1 = mesh->vertices[i1];
@@ -854,8 +855,9 @@ FilterHits( const Array<Hit>& hits, const v2i& gridCoords, Array<Hit>* result )
 }
 
 Mesh*
-ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuffers,
-                         MeshPool* meshPool, MemoryArena* tmpArena, RenderCommands* renderCommands, const EditorState& editorState )
+ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool,
+                         const TemporaryMemory& tmpMemory, RenderCommands* renderCommands,
+                         const EditorState& editorState )
 {
     // Make bounds same length on all axes
     r32 xDim = sourceMesh.bounds.xMax - sourceMesh.bounds.xMin;
@@ -881,7 +883,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
     // For example, for X rays, the Y|Z coords are the hash, for Y rays, the X|Z coords, etc.
     // NOTE This can be heavily compressed if needed by using a more compact hash, since most entries will be empty anyway
     u32 rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
-    Array<Hit> gridHits( tmpArena, 0, 100000 );
+    Array<Hit> gridHits( tmpMemory.arena, 0, 100000 );
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMaterial( nullptr, renderCommands );

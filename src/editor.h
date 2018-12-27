@@ -17,6 +17,10 @@ struct EditorState
     r32 camPitch;
     r32 camYaw;
 
+    //
+    // TODO Move all this to TransientState too!
+    //
+
     MarchingCacheBuffers cacheBuffers;
 
     // Mesh resampling test
@@ -25,13 +29,6 @@ struct EditorState
     Mesh* testIsoSurfaceMesh;
     EditorEntity testEditorEntity;
 #endif
-
-    Array<WFC::Spec> wfcSpecs;
-    u32 selectedSpecIndex;
-    MemoryArena wfcArena;
-    MemoryArena wfcDisplayArena;
-    WFC::JobsInfo* wfcJobsInfo;
-    WFC::DisplayState wfcDisplayState;
 
     r32 drawingDistance;
     u32 displayedLayer;

@@ -114,7 +114,7 @@ QuickSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
 void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
 {
     u8* in = (u8*)inOut;
-    u8* out = PUSH_ARRAY( tmpArena, count * stride, u8 );
+    u8* out = PUSH_ARRAY( tmpArena, count * stride, u8, Temporary() );
 
     const u32 RadixBits = 8;
     const u64 Radix = 1 << RadixBits;
@@ -287,7 +287,7 @@ RadixSort( Array<T>* inputOutput, sz offset, RadixKey keyType, bool ascending, M
 void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, MemoryArena* tmpArena )
 {
     u32* in = inOut;
-    u32* out = PUSH_ARRAY( tmpArena, count, u32 );
+    u32* out = PUSH_ARRAY( tmpArena, count, u32, Temporary() );
 
 #define MASK0(x) ( ascending ? (x & 0x7FF)            : (~x & 0x7FF) )
 #define MASK1(x) ( ascending ? ((x >> 11) & 0x7FF)    : (~(x >> 11) & 0x7FF) )
@@ -392,10 +392,8 @@ RadixSort11( Array<r32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 
 
 template <typename T> void
-BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex>* result, MemoryArena* tmpArena )
+BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex>* result )
 {
-    *result = Array<KeyIndex>( tmpArena, 0, sourceTypeArray.count );
-
     for( u32 i = 0; i < sourceTypeArray.count; ++i )
     {
         u8* base = (u8*)&sourceTypeArray[i];
@@ -405,10 +403,8 @@ BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array
 }
 
 template <typename T> void
-BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex64>* result, MemoryArena* tmpArena )
+BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex64>* result )
 {
-    *result = Array<KeyIndex64>( tmpArena, 0, sourceTypeArray.count );
-
     for( u32 i = 0; i < sourceTypeArray.count; ++i )
     {
         u8* base = (u8*)&sourceTypeArray[i];

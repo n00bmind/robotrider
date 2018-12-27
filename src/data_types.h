@@ -44,9 +44,9 @@ struct Array
         maxCount = 0;
     }
 
-    Array( MemoryArena* arena, u32 count_, u32 maxCount_ )
+    Array( MemoryArena* arena, u32 count_, u32 maxCount_, MemoryParams params = DefaultMemoryParams() )
     {
-        data = PUSH_ARRAY( arena, maxCount_, T );
+        data = PUSH_ARRAY( arena, maxCount_, T, params );
         count = count_;
         maxCount = maxCount_;
     }
@@ -385,11 +385,16 @@ struct HashTable
     u32 tableSize;
     u32 count;
 
-    HashTable( MemoryArena* arena, u32 size )
+    MemoryArena* arena;
+    MemoryParams memoryParams;
+
+    HashTable( MemoryArena* arena_, u32 size, MemoryParams params = DefaultMemoryParams() )
     {
-        table = PUSH_ARRAY( arena, size, Slot );
+        table = PUSH_ARRAY( arena_, size, Slot, params );
         tableSize = size;
         count = 0;
+        arena = arena_;
+        memoryParams = params;
 
         Clear();
     }
@@ -439,7 +444,7 @@ struct HashTable
     }
 #endif
 
-    V* Reserve( const K& key, MemoryArena* arena )
+    V* Reserve( const K& key )
     {
         u32 idx = IndexFromKey( key );
 
@@ -457,7 +462,7 @@ struct HashTable
                 slot = slot->nextInHash;
             } while( slot );
 
-            slot = PUSH_STRUCT( arena, Slot );
+            slot = PUSH_STRUCT( arena, Slot, memoryParams );
             prev->nextInHash = slot;
         }
 
@@ -470,11 +475,11 @@ struct HashTable
         return &slot->value;
     }
 
-    bool Add( const K& key, const V& value, MemoryArena* arena )
+    bool Add( const K& key, const V& value )
     {
         bool result = false;
 
-        V* slotValue = Reserve( key, arena );
+        V* slotValue = Reserve( key );
         if( slotValue )
         {
             *slotValue = value;
@@ -484,9 +489,9 @@ struct HashTable
         return result;
     }
 
-    Array<K> Keys( MemoryArena* arena ) const
+    Array<K> Keys( MemoryArena* arena_, MemoryParams params = DefaultMemoryParams() ) const
     {
-        Array<K> result( arena, 0, count );
+        Array<K> result( arena_, 0, count, params );
         for( u32 i = 0; i < tableSize; ++i )
         {
             if( table[i].occupied )
@@ -506,9 +511,9 @@ struct HashTable
         return result;
     }
 
-    Array<V> Values( MemoryArena* arena ) const
+    Array<V> Values( MemoryArena* arena_, MemoryParams params = DefaultMemoryParams() ) const
     {
-        Array<V> result( arena, 0, count );
+        Array<V> result( arena_, 0, count, params );
         for( u32 i = 0; i < tableSize; ++i )
         {
             if( table[i].occupied )
@@ -595,9 +600,9 @@ struct String
         COPY( data, (char*)target->data, size * sizeof(char) );
     }
 
-    const char* CString( MemoryArena* arena ) const
+    const char* CString( MemoryArena* arena, MemoryParams params = DefaultMemoryParams() ) const
     {
-        char* result = PUSH_ARRAY( arena, size + 1, char );
+        char* result = PUSH_ARRAY( arena, size + 1, char, params );
         COPY( data, result, size * sizeof(char) );
 
         return result;
@@ -922,9 +927,9 @@ struct BucketArray
         Bucket *next;
         Bucket *prev;
 
-        Bucket( MemoryArena* arena, u32 size_ )
+        Bucket( MemoryArena* arena, u32 size_, MemoryParams params )
         {
-            data = PUSH_ARRAY( arena, size_, T );
+            data = PUSH_ARRAY( arena, size_, T, params );
             size = size_;
             count = 0;
             next = prev = nullptr;
@@ -988,15 +993,17 @@ struct BucketArray
     u32 count;
 
     MemoryArena* arena;
+    MemoryParams memoryParams;
 
 
-    BucketArray( MemoryArena* arena, u32 bucketSize )
-        : first( arena, bucketSize )
+    BucketArray( MemoryArena* arena_, u32 bucketSize, MemoryParams params = DefaultMemoryParams() )
+        : first( arena_, bucketSize, params )
     {
         count = 0;
         last = &first;
         firstFree = nullptr;
-        this->arena = arena;
+        arena = arena_;
+        memoryParams = params;
     }
 
     // Disallow implicit copying
@@ -1141,8 +1148,8 @@ private:
         }
         else
         {
-            newBucket = PUSH_STRUCT( arena, Bucket );
-            *newBucket = Bucket( arena, first.size );
+            newBucket = PUSH_STRUCT( arena, Bucket, memoryParams );
+            *newBucket = Bucket( arena, first.size, memoryParams );
         }
         newBucket->prev = last;
         last->next = newBucket;

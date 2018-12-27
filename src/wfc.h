@@ -200,7 +200,7 @@ namespace WFC
     struct JobsInfo
     {
         Spec spec;
-        Array<JobMemory> jobsSpace;
+        Array<JobMemory> jobMemoryChunks;
         MemoryArena* globalWFCArena;
         u32 totalChunkCount;
 

@@ -64,12 +64,13 @@ DrawEditorEntity( const EditorEntity& editorEntity, const EditorState& editorSta
 }
 
 void
-InitEditor( const v2i screenDim, EditorState* editorState, World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
+InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState, TransientState* transientState,
+            MemoryArena* transientArena )
 {
     // Mesh resampling test
     // TODO Move out of the way
 #if 0
-    editorState->testMesh = LoadOBJ( "bunny.obj", worldArena, tmpArena,
+    editorState->testMesh = LoadOBJ( "bunny.obj", worldArena, tmpMemory,
                                       Scale( V3( 10.f, 10.f, 10.f ) ) * Translation( V3( 0, 0, 1.f ) ) );
 
     editorState->cacheBuffers = InitMarchingCacheBuffers( worldArena, 50 );
@@ -77,31 +78,30 @@ InitEditor( const v2i screenDim, EditorState* editorState, World* world, MemoryA
 
     RandomSeed();
 
-    editorState->wfcSpecs = LoadWFCVars( "wfc.vars", worldArena, tmpArena );
-    ASSERT( editorState->wfcSpecs.count );
-
     /// WFC test
-    if( !editorState->wfcArena.base )
-        editorState->wfcArena = MakeSubArena( worldArena, MEGABYTES(512) );
-    if( !editorState->wfcDisplayArena.base )
-        editorState->wfcDisplayArena = MakeSubArena( worldArena, MEGABYTES(16) );
+    if( !IsInitialized( transientState->wfcArena ) )
+        transientState->wfcArena = MakeSubArena( transientArena, MEGABYTES(512) );
+    if( !IsInitialized( transientState->wfcDisplayArena ) )
+        transientState->wfcDisplayArena = MakeSubArena( transientArena, MEGABYTES(16) );
+
+    TemporaryMemory tempMemory = BeginTemporaryMemory( transientArena );
+
+    transientState->wfcSpecs = LoadWFCVars( "wfc.vars", &transientState->wfcArena, tempMemory );
+    ASSERT( transientState->wfcSpecs.count );
+
+    EndTemporaryMemory( tempMemory );
 }
 
 void
-UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *renderCommands, const char* statsText,
-                       MemoryArena* arena, MemoryArena* tmpArena )
+UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* transientState, 
+                       DebugState* debugState, RenderCommands *renderCommands, const char* statsText, 
+                       const TemporaryMemory& frameMemory )
 {
     float dT = input->frameElapsedSeconds;
     float elapsedT = input->totalElapsedSeconds;
 
-    GameState* gameState = (GameState*)memory->permanentStorage;
     EditorState* editorState = &gameState->DEBUGeditorState;
     World* world = gameState->world;
-
-    const DebugState* debugState = nullptr;
-#if !RELEASE
-    debugState = (DebugState*)memory->debugStorage;
-#endif
 
     // Setup a zenithal camera initially
     if( editorState->pCamera == V3Zero )
@@ -153,38 +153,38 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
     }
 
 
-    if( !editorState->wfcJobsInfo )
+    if( !transientState->wfcJobsInfo )
     {
-        WFC::Spec& spec = editorState->wfcSpecs[editorState->wfcDisplayState.currentSpecIndex];
-        editorState->wfcJobsInfo = WFC::StartWFCAsync( spec, { 0, 0 }, &editorState->wfcArena,
-                                                       &editorState->wfcDisplayState.displayedJob );
+        WFC::Spec& spec = transientState->wfcSpecs[transientState->wfcDisplayState.currentSpecIndex];
+        transientState->wfcJobsInfo = WFC::StartWFCAsync( spec, { 0, 0 }, &transientState->wfcArena,
+                                                          &transientState->wfcDisplayState.displayedJob );
     }
 
-    WFC::Job* displayedJob = editorState->wfcDisplayState.displayedJob;
+    WFC::Job* displayedJob = transientState->wfcDisplayState.displayedJob;
     if( displayedJob )
     {
         v2 displayDim = V2( renderCommands->width * 0.9f, renderCommands->height * 0.9f );
-        u32 selectedSpecIndex = WFC::DrawTest( editorState->wfcSpecs, displayedJob->state,
-                                               &editorState->wfcDisplayState, displayDim, debugState,
-                                               &editorState->wfcDisplayArena, tmpArena );
+        u32 selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, displayedJob->state,
+                                               &transientState->wfcDisplayState, displayDim, debugState,
+                                               &transientState->wfcDisplayArena, frameMemory );
 
         if( selectedSpecIndex != U32MAX )
         {
-            editorState->selectedSpecIndex = selectedSpecIndex;
+            transientState->selectedSpecIndex = selectedSpecIndex;
             displayedJob->cancellationRequested = true;
         }
 
         if( displayedJob->cancellationRequested )
         {
-            ASSERT( editorState->selectedSpecIndex != U32MAX );
+            ASSERT( transientState->selectedSpecIndex != U32MAX );
 
             // Simply wait until cancelled or done
             if( displayedJob->state->currentResult >= WFC::Result::Cancelled )
             {
-                ClearArena( &editorState->wfcArena, true );
-                ClearArena( &editorState->wfcDisplayArena, true );
-                editorState->wfcDisplayState = {};
-                editorState->wfcDisplayState.currentSpecIndex = editorState->selectedSpecIndex;
+                ClearArena( &transientState->wfcArena, true );
+                ClearArena( &transientState->wfcDisplayArena, true );
+                transientState->wfcDisplayState = {};
+                transientState->wfcDisplayState.currentSpecIndex = transientState->selectedSpecIndex;
             }
         }
     }
@@ -204,7 +204,7 @@ UpdateAndRenderEditor( GameInput *input, GameMemory *memory, RenderCommands *ren
         if( editorState->testIsoSurfaceMesh )
             ReleaseMesh( &editorState->testIsoSurfaceMesh );
         editorState->testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( editorState->testMesh, &editorState->cacheBuffers,
-                                                                  meshPool, tmpArena, renderCommands, editorState );
+                                                                  meshPool, frameMemory, renderCommands, editorState );
     }
 
     PushProgramChange( ShaderProgramName::FlatShading, renderCommands );

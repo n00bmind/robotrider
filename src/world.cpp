@@ -40,11 +40,13 @@ EntityHash( const u32& entityId, u32 tableSize )
 #define INITIAL_CLUSTER_COORDS V3I( I32MAX, I32MAX, I32MAX )
 
 void
-InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
+InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 {
+    TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
+
     world->player = PUSH_STRUCT( worldArena, Player );
     world->player->mesh =
-        LoadOBJ( "feisar/feisar_ship.obj", worldArena, tmpArena,
+        LoadOBJ( "feisar/feisar_ship.obj", worldArena, tmpMemory,
                  ZRotation( PI ) * XRotation( PI/2 ) * Scale( V3( 0.02f, 0.02f, 0.02f ) ) );
     world->player->mesh.mTransform = M4Identity;
 
@@ -73,13 +75,15 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* tmpArena )
 
     world->cacheBuffers = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MarchingCacheBuffers );
     world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MeshPool );
-    sz arenaAvailable = Available( worldArena );
+    sz arenaAvailable = Available( *worldArena );
     sz maxPerThread = arenaAvailable / 2 / globalPlatform.coreThreadsCount;
     for( u32 i = 0; i < globalPlatform.coreThreadsCount; ++i )
     {
         world->cacheBuffers[i] = InitMarchingCacheBuffers( worldArena, 10 );
         Init( &world->meshPools[i], worldArena, maxPerThread );
     }
+
+    EndTemporaryMemory( tmpMemory );
 }
 
 internal void
@@ -189,7 +193,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 
     if( !cluster )
     {
-        cluster = world->clusterTable.Reserve( clusterCoords, arena );
+        cluster = world->clusterTable.Reserve( clusterCoords );
         cluster->populated = false;
         new (&cluster->entityStorage) BucketArray<StoredEntity>( arena, 256 );
     }
