@@ -3,20 +3,21 @@ namespace WFC
 
 
 internal void
-PalettizeSource( const Texture& source, State* state, MemoryArena* arena )
+PalettizeSource( const Texture& source, Input* input, MemoryArena* arena )
 {
-    state->input = PUSH_ARRAY( arena, source.width * source.height, u8 );
+    input->inputSamples = PUSH_ARRAY( arena, source.width * source.height, u8 );
 
     for( u32 i = 0; i < source.width * source.height; ++i )
     {
+        u8 colorSample = 0;
         u32 color = *((u32*)source.imageBuffer + i);
 
         bool found = false;
-        for( u32 c = 0; c < state->paletteEntries; ++c )
+        for( u32 c = 0; c < input->paletteEntryCount; ++c )
         {
-            if( state->palette[c] == color )
+            if( input->palette[c] == color )
             {
-                *(state->input + i) = (u8)c;
+                colorSample = ToU8Safe( c );
                 found = true;
                 break;
             }
@@ -24,11 +25,13 @@ PalettizeSource( const Texture& source, State* state, MemoryArena* arena )
 
         if( !found )
         {
-            ASSERT( state->paletteEntries < ARRAYCOUNT(state->palette) );
-            state->palette[state->paletteEntries] = color;
-            *(state->input + i) = (u8)state->paletteEntries;
-            ++state->paletteEntries;
+            ASSERT( input->paletteEntryCount < ARRAYCOUNT(input->palette) );
+            input->palette[input->paletteEntryCount] = color;
+            colorSample = ToU8Safe( input->paletteEntryCount );
+            ++input->paletteEntryCount;
         }
+
+        *(input->inputSamples + i) = colorSample;
     }
 }
 
@@ -100,20 +103,21 @@ inline bool operator ==( const Pattern& a, const Pattern& b )
 }
 
 internal void
-AddPatternWithData( u8* data, const u32 N, State* state, MemoryArena* arena )
+AddPatternWithData( u8* data, const u32 N, Input* input, MemoryArena* arena )
 {
     Pattern testPattern = { data, N };
 
-    u32* patternCount = state->patternsHash.Find( testPattern );
-    if( patternCount )
-        ++(*patternCount);
+    u32* patternCountValue = input->patternsHash.Find( testPattern );
+    if( patternCountValue )
+        ++(*patternCountValue);
     else
     {
-        if (state->patternsHash.count <= MaxAdjacencyCount + 1)
+        // This is '<=' because we never count ourselves in each pattern adjacency count
+        if (input->patternsHash.count <= MaxAdjacencyCount)
         {
             u8* patternData = PUSH_ARRAY(arena, N * N, u8);
             COPY(data, patternData, N * N);
-            state->patternsHash.Add({ patternData, N }, 1 );
+            input->patternsHash.Add({ patternData, N }, 1 );
         }
         else
             LOG("WARN :: Truncating input patterns at %d!", MaxAdjacencyCount);
@@ -121,48 +125,48 @@ AddPatternWithData( u8* data, const u32 N, State* state, MemoryArena* arena )
 }
 
 internal void
-BuildPatternsFromSource( const u32 N, const v2u& inputDim, State* state, MemoryArena* arena )
+BuildPatternsFromSource( const u32 N, const v2u& inputDim, Input* input, MemoryArena* arena )
 {
     u8* patternData = PUSH_ARRAY( arena, N * N, u8 );
     u8* rotatedPatternData = PUSH_ARRAY( arena, N * N, u8 );
     u8* reflectedPatternData = PUSH_ARRAY( arena, N * N, u8 );
 
     // NOTE Totally arbitrary number for the entry count
-    new (&state->patternsHash) HashTable<Pattern, u32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
+    new (&input->patternsHash) HashTable<Pattern, u32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
 
     // NOTE We assume 'periodicInput' to be true
     for( u32 j = 0; j < (u32)inputDim.y; ++j )
     {
         for( u32 i = 0; i < (u32)inputDim.x; ++i )
         {
-            ExtractPattern( state->input, i, j, inputDim, N, patternData );
-            AddPatternWithData( patternData, N, state, arena );
+            ExtractPattern( input->inputSamples, i, j, inputDim, N, patternData );
+            AddPatternWithData( patternData, N, input, arena );
 
             ReflectPattern( patternData, N, reflectedPatternData );
-            AddPatternWithData( reflectedPatternData, N, state, arena );
+            AddPatternWithData( reflectedPatternData, N, input, arena );
             RotatePattern( patternData, N, rotatedPatternData );
-            AddPatternWithData( rotatedPatternData, N, state, arena );
+            AddPatternWithData( rotatedPatternData, N, input, arena );
             COPY( rotatedPatternData, patternData, N * N );
 
             ReflectPattern( patternData, N, reflectedPatternData );
-            AddPatternWithData( reflectedPatternData, N, state, arena );
+            AddPatternWithData( reflectedPatternData, N, input, arena );
             RotatePattern( patternData, N, rotatedPatternData );
-            AddPatternWithData( rotatedPatternData, N, state, arena );
+            AddPatternWithData( rotatedPatternData, N, input, arena );
             COPY( rotatedPatternData, patternData, N * N );
 
             ReflectPattern( patternData, N, reflectedPatternData );
-            AddPatternWithData( reflectedPatternData, N, state, arena );
+            AddPatternWithData( reflectedPatternData, N, input, arena );
             RotatePattern( patternData, N, rotatedPatternData );
-            AddPatternWithData( rotatedPatternData, N, state, arena );
+            AddPatternWithData( rotatedPatternData, N, input, arena );
             COPY( rotatedPatternData, patternData, N * N );
 
             ReflectPattern( patternData, N, reflectedPatternData );
-            AddPatternWithData( reflectedPatternData, N, state, arena );
+            AddPatternWithData( reflectedPatternData, N, input, arena );
         }
     }
 
     // TODO Pack patterns
-    state->patterns = state->patternsHash.Keys( arena );
+    input->patterns = input->patternsHash.Keys( arena );
 }
 
 internal Texture
@@ -210,28 +214,28 @@ Matches( u8* basePattern, v2i offset, u8* testPattern, u32 N )
 }
 
 internal void
-BuildPatternsIndex( const u32 N, State* state, MemoryArena* arena )
+BuildPatternsIndex( const u32 N, Input* input, MemoryArena* arena )
 {
-    u32 patternCount = state->patterns.count;
+    u32 patternCount = input->patterns.count;
 
-    for( u32 d = 0; d < ARRAYCOUNT(state->patternsIndex); ++d )
+    for( u32 d = 0; d < ARRAYCOUNT(input->patternsIndex); ++d )
     {
         Array<IndexEntry> entries( arena, 0, patternCount );
 
         for( u32 p = 0; p < patternCount; ++p )
         {
-            u8* pData = state->patterns[p].data;
+            u8* pData = input->patterns[p].data;
 
             Array<bool> matches( arena, 0, patternCount );
 
             for( u32 q = 0; q < patternCount; ++q )
             {
-                u8* qData = state->patterns[q].data;
+                u8* qData = input->patterns[q].data;
                 matches.Push( Matches( pData, adjacencyMeta[d].cellDelta.xy, qData, N ) );
             }
             entries.Push( { matches } );
         }
-        state->patternsIndex[d] = { entries };
+        input->patternsIndex[d] = { entries };
     }
 }
 
@@ -291,13 +295,11 @@ DecreaseAdjacencyAndTestZAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex
 }
 
 inline bool
-GetWaveAt( const Snapshot* snapshot, u32 cellIndex, u32 patternIndex, const State* state )
+GetWaveAt( const Snapshot* snapshot, u32 cellIndex, u32 patternIndex )
 {
-    ASSERT( patternIndex < state->patterns.count );
-    
-    const u64* row = snapshot->wave.AtRow( cellIndex );
     u32 patternSubIndex = patternIndex / 64;
-    u64 bitset = row[patternSubIndex];
+    u64 bitset = snapshot->wave.AtRowCol( cellIndex, patternSubIndex );
+
     u32 bitIndex = patternIndex % 64;
     u64 mask = 1ULL << bitIndex;
 
@@ -305,13 +307,10 @@ GetWaveAt( const Snapshot* snapshot, u32 cellIndex, u32 patternIndex, const Stat
 }
 
 inline void
-DisableWaveAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, const State* state )
+DisableWaveAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex )
 {
-    ASSERT( patternIndex < state->patterns.count );
-
-    u64* row = snapshot->wave.AtRow( cellIndex );
     u32 patternSubIndex = patternIndex / 64;
-    u64& bitset = row[patternSubIndex];
+    u64& bitset = snapshot->wave.AtRowCol( cellIndex, patternSubIndex );
 
     u32 bitIndex = patternIndex % 64;
     u64 mask = ~(1ULL << bitIndex);
@@ -320,39 +319,28 @@ DisableWaveAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, const State*
 }
 
 inline void
-ResetWaveAt( Snapshot* snapshot, u32 cellIndex, State* state )
+ResetWaveAt( Snapshot* snapshot, u32 cellIndex, const Input& input )
 {
     u64* row = snapshot->wave.AtRow( cellIndex );
 
-    u32 groupCount = state->patterns.count / 64;
+    u32 groupCount = input.patterns.count / 64;
     for( u32 p = 0; p < groupCount; ++p )
         row[p] = ~0ULL;
 
-    u32 spareCount = state->patterns.count % 64;
+    u32 spareCount = input.patterns.count % 64;
     if( spareCount )
-        row[groupCount] = (~0ULL); // >> (64 - spareCount);
+        row[groupCount] = ((~0ULL) >> (64 - spareCount));
 }
 
 internal void
-Init( const Spec& spec, const v2u& pOutputChunk, State* state, MemoryArena* arena )
+Init( const Spec& spec, const Input& input, const v2u& pOutputChunk, State* state, MemoryArena* arena )
 {
     TIMED_BLOCK;
 
     state->arena = arena;
 
-    // Process input data
-    PalettizeSource( spec.source, state, arena );
-    BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, state, arena );
-    BuildPatternsIndex( spec.N, state, arena );
-
-    // Init global state
-    // FIXME This should actually be (width - N + 1) * (height - N + 1) ?
-    u32 waveLength = spec.outputChunkDim.x * spec.outputChunkDim.y;
-    u32 patternCount = state->patterns.count;
-    state->frequencies = state->patternsHash.Values( arena );
-    ASSERT( state->frequencies.count == patternCount );
-    state->weights = Array<r64>( arena, patternCount, patternCount );
-    const u32 propagationStackSize = waveLength * 2;                            // Increase as needed
+    const u32 patternCount = input.patterns.count;
+    const u32 propagationStackSize = input.waveLength * 2;                            // Increase as needed
     state->propagationStack = Array<BannedTuple>( arena, 0, propagationStackSize );
     state->distributionTemp = Array<r32>( arena, patternCount, patternCount );
     state->backtrackedCellIndices = RingBuffer<u32>( arena, BacktrackedCellsCacheCount );
@@ -361,7 +349,8 @@ Init( const Spec& spec, const v2u& pOutputChunk, State* state, MemoryArena* aren
     Snapshot snapshot0;
     sz lowWaterMark = arena->used;
 
-    AllocSnapshot( &snapshot0, waveLength, patternCount, arena );
+    // TODO Build first snapshot in Input too and just copy it instead of redoing this every time
+    AllocSnapshot( &snapshot0, input.waveLength, patternCount, arena );
 
     // So we want to calculate the max number of snapshots that will fit in our arena,
     // but we still need to allocate the snapshot stack, whose size depends on the number of snapshots
@@ -373,44 +362,34 @@ Init( const Spec& spec, const v2u& pOutputChunk, State* state, MemoryArena* aren
     // The size of the snapshot stack content (barring the struct itself) would be x = n * s, where n is the number of snapshots
     // Conversely, n = (A - x) / S
     // So if we substitute x and solve for n we have:
-    u32 maxSnapshotCount = SafeR64ToU32( (r32)A / (S + s) );
+    u32 maxSnapshotCount = ToU32Safe( (r32)A / (S + s) );
     ASSERT( maxSnapshotCount * s + maxSnapshotCount * S < A );
 
-    // Truncate at 64, since having more does actually seems less effective
+    // Truncate at 64, since having more does actually seem less effective
     maxSnapshotCount = Min( maxSnapshotCount, MaxBacktrackingDepth );
 
     // We need to allocate the stack before any snapshot, so that rewinding snapshots will work properly
     // TODO Do this using TemporaryMemory and remove RewindArena
     RewindArena( arena, lowWaterMark );
     state->snapshotStack = Array<Snapshot>( arena, 0, maxSnapshotCount );
-    AllocSnapshot( &snapshot0, waveLength, patternCount, arena );
+    AllocSnapshot( &snapshot0, input.waveLength, patternCount, arena );
     state->currentSnapshot = state->snapshotStack.Push( snapshot0 );
 
-    // Calc initial entropy, counters, etc.
-    r64 sumFrequencies = 0;                                                     // sumOfWeights
-    r64 sumWeights = 0;                                                         // sumOfWeightLogWeights
-    for( u32 p = 0; p < patternCount; ++p )
+    // Set initial entropy and counters
+    for( u32 i = 0; i < input.waveLength; ++i )
     {
-        state->weights[p] = state->frequencies[p] * Log( state->frequencies[p] );
-        sumFrequencies += state->frequencies[p];
-        sumWeights += state->weights[p];
-    }
-    r64 initialEntropy = Log( sumFrequencies ) - sumWeights / sumFrequencies;
-
-    for( u32 i = 0; i < waveLength; ++i )
-    {
-        ResetWaveAt( &snapshot0, i, state );
+        ResetWaveAt( &snapshot0, i, input );
         snapshot0.compatiblesCount[i] = patternCount;
-        snapshot0.sumFrequencies[i] = sumFrequencies;
-        snapshot0.sumWeights[i] = sumWeights;
-        snapshot0.entropies[i] = initialEntropy;
+        snapshot0.sumFrequencies[i] = input.sumFrequencies;
+        snapshot0.sumWeights[i] = input.sumWeights;
+        snapshot0.entropies[i] = input.initialEntropy;
 
         for( u32 p = 0; p < patternCount; ++p )
         {
             for( u32 d = 0; d < Adjacency::Count; ++d )
             {
                 u32 oppositeIndex = adjacencyMeta[d].oppositeIndex;
-                IndexEntry& entry = state->patternsIndex[oppositeIndex].entries[p];
+                const IndexEntry& entry = input.patternsIndex[oppositeIndex].entries[p];
 
                 u32 matches = 0;
                 for( u32 m = 0; m < entry.matches.count; ++m )
@@ -459,14 +438,14 @@ RandomSelect( const Array<r32>& distribution, Array<r32>* temp, u32* selection )
 }
 
 internal bool
-BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
+BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state, const Input& input )
 {
     TIMED_BLOCK;
 
     bool result = true;
     Snapshot* snapshot = state->currentSnapshot;
 
-    DisableWaveAt( snapshot, cellIndex, patternIndex, state );
+    DisableWaveAt( snapshot, cellIndex, patternIndex );
 
     for( u32 d = 0; d < Adjacency::Count; ++d )
         SetAdjacencyAt( snapshot, cellIndex, patternIndex, d, 0 );
@@ -480,9 +459,9 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state )
     snapshot->entropies[i] += snapshot->sumWeights[i] / snapshot->sumFrequencies[i] - Log( snapshot->sumFrequencies[i] );
 
     // TODO This is now stored in 'frequencies'
-    u32* frequency = state->patternsHash.Find( state->patterns[patternIndex] );
+    const u32* frequency = input.patternsHash.Find( input.patterns[patternIndex] );
     snapshot->sumFrequencies[i] -= *frequency;
-    snapshot->sumWeights[i] -= state->weights[patternIndex];
+    snapshot->sumWeights[i] -= input.weights[patternIndex];
 
     snapshot->entropies[i] -= snapshot->sumWeights[i] / snapshot->sumFrequencies[i] - Log( snapshot->sumFrequencies[i] );
 
@@ -514,10 +493,10 @@ IndexFromPosition( const v2u& p, u32 stride )
 }
 
 internal bool
-BuildDistributionAndSelectAt( u32 cellIndex, Snapshot* snapshot, State* state, u32* selection )
+BuildDistributionAndSelectAt( u32 cellIndex, Snapshot* snapshot, State* state, u32* selection, const Input& input )
 {
-    for( u32 p = 0; p < state->patterns.count; ++p )
-        snapshot->distribution[p] = (GetWaveAt( snapshot, cellIndex, p, state ) ? state->frequencies[p] : 0.f);
+    for( u32 p = 0; p < input.patterns.count; ++p )
+        snapshot->distribution[p] = (GetWaveAt( snapshot, cellIndex, p ) ? input.frequencies[p] : 0.f);
 
     bool result = RandomSelect( snapshot->distribution, &state->distributionTemp, selection );
     return result;
@@ -525,12 +504,12 @@ BuildDistributionAndSelectAt( u32 cellIndex, Snapshot* snapshot, State* state, u
 
 // NOTE If the snapshot space was previously allocated, uses that same space, otherwise allocates
 internal Snapshot*
-PushNewSnapshot( Snapshot* source, State* state, MemoryArena* arena )
+PushNewSnapshot( Snapshot* source, State* state, u32 patternCount, MemoryArena* arena )
 {
     Snapshot* result = state->snapshotStack.PushEmpty( false );
 
     if( !result->wave )
-        AllocSnapshot( result, source->wave.rows, state->patterns.count, arena );
+        AllocSnapshot( result, source->wave.rows, patternCount, arena );
     CopySnapshot( source, result );
 
     result->lastObservedDistributionIndex = 0;
@@ -541,17 +520,18 @@ PushNewSnapshot( Snapshot* source, State* state, MemoryArena* arena )
 }
 
 internal bool
-ApplyObservedPatternAt( u32 observedCellIndex, u32 observedDistributionIndex, Snapshot* snapshot, State* state )
+ApplyObservedPatternAt( u32 observedCellIndex, u32 observedDistributionIndex, Snapshot* snapshot, State* state,
+                        const Input& input )
 {
     TIMED_BLOCK;
 
     bool compatiblesRemaining = true;
 
-    for( u32 p = 0; p < state->patterns.count; ++p )
+    for( u32 p = 0; p < input.patterns.count; ++p )
     {
-        if( GetWaveAt( snapshot, observedCellIndex, p, state ) && p != observedDistributionIndex )
+        if( GetWaveAt( snapshot, observedCellIndex, p ) && p != observedDistributionIndex )
         {
-            compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state );
+            compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state, input );
             if( !compatiblesRemaining )
                 break;
         }
@@ -576,7 +556,7 @@ NeedSnapshot( State* state, u32 totalObservationCount )
 }
 
 internal Result
-Observe( const Spec& spec, State* state, MemoryArena* arena )
+Observe( const Spec& spec, const Input& input, State* state, MemoryArena* arena )
 {
     TIMED_BLOCK;
 
@@ -627,11 +607,11 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
         }
         else
         {
-            u32 patternCount = state->patterns.count;
+            u32 patternCount = input.patterns.count;
 
             u32 observedDistributionIndex;
             bool haveSelection = BuildDistributionAndSelectAt( observedCellIndex, snapshot, state,
-                                                               &observedDistributionIndex );
+                                                               &observedDistributionIndex, input );
             ASSERT( haveSelection );
 
             if( NeedSnapshot( state, snapshot->wave.rows ) )
@@ -640,11 +620,12 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
                 snapshot->lastObservedDistributionIndex = observedDistributionIndex;
                 snapshot->lastObservationCount = state->observationCount;
 
-                snapshot = PushNewSnapshot( state->currentSnapshot, state, arena );
+                snapshot = PushNewSnapshot( state->currentSnapshot, state, patternCount, arena );
                 state->currentSnapshot = snapshot;
             }
 
-            bool compatiblesRemaining = ApplyObservedPatternAt( observedCellIndex, observedDistributionIndex, snapshot, state );
+            bool compatiblesRemaining = ApplyObservedPatternAt( observedCellIndex, observedDistributionIndex,
+                                                                snapshot, state, input );
             if( !compatiblesRemaining )
                 result = Contradiction;
         }
@@ -654,13 +635,13 @@ Observe( const Spec& spec, State* state, MemoryArena* arena )
 }
 
 internal Result
-Propagate( const Spec& spec, State* state )
+Propagate( const Spec& spec, const Input& input, State* state )
 {
     Result result = InProgress;
 
     u32 width = spec.outputChunkDim.x;
     u32 height = spec.outputChunkDim.y;
-    u32 patternCount = state->patterns.count;
+    u32 patternCount = input.patterns.count;
 
     while( result == InProgress && state->propagationStack.count > 0 )
     {
@@ -686,7 +667,7 @@ Propagate( const Spec& spec, State* state )
                 pAdjacent.y -= height;
 
             u32 adjacentIndex = IndexFromPosition( V2u( pAdjacent ), width );
-            IndexEntry& bannedEntry = state->patternsIndex[d].entries[ban.patternIndex];
+            const IndexEntry& bannedEntry = input.patternsIndex[d].entries[ban.patternIndex];
 
             for( u32 p = 0; p < patternCount; ++p )
             {
@@ -695,7 +676,7 @@ Propagate( const Spec& spec, State* state )
                     bool isZero = DecreaseAdjacencyAndTestZAt( state->currentSnapshot, adjacentIndex, p, d );
                     if( isZero )
                     {
-                        bool compatiblesRemaining = BanPatternAtCell( adjacentIndex, p, state );
+                        bool compatiblesRemaining = BanPatternAtCell( adjacentIndex, p, state, input );
                         if( !compatiblesRemaining )
                         {
                             result = Contradiction;
@@ -711,13 +692,13 @@ Propagate( const Spec& spec, State* state )
 }
 
 internal Result
-RewindSnapshot( State* state )
+RewindSnapshot( State* state, const Input& input )
 {
     TIMED_BLOCK;
 
     Result result = Contradiction;
     Snapshot* snapshot = state->currentSnapshot;
-    u32 patternCount = state->patterns.count;
+    u32 patternCount = input.patterns.count;
 
     state->propagationStack.Clear();
 
@@ -756,10 +737,11 @@ RewindSnapshot( State* state )
         u32 observedDistributionIndex = snapshot->lastObservedDistributionIndex;
 
         // NOTE We know we have backtracked at least once, so the storage for the snapshot is guaranteed to be allocated
-        snapshot = PushNewSnapshot( state->currentSnapshot, state, nullptr );
+        snapshot = PushNewSnapshot( state->currentSnapshot, state, patternCount, nullptr );
         state->currentSnapshot = snapshot;
 
-        bool compatiblesRemaining = ApplyObservedPatternAt( observedCellIndex, observedDistributionIndex, snapshot, state );
+        bool compatiblesRemaining = ApplyObservedPatternAt( observedCellIndex, observedDistributionIndex, snapshot,
+                                                            state, input );
         result = compatiblesRemaining ? InProgress : Contradiction;
     }
     else
@@ -778,10 +760,11 @@ void
 StartWFCSync( Job* job )
 {
     const Spec& spec = *job->spec;
+    const Input& input = *job->input;
     State* state = job->state = PUSH_STRUCT( &job->memory->arena, State );
 
     // TODO We need to do most (or all!) of this in advance
-    Init( spec, job->pOutputChunk, state, &job->memory->arena ); 
+    Init( spec, input, job->pOutputChunk, state, &job->memory->arena ); 
 
     while( !IsFinished( *state ) )
     {
@@ -791,16 +774,16 @@ StartWFCSync( Job* job )
             state->currentResult = Cancelled;
 
         if( state->currentResult == InProgress )
-            state->currentResult = Observe( spec, state, &job->memory->arena );
+            state->currentResult = Observe( spec, input, state, &job->memory->arena );
 
         if( state->currentResult == Contradiction )
         {
             state->contradictionCount++;
-            state->currentResult = RewindSnapshot( state );
+            state->currentResult = RewindSnapshot( state, input );
         }
 
         if( state->currentResult == InProgress )
-            state->currentResult = Propagate( spec, state );
+            state->currentResult = Propagate( spec, input, state );
     }
 }
 
@@ -866,6 +849,7 @@ TryStartJobFor( const v2u& pOutputChunk, GlobalState* globalState )
     if( job )
     {
         job->spec = &globalState->spec;
+        job->input = &globalState->input;
         job->pOutputChunk = pOutputChunk;
 
         globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
@@ -885,16 +869,41 @@ StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena )
     u32 maxJobCount = 8;
 
     GlobalState* result = PUSH_STRUCT( wfcArena, GlobalState );
-    *result =
-    {
-        spec,
-        Array<Job>( wfcArena, maxJobCount, maxJobCount ),
-        Array<JobMemory>( wfcArena, maxJobCount, maxJobCount ),
-        Array2<ChunkInfo>( wfcArena, spec.outputChunkCount.x, spec.outputChunkCount.y ),
-        wfcArena,
-    };
+    result->spec = spec;
+    result->jobs = Array<Job>( wfcArena, maxJobCount, maxJobCount );
+    result->jobMemoryChunks = Array<JobMemory>( wfcArena, maxJobCount, maxJobCount );
+    result->outputChunks = Array2<ChunkInfo>( wfcArena, spec.outputChunkCount.y, spec.outputChunkCount.x );
+    result->globalWFCArena = wfcArena;
 
-    // Partition parent arena
+    // Process global input data
+    // NOTE This should be done either offline or on a thread
+    {
+        Input& input = result->input;
+
+        // FIXME This should actually be (width - N + 1) * (height - N + 1) !?
+        input.waveLength = spec.outputChunkDim.x * spec.outputChunkDim.y;
+
+        PalettizeSource( spec.source, &input, wfcArena );
+        BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, &input, wfcArena );
+        BuildPatternsIndex( spec.N, &input, wfcArena );
+        u32 patternCount = input.patterns.count;
+
+        input.frequencies = input.patternsHash.Values( wfcArena );
+        ASSERT( input.frequencies.count == patternCount );
+        input.weights = Array<r64>( wfcArena, patternCount, patternCount );
+        // Calc initial entropy, counters, etc.
+        input.sumFrequencies = 0;                                                     // sumOfWeights
+        input.sumWeights = 0;                                                         // sumOfWeightLogWeights
+        for( u32 p = 0; p < patternCount; ++p )
+        {
+            input.weights[p] = input.frequencies[p] * Log( input.frequencies[p] );
+            input.sumFrequencies += input.frequencies[p];
+            input.sumWeights += input.weights[p];
+        }
+        input.initialEntropy = Log( input.sumFrequencies ) - input.sumWeights / input.sumFrequencies;
+    }
+
+    // Partition remaining space in parent arena
     sz perJobArenaSize = Available( *wfcArena ) / maxJobCount;
     for( u32 i = 0; i < maxJobCount; ++i )
     {
@@ -941,6 +950,7 @@ internal void
 CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imageBuffer, Texture* result )
 {
     const u32 N = spec.N;
+    const Input& input = globalState->input;
     const u32 width = spec.outputChunkDim.x;
     const u32 height = spec.outputChunkDim.y;
     const v2u totalOutputDim = Hadamard( spec.outputChunkDim, spec.outputChunkCount );
@@ -989,13 +999,13 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
                                     if( OnBoundary( { cellX, cellY }, spec ) )
                                         continue;
 
-                                    for( u32 p = 0; p < job->state->patterns.count; ++p )
+                                    for( u32 p = 0; p < input.patterns.count; ++p )
                                     {
-                                        if( GetWaveAt( snapshot, cellY * width + cellX, p, job->state ) )
+                                        if( GetWaveAt( snapshot, cellY * width + cellX, p ) )
                                         {
                                             u32 cr, cg, cb;
-                                            u8 sample = job->state->patterns[p].data[dy * N + dx];
-                                            UnpackRGBA( job->state->palette[sample], &cr, &cg, &cb );
+                                            u8 sample = input.patterns[p].data[dy * N + dx];
+                                            UnpackRGBA( input.palette[sample], &cr, &cg, &cb );
                                             r += cr;
                                             g += cg;
                                             b += cb;
@@ -1015,6 +1025,7 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
             }
             else 
 #endif
+            // FIXME Copy from job to appropriate slot when done
             if( job->state->currentResult == Done )
             {
                 for( u32 y = 0; y < height; ++y )
@@ -1034,9 +1045,9 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
                         {
                             u32 patternIndex = U32MAX;
                             u32 cellIndex = cellY * width + cellX;
-                            for( u32 p = 0; p < job->state->patterns.count; ++p )
+                            for( u32 p = 0; p < input.patterns.count; ++p )
                             {
-                                if( GetWaveAt( snapshot, cellIndex, p, job->state ) )
+                                if( GetWaveAt( snapshot, cellIndex, p ) )
                                 {
                                     patternIndex = p;
                                     break;
@@ -1044,9 +1055,9 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
                             }
                             ASSERT( patternIndex != U32MAX );
 
-                            u8* patternSamples = job->state->patterns[patternIndex].data;
+                            u8* patternSamples = input.patterns[patternIndex].data;
                             u8 sample = patternSamples[dy * N + dx];
-                            color = job->state->palette[sample];
+                            color = input.palette[sample];
                         }
 
                         *out++ = color;
@@ -1171,12 +1182,12 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
     ImGui::EndChild();
     ImGui::SameLine();
 
-    // FIXME
-    State* state = globalState->jobs[0].state;
-    const u32 patternsCount = state ? state->patterns.count : 0;
+    const u32 patternsCount = globalState->input.patterns.count;
     const u32 patternsCountSqrt = (u32)Round( Sqrt( (r32)patternsCount ) );
     const u32 waveLength = spec.outputChunkDim.x * spec.outputChunkDim.y;
 
+    // FIXME
+    State* state = globalState->jobs[0].state;
     ImGui::BeginChild( "child_wfc_right", ImVec2( 0, 0 ), true, 0 );
     switch( displayState->currentPage )
     {
@@ -1275,15 +1286,15 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
             ImGui::Columns( patternsCountSqrt, nullptr, false );
             for( u32 i = 0; i < patternsCount; ++i )
             {
-                const Pattern& p = state->patterns[i];
+                const Pattern& p = globalState->input.patterns[i];
                 Texture& t = displayState->patternTextures[i];
 
                 if( !t.handle )
-                    t = CreatePatternTexture( p, state->palette, wfcDisplayArena );
+                    t = CreatePatternTexture( p, globalState->input.palette, wfcDisplayArena );
 
                 ImGui::Image( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) );
                 ImGui::SameLine();
-                ImGui::Text( "%u", state->frequencies[i] );
+                ImGui::Text( "%u", globalState->input.frequencies[i] );
 
                 ImGui::NextColumn();
 
@@ -1303,11 +1314,11 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
             ImGui::BeginChild( "child_index_entries", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
             for( u32 i = 0; i < patternsCount; ++i )
             {
-                const Pattern& p = state->patterns[i];
+                const Pattern& p = globalState->input.patterns[i];
                 Texture& t = displayState->patternTextures[i];
 
                 if( !t.handle )
-                    t = CreatePatternTexture( p, state->palette, wfcDisplayArena );
+                    t = CreatePatternTexture( p, globalState->input.palette, wfcDisplayArena );
 
                 if( ImGui::ImageButton( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) ) )
                     displayState->currentIndexEntry = i;
@@ -1348,14 +1359,15 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
                         u32 row = 0;
                         if( d >= 0 )
                         {
-                            const Array<bool>& matches = state->patternsIndex[d].entries[displayState->currentIndexEntry].matches;
+                            const Array<bool>& matches
+                                = globalState->input.patternsIndex[d].entries[displayState->currentIndexEntry].matches;
 
                             for( u32 m = 0; m < patternsCount; ++m )
                             {
                                 if( !matches[m] )
                                     continue;
 
-                                const Pattern& p = state->patterns[m];
+                                const Pattern& p = globalState->input.patterns[m];
                                 Texture& t = displayState->patternTextures[m];
 
                                 ImGui::Image( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) );

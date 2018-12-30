@@ -430,14 +430,14 @@ struct HashTable
         count = 0;
     }
 
-    u32 IndexFromKey( const K& key )
+    u32 IndexFromKey( const K& key ) const
     {
         u32 hashValue = H( key, tableSize );
         u32 result = hashValue % tableSize;
         return result;
     }
 
-    V* Find( const K& key )
+    const V* _Find( const K& key ) const
     {
         u32 idx = IndexFromKey( key );
 
@@ -454,6 +454,15 @@ struct HashTable
         }
 
         return nullptr;
+    }
+
+    V* Find( const K& key )
+    {
+        return (V*)_Find( key );
+    }
+    const V* Find( const K& key ) const
+    {
+        return _Find( key );
     }
 
 #if 0
@@ -741,11 +750,11 @@ struct String
             if( *(atNL - 1) == '\r' )
                 atNL--;
 
-            lineLen = SafeU64ToU32( onePastNL - data );
+            lineLen = ToU32Safe( (sz)(onePastNL - data) );
         }
 
         ASSERT( lineLen <= size );
-        String line( data, SafeU64ToU32( atNL - data ), maxSize );
+        String line( data, ToU32Safe( (sz)(atNL - data) ), maxSize );
 
         data = onePastNL;
         size -= lineLen;
@@ -786,7 +795,7 @@ struct String
             while( *end && IsWord( *end ) )
                 end++;
 
-            wordLen = SafeU64ToU32( end - data );
+            wordLen = ToU32Safe( (sz)(end - data) );
         }
 
         String result( data, wordLen, maxSize );
@@ -811,7 +820,7 @@ struct String
             remaining--;
         }
 
-        u32 len = SafeU64ToU32( next - data );
+        u32 len = ToU32Safe( (sz)(next - data) );
         String result( data, len, maxSize );
 
         data = next;
@@ -860,7 +869,7 @@ struct String
 
             ++start;
             result.data = start;
-            result.size = SafeU64ToU32(next - start);
+            result.size = ToU32Safe( (sz)(next - start) );
             result.maxSize = maxSize;
         }
 

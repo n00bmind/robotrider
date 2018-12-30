@@ -128,6 +128,27 @@ namespace WFC
         Done,
     };
 
+
+    struct Input
+    {
+        u8* inputSamples;
+        u32 palette[256];
+        u32 paletteEntryCount;
+
+        HashTable<Pattern, u32, PatternHash> patternsHash;
+        // TODO Cache patternCount and substitute everywhere
+        Array<Pattern> patterns;
+        Array<u32> frequencies;                         // weights
+        Array<r64> weights;                             // weightLogWeights
+        u32 sumFrequencies;
+        r64 sumWeights;
+        r64 initialEntropy;
+
+        // TODO Layout this differently (and rename it)
+        IndexCell patternsIndex[Adjacency::Count];      // propagator
+        u32 waveLength;
+    };
+
     struct Snapshot
     {
         Array2<u64> wave;
@@ -150,23 +171,10 @@ namespace WFC
         u32 lastObservationCount;
     };
 
-
     struct State
     {
         MemoryArena* arena;
 
-        u8* input;
-        u32 palette[256];
-        u32 paletteEntries;
-
-        // TODO Consolidate this stuff. We're duplicating data here!
-        HashTable<Pattern, u32, PatternHash> patternsHash;
-        Array<Pattern> patterns;
-        Array<u32> frequencies;                         // weights
-        Array<r64> weights;                             // weightLogWeights
-
-        // TODO Layout this differently (and rename it)
-        IndexCell patternsIndex[Adjacency::Count];      // propagator
         Array<BannedTuple> propagationStack;
         Array<r32> distributionTemp;
 
@@ -189,6 +197,7 @@ namespace WFC
     {
         // In
         const Spec* spec;
+        const Input* input;
         v2u pOutputChunk;
 
         State* state;           // Only here for visualization
@@ -213,6 +222,7 @@ namespace WFC
         Array2<ChunkInfo> outputChunks;
         MemoryArena* globalWFCArena;
 
+        Input input;
         u32 processedChunkCount;
     };
 

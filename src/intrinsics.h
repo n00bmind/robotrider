@@ -36,7 +36,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // TODO Examine disassemblies for all compilers and compare!
 
 inline u32
-SafeU64ToU32( u64 value )
+ToU32Safe( u64 value )
 {
     ASSERT( value <= U32MAX );
     u32 result = (u32)value;
@@ -44,10 +44,18 @@ SafeU64ToU32( u64 value )
 }
 
 inline u32
-SafeR64ToU32( r64 value )
+ToU32Safe( r64 value )
 {
     ASSERT( value <= U32MAX );
     u32 result = (u32)value;
+    return result;
+}
+
+inline u8
+ToU8Safe( u32 value )
+{
+    ASSERT( value <= U8MAX );
+    u8 result = (u8)value;
     return result;
 }
 
