@@ -176,8 +176,6 @@ LoadWFCVars( const char* path, MemoryArena* arena, const TemporaryMemory& tempMe
                 else
                     currentSpec->N = n;
             }
-#if 0
-            // Ignore for now
             else if( var.IsEqual( "outputDim", false ) )
             {
                 String xWord = line.ConsumeWord();
@@ -193,10 +191,9 @@ LoadWFCVars( const char* path, MemoryArena* arena, const TemporaryMemory& tempMe
                         LOG( "ERROR :: Argument to 'outputDim' must be a vector2 of unsigned integer at line %d",
                              currentLineNumber );
                     else
-                        currentSpec->outputDim = V2I( x, y );
+                        currentSpec->outputChunkDim = V2u( x, y );
                 }
             }
-#endif
             else if( var.IsEqual( "periodic", false ) )
             {
                 String boolWord = line.ConsumeWord();

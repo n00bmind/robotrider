@@ -156,6 +156,10 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
     if( !transientState->wfcGlobalState )
     {
         WFC::Spec& spec = transientState->wfcSpecs[transientState->wfcDisplayState.currentSpecIndex];
+        WFC::Spec defaultSpec = WFC::DefaultSpec();
+        // Ignore certain attributes
+        spec.outputChunkDim = defaultSpec.outputChunkDim;
+        spec.periodic = defaultSpec.periodic;
         transientState->wfcGlobalState = WFC::StartWFCAsync( spec, { 0, 0 }, &transientState->wfcArena );
     }
 

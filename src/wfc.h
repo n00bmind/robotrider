@@ -113,7 +113,7 @@ namespace WFC
             2,
             { 64, 64 },
             { 4, 4 },
-            true,
+            false,
         };
         return result;
     }
@@ -193,14 +193,16 @@ namespace WFC
         volatile bool inUse;
     };
 
+    struct ChunkInfo;
+
     struct Job
     {
         // In
         const Spec* spec;
         const Input* input;
-        v2u pOutputChunk;
+        ChunkInfo* outputChunk;
 
-        State* state;           // Only here for visualization
+        State* state;           // Only for visualization
         JobMemory* memory;
 
         volatile bool inUse;
@@ -209,8 +211,10 @@ namespace WFC
 
     struct ChunkInfo
     {
-        Job* buildJob;
-        bool done;
+        Job* buildJob;          // Only for visualization
+        Array2<u8> outputSamples;
+        Result result;
+        volatile bool done;
     };
 
     struct GlobalState
@@ -243,8 +247,7 @@ namespace WFC
         u32* outputImageBuffer;
         Texture outputTexture;
 
-        Result lastDisplayedResult;
-        u32 lastTotalObservations ;
+        bool allDone;
     };
 
 } // namespace WFC

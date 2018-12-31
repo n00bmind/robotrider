@@ -230,6 +230,18 @@ struct Array2
         return &data[r * cols];
     }
 
+    T& operator[]( u32 i )
+    {
+        ASSERT( i < Count() );
+        return data[i];
+    }
+
+    const T& operator[]( u32 i ) const
+    {
+        ASSERT( i < Count() );
+        return data[i];
+    }
+
     // TODO Not too sure about this!
     operator bool() const
     {

@@ -295,10 +295,10 @@ DecreaseAdjacencyAndTestZAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex
 }
 
 inline bool
-GetWaveAt( const Snapshot* snapshot, u32 cellIndex, u32 patternIndex )
+GetWaveAt( const Array2<u64>& wave, u32 cellIndex, u32 patternIndex )
 {
     u32 patternSubIndex = patternIndex / 64;
-    u64 bitset = snapshot->wave.AtRowCol( cellIndex, patternSubIndex );
+    u64 bitset = wave.AtRowCol( cellIndex, patternSubIndex );
 
     u32 bitIndex = patternIndex % 64;
     u64 mask = 1ULL << bitIndex;
@@ -307,10 +307,10 @@ GetWaveAt( const Snapshot* snapshot, u32 cellIndex, u32 patternIndex )
 }
 
 inline void
-DisableWaveAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex )
+DisableWaveAt( Array2<u64>* wave, u32 cellIndex, u32 patternIndex )
 {
     u32 patternSubIndex = patternIndex / 64;
-    u64& bitset = snapshot->wave.AtRowCol( cellIndex, patternSubIndex );
+    u64& bitset = wave->AtRowCol( cellIndex, patternSubIndex );
 
     u32 bitIndex = patternIndex % 64;
     u64 mask = ~(1ULL << bitIndex);
@@ -319,9 +319,9 @@ DisableWaveAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex )
 }
 
 inline void
-ResetWaveAt( Snapshot* snapshot, u32 cellIndex, const Input& input )
+ResetWaveAt( Array2<u64>* wave, u32 cellIndex, const Input& input )
 {
-    u64* row = snapshot->wave.AtRow( cellIndex );
+    u64* row = wave->AtRow( cellIndex );
 
     u32 groupCount = input.patterns.count / 64;
     for( u32 p = 0; p < groupCount; ++p )
@@ -333,7 +333,7 @@ ResetWaveAt( Snapshot* snapshot, u32 cellIndex, const Input& input )
 }
 
 internal void
-Init( const Spec& spec, const Input& input, const v2u& pOutputChunk, State* state, MemoryArena* arena )
+Init( const Spec& spec, const Input& input, State* state, MemoryArena* arena )
 {
     TIMED_BLOCK;
 
@@ -378,7 +378,7 @@ Init( const Spec& spec, const Input& input, const v2u& pOutputChunk, State* stat
     // Set initial entropy and counters
     for( u32 i = 0; i < input.waveLength; ++i )
     {
-        ResetWaveAt( &snapshot0, i, input );
+        ResetWaveAt( &snapshot0.wave, i, input );
         snapshot0.compatiblesCount[i] = patternCount;
         snapshot0.sumFrequencies[i] = input.sumFrequencies;
         snapshot0.sumWeights[i] = input.sumWeights;
@@ -445,7 +445,7 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state, const Input& in
     bool result = true;
     Snapshot* snapshot = state->currentSnapshot;
 
-    DisableWaveAt( snapshot, cellIndex, patternIndex );
+    DisableWaveAt( &snapshot->wave, cellIndex, patternIndex );
 
     for( u32 d = 0; d < Adjacency::Count; ++d )
         SetAdjacencyAt( snapshot, cellIndex, patternIndex, d, 0 );
@@ -496,7 +496,7 @@ internal bool
 BuildDistributionAndSelectAt( u32 cellIndex, Snapshot* snapshot, State* state, u32* selection, const Input& input )
 {
     for( u32 p = 0; p < input.patterns.count; ++p )
-        snapshot->distribution[p] = (GetWaveAt( snapshot, cellIndex, p ) ? input.frequencies[p] : 0.f);
+        snapshot->distribution[p] = (GetWaveAt( snapshot->wave, cellIndex, p ) ? input.frequencies[p] : 0.f);
 
     bool result = RandomSelect( snapshot->distribution, &state->distributionTemp, selection );
     return result;
@@ -529,7 +529,7 @@ ApplyObservedPatternAt( u32 observedCellIndex, u32 observedDistributionIndex, Sn
 
     for( u32 p = 0; p < input.patterns.count; ++p )
     {
-        if( GetWaveAt( snapshot, observedCellIndex, p ) && p != observedDistributionIndex )
+        if( GetWaveAt( snapshot->wave, observedCellIndex, p ) && p != observedDistributionIndex )
         {
             compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state, input );
             if( !compatiblesRemaining )
@@ -750,6 +750,41 @@ RewindSnapshot( State* state, const Input& input )
     return result;
 }
 
+internal void
+ExtractOutputFromWave( const Array2<u64>& wave, const Input& input, u32 N, Array2<u8>* outputSamples )
+{
+    u8* out = outputSamples->data;
+    u32 width = outputSamples->cols;
+    u32 height = outputSamples->rows;
+
+    for( u32 y = 0; y < height; ++y )
+    {
+        u32 cellY = (y < height - N + 1) ? y : y - N + 1;
+        u32 dy = (y < height - N + 1) ? 0 : y + N - height;
+
+        for( u32 x = 0; x < width; ++x )
+        {
+            u32 cellX = (x < width - N + 1) ? x : x - N + 1;
+            u32 dx = (x < width - N + 1) ? 0 : x + N - width;
+
+            u32 patternIndex = U32MAX;
+            u32 cellIndex = cellY * width + cellX;
+            for( u32 p = 0; p < input.patterns.count; ++p )
+            {
+                if( GetWaveAt( wave, cellIndex, p ) )
+                {
+                    patternIndex = p;
+                    break;
+                }
+            }
+            ASSERT( patternIndex != U32MAX );
+
+            u8* patternSamples = input.patterns[patternIndex].data;
+            *out++ = patternSamples[dy * N + dx];
+        }
+    }
+}
+
 internal bool
 IsFinished( const State& state )
 {
@@ -764,7 +799,7 @@ StartWFCSync( Job* job )
     State* state = job->state = PUSH_STRUCT( &job->memory->arena, State );
 
     // TODO We need to do most (or all!) of this in advance
-    Init( spec, input, job->pOutputChunk, state, &job->memory->arena ); 
+    Init( spec, input, state, &job->memory->arena ); 
 
     while( !IsFinished( *state ) )
     {
@@ -785,6 +820,10 @@ StartWFCSync( Job* job )
         if( state->currentResult == InProgress )
             state->currentResult = Propagate( spec, input, state );
     }
+
+    ExtractOutputFromWave( state->currentSnapshot->wave, input, spec.N, &job->outputChunk->outputSamples );
+    job->outputChunk->result = state->currentResult;
+    AtomicExchange( &job->outputChunk->done, true );
 }
 
 inline Job*
@@ -848,15 +887,17 @@ TryStartJobFor( const v2u& pOutputChunk, GlobalState* globalState )
     Job* job = BeginJobWithMemory( globalState );
     if( job )
     {
+        ChunkInfo* chunk = &globalState->outputChunks.At( pOutputChunk );
+        chunk->buildJob = job;
+
         job->spec = &globalState->spec;
         job->input = &globalState->input;
-        job->pOutputChunk = pOutputChunk;
+        job->outputChunk = chunk;
 
         globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
                                   DoWFC,
                                   job );
 
-        globalState->outputChunks.At( pOutputChunk ).buildJob = job;
         result = true;
     }
 
@@ -874,6 +915,9 @@ StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena )
     result->jobMemoryChunks = Array<JobMemory>( wfcArena, maxJobCount, maxJobCount );
     result->outputChunks = Array2<ChunkInfo>( wfcArena, spec.outputChunkCount.y, spec.outputChunkCount.x );
     result->globalWFCArena = wfcArena;
+
+    for( u32 i = 0; i < result->outputChunks.Count(); ++i )
+        result->outputChunks[i].outputSamples = Array2<u8>( wfcArena, spec.outputChunkDim.y, spec.outputChunkDim.x );
 
     // Process global input data
     // NOTE This should be done either offline or on a thread
@@ -961,130 +1005,99 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
         for( u32 chunkX = 0; chunkX < globalState->outputChunks.cols; ++chunkX )
         {
             v2u pChunk = { chunkX, chunkY };
-            Job* job = globalState->outputChunks.At( pChunk ).buildJob;
-            if( !job )
-                continue;
-
+            const ChunkInfo& chunkInfo = globalState->outputChunks.At( pChunk );
             const v2u chunkCoords = Hadamard( spec.outputChunkDim, pChunk );
             u32* chunkOrig = imageBuffer + chunkCoords.y * pitch + chunkCoords.x;
             u32* out;
 
-            Snapshot* snapshot = job->state->currentSnapshot;
-#if 1
-            if( job->state->currentResult == InProgress )
+            if( chunkInfo.done )
             {
-                for( u32 y = 0; y < height; ++y )
+                bool failed = chunkInfo.result == Failed;
+                for( u32 y = 0; y < chunkInfo.outputSamples.rows; ++y )
                 {
                     out = chunkOrig + y * pitch;
-                    for( u32 x = 0; x < width; ++x )
-                    {
-                        int contributors = 0, r = 0, g = 0, b = 0;
-                        u32 color = 0;
 
+                    for( u32 x = 0; x < chunkInfo.outputSamples.cols; ++x )
+                    {
+                        u32 color = 0;
                         if( x != 0 && y != 0 )
                         {
-                            for( u32 dy = 0; dy < N; ++dy )
+                            u8 sample = chunkInfo.outputSamples[y * width + x];
+                            color = input.palette[sample];
+                        }
+
+                        if( failed )
+                        {
+                            v4 unpacked = UnpackRGBAToV401( color );
+                            unpacked = Hadamard( unpacked, { .5f, .5f, .5f, 1.f } );
+                            color = Pack01ToRGBA( unpacked );
+                        }
+
+                        *out++ = color;
+                    }
+                }
+            }
+#if 1
+            else
+            {
+                Job* job = chunkInfo.buildJob;
+                if( !job )
+                    continue;
+                Snapshot* snapshot = job->state->currentSnapshot;
+                if( job->state->currentResult == InProgress )
+                {
+                    for( u32 y = 0; y < height; ++y )
+                    {
+                        out = chunkOrig + y * pitch;
+                        for( u32 x = 0; x < width; ++x )
+                        {
+                            int contributors = 0, r = 0, g = 0, b = 0;
+                            u32 color = 0;
+
+                            if( x != 0 && y != 0 )
                             {
-                                int cellY = (int)(y - dy);
-                                // FIXME Change this to account for chunk partitioning, etc
-                                if( cellY < 0 )
-                                    cellY += height;
-
-                                for( u32 dx = 0; dx < N; ++dx )
+                                for( u32 dy = 0; dy < N; ++dy )
                                 {
-                                    int cellX = (int)(x - dx);
-                                    if( cellX < 0 )
-                                        cellX += width;
+                                    int cellY = (int)(y - dy);
+                                    // FIXME Change this to account for chunk partitioning, etc
+                                    if( cellY < 0 )
+                                        cellY += height;
 
-                                    if( OnBoundary( { cellX, cellY }, spec ) )
-                                        continue;
-
-                                    for( u32 p = 0; p < input.patterns.count; ++p )
+                                    for( u32 dx = 0; dx < N; ++dx )
                                     {
-                                        if( GetWaveAt( snapshot, cellY * width + cellX, p ) )
+                                        int cellX = (int)(x - dx);
+                                        if( cellX < 0 )
+                                            cellX += width;
+
+                                        if( OnBoundary( { cellX, cellY }, spec ) )
+                                            continue;
+
+                                        for( u32 p = 0; p < input.patterns.count; ++p )
                                         {
-                                            u32 cr, cg, cb;
-                                            u8 sample = input.patterns[p].data[dy * N + dx];
-                                            UnpackRGBA( input.palette[sample], &cr, &cg, &cb );
-                                            r += cr;
-                                            g += cg;
-                                            b += cb;
-                                            contributors++;
+                                            if( GetWaveAt( snapshot->wave, cellY * width + cellX, p ) )
+                                            {
+                                                u32 cr, cg, cb;
+                                                u8 sample = input.patterns[p].data[dy * N + dx];
+                                                UnpackRGBA( input.palette[sample], &cr, &cg, &cb );
+                                                r += cr;
+                                                g += cg;
+                                                b += cb;
+                                                contributors++;
+                                            }
                                         }
                                     }
                                 }
                             }
+
+                            if( contributors )
+                                color = PackRGBA( r / contributors, g / contributors, b / contributors, 0xFF );
+
+                            *out++ = color;
                         }
-
-                        if( contributors )
-                            color = PackRGBA( r / contributors, g / contributors, b / contributors, 0xFF );
-
-                        *out++ = color;
                     }
                 }
             }
-            else 
 #endif
-            // FIXME Copy from job to appropriate slot when done
-            if( job->state->currentResult == Done )
-            {
-                for( u32 y = 0; y < height; ++y )
-                {
-                    out = chunkOrig + y * pitch;
-
-                    u32 cellY = (y < height - N + 1) ? y : y - N + 1;
-                    u32 dy = (y < height - N + 1) ? 0 : y + N - height;
-
-                    for( u32 x = 0; x < width; ++x )
-                    {
-                        u32 cellX = (x < width - N + 1) ? x : x - N + 1;
-                        u32 dx = (x < width - N + 1) ? 0 : x + N - width;
-
-                        u32 color = 0;
-                        if( x != 0 && y != 0 )
-                        {
-                            u32 patternIndex = U32MAX;
-                            u32 cellIndex = cellY * width + cellX;
-                            for( u32 p = 0; p < input.patterns.count; ++p )
-                            {
-                                if( GetWaveAt( snapshot, cellIndex, p ) )
-                                {
-                                    patternIndex = p;
-                                    break;
-                                }
-                            }
-                            ASSERT( patternIndex != U32MAX );
-
-                            u8* patternSamples = input.patterns[patternIndex].data;
-                            u8 sample = patternSamples[dy * N + dx];
-                            color = input.palette[sample];
-                        }
-
-                        *out++ = color;
-                    }
-                }
-            }
-            else if( job->state->currentResult == Contradiction || job->state->currentResult == Failed )
-            {
-                for( u32 y = 0; y < height; ++y )
-                {
-                    out = chunkOrig + y * pitch;
-                    for( u32 x = 0; x < width; ++x )
-                    {
-                        u32 color = *out;
-                        v4 unpacked = UnpackRGBAToV401( color );
-                        unpacked = Hadamard( unpacked, { .5f, .5f, .5f, 1.f } );
-                        color = Pack01ToRGBA( unpacked );
-
-                        u32 count = snapshot->compatiblesCount[y * width + x];
-                        if( count == 0 )
-                            color = Pack01ToRGBA( 1, 0, 1, 1 );
-
-                        *out++ = color;
-                    }
-                }
-            }
-
         }
     }
 
@@ -1131,10 +1144,27 @@ CountNonZero( const Array<r32>& distribution )
     return result;
 }
 
+internal bool
+JobsInProgress( const GlobalState* globalState )
+{
+    bool result = false;
+
+    for( u32 i = 0; i < globalState->jobs.count; ++i )
+    {
+        if( globalState->jobs[i].inUse )
+        {
+            result = true;
+            break;
+        }
+    }
+
+    return result;
+}
+
 u32
 DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState* displayState,
-          const v2& displayDim,
-          const DebugState* debugState, MemoryArena* wfcDisplayArena, const TemporaryMemory& tmpMemory )
+          const v2& displayDim, const DebugState* debugState, MemoryArena* wfcDisplayArena,
+          const TemporaryMemory& tmpMemory )
 {
     u32 selectedIndex = U32MAX;
     const Spec& spec = specs[displayState->currentSpecIndex];
@@ -1186,16 +1216,18 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
     const u32 patternsCountSqrt = (u32)Round( Sqrt( (r32)patternsCount ) );
     const u32 waveLength = spec.outputChunkDim.x * spec.outputChunkDim.y;
 
-    // FIXME
-    State* state = globalState->jobs[0].state;
     ImGui::BeginChild( "child_wfc_right", ImVec2( 0, 0 ), true, 0 );
     switch( displayState->currentPage )
     {
         case TestPage::Output:
         {
-            if( state )
+            if( globalState->processedChunkCount )
             {
                 ImGui::BeginChild( "child_output_meta", ImVec2( 350, 0 ) );
+
+                // TODO Show relevant 'totals' info and have a 'selected' chunk to which following info belongs
+                const ChunkInfo& chunkInfo = globalState->outputChunks[globalState->processedChunkCount - 1];
+                State* state = chunkInfo.buildJob->state;
 
                 if( state->currentResult == Done )
                     ImGui::Text( "DONE!" );
@@ -1241,18 +1273,18 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
                                          i, CountNonZero( s.distribution ), s.lastObservationCount );
                     }
                 }
+
                 ImGui::EndChild();
                 ImGui::SameLine();
 
                 ImGui::BeginChild( "child_output_image", ImVec2( 1100, 0 ) );
                 v2u imageSize = { displayState->outputTexture.width, displayState->outputTexture.height };
 
-                if( state->currentResult != displayState->lastDisplayedResult ||
-                    state->observationCount != displayState->lastTotalObservations )
+                bool inProgress = JobsInProgress( globalState );
+                if( inProgress || !displayState->allDone )
                 {
                     // NOTE Very Broken Synchronization, but I don't really want to synchronize..
-                    displayState->lastDisplayedResult = state->currentResult;
-                    displayState->lastTotalObservations = state->observationCount;
+                    displayState->allDone = !inProgress;
 
                     if( !displayState->outputImageBuffer )
                         displayState->outputImageBuffer = PUSH_ARRAY( wfcDisplayArena, imageSize.x * imageSize.y, u32 );
@@ -1262,7 +1294,7 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
 
                 ImGui::Image( displayState->outputTexture.handle, imageSize * outputScale );
 
-                if( ImGui::IsItemClicked() )
+                if( ImGui::IsItemClicked( 2 ) )
                     selectedIndex = displayState->currentSpecIndex;
 
                 ImGui::EndChild();
@@ -1329,7 +1361,7 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
             ImGui::SameLine();
 
             ImGui::BeginChild( "child_index_offsets", ImVec2( 0, 0 ), false, 0 );
-            if( state->currentResult > NotStarted )
+            if( globalState->processedChunkCount )
             {
                 ImGui::Columns( 3, nullptr, true );
                 for( u32 j = 0; j < 3; ++j )
