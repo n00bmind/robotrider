@@ -166,9 +166,12 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
 
     WFC::UpdateWFCAsync( transientState->wfcGlobalState );
     {
-        v2 displayDim = V2( renderCommands->width * 0.9f, renderCommands->height * 0.9f );
+        v2 renderDim = V2( renderCommands->width, renderCommands->height );
+        v2 displayDim = renderDim * 0.9f;
+        v2 pDisplay = (renderDim - displayDim) / 2.f;
+
         u32 selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, transientState->wfcGlobalState,
-                                               &transientState->wfcDisplayState, displayDim, debugState,
+                                               &transientState->wfcDisplayState, pDisplay, displayDim, debugState,
                                                &transientState->wfcDisplayArena, frameMemory );
 
         if( selectedSpecIndex != U32MAX )

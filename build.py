@@ -23,7 +23,7 @@
 
 #!/usr/bin/env python2
 
-import os, sys, subprocess, atexit, random
+import os, sys, subprocess, atexit, random, argparse
 from collections import namedtuple
 
 
@@ -107,7 +107,13 @@ def end_time():
 if __name__ == '__main__':
     srcdir = 'src'
     bindir = 'bin'
-    verbose = False
+
+    parser = argparse.ArgumentParser()
+    config_group = parser.add_mutually_exclusive_group()
+    config_group.add_argument('-d', '--debug', help='Create Debug build', action='store_true')
+    config_group.add_argument('-r', '--release', help='Create Release build', action='store_true')
+    parser.add_argument('-v', '--verbose', help='Increase verbosity', action='store_true')
+    in_args = parser.parse_args()
 
     atexit.register(end_time)
     begin_time()
@@ -128,65 +134,66 @@ if __name__ == '__main__':
                     # print('Couldn\'t remove {} (probably in use)'.format(pdbpath))
                     pass
 
-    # TODO Process comand line
-    # verbose = True
-
     # TODO Determine platform/config
     platform = default_platform
     config = default_config
+    if in_args.debug:
+        config = config_win_debug
+    elif in_args.release:
+        config = config_win_release
 
     if platform.toolset == 'CL':
-        # TODO Do the renaming of pdbs etc. so that reloading can work inside VS
+        # TODO Do the renaming of pdbs etc. so that reloading can work inside VS (?)
         
         # Build game library
-        args = [platform.compiler]
-        args.extend(platform.common_compiler_flags)
-        args.extend(config.compiler_flags)
-        args.append(os.path.join(srcpath, 'robotrider.cpp'))
-        args.append('-LD')
-        args.append('/link')
-        args.extend(platform.common_linker_flags)
-        args.extend(config.linker_flags)
-        # FIXME Generating a different PDB each time breaks debugging in VS when hot reloading
-        args.append('/PDB:robotrider_{}.pdb'.format(random.randint(0, 100000)))
+        out_args = [platform.compiler]
+        out_args.extend(platform.common_compiler_flags)
+        out_args.extend(config.compiler_flags)
+        out_args.append(os.path.join(srcpath, 'robotrider.cpp'))
+        out_args.append('-LD')
+        out_args.append('/link')
+        out_args.extend(platform.common_linker_flags)
+        out_args.extend(config.linker_flags)
+        # FIXME Generating a different PDB each time breaks debugging in VS when hot reloading (?)
+        out_args.append('/PDB:robotrider_{}.pdb'.format(random.randint(0, 100000)))
 
-        if verbose:
+        if in_args.verbose:
             print('Building game library...')
-            print(args)
-        ret = subprocess.call(args, cwd=binpath)
+            print(out_args)
+        ret = subprocess.call(out_args, cwd=binpath)
 
         # Build platform executable
-        args = [platform.compiler]
-        args.extend(platform.common_compiler_flags)
-        args.extend(config.compiler_flags)
-        args.append(os.path.join(srcpath, 'win32_platform.cpp'))
-        args.append('-Felauncher.exe')
-        args.append('/link')
-        args.extend(platform.common_linker_flags)
-        args.extend(config.linker_flags)
-        args.append('-subsystem:console,5.2')
-        args.extend(platform.libs)
+        out_args = [platform.compiler]
+        out_args.extend(platform.common_compiler_flags)
+        out_args.extend(config.compiler_flags)
+        out_args.append(os.path.join(srcpath, 'win32_platform.cpp'))
+        out_args.append('-Felauncher.exe')
+        out_args.append('/link')
+        out_args.extend(platform.common_linker_flags)
+        out_args.extend(config.linker_flags)
+        out_args.append('-subsystem:console,5.2')
+        out_args.extend(platform.libs)
 
-        if verbose:
+        if in_args.verbose:
             print('Building platform executable...')
-            print(args)
-        ret |= subprocess.call(args, cwd=binpath)
+            print(out_args)
+        ret |= subprocess.call(out_args, cwd=binpath)
 
         # Build test suite
-        args = [platform.compiler]
-        args.extend(platform.common_compiler_flags)
-        args.extend(config.compiler_flags)
-        args.append(os.path.join(srcpath, 'testsuite.cpp'))
-        args.append('/link')
-        args.extend(platform.common_linker_flags)
-        args.extend(config.linker_flags)
-        args.append('-subsystem:console,5.2')
-        # args.extend(platform.libs)
+        out_args = [platform.compiler]
+        out_args.extend(platform.common_compiler_flags)
+        out_args.extend(config.compiler_flags)
+        out_args.append(os.path.join(srcpath, 'testsuite.cpp'))
+        out_args.append('/link')
+        out_args.extend(platform.common_linker_flags)
+        out_args.extend(config.linker_flags)
+        out_args.append('-subsystem:console,5.2')
+        # out_args.extend(platform.libs)
 
-        if verbose:
+        if in_args.verbose:
             print('Building platform executable...')
-            print(args)
-        ret |= subprocess.call(args, cwd=binpath)
+            print(out_args)
+        ret |= subprocess.call(out_args, cwd=binpath)
 
     else:
         sys.exit('Unsupported toolset')

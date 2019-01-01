@@ -848,7 +848,7 @@ Win32ProcessXInputStickValue( SHORT value, SHORT deadZoneThreshold )
 }
 
 internal void
-Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
+Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput, GameControllerInput* keyMouseController )
 {
     // TODO Don't call GetState on disconnected controllers cause that has a big impact
     // https://hero.handmade.network/forums/code-discussion/t/847-xinputgetstate
@@ -866,6 +866,7 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
 
         GameControllerInput *oldController = GetController( oldInput, index );
         GameControllerInput *newController = GetController( newInput, index );
+        *newController = {};
 
         XINPUT_STATE controllerState;
         // FIXME This call apparently stalls for a few hundred thousand cycles when the controller is not present
@@ -969,8 +970,11 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput )
         }
         else
         {
-            // Controller not available
-            newController->isConnected = false;
+            if( controllerIndex == 0 && keyMouseController )
+                *newController = *keyMouseController;
+            else
+                // Controller not available
+                newController->isConnected = false;
         }
 
         ++controllerIndex;
@@ -1192,12 +1196,39 @@ Win32ToggleGlobalDebugging( GameMemory *gameMemory, HWND window )
 }
 #endif
 
+internal WPARAM
+Win32MapLeftRightKeys( WPARAM wParam, LPARAM lParam )
+{
+    WPARAM new_vk = wParam;
+    UINT scancode = (lParam & 0x00ff0000) >> 16;
+    int extended  = (lParam & 0x01000000) != 0;
+
+    switch (wParam)
+    {
+    case VK_SHIFT:
+        new_vk = MapVirtualKey(scancode, MAPVK_VSC_TO_VK_EX);
+        break;
+    case VK_CONTROL:
+        new_vk = extended ? VK_RCONTROL : VK_LCONTROL;
+        break;
+    case VK_MENU:
+        new_vk = extended ? VK_RMENU : VK_LMENU;
+        break;
+    default:
+        // not a key we map from generic to left/right specialized
+        //  just return it.
+        new_vk = wParam;
+        break;    
+    }
+
+    return new_vk;
+}
+
 internal void
 Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                              GameInput *input, GameControllerInput *keyMouseController )
 {
     MSG message;
-    bool altKeyDown, ctrlKeyDown, shiftKeyDown;
     auto& imGuiIO = ImGui::GetIO();
 
     while( PeekMessage( &message, 0, 0, 0, PM_REMOVE ) )
@@ -1215,13 +1246,26 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 bool wasDown = ((message.lParam & (1 << 30)) != 0);
                 bool isDown =  ((message.lParam & (1 << 31)) == 0);
 
+                UINT scancode = (message.lParam & 0x00ff0000) >> 16;
+                bool extended  = (message.lParam & 0x01000000) != 0;
+
+                message.wParam = Win32MapLeftRightKeys( message.wParam, message.lParam );
                 u32 vkCode = ToU32Safe( message.wParam );
                 if( vkCode < 256 )
                     imGuiIO.KeysDown[vkCode] = isDown ? 1 : 0;
 
-                altKeyDown = (GetKeyState( VK_MENU ) & 0x8000) != 0;
-                ctrlKeyDown = (GetKeyState( VK_CONTROL ) & 0x8000) != 0;
-                shiftKeyDown = (GetKeyState( VK_SHIFT ) & 0x8000) != 0;
+                bool lShiftDown = (GetAsyncKeyState( VK_LSHIFT ) & 0x8000) != 0;
+                bool rShiftDown = (GetAsyncKeyState( VK_RSHIFT ) & 0x8000) != 0;
+                bool rControlDown = (GetAsyncKeyState( VK_RCONTROL ) & 0x8000) != 0;
+                bool lAltDown = (GetAsyncKeyState( VK_LMENU ) & 0x8000) != 0;
+                bool rAltDown = (GetAsyncKeyState( VK_RMENU ) & 0x8000) != 0;
+                // HACK L-CTRL & R-ALT are triggered together!
+                bool lControlDown = (GetAsyncKeyState( VK_LCONTROL ) & 0x8000) != 0
+                    && !rAltDown;
+
+                bool shiftKeyDown = lShiftDown || rShiftDown;
+                bool ctrlKeyDown = lControlDown || rControlDown;
+                bool altKeyDown = lAltDown || rAltDown;
 
                 // Set controller button states (only for up/down transitions)
                 // (don't ever send keys to game if ImGui is handling them)
@@ -2163,7 +2207,7 @@ main( int argC, char **argV )
                         // Process input
                         GameControllerInput *newKeyMouseController = Win32ResetKeyMouseController( oldInput, newInput );
                         Win32ProcessPendingMessages( &globalPlatformState, &gameMemory, newInput, newKeyMouseController );
-                        Win32ProcessXInputControllers( oldInput, newInput );
+                        Win32ProcessXInputControllers( oldInput, newInput, newKeyMouseController );
 
 #if !RELEASE
                         DEBUGframeInfo.inputProcessedSeconds = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );

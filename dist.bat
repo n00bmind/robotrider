@@ -1,8 +1,8 @@
 @echo off
-call build
+build.py --debug -v
 cp bin\launcher.exe dist\launcher.debug.exe
 cp bin\robotrider.dll dist\robotrider.debug.dll
-call build release
+build.py --release -v
 cp bin\launcher.exe dist\launcher.exe
 cp bin\robotrider.dll dist\robotrider.dll
 

@@ -404,7 +404,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         Player *player = world->player;
         v3 pPlayer = world->pPlayer;
 
-        r32 translationSpeed = input1->leftShoulder.endedDown ? 30.f : 15.f;
+        r32 translationSpeed = input1->leftShoulder.endedDown ? 50.f : 25.f;
         v3 vPlayerDelta = {};
 
         if( input1->leftStick.avgX != 0 )
@@ -416,7 +416,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             vPlayerDelta.y += input1->leftStick.avgY * translationSpeed * dT;
         }
 
-        r32 rotationSpeed = 1.f;
+        r32 rotationSpeed = 0.05f;
         if( input1->rightStick.avgX != 0 )
         {
             world->playerYaw += -input1->rightStick.avgX * rotationSpeed * dT; 
