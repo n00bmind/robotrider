@@ -791,7 +791,7 @@ IsFinished( const State& state )
     return state.currentResult >= Cancelled;
 }
 
-void
+Result
 StartWFCSync( Job* job )
 {
     const Spec& spec = *job->spec;
@@ -822,8 +822,7 @@ StartWFCSync( Job* job )
     }
 
     ExtractOutputFromWave( state->currentSnapshot->wave, input, spec.N, &job->outputChunk->outputSamples );
-    job->outputChunk->result = state->currentResult;
-    AtomicExchange( &job->outputChunk->done, true );
+    return state->currentResult;
 }
 
 inline Job*
@@ -864,8 +863,9 @@ BeginJobWithMemory( GlobalState* globalState )
 }
 
 inline void
-EndJobWithMemory( Job* job )
+EndJobWithMemory( Job* job, Result result )
 {
+    AtomicExchange( (volatile u32*)&job->outputChunk->result, result );
     AtomicExchange( &job->inUse, false );
     AtomicExchange( &job->memory->inUse, false );
 }
@@ -874,9 +874,9 @@ internal
 PLATFORM_JOBQUEUE_CALLBACK(DoWFC)
 {
     Job* job = (Job*)userData;
-    StartWFCSync( job );
+    Result result = StartWFCSync( job );
 
-    EndJobWithMemory( job );
+    EndJobWithMemory( job, result );
 }
 
 internal bool
@@ -889,6 +889,7 @@ TryStartJobFor( const v2u& pOutputChunk, GlobalState* globalState )
     {
         ChunkInfo* chunk = &globalState->outputChunks.At( pOutputChunk );
         chunk->buildJob = job;
+        AtomicExchange( (volatile u32*)&chunk->result, InProgress );
 
         job->spec = &globalState->spec;
         job->input = &globalState->input;
@@ -956,36 +957,95 @@ StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena )
         memory.inUse = false;
     }
 
-    // Start first job
-    if( TryStartJobFor( pStartChunk, result ) )
-        ++result->processedChunkCount;
-    else
-        INVALID_CODE_PATH;
-
     return result;
 }
 
-Job*
+void
 UpdateWFCAsync( GlobalState* globalState )
 {
-    Job* result = nullptr;
-    if( globalState->jobs )
+    if( globalState->cancellationRequested )
     {
-        while( globalState->processedChunkCount < globalState->outputChunks.Count() )
+        if( !globalState->done )
         {
-            u32 nextIndex = globalState->processedChunkCount;
-            u32 chunkCountX = globalState->spec.outputChunkCount.x;
-            v2u pChunk = { nextIndex % chunkCountX, nextIndex / chunkCountX };
-
-            if( TryStartJobFor( pChunk, globalState ) )
-                ++globalState->processedChunkCount;
-            else
-                break;
+            u32 cancelledCount = 0;
+            for( u32 i = 0; i < globalState->jobs.count; ++i )
+            {
+                Job* job = &globalState->jobs[i];
+                AtomicExchange( &job->cancellationRequested, true );
+                if( !AtomicLoad( &job->inUse ) )
+                    ++cancelledCount;
+            }
+            if( cancelledCount == globalState->jobs.count )
+                globalState->done = true;
         }
-        result = &globalState->jobs[0];
     }
+    else
+    {
+        if( globalState->processedChunkCount < globalState->outputChunks.Count() )
+        {
+            i32 width = (i32)globalState->outputChunks.cols;
+            i32 height = (i32)globalState->outputChunks.rows;
+            // TODO 
+            i32 depth = (i32)I32MAX;
 
-    return result;
+            for( i32 y = 0; y < height; ++y )
+            {
+                for( i32 x = 0; x < width; ++x )
+                {
+                    ChunkInfo* chunk = &globalState->outputChunks.AtRowCol( y, x );
+
+                    Result currentResult = (Result)AtomicLoad( (volatile u32*)&chunk->result );
+                    switch( currentResult )
+                    {
+                        case NotStarted:
+                        {
+                            v3i pChunk = { x, y, 0 };
+                            u32 validCount = 0;
+                            u32 adjacentCount = Adjacency::Count;
+
+                            // Start processing if no adjacent is currently in progress
+                            for( u32 i = 0; i < Adjacency::Count; ++i )
+                            {
+                                v3i pAdjacent = pChunk + adjacencyMeta[i].cellDelta;
+
+                                if( pAdjacent.x < 0 || pAdjacent.y < 0 || pAdjacent.z < 0 ||
+                                    pAdjacent.x >= width || pAdjacent.y >= height || pAdjacent.z >= depth )
+                                {
+                                    adjacentCount--;
+                                    continue;
+                                }
+
+                                // For now just check if in progress
+                                ChunkInfo* adjacentChunk = &globalState->outputChunks.At( V2u( pAdjacent.xy ) );
+                                Result adjacentResult = (Result)AtomicLoad( (volatile u32*)&adjacentChunk->result );
+                                if( adjacentResult == NotStarted || adjacentResult == Done )
+                                    validCount++;
+                            }
+
+                            if( validCount == adjacentCount )
+                            {
+                                TryStartJobFor( V2u( pChunk.xy ), globalState );
+                            }
+                        } break;
+
+                        case Failed:
+                        {
+                            AtomicExchange( (volatile u32*)&chunk->result, NotStarted );
+                        } break;
+
+                        case Done:
+                        {
+                            if( !chunk->done )
+                            {
+                                ++globalState->processedChunkCount;
+                                chunk->done = true;
+                            }
+                        } break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 
@@ -1041,7 +1101,7 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
             else
             {
                 Job* job = chunkInfo.buildJob;
-                if( !job )
+                if( !job || !job->state )
                     continue;
                 Snapshot* snapshot = job->state->currentSnapshot;
                 if( job->state->currentResult == InProgress )
@@ -1059,7 +1119,6 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
                                 for( u32 dy = 0; dy < N; ++dy )
                                 {
                                     int cellY = (int)(y - dy);
-                                    // FIXME Change this to account for chunk partitioning, etc
                                     if( cellY < 0 )
                                         cellY += height;
 
@@ -1227,50 +1286,54 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
 
                 // TODO Show relevant 'totals' info and have a 'selected' chunk to which following info belongs
                 const ChunkInfo& chunkInfo = globalState->outputChunks[globalState->processedChunkCount - 1];
-                State* state = chunkInfo.buildJob->state;
 
-                if( state->currentResult == Done )
-                    ImGui::Text( "DONE!" );
-                else if( state->currentResult == Failed )
-                    ImGui::Text( "FAILED!" );
-                else
-                    ImGui::Text( "Remaining: %d (%d)", waveLength - state->observationCount, state->observationCount );
-                ImGui::Spacing();
-                ImGui::Spacing();
-
-                ImGui::Text( "Name: %s", spec.name );
-                ImGui::Text( "Num. patterns: %d", patternsCount );
-                ImGui::Spacing();
-                ImGui::Spacing();
-
-                if( state->currentSnapshot )
+                if( chunkInfo.buildJob && chunkInfo.buildJob->state )
                 {
-                    ImGui::Text( "Wave size: %zu", state->currentSnapshot->wave.Size() );
-                    ImGui::Text( "Adjacency size: %zu", state->currentSnapshot->adjacencyCounters.Size() );
-                }
-                if( state->arena )
-                    ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
-                ImGui::Spacing();
-                ImGui::Spacing();
+                    State* state = chunkInfo.buildJob->state;
 
-                if( state->snapshotStack )
-                {
-                    ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.count, state->snapshotStack.maxCount );
-                    ImGui::Text( "Backtracked cells cache: %d", state->backtrackedCellIndices.Count() );
-                    ImGui::Text( "Total contradictions: %d", state->contradictionCount );
+                    if( state->currentResult == Done )
+                        ImGui::Text( "DONE!" );
+                    else if( state->currentResult == Failed )
+                        ImGui::Text( "FAILED!" );
+                    else
+                        ImGui::Text( "Remaining: %d (%d)", waveLength - state->observationCount, state->observationCount );
                     ImGui::Spacing();
                     ImGui::Spacing();
 
-                    const u32 maxLines = 50;
-                    //r32 step = (r32)maxLines / state->snapshotStack.buffer.maxCount;
-                    for( u32 i = 0; i < state->snapshotStack.count; ++i )
+                    ImGui::Text( "Name: %s", spec.name );
+                    ImGui::Text( "Num. patterns: %d", patternsCount );
+                    ImGui::Spacing();
+                    ImGui::Spacing();
+
+                    if( state->currentSnapshot )
                     {
-                        const Snapshot& s = state->snapshotStack[i];
-                        if( &s == state->currentSnapshot )
-                            ImGui::Text( "snapshot[%d] : current", i );
-                        else
-                            ImGui::Text( "snapshot[%d] : n %d, observations %d",
-                                         i, CountNonZero( s.distribution ), s.lastObservationCount );
+                        ImGui::Text( "Wave size: %zu", state->currentSnapshot->wave.Size() );
+                        ImGui::Text( "Adjacency size: %zu", state->currentSnapshot->adjacencyCounters.Size() );
+                    }
+                    if( state->arena )
+                        ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
+                    ImGui::Spacing();
+                    ImGui::Spacing();
+
+                    if( state->snapshotStack )
+                    {
+                        ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.count, state->snapshotStack.maxCount );
+                        ImGui::Text( "Backtracked cells cache: %d", state->backtrackedCellIndices.Count() );
+                        ImGui::Text( "Total contradictions: %d", state->contradictionCount );
+                        ImGui::Spacing();
+                        ImGui::Spacing();
+
+                        const u32 maxLines = 50;
+                        //r32 step = (r32)maxLines / state->snapshotStack.buffer.maxCount;
+                        for( u32 i = 0; i < state->snapshotStack.count; ++i )
+                        {
+                            const Snapshot& s = state->snapshotStack[i];
+                            if( &s == state->currentSnapshot )
+                                ImGui::Text( "snapshot[%d] : current", i );
+                            else
+                                ImGui::Text( "snapshot[%d] : n %d, observations %d",
+                                             i, CountNonZero( s.distribution ), s.lastObservationCount );
+                        }
                     }
                 }
 

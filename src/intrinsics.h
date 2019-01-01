@@ -259,7 +259,7 @@ NextPowerOf2( u32 value )
 }
 
 inline u32
-AtomicCompareExchangeU32( volatile u32* value, u32 newValue, u32 expectedValue )
+AtomicCompareExchange( volatile u32* value, u32 newValue, u32 expectedValue )
 {
     u32 previousValue = 0;
 #if _MSC_VER
@@ -276,7 +276,7 @@ AtomicCompareExchangeU32( volatile u32* value, u32 newValue, u32 expectedValue )
 }
 
 inline u32
-AtomicExchangeU32( volatile u32* value, u32 newValue )
+AtomicExchange( volatile u32* value, u32 newValue )
 {
     u32 previousValue = 0;
 #if _MSC_VER
@@ -289,7 +289,7 @@ AtomicExchangeU32( volatile u32* value, u32 newValue )
 }
 
 inline u64
-AtomicExchangeU64( volatile u64* value, u64 newValue )
+AtomicExchange( volatile u64* value, u64 newValue )
 {
     u64 previousValue = 0;
 #if _MSC_VER
@@ -315,6 +315,19 @@ AtomicExchange( volatile bool* value, bool newValue )
     return previousValue;
 }
 
+inline u32
+AtomicLoad( volatile u32* value )
+{
+    u32 result = 0;
+#if _MSC_VER
+    result = _InterlockedOr( (volatile long*)value, 0 );
+#else
+    result = __atomic_load_n( value, __ATOMIC_SEQ_CST );
+#endif
+
+    return result;
+}
+
 inline bool
 AtomicLoad( volatile bool* value )
 {
@@ -330,7 +343,7 @@ AtomicLoad( volatile bool* value )
 }
 
 inline u32
-AtomicAddU32( volatile u32* value, u32 addend )
+AtomicAdd( volatile u32* value, u32 addend )
 {
     u32 previousValue = 0;
 #if _MSC_VER
@@ -343,7 +356,7 @@ AtomicAddU32( volatile u32* value, u32 addend )
 }
 
 inline u64
-AtomicAddU64( volatile u64* value, u64 addend )
+AtomicAdd( volatile u64* value, u64 addend )
 {
     u64 previousValue = 0;
 #if _MSC_VER

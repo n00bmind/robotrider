@@ -1769,15 +1769,13 @@ Win32DoNextQueuedJob( PlatformJobQueue* queue, u32 workerThreadIndex )
 
     if( observedValue != queue->nextJobToWrite )
     {
-        u32 index = AtomicCompareExchangeU32( &queue->nextJobToRead,
-                                              desiredValue,
-                                              observedValue );
+        u32 index = AtomicCompareExchange( &queue->nextJobToRead, desiredValue, observedValue );
         if( index == observedValue )
         {
             PlatformJobQueueJob job = queue->jobs[index];
             job.callback( job.userData, workerThreadIndex );
             
-            AtomicAddU32( &queue->completionCount, 1 );
+            AtomicAdd( &queue->completionCount, 1 );
         }
     }
     else

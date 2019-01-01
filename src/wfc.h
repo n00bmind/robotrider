@@ -8,7 +8,7 @@
 // x Add a maximum snapshot stack size and tweak the snapshot sampling curve so it's easier to get to early snapshots
 // x Make the snapshot stack non-circular and make sure we're always backtracking from the correct snapshot
 // x Pack wave data in bits similar to the adjacency counters to keep lowering memory consumption (check sizes!)
-// - Do tiled multithreading
+// x Do tiled multithreading
 // - 3D ffs!!
 //
 
@@ -118,7 +118,7 @@ namespace WFC
         return result;
     }
 
-    enum Result
+    enum Result : u32
     {
         NotStarted = 0,
         InProgress,
@@ -213,8 +213,8 @@ namespace WFC
     {
         Job* buildJob;          // Only for visualization
         Array2<u8> outputSamples;
-        Result result;
-        volatile bool done;
+        volatile Result result;
+        bool done;
     };
 
     struct GlobalState
@@ -228,6 +228,8 @@ namespace WFC
 
         Input input;
         u32 processedChunkCount;
+        bool cancellationRequested;
+        bool done;
     };
 
     enum class TestPage

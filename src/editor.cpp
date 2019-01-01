@@ -160,11 +160,11 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
         // Ignore certain attributes
         spec.outputChunkDim = defaultSpec.outputChunkDim;
         spec.periodic = defaultSpec.periodic;
+
         transientState->wfcGlobalState = WFC::StartWFCAsync( spec, { 0, 0 }, &transientState->wfcArena );
     }
 
-    WFC::Job* displayedJob = WFC::UpdateWFCAsync( transientState->wfcGlobalState ); // transientState->wfcDisplayState.displayedJob;
-    if( displayedJob )
+    WFC::UpdateWFCAsync( transientState->wfcGlobalState );
     {
         v2 displayDim = V2( renderCommands->width * 0.9f, renderCommands->height * 0.9f );
         u32 selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, transientState->wfcGlobalState,
@@ -174,22 +174,18 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
         if( selectedSpecIndex != U32MAX )
         {
             transientState->selectedSpecIndex = selectedSpecIndex;
-            displayedJob->cancellationRequested = true;
+            transientState->wfcGlobalState->cancellationRequested = true;
         }
 
-        if( displayedJob->cancellationRequested )
+        // Wait until cancelled or done
+        if( transientState->wfcGlobalState->cancellationRequested &&
+            transientState->wfcGlobalState->done )
         {
-            ASSERT( transientState->selectedSpecIndex != U32MAX );
-
-            // Simply wait until cancelled or done
-            if( displayedJob->state->currentResult >= WFC::Result::Cancelled )
-            {
-                ClearArena( &transientState->wfcArena, true );
-                ClearArena( &transientState->wfcDisplayArena, true );
-                transientState->wfcDisplayState = {};
-                transientState->wfcDisplayState.currentSpecIndex = transientState->selectedSpecIndex;
-                transientState->wfcGlobalState = nullptr;
-            }
+            ClearArena( &transientState->wfcArena, true );
+            ClearArena( &transientState->wfcDisplayArena, true );
+            transientState->wfcDisplayState = {};
+            transientState->wfcDisplayState.currentSpecIndex = transientState->selectedSpecIndex;
+            transientState->wfcGlobalState = nullptr;
         }
     }
 

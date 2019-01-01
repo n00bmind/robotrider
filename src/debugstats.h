@@ -56,7 +56,7 @@ struct DebugCounterLog
 inline void
 UnpackAndResetFrameCounter( DebugCycleCounter* c, DebugCounterLog* dest, u32 snapshotIndex )
 {
-    u64 result = AtomicExchangeU64( &c->frameHitCount24CycleCount40, 0 );
+    u64 result = AtomicExchange( &c->frameHitCount24CycleCount40, 0 );
 
     u32 frameHitCount = (u32)(result >> 40);
     u64 frameCycleCount = (result & 0xFFFFFFFFFF);
@@ -69,8 +69,8 @@ UnpackAndResetFrameCounter( DebugCycleCounter* c, DebugCounterLog* dest, u32 sna
     }
     dest->snapshots[snapshotIndex].hitCount = frameHitCount;
     dest->snapshots[snapshotIndex].cycleCount = frameCycleCount;
-    AtomicAddU32( &dest->totalHitCount, frameHitCount );
-    AtomicAddU64( &dest->totalCycleCount, frameCycleCount );
+    AtomicAdd( &dest->totalHitCount, frameHitCount );
+    AtomicAdd( &dest->totalCycleCount, frameCycleCount );
 }
 
 
@@ -111,7 +111,7 @@ struct DebugTimedBlock
         u64 cycleCount = __rdtsc() - startCycleCount;
 
         u64 frameDelta = ((u64)1 << 40) | (cycleCount & 0xFFFFFFFFFF);
-        AtomicAddU64( &counter.frameHitCount24CycleCount40, frameDelta );
+        AtomicAdd( &counter.frameHitCount24CycleCount40, frameDelta );
     }
 };
 
