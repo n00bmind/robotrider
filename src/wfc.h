@@ -8,7 +8,7 @@
 // x Add a maximum snapshot stack size and tweak the snapshot sampling curve so it's easier to get to early snapshots
 // x Make the snapshot stack non-circular and make sure we're always backtracking from the correct snapshot
 // x Pack wave data in bits similar to the adjacency counters to keep lowering memory consumption (check sizes!)
-// x Do tiled multithreading
+// - Do tiled multithreading
 // - 3D ffs!!
 //
 
@@ -68,6 +68,7 @@ namespace WFC
         Count
     };
 
+    // (still 4 bits free in each u64)
     const u32 BitsPerAxis = 10;
     const u32 MaxAdjacencyCount = 1 << BitsPerAxis;
 
@@ -79,7 +80,7 @@ namespace WFC
         u64 counterExp;
         u64 counterMask;
     };
-    const AdjacencyMeta adjacencyMeta[] =
+    const AdjacencyMeta AdjacencyMeta[] =
     {
         { Left,     { -1,  0,  0 }, Right,  (u64)Left * BitsPerAxis,     (u64(MaxAdjacencyCount - 1)) << (Left * BitsPerAxis) },
         { Bottom,   {  0,  1,  0 }, Top,    (u64)Bottom * BitsPerAxis,   (u64(MaxAdjacencyCount - 1)) << (Bottom * BitsPerAxis) },
@@ -152,8 +153,7 @@ namespace WFC
     struct Snapshot
     {
         Array2<u64> wave;
-        // How many patterns are still compatible (with every pattern at every cell) in each direction
-        // (still 4 bits free here)
+        // How many patterns are still compatible in each adjacent direction (for every pattern at every cell)
         Array2<u64> adjacencyCounters;                  // compatible
         // NOTE This could be extracted from the wave (although slower)
         Array<u32> compatiblesCount;                    // sumsOfOnes

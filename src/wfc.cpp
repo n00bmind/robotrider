@@ -231,7 +231,7 @@ BuildPatternsIndex( const u32 N, Input* input, MemoryArena* arena )
             for( u32 q = 0; q < patternCount; ++q )
             {
                 u8* qData = input->patterns[q].data;
-                matches.Push( Matches( pData, adjacencyMeta[d].cellDelta.xy, qData, N ) );
+                matches.Push( Matches( pData, AdjacencyMeta[d].cellDelta.xy, qData, N ) );
             }
             entries.Push( { matches } );
         }
@@ -264,12 +264,12 @@ CopySnapshot( const Snapshot* source, Snapshot* target )
     source->distribution.CopyTo( &target->distribution );
 }
 
-internal void
-SetAdjacencyAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirIndex, u32 adjacencyCount )
+inline void
+SetAdjacencyAt( u32 cellIndex, u32 patternIndex, u32 dirIndex, Snapshot* snapshot, u32 adjacencyCount )
 {
     u64 exp = dirIndex * BitsPerAxis;
     u64 value = (u64)adjacencyCount << exp;
-    u64 mask = adjacencyMeta[dirIndex].counterMask;
+    u64 mask = AdjacencyMeta[dirIndex].counterMask;
 
     u64& counter = snapshot->adjacencyCounters.AtRowCol( cellIndex, patternIndex );
 
@@ -277,13 +277,13 @@ SetAdjacencyAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirInde
 }
 
 inline bool
-DecreaseAdjacencyAndTestZAt( Snapshot* snapshot, u32 cellIndex, u32 patternIndex, u32 dirIndex )
+DecreaseAdjacencyAndTestZeroAt( u32 cellIndex, u32 patternIndex, u32 dirIndex, Snapshot* snapshot )
 {
     TIMED_BLOCK;
 
     u64 exp = dirIndex * BitsPerAxis;
     u64 one = 1ULL << exp;
-    u64 mask = adjacencyMeta[dirIndex].counterMask;
+    u64 mask = AdjacencyMeta[dirIndex].counterMask;
 
     u64& counter = snapshot->adjacencyCounters.AtRowCol( cellIndex, patternIndex );
 
@@ -388,15 +388,16 @@ Init( const Spec& spec, const Input& input, State* state, MemoryArena* arena )
         {
             for( u32 d = 0; d < Adjacency::Count; ++d )
             {
-                u32 oppositeIndex = adjacencyMeta[d].oppositeIndex;
-                const IndexEntry& entry = input.patternsIndex[oppositeIndex].entries[p];
+                // Get the list of patterns that match p in the adjacent direction d
+                const Array<bool>& matches = input.patternsIndex[d].entries[p].matches;
 
-                u32 matches = 0;
-                for( u32 m = 0; m < entry.matches.count; ++m )
-                    if( entry.matches[m] )
-                        matches++;
+                u32 matchCount = 0;
+                for( u32 m = 0; m < matches.count; ++m )
+                    if( matches[m] )
+                        matchCount++;
 
-                SetAdjacencyAt( &snapshot0, i, p, d, matches );
+                // Set how many matches we initially have in that direction
+                SetAdjacencyAt( i, p, d, &snapshot0, matchCount );
             }
         }
     }
@@ -446,9 +447,7 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state, const Input& in
     Snapshot* snapshot = state->currentSnapshot;
 
     DisableWaveAt( &snapshot->wave, cellIndex, patternIndex );
-
-    for( u32 d = 0; d < Adjacency::Count; ++d )
-        SetAdjacencyAt( snapshot, cellIndex, patternIndex, d, 0 );
+    snapshot->adjacencyCounters.AtRowCol( cellIndex, patternIndex ) = 0;
 
     snapshot->compatiblesCount[cellIndex]--;
     if( snapshot->compatiblesCount[cellIndex] == 0 )
@@ -458,9 +457,7 @@ BanPatternAtCell( u32 cellIndex, u32 patternIndex, State* state, const Input& in
     u32 i = cellIndex;
     snapshot->entropies[i] += snapshot->sumWeights[i] / snapshot->sumFrequencies[i] - Log( snapshot->sumFrequencies[i] );
 
-    // TODO This is now stored in 'frequencies'
-    const u32* frequency = input.patternsHash.Find( input.patterns[patternIndex] );
-    snapshot->sumFrequencies[i] -= *frequency;
+    snapshot->sumFrequencies[i] -= input.frequencies[patternIndex];
     snapshot->sumWeights[i] -= input.weights[patternIndex];
 
     snapshot->entropies[i] -= snapshot->sumWeights[i] / snapshot->sumFrequencies[i] - Log( snapshot->sumFrequencies[i] );
@@ -652,7 +649,7 @@ Propagate( const Spec& spec, const Input& input, State* state )
 
         for( u32 d = 0; d < Adjacency::Count; ++d )
         {
-            v2i pAdjacent = pCell + adjacencyMeta[d].cellDelta.xy;
+            v2i pAdjacent = pCell + AdjacencyMeta[d].cellDelta.xy;
 
             if( OnBoundary( pAdjacent, spec ) )
                 continue;
@@ -666,21 +663,27 @@ Propagate( const Spec& spec, const Input& input, State* state )
             else if( (u32)pAdjacent.y >= height )
                 pAdjacent.y -= height;
 
-            u32 adjacentIndex = IndexFromPosition( V2u( pAdjacent ), width );
-            const IndexEntry& bannedEntry = input.patternsIndex[d].entries[ban.patternIndex];
-
-            for( u32 p = 0; p < patternCount; ++p )
+            //PropagateTo( pAdjacent, d, ban.patternIndex );
             {
-                if( bannedEntry.matches[p] )
+                u32 adjacentIndex = IndexFromPosition( V2u( pAdjacent ), width );
+                u32 oppositeIndex = AdjacencyMeta[d].oppositeIndex;
+                // Get the list of patterns that match the banned pattern in each adjacent direction d
+                const Array<bool>& matches = input.patternsIndex[d].entries[ban.patternIndex].matches;
+
+                for( u32 p = 0; p < patternCount; ++p )
                 {
-                    bool isZero = DecreaseAdjacencyAndTestZAt( state->currentSnapshot, adjacentIndex, p, d );
-                    if( isZero )
+                    if( matches[p] )
                     {
-                        bool compatiblesRemaining = BanPatternAtCell( adjacentIndex, p, state, input );
-                        if( !compatiblesRemaining )
+                        // For every match, decrease the adjacency count for the opposite direction of the corresponding pattern in the neighbour
+                        bool isZero = DecreaseAdjacencyAndTestZeroAt( adjacentIndex, p, oppositeIndex, state->currentSnapshot );
+                        if( isZero )
                         {
-                            result = Contradiction;
-                            break;
+                            bool compatiblesRemaining = BanPatternAtCell( adjacentIndex, p, state, input );
+                            if( !compatiblesRemaining )
+                            {
+                                result = Contradiction;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1006,7 +1009,7 @@ UpdateWFCAsync( GlobalState* globalState )
                             // Start processing if no adjacent is currently in progress
                             for( u32 i = 0; i < Adjacency::Count; ++i )
                             {
-                                v3i pAdjacent = pChunk + adjacencyMeta[i].cellDelta;
+                                v3i pAdjacent = pChunk + AdjacencyMeta[i].cellDelta;
 
                                 if( pAdjacent.x < 0 || pAdjacent.y < 0 || pAdjacent.z < 0 ||
                                     pAdjacent.x >= width || pAdjacent.y >= height || pAdjacent.z >= depth )
@@ -1443,13 +1446,13 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
                             ImGui::Image( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) );
                         }
                         else if( i == 0 && j == 1 )
-                            d = 0;
+                            d = (int)Adjacency::Left;
                         else if( i == 1 && j == 2 )
-                            d = 1;
+                            d = (int)Adjacency::Bottom;
                         else if( i == 2 && j == 1 )
-                            d = 2;
+                            d = (int)Adjacency::Right;
                         else if( i == 1 && j == 0 )
-                            d = 3;
+                            d = (int)Adjacency::Top;
 
                         u32 row = 0;
                         if( d >= 0 )
