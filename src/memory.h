@@ -66,14 +66,6 @@ InitArena( MemoryArena *arena, u8 *base, sz size )
 }
 
 inline void
-RewindArena( MemoryArena* arena, sz newUsed )
-{
-    // In principle we don't allow rewinding forward
-    ASSERT( newUsed < arena->used );
-    arena->used = newUsed;
-}
-
-inline void
 ClearArena( MemoryArena* arena, bool clearToZero = true )
 {
     arena->used = 0;
@@ -167,7 +159,7 @@ MakeSubArena( MemoryArena* arena, sz size, MemoryParams params = DefaultMemoryPa
 struct TemporaryMemory
 {
     MemoryArena *arena;
-    sz used;
+    sz usedRecord;
 };
 
 inline TemporaryMemory
@@ -176,7 +168,7 @@ BeginTemporaryMemory( MemoryArena *arena )
     TemporaryMemory result;
 
     result.arena = arena;
-    result.used = arena->used;
+    result.usedRecord = arena->used;
 
     ++arena->tempCount;
 
@@ -188,8 +180,8 @@ EndTemporaryMemory( TemporaryMemory& tempMem )
 {
     MemoryArena *arena = tempMem.arena;
 
-    ASSERT( arena->used >= tempMem.used );
-    arena->used = tempMem.used;
+    ASSERT( arena->used >= tempMem.usedRecord );
+    arena->used = tempMem.usedRecord;
 
     ASSERT( arena->tempCount > 0 );
     --arena->tempCount;

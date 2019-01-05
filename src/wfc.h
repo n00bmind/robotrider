@@ -4,6 +4,9 @@
 
 
 // TODO Review all TODOs!!
+// TODO Inline and collapse where possible
+
+
 // x Add counters so we can start getting a sense of what's what
 // x Add a maximum snapshot stack size and tweak the snapshot sampling curve so it's easier to get to early snapshots
 // x Make the snapshot stack non-circular and make sure we're always backtracking from the correct snapshot
@@ -137,7 +140,6 @@ namespace WFC
         u32 paletteEntryCount;
 
         HashTable<Pattern, u32, PatternHash> patternsHash;
-        // TODO Cache patternCount and substitute everywhere
         Array<Pattern> patterns;
         Array<u32> frequencies;                         // weights
         Array<r64> weights;                             // weightLogWeights
@@ -147,7 +149,8 @@ namespace WFC
 
         // TODO Layout this differently (and rename it)
         IndexCell patternsIndex[Adjacency::Count];      // propagator
-        u32 waveLength;
+        u32 waveWidth;
+        u32 waveHeight;
     };
 
     struct Snapshot
@@ -155,7 +158,8 @@ namespace WFC
         Array2<u64> wave;
         // How many patterns are still compatible in each adjacent direction (for every pattern at every cell)
         Array2<u64> adjacencyCounters;                  // compatible
-        // NOTE This could be extracted from the wave (although slower)
+        // @Memory This could be extracted from the wave (although slower)
+        // (http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetKernighan)
         Array<u32> compatiblesCount;                    // sumsOfOnes
 
         Array<r64> sumFrequencies;                      // sumsOfWeights
@@ -187,13 +191,29 @@ namespace WFC
         Result currentResult;
     };
 
+    struct Job;
+
+    struct ChunkInfo
+    {
+        Job* buildJob;          // Only for visualization
+        Array<u32> collapsedWave;
+        Array2<u8> outputSamples;
+        volatile Result result;
+        bool done;
+    };
+
+    struct ChunkInitInfo
+    {
+        const Snapshot* snapshot0;
+        sz snapshot0Size;
+        const Array2<u8>* adjacentChunks[Adjacency::Count];
+    };
+
     struct JobMemory
     {
         MemoryArena arena;
         volatile bool inUse;
     };
-
-    struct ChunkInfo;
 
     struct Job
     {
@@ -201,20 +221,13 @@ namespace WFC
         const Spec* spec;
         const Input* input;
         ChunkInfo* outputChunk;
+        ChunkInitInfo initInfo;
 
         State* state;           // Only for visualization
         JobMemory* memory;
 
         volatile bool inUse;
         volatile bool cancellationRequested;
-    };
-
-    struct ChunkInfo
-    {
-        Job* buildJob;          // Only for visualization
-        Array2<u8> outputSamples;
-        volatile Result result;
-        bool done;
     };
 
     struct GlobalState
@@ -227,6 +240,9 @@ namespace WFC
         MemoryArena* globalWFCArena;
 
         Input input;
+        Snapshot snapshot0;
+        sz snapshot0Size;
+
         u32 processedChunkCount;
         bool cancellationRequested;
         bool done;
