@@ -206,7 +206,7 @@ namespace WFC
     {
         const Snapshot* snapshot0;
         sz snapshot0Size;
-        const Array2<u8>* adjacentChunks[Adjacency::Count];
+        const Array<u32>* adjacentChunks[Adjacency::Count];
     };
 
     struct JobMemory

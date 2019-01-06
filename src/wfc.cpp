@@ -393,6 +393,69 @@ PropagateTo( u32 adjacentIndex, u32 d, u32 bannedPatternIndex, const Input& inpu
     return result;
 }
 
+// NOTE These will have to change substantially for 3D!
+inline u32 
+GetCellCountForAdjacency( u32 adjacencyIndex, const Input& input )
+{
+    u32 result = 0;
+
+    switch( adjacencyIndex )
+    {
+        case Adjacency::Left:
+        case Adjacency::Right:
+        {
+            result = input.waveHeight;
+        } break;
+
+        case Adjacency::Top:
+        case Adjacency::Bottom:
+        {
+            result = input.waveWidth;
+        } break;
+
+        INVALID_DEFAULT_CASE;
+    }
+
+    return result;
+}
+
+inline u32 
+GetCellIndexForAdjacency( u32 adjacencyIndex, u32 borderCellIndex, const Input& input )
+{
+    u32 result = 0;
+
+    switch( adjacencyIndex )
+    {
+        case Adjacency::Left:
+        {
+            // A chunk adjacent on the left needs to propagate its _right_ border
+            result = borderCellIndex * input.waveWidth + input.waveWidth - 1;
+        } break;
+
+        case Adjacency::Right:
+        {
+            // A chunk adjacent on the right needs to propagate its _left_ border
+            result = borderCellIndex * input.waveWidth;
+        } break;
+
+        case Adjacency::Top:
+        {
+            // A chunk adjacent on top needs to propagate its _bottom_ border
+            result = (input.waveHeight - 1) * input.waveWidth + borderCellIndex;
+        } break;
+
+        case Adjacency::Bottom:
+        {
+            // A chunk adjacent on the bottom needs to propagate its _top_ border
+            result = borderCellIndex;
+        } break;
+
+        INVALID_DEFAULT_CASE;
+    }
+
+    return result;
+}
+
 internal void
 Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State* state, MemoryArena* arena )
 {
@@ -432,6 +495,7 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
     Snapshot snapshot0;
     AllocSnapshot( &snapshot0, waveLength, patternCount, arena );
     CopySnapshot( initInfo.snapshot0, &snapshot0 );
+    state->currentSnapshot = state->snapshotStack.Push( snapshot0 );
 
 #if 0
     // Propagate results from adjacent chunks
@@ -441,18 +505,18 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
         {
             u32 dOpp = AdjacencyMeta[d].oppositeIndex;
 
-            u32 cellCount = GetCellCountForAdjacency( d );
+            u32 cellCount = GetCellCountForAdjacency( d, input );
             for( u32 i = 0; i < cellCount; ++i )
             {
-                u32 cellIndex = GetCellIndexForAdjacency( d, i );
-                u32 adjacentCellIndex = GetCellIndexForAdjacency( dOpp, i );
+                u32 adjacentChunkCellIndex = GetCellIndexForAdjacency( d, i, input );
+                u32 currentChunkCellIndex = GetCellIndexForAdjacency( dOpp, i, input );
                 // Propagate banned patterns (all but the one present in the result)
-                u32 outputPatternIndex = initInfo.adjacentChunks[d][ adjacentCellIndex ];
+                u32 outputPatternIndex = initInfo.adjacentChunks[d][ adjacentChunkCellIndex ];
                 for( u32 p = 0; p < patternCount; ++p )
                 {
                     if( p != outputPatternIndex )
                     {
-                        bool result = PropagateTo( cellIndex, dOpp, p, input, state );
+                        bool result = PropagateTo( currentChunkCellIndex, dOpp, p, input, state );
                         ASSERT( result );
                     }
                 }
@@ -461,7 +525,6 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
     }
 #endif
 
-    state->currentSnapshot = state->snapshotStack.Push( snapshot0 );
     state->currentResult = InProgress;
 }
 
@@ -501,9 +564,14 @@ RandomSelect( const Array<r32>& distribution, Array<r32>* temp, u32* selection )
 inline bool
 OnBoundary( const v2i& p, const Spec& spec )
 {
+#if 1
+    // HACK This should actually compare against wave dimensions or output dimensions depending on the context!
+    return !spec.periodic && (p.x < 0 || p.y < 0 || p.x >= (i32)spec.outputChunkDim.x || p.y >= (i32)spec.outputChunkDim.y);
+#else
     const int N = spec.N;
     return !spec.periodic
         && (p.x < 0 || p.y < 0 || p.x + N > (i32)spec.outputChunkDim.x || p.y + N > (i32)spec.outputChunkDim.y);
+#endif
 }
 
 inline v2u
@@ -762,23 +830,33 @@ RewindSnapshot( State* state, const Input& input )
 internal void
 ExtractOutputFromWave( const Array2<u64>& wave, const Input& input, u32 N, Array<u32>* collapsedWave, Array2<u8>* outputSamples )
 {
-    u8* out = outputSamples->data;
-    u32 outWidth = outputSamples->cols;
-    u32 outHeight = outputSamples->rows;
-
     u32* waveOut = collapsedWave->data;
     u32 waveWidth = input.waveWidth;
     u32 waveHeight = input.waveHeight;
 
+    u8* out = outputSamples->data;
+    u32 outWidth = outputSamples->cols;
+    u32 outHeight = outputSamples->rows;
+
     for( u32 y = 0; y < outHeight; ++y )
     {
+#if 1
+        u32 dy = 0;
+        u32 cellY = y;
+#else
         u32 dy = (y < waveHeight) ? 0 : N - 1;
         u32 cellY = y - dy;
+#endif
 
         for( u32 x = 0; x < outWidth; ++x )
         {
+#if 1
+            u32 dx = 0;
+            u32 cellX = x;
+#else
             u32 dx = (x < waveWidth) ? 0 : N - 1;
             u32 cellX = x - dx;
+#endif
 
             u32 patternIndex = U32MAX;
             u32 cellIndex = cellY * waveWidth + cellX;
@@ -938,8 +1016,10 @@ StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena )
     // NOTE This should be done either offline or on a thread
     Input& input = result->input;
     {
-        input.waveWidth = spec.outputChunkDim.x - spec.N + 1;
-        input.waveHeight = spec.outputChunkDim.y - spec.N + 1;
+        // NOTE Even though we don't need the last few cells to construct each chunk's output,
+        // we need to maintain proper continuity among adjacent chunks
+        input.waveWidth = spec.outputChunkDim.x; // - spec.N + 1;
+        input.waveHeight = spec.outputChunkDim.y; // - spec.N + 1;
 
         PalettizeSource( spec.source, &input, wfcArena );
         BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, &input, wfcArena );
@@ -1084,7 +1164,7 @@ UpdateWFCAsync( GlobalState* globalState )
                                     validCount++;
 
                                 if( adjacentResult == Done )
-                                    initInfo.adjacentChunks[i] = &adjacentChunk->outputSamples;
+                                    initInfo.adjacentChunks[i] = &adjacentChunk->collapsedWave;
                             }
 
                             if( validCount == adjacentCount )

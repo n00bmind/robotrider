@@ -306,6 +306,7 @@ LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory,
     // Initially every vertex would map to exactly one entry in the table, but due to
     // the way face data is specified, we may need to spawn additional vertices
     // that will share the same position but differ in tex coord and/or normal
+    // @Test If we end up using many of these meshes, we should get some hard stats about how many vertices we're duplicating etc.
     u32 tableSize = NextPowerOf2( vertexCount );
     HashTable<VertexKey, u32, VertexHash> cachedVertices( tmpMemory.arena, tableSize, Temporary() );
     BucketArray<TexturedVertex> vertices( tmpMemory.arena, 1024, Temporary() );
