@@ -107,6 +107,9 @@ namespace WFC
         v2u outputChunkDim;         // In voxels
         v2u outputChunkCount;
         bool periodic;
+
+        // @ToDo Properly account for this everywhere and review we still work properly when this is off
+        bool multiThreaded;
     };
     inline Spec DefaultSpec()
     {
@@ -118,6 +121,7 @@ namespace WFC
             { 64, 64 },
             { 4, 4 },
             false,
+            true,
         };
         return result;
     }
@@ -199,6 +203,7 @@ namespace WFC
         Array<u32> collapsedWave;
         Array2<u8> outputSamples;
         volatile Result result;
+        bool canProceed;
         bool done;
     };
 

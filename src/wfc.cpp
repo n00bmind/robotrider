@@ -307,10 +307,29 @@ GetWaveAt( const Array2<u64>& wave, u32 cellIndex, u32 patternIndex )
 }
 
 inline void
+CollapseWaveAt( Array2<u64>* wave, u32 cellIndex, u32 patternIndex, u32 totalPatternCount )
+{
+    u64* row = wave->AtRow( cellIndex );
+    u32 patternGroupIndex = patternIndex / 64;
+
+    u32 groupCount = totalPatternCount / 64;
+    for( u32 p = 0; p < groupCount; ++p )
+    {
+        if( p == patternGroupIndex )
+        {
+            u32 bitIndex = patternIndex % 64;
+            row[p] = (1ULL << bitIndex);
+        }
+        else
+            row[p] = ~0ULL;
+    }
+}
+
+inline void
 DisableWaveAt( Array2<u64>* wave, u32 cellIndex, u32 patternIndex )
 {
-    u32 patternSubIndex = patternIndex / 64;
-    u64& bitset = wave->AtRowCol( cellIndex, patternSubIndex );
+    u32 patternGroupIndex = patternIndex / 64;
+    u64& bitset = wave->AtRowCol( cellIndex, patternGroupIndex );
 
     u32 bitIndex = patternIndex % 64;
     u64 mask = ~(1ULL << bitIndex);
@@ -319,15 +338,15 @@ DisableWaveAt( Array2<u64>* wave, u32 cellIndex, u32 patternIndex )
 }
 
 inline void
-ResetWaveAt( Array2<u64>* wave, u32 cellIndex, const Input& input )
+ResetWaveAt( Array2<u64>* wave, u32 cellIndex, u32 totalPatternCount )
 {
     u64* row = wave->AtRow( cellIndex );
 
-    u32 groupCount = input.patterns.count / 64;
+    u32 groupCount = totalPatternCount / 64;
     for( u32 p = 0; p < groupCount; ++p )
         row[p] = ~0ULL;
 
-    u32 spareCount = input.patterns.count % 64;
+    u32 spareCount = totalPatternCount % 64;
     if( spareCount )
         row[groupCount] = ((~0ULL) >> (64 - spareCount));
 }
@@ -420,7 +439,7 @@ GetCellCountForAdjacency( u32 adjacencyIndex, const Input& input )
 }
 
 inline u32 
-GetCellIndexForAdjacency( u32 adjacencyIndex, u32 borderCellIndex, const Input& input )
+GetCellIndexAtAdjacencyBorder( u32 adjacencyIndex, u32 borderCellCounter, const Input& input, u32 fromBorder )
 {
     u32 result = 0;
 
@@ -428,26 +447,22 @@ GetCellIndexForAdjacency( u32 adjacencyIndex, u32 borderCellIndex, const Input& 
     {
         case Adjacency::Left:
         {
-            // A chunk adjacent on the left needs to propagate its _right_ border
-            result = borderCellIndex * input.waveWidth + input.waveWidth - 1;
+            result = borderCellCounter * input.waveWidth + fromBorder;
         } break;
 
         case Adjacency::Right:
         {
-            // A chunk adjacent on the right needs to propagate its _left_ border
-            result = borderCellIndex * input.waveWidth;
+            result = borderCellCounter * input.waveWidth + input.waveWidth - (fromBorder + 1);
         } break;
 
         case Adjacency::Top:
         {
-            // A chunk adjacent on top needs to propagate its _bottom_ border
-            result = (input.waveHeight - 1) * input.waveWidth + borderCellIndex;
+            result = borderCellCounter + fromBorder * input.waveWidth;
         } break;
 
         case Adjacency::Bottom:
         {
-            // A chunk adjacent on the bottom needs to propagate its _top_ border
-            result = borderCellIndex;
+            result = (input.waveHeight - (fromBorder + 1)) * input.waveWidth + borderCellCounter;
         } break;
 
         INVALID_DEFAULT_CASE;
@@ -456,16 +471,38 @@ GetCellIndexForAdjacency( u32 adjacencyIndex, u32 borderCellIndex, const Input& 
     return result;
 }
 
-internal void
+internal bool
+ApplyObservedPatternAt( u32 observedCellIndex, u32 observedPatternIndex, State* state, const Input& input )
+{
+    TIMED_BLOCK;
+
+    Snapshot* snapshot = state->currentSnapshot;
+    bool compatiblesRemaining = true;
+
+    for( u32 p = 0; p < input.patterns.count; ++p )
+    {
+        if( GetWaveAt( snapshot->wave, observedCellIndex, p ) && p != observedPatternIndex )
+        {
+            compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state, input );
+            if( !compatiblesRemaining )
+                break;
+        }
+    }
+
+    return compatiblesRemaining;
+}
+
+internal bool
 Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State* state, MemoryArena* arena )
 {
     TIMED_BLOCK;
 
+    bool result = false;
     state->arena = arena;
 
     const u32 patternCount = input.patterns.count;
     const u32 waveLength = input.waveWidth * input.waveHeight;
-    const u32 propagationStackSize = waveLength * 2;                            // Increase as needed
+    const u32 propagationStackSize = waveLength * 5;                            // Increase as needed
     state->propagationStack = Array<BannedTuple>( arena, 0, propagationStackSize );
     state->distributionTemp = Array<r32>( arena, patternCount, patternCount );
     state->backtrackedCellIndices = RingBuffer<u32>( arena, BacktrackedCellsCacheCount );
@@ -508,8 +545,8 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
             u32 cellCount = GetCellCountForAdjacency( d, input );
             for( u32 i = 0; i < cellCount; ++i )
             {
-                u32 adjacentChunkCellIndex = GetCellIndexForAdjacency( d, i, input );
-                u32 currentChunkCellIndex = GetCellIndexForAdjacency( dOpp, i, input );
+                u32 adjacentChunkCellIndex = GetCellIndexAtAdjacencyBorder( d, i, input );
+                u32 currentChunkCellIndex = GetCellIndexAtAdjacencyBorder( dOpp, i, input );
                 // Propagate banned patterns (all but the one present in the result)
                 u32 outputPatternIndex = initInfo.adjacentChunks[d][ adjacentChunkCellIndex ];
                 for( u32 p = 0; p < patternCount; ++p )
@@ -524,8 +561,42 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
         }
     }
 #endif
+#if 0
+    // Propagate results from adjacent chunks
+    // TODO Corners  !!!!!
+    for( u32 d = 0; d < Adjacency::Count; ++d )
+    {
+        if( initInfo.adjacentChunks[d] )
+        {
+            u32 dOpp = AdjacencyMeta[d].oppositeIndex;
+
+            u32 cellCount = GetCellCountForAdjacency( d, input );
+            // First row corresponds to our own border, second row is our chunk's data
+            for( u32 r = 0; r < 2; ++r )
+            {
+                for( u32 i = 0; i < cellCount; ++i )
+                {
+                    u32 adjacentChunkCellIndex = GetCellIndexAtAdjacencyBorder( dOpp, i, input, 0 );
+                    u32 currentChunkCellIndex = GetCellIndexAtAdjacencyBorder( d, i, input, 1 );
+
+                    u32 collapsedPatternIndex = initInfo.adjacentChunks[d][ adjacentChunkCellIndex ];
+                    // @FixMe For the "outer" border of the current chunk we don't even need to propagate, just set the wave and set compatiblesCount to 1
+                    // For the innter border we may need to find a different way of propagating. Currently it seems each propagation in the stack
+                    // can cause additional bans which will themselves add to the stack and later cause auto-contradictions..
+                    //
+                    // It's probably best to not go through the "official" route and just straight observe both rows by just setting the wave &
+                    // compatiblesCount, and only then propagate the consequences to the _third_ row/col of the wave
+
+                    CollapseWaveAt( &state->currentSnapshot->wave, currentChunkCellIndex, collapsedPatternIndex, input.patterns.count );
+                    state->currentSnapshot->compatiblesCount[currentChunkCellIndex] = 1;
+                }
+            }
+        }
+    }
+#endif
 
     state->currentResult = InProgress;
+    return result;
 }
 
 internal bool
@@ -559,19 +630,6 @@ RandomSelect( const Array<r32>& distribution, Array<r32>* temp, u32* selection )
     }
 
     return result;
-}
-
-inline bool
-OnBoundary( const v2i& p, const Spec& spec )
-{
-#if 1
-    // HACK This should actually compare against wave dimensions or output dimensions depending on the context!
-    return !spec.periodic && (p.x < 0 || p.y < 0 || p.x >= (i32)spec.outputChunkDim.x || p.y >= (i32)spec.outputChunkDim.y);
-#else
-    const int N = spec.N;
-    return !spec.periodic
-        && (p.x < 0 || p.y < 0 || p.x + N > (i32)spec.outputChunkDim.x || p.y + N > (i32)spec.outputChunkDim.y);
-#endif
 }
 
 inline v2u
@@ -614,27 +672,6 @@ PushNewSnapshot( Snapshot* source, State* state, u32 patternCount, MemoryArena* 
 }
 
 internal bool
-ApplyObservedPatternAt( u32 observedCellIndex, u32 observedDistributionIndex, Snapshot* snapshot, State* state,
-                        const Input& input )
-{
-    TIMED_BLOCK;
-
-    bool compatiblesRemaining = true;
-
-    for( u32 p = 0; p < input.patterns.count; ++p )
-    {
-        if( GetWaveAt( snapshot->wave, observedCellIndex, p ) && p != observedDistributionIndex )
-        {
-            compatiblesRemaining = BanPatternAtCell( observedCellIndex, p, state, input );
-            if( !compatiblesRemaining )
-                break;
-        }
-    }
-
-    return compatiblesRemaining;
-}
-
-internal bool
 NeedSnapshot( State* state, u32 totalObservationCount )
 {
     u32 value = state->observationCount;
@@ -663,9 +700,6 @@ Observe( const Spec& spec, const Input& input, State* state, MemoryArena* arena 
     u32 observations = 0;
     for( u32 i = 0; i < snapshot->wave.rows; ++i )
     {
-        if( OnBoundary( V2i( PositionFromIndex( i, spec.outputChunkDim.x ) ), spec ) )
-            continue;
-
         u32 count = snapshot->compatiblesCount[i];
         if( count == 0)
         {
@@ -716,8 +750,7 @@ Observe( const Spec& spec, const Input& input, State* state, MemoryArena* arena 
                 state->currentSnapshot = snapshot;
             }
 
-            bool compatiblesRemaining = ApplyObservedPatternAt( observedCellIndex, observedDistributionIndex,
-                                                                snapshot, state, input );
+            bool compatiblesRemaining = ApplyObservedPatternAt( observedCellIndex, observedDistributionIndex, state, input );
             if( !compatiblesRemaining )
                 result = Contradiction;
         }
@@ -745,7 +778,7 @@ Propagate( const Spec& spec, const Input& input, State* state )
         {
             v2i pAdjacent = pCell + AdjacencyMeta[d].cellDelta.xy;
 
-            if( OnBoundary( pAdjacent, spec ) )
+            if( !spec.periodic && (pAdjacent.x < 0 || pAdjacent.y < 0 || pAdjacent.x >= (i32)input.waveWidth || pAdjacent.y >= (i32)input.waveHeight) )
                 continue;
 
             if( pAdjacent.x < 0 )
@@ -817,8 +850,7 @@ RewindSnapshot( State* state, const Input& input )
         snapshot = PushNewSnapshot( state->currentSnapshot, state, input.patterns.count, nullptr );
         state->currentSnapshot = snapshot;
 
-        bool compatiblesRemaining = ApplyObservedPatternAt( observedCellIndex, observedDistributionIndex, snapshot,
-                                                            state, input );
+        bool compatiblesRemaining = ApplyObservedPatternAt( observedCellIndex, observedDistributionIndex, state, input );
         result = compatiblesRemaining ? InProgress : Contradiction;
     }
     else
@@ -828,7 +860,7 @@ RewindSnapshot( State* state, const Input& input )
 }
 
 internal void
-ExtractOutputFromWave( const Array2<u64>& wave, const Input& input, u32 N, Array<u32>* collapsedWave, Array2<u8>* outputSamples )
+ExtractOutputFromWave( const Array2<u64>& wave, const Input& input, u32 N, bool multiThreaded, Array<u32>* collapsedWave, Array2<u8>* outputSamples )
 {
     u32* waveOut = collapsedWave->data;
     u32 waveWidth = input.waveWidth;
@@ -840,27 +872,35 @@ ExtractOutputFromWave( const Array2<u64>& wave, const Input& input, u32 N, Array
 
     for( u32 y = 0; y < outHeight; ++y )
     {
-#if 1
-        u32 dy = 0;
-        u32 cellY = y;
-#else
-        u32 dy = (y < waveHeight) ? 0 : N - 1;
-        u32 cellY = y - dy;
-#endif
+        u32 cellY = 0, dy = 0;
+        if( multiThreaded )
+        {
+            // Account for the border
+            cellY = y + 1;
+        }
+        else
+        {
+            dy = (y < waveHeight) ? 0 : N - 1;
+            cellY = y - dy;
+        }
 
         for( u32 x = 0; x < outWidth; ++x )
         {
-#if 1
-            u32 dx = 0;
-            u32 cellX = x;
-#else
-            u32 dx = (x < waveWidth) ? 0 : N - 1;
-            u32 cellX = x - dx;
-#endif
+            u32 cellX = 0, dx = 0;
+            if( multiThreaded )
+            {
+                // Account for the border
+                cellX = x + 1;
+            }
+            else
+            {
+                dx = (x < waveWidth) ? 0 : N - 1;
+                cellX = x - dx;
+            }
 
             u32 patternIndex = U32MAX;
             u32 cellIndex = cellY * waveWidth + cellX;
-            // @Speed We could do this much faster with bit testing
+            // @Speed We could do this faster with bit testing
             for( u32 p = 0; p < input.patterns.count; ++p )
             {
                 if( GetWaveAt( wave, cellIndex, p ) )
@@ -886,14 +926,13 @@ IsFinished( const State& state )
 }
 
 Result
-StartWFCSync( Job* job )
+DoWFCSync( Job* job )
 {
     const Spec& spec = *job->spec;
     const Input& input = *job->input;
     State* state = job->state = PUSH_STRUCT( &job->memory->arena, State );
 
-    // TODO We need to do most (or all!) of this in advance
-    Init( spec, input, job->initInfo, state, &job->memory->arena ); 
+    bool propagateFirst = Init( spec, input, job->initInfo, state, &job->memory->arena ); 
 
     while( !IsFinished( *state ) )
     {
@@ -902,20 +941,25 @@ StartWFCSync( Job* job )
         if( job->cancellationRequested )
             state->currentResult = Cancelled;
 
-        if( state->currentResult == InProgress )
-            state->currentResult = Observe( spec, input, state, &job->memory->arena );
-
-        if( state->currentResult == Contradiction )
+        if( !propagateFirst )
         {
-            state->contradictionCount++;
-            state->currentResult = RewindSnapshot( state, input );
+            if( state->currentResult == InProgress )
+                state->currentResult = Observe( spec, input, state, &job->memory->arena );
+
+            if( state->currentResult == Contradiction )
+            {
+                state->contradictionCount++;
+                state->currentResult = RewindSnapshot( state, input );
+            }
         }
 
         if( state->currentResult == InProgress )
             state->currentResult = Propagate( spec, input, state );
+
+        propagateFirst = false;
     }
 
-    ExtractOutputFromWave( state->currentSnapshot->wave, input, spec.N, &job->outputChunk->collapsedWave, &job->outputChunk->outputSamples );
+    ExtractOutputFromWave( state->currentSnapshot->wave, input, spec.N, spec.multiThreaded, &job->outputChunk->collapsedWave, &job->outputChunk->outputSamples );
     return state->currentResult;
 }
 
@@ -968,7 +1012,7 @@ internal
 PLATFORM_JOBQUEUE_CALLBACK(DoWFC)
 {
     Job* job = (Job*)userData;
-    Result result = StartWFCSync( job );
+    Result result = DoWFCSync( job );
 
     EndJobWithMemory( job, result );
 }
@@ -1018,8 +1062,16 @@ StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena )
     {
         // NOTE Even though we don't need the last few cells to construct each chunk's output,
         // we need to maintain proper continuity among adjacent chunks
+        // @FixMe This should depend on whether we have multiple chunks or not
         input.waveWidth = spec.outputChunkDim.x; // - spec.N + 1;
         input.waveHeight = spec.outputChunkDim.y; // - spec.N + 1;
+        if( spec.multiThreaded )
+        {
+            // Augment the wave so we have a one cell border on every side (for proper inter-chunk propagation)
+            // So, each chunk's border is actually a row/col from the wave data of the corresponding adjacent chunk
+            input.waveWidth += 2;
+            input.waveHeight += 2;
+        }
 
         PalettizeSource( spec.source, &input, wfcArena );
         BuildPatternsFromSource( spec.N, { spec.source.width, spec.source.height }, &input, wfcArena );
@@ -1060,7 +1112,7 @@ StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena )
         // Set initial entropy and counters
         for( u32 i = 0; i < waveLength; ++i )
         {
-            ResetWaveAt( &snapshot0.wave, i, input );
+            ResetWaveAt( &snapshot0.wave, i, input.patterns.count );
             snapshot0.compatiblesCount[i] = input.patterns.count;
             snapshot0.sumFrequencies[i] = input.sumFrequencies;
             snapshot0.sumWeights[i] = input.sumWeights;
@@ -1092,6 +1144,26 @@ StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena )
         JobMemory& memory = result->jobMemoryChunks[i];
         memory.arena = MakeSubArena( wfcArena, perJobArenaSize );
         memory.inUse = false;
+    }
+
+    return result;
+}
+
+inline ChunkInfo*
+GetChunkForAdjacencyIndex( const v3i& pSourceChunk, u32 adjacencyIndex, GlobalState* globalState )
+{
+    ChunkInfo* result = nullptr;
+
+    v3i pAdjacent = pSourceChunk + AdjacencyMeta[adjacencyIndex].cellDelta;
+    i32 width = (i32)globalState->outputChunks.cols;
+    i32 height = (i32)globalState->outputChunks.rows;
+    // TODO 
+    i32 depth = (i32)I32MAX;
+
+    if( pAdjacent.x >= 0 && pAdjacent.y >= 0 && pAdjacent.z >= 0 &&
+        pAdjacent.x < width && pAdjacent.y < height && pAdjacent.z < depth )
+    {
+        result = &globalState->outputChunks.At( V2u( pAdjacent.xy ) );
     }
 
     return result;
@@ -1130,13 +1202,13 @@ UpdateWFCAsync( GlobalState* globalState )
                 for( i32 x = 0; x < width; ++x )
                 {
                     ChunkInfo* chunk = &globalState->outputChunks.AtRowCol( y, x );
+                    v3i pChunk = { x, y, 0 };
 
                     Result currentResult = (Result)AtomicLoad( (volatile u32*)&chunk->result );
                     switch( currentResult )
                     {
                         case NotStarted:
                         {
-                            v3i pChunk = { x, y, 0 };
                             u32 validCount = 0;
                             u32 adjacentCount = Adjacency::Count;
 
@@ -1145,6 +1217,7 @@ UpdateWFCAsync( GlobalState* globalState )
                             initInfo.snapshot0 = &globalState->snapshot0;
                             initInfo.snapshot0Size = globalState->snapshot0Size;
 
+#if 1
                             // Start processing if no adjacent is currently in progress
                             for( u32 i = 0; i < Adjacency::Count; ++i )
                             {
@@ -1166,8 +1239,25 @@ UpdateWFCAsync( GlobalState* globalState )
                                 if( adjacentResult == Done )
                                     initInfo.adjacentChunks[i] = &adjacentChunk->collapsedWave;
                             }
+                            bool canProceed = (validCount == adjacentCount);
+#else
+                            bool canProceed = chunk->canProceed || (x == 0 && y == 0);
+                            if( canProceed )
+                            {
+                                for( u32 d = 0; d < Adjacency::Count; ++d )
+                                {
+                                    ChunkInfo* adjacentChunk = GetChunkForAdjacencyIndex( pChunk, d, globalState );
+                                    if( adjacentChunk )
+                                    {
+                                        Result adjacentResult = (Result)AtomicLoad( (volatile u32*)&adjacentChunk->result );
+                                        if( adjacentResult == Done )
+                                            initInfo.adjacentChunks[d] = &adjacentChunk->collapsedWave;
+                                    }
+                                }
+                            }
+#endif
 
-                            if( validCount == adjacentCount )
+                            if( canProceed )
                             {
                                 TryStartJobFor( V2u( pChunk.xy ), globalState, initInfo );
                             }
@@ -1182,6 +1272,14 @@ UpdateWFCAsync( GlobalState* globalState )
                         {
                             if( !chunk->done )
                             {
+#if 0
+                                for( u32 d = 0; d < Adjacency::Count; ++d )
+                                {
+                                    ChunkInfo* adjacentChunk = GetChunkForAdjacencyIndex( pChunk, d, globalState );
+                                    if( adjacentChunk )
+                                        adjacentChunk->canProceed = true;
+                                }
+#endif
                                 ++globalState->processedChunkCount;
                                 chunk->done = true;
                             }
@@ -1201,10 +1299,10 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
     const u32 N = spec.N;
     const Input& input = globalState->input;
 
-    const u32 width = spec.outputChunkDim.x;
-    const u32 height = spec.outputChunkDim.y;
+    const u32 chunkWidth = spec.outputChunkDim.x;
+    const u32 chunkHeight = spec.outputChunkDim.y;
     const v2u totalOutputDim = Hadamard( spec.outputChunkDim, spec.outputChunkCount );
-    const u32 pitch = totalOutputDim.x;
+    const u32 totalPitch = totalOutputDim.x;
 
     for( u32 chunkY = 0; chunkY < globalState->outputChunks.rows; ++chunkY )
     {
@@ -1213,7 +1311,8 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
             v2u pChunk = { chunkX, chunkY };
             const ChunkInfo& chunkInfo = globalState->outputChunks.At( pChunk );
             const v2u chunkCoords = Hadamard( spec.outputChunkDim, pChunk );
-            u32* chunkOrig = imageBuffer + chunkCoords.y * pitch + chunkCoords.x;
+
+            u32* chunkOrig = imageBuffer + chunkCoords.y * totalPitch + chunkCoords.x;
             u32* out;
 
             if( chunkInfo.done )
@@ -1221,18 +1320,14 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
                 bool failed = chunkInfo.result == Failed;
                 for( u32 y = 0; y < chunkInfo.outputSamples.rows; ++y )
                 {
-                    out = chunkOrig + y * pitch;
+                    out = chunkOrig + y * totalPitch;
 
                     for( u32 x = 0; x < chunkInfo.outputSamples.cols; ++x )
                     {
-                        u32 color = 0;
-                        if( x != 0 && y != 0 )
-                        {
-                            u8 sample = chunkInfo.outputSamples[y * width + x];
-                            color = input.palette[sample];
-                        }
+                        u8 sample = chunkInfo.outputSamples[y * chunkWidth + x];
+                        u32 color = input.palette[sample];
 
-                        if( failed )
+                        if( failed || x == 0 || y == 0 )
                         {
                             v4 unpacked = UnpackRGBAToV401( color );
                             unpacked = Hadamard( unpacked, { .5f, .5f, .5f, 1.f } );
@@ -1252,10 +1347,10 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
                 Snapshot* snapshot = job->state->currentSnapshot;
                 if( job->state->currentResult == InProgress )
                 {
-                    for( u32 y = 0; y < height; ++y )
+                    for( u32 y = 0; y < chunkHeight; ++y )
                     {
-                        out = chunkOrig + y * pitch;
-                        for( u32 x = 0; x < width; ++x )
+                        out = chunkOrig + y * totalPitch;
+                        for( u32 x = 0; x < chunkWidth; ++x )
                         {
                             int contributors = 0, r = 0, g = 0, b = 0;
                             u32 color = 0;
@@ -1265,16 +1360,23 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
                                 for( u32 dy = 0; dy < N; ++dy )
                                 {
                                     int cellY = (int)(y - dy);
+                                    if( spec.multiThreaded )
+                                        cellY++;
+
+                                    // @Correctness This wrap-around should only happen for periodic specs
                                     if( cellY < 0 )
-                                        cellY += height;
+                                        cellY += input.waveHeight;
 
                                     for( u32 dx = 0; dx < N; ++dx )
                                     {
                                         int cellX = (int)(x - dx);
+                                        if( spec.multiThreaded )
+                                            cellX++;
+
                                         if( cellX < 0 )
                                             cellX += input.waveWidth;
 
-                                        if( OnBoundary( { cellX, cellY }, spec ) )
+                                        if( cellX < 0 || cellY < 0 )
                                             continue;
 
                                         for( u32 p = 0; p < input.patterns.count; ++p )
@@ -1426,96 +1528,95 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
     {
         case TestPage::Output:
         {
-            if( globalState->processedChunkCount )
+            ImGui::BeginChild( "child_output_meta", ImVec2( 350, 0 ) );
+
+            // TODO Show relevant 'totals' info and have a 'selected' chunk to which following info belongs
+            const ChunkInfo& chunkInfo = globalState->outputChunks[0];
+
+            if( chunkInfo.buildJob && chunkInfo.buildJob->state )
             {
-                ImGui::BeginChild( "child_output_meta", ImVec2( 350, 0 ) );
+                State* state = chunkInfo.buildJob->state;
 
-                // TODO Show relevant 'totals' info and have a 'selected' chunk to which following info belongs
-                const ChunkInfo& chunkInfo = globalState->outputChunks[globalState->processedChunkCount - 1];
+                if( state->currentResult == Done )
+                    ImGui::Text( "DONE!" );
+                else if( state->currentResult == Failed )
+                    ImGui::Text( "FAILED!" );
+                else
+                    ImGui::Text( "Remaining: %d (%d)", waveLength - state->observationCount, state->observationCount );
+                ImGui::Spacing();
+                ImGui::Spacing();
 
-                if( chunkInfo.buildJob && chunkInfo.buildJob->state )
+                ImGui::Text( "Name: %s", spec.name );
+                ImGui::Text( "Num. patterns: %d", patternsCount );
+                ImGui::Spacing();
+                ImGui::Spacing();
+
+                if( state->currentSnapshot )
                 {
-                    State* state = chunkInfo.buildJob->state;
+                    ImGui::Text( "Wave size: %zu", state->currentSnapshot->wave.Size() );
+                    ImGui::Text( "Adjacency size: %zu", state->currentSnapshot->adjacencyCounters.Size() );
+                }
+                if( state->arena )
+                    ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
+                ImGui::Spacing();
+                ImGui::Spacing();
 
-                    if( state->currentResult == Done )
-                        ImGui::Text( "DONE!" );
-                    else if( state->currentResult == Failed )
-                        ImGui::Text( "FAILED!" );
-                    else
-                        ImGui::Text( "Remaining: %d (%d)", waveLength - state->observationCount, state->observationCount );
+                if( state->snapshotStack )
+                {
+                    ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.count, state->snapshotStack.maxCount );
+                    ImGui::Text( "Backtracked cells cache: %d", state->backtrackedCellIndices.Count() );
+                    ImGui::Text( "Total contradictions: %d", state->contradictionCount );
                     ImGui::Spacing();
                     ImGui::Spacing();
 
-                    ImGui::Text( "Name: %s", spec.name );
-                    ImGui::Text( "Num. patterns: %d", patternsCount );
-                    ImGui::Spacing();
-                    ImGui::Spacing();
-
-                    if( state->currentSnapshot )
+                    const u32 maxLines = 50;
+                    //r32 step = (r32)maxLines / state->snapshotStack.buffer.maxCount;
+                    for( u32 i = 0; i < state->snapshotStack.count; ++i )
                     {
-                        ImGui::Text( "Wave size: %zu", state->currentSnapshot->wave.Size() );
-                        ImGui::Text( "Adjacency size: %zu", state->currentSnapshot->adjacencyCounters.Size() );
-                    }
-                    if( state->arena )
-                        ImGui::Text( "Total memory: %d / %d", state->arena->used / MEGABYTES(1), state->arena->size / MEGABYTES(1) );
-                    ImGui::Spacing();
-                    ImGui::Spacing();
-
-                    if( state->snapshotStack )
-                    {
-                        ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.count, state->snapshotStack.maxCount );
-                        ImGui::Text( "Backtracked cells cache: %d", state->backtrackedCellIndices.Count() );
-                        ImGui::Text( "Total contradictions: %d", state->contradictionCount );
-                        ImGui::Spacing();
-                        ImGui::Spacing();
-
-                        const u32 maxLines = 50;
-                        //r32 step = (r32)maxLines / state->snapshotStack.buffer.maxCount;
-                        for( u32 i = 0; i < state->snapshotStack.count; ++i )
-                        {
-                            const Snapshot& s = state->snapshotStack[i];
-                            if( &s == state->currentSnapshot )
-                                ImGui::Text( "snapshot[%d] : current", i );
-                            else
-                                ImGui::Text( "snapshot[%d] : n %d, observations %d",
-                                             i, CountNonZero( s.distribution ), s.lastObservationCount );
-                        }
+                        const Snapshot& s = state->snapshotStack[i];
+                        if( &s == state->currentSnapshot )
+                            ImGui::Text( "snapshot[%d] : current", i );
+                        else
+                            ImGui::Text( "snapshot[%d] : n %d, observations %d",
+                                         i, CountNonZero( s.distribution ), s.lastObservationCount );
                     }
                 }
-
-                ImGui::EndChild();
-                ImGui::SameLine();
-
-                ImGui::BeginChild( "child_output_image", ImVec2( 1100, 0 ) );
-                v2u imageSize = { displayState->outputTexture.width, displayState->outputTexture.height };
-
-                bool inProgress = JobsInProgress( globalState );
-                if( inProgress || !displayState->allDone )
-                {
-                    // NOTE Very Broken Synchronization, but I don't really want to synchronize..
-                    displayState->allDone = !inProgress;
-
-                    if( !displayState->outputImageBuffer )
-                        displayState->outputImageBuffer = PUSH_ARRAY( wfcDisplayArena, imageSize.x * imageSize.y, u32 );
-
-                    CreateOutputTexture( spec, globalState, displayState->outputImageBuffer, &displayState->outputTexture );
-                }
-
-                ImGui::Image( displayState->outputTexture.handle, imageSize * outputScale );
-
-                if( ImGui::IsItemClicked( 2 ) )
-                    selectedIndex = displayState->currentSpecIndex;
-
-                ImGui::EndChild();
-                ImGui::SameLine();
-
-                ImGui::BeginChild( "child_debug", ImVec2( 0, 0 ) );
-                if( debugState )
-                {
-                    DrawPerformanceCounters( debugState, tmpMemory );
-                }
-                ImGui::EndChild();
             }
+
+            ImGui::EndChild();
+            ImGui::SameLine();
+
+            ImGui::BeginChild( "child_output_image", ImVec2( 1100, 0 ) );
+            v2u imageSize = { displayState->outputTexture.width, displayState->outputTexture.height };
+
+            bool inProgress = JobsInProgress( globalState );
+            if( !displayState->allDone )
+            {
+                // Do one more pass after all progress stopped
+                // NOTE Very Broken Synchronization, but I don't really care right now!
+                displayState->allDone = !inProgress;
+
+                if( !displayState->outputImageBuffer )
+                    displayState->outputImageBuffer = PUSH_ARRAY( wfcDisplayArena, imageSize.x * imageSize.y, u32 );
+
+                CreateOutputTexture( spec, globalState, displayState->outputImageBuffer, &displayState->outputTexture );
+            }
+
+            ImGui::Image( displayState->outputTexture.handle, imageSize * outputScale );
+
+            if( ImGui::IsItemClicked( 2 ) )
+                selectedIndex = displayState->currentSpecIndex;
+
+            ImGui::EndChild();
+            ImGui::SameLine();
+
+            ImGui::BeginChild( "child_debug", ImVec2( 0, 0 ) );
+            if( debugState )
+            {
+                DrawPerformanceCounters( debugState, tmpMemory );
+            }
+            ImGui::EndChild();
+
         } break;
 
         case TestPage::Patterns:
