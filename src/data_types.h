@@ -83,7 +83,7 @@ struct Array
     }
 
     // TODO Not too sure about this!
-    operator bool() const
+    explicit operator bool() const
     {
         return data != nullptr;
     }
@@ -204,6 +204,7 @@ struct Array2
         return data[r * cols + c];
     }
 
+    // NOTE x -> cols, y -> rows
     T& At( const v2u& v )
     {
         ASSERT( v.y < rows );
@@ -243,7 +244,7 @@ struct Array2
     }
 
     // TODO Not too sure about this!
-    operator bool() const
+    explicit operator bool() const
     {
         return data != nullptr;
     }
@@ -264,6 +265,17 @@ struct Array2
     sz Size() const
     {
         return rows * cols * sizeof(T);
+    }
+
+    v2u XYForIndex( u32 i ) const
+    {
+        v2u result = { i % cols, i / cols };
+        return result;
+    }
+
+    u32 IndexForRowCol( u32 r, u32 c ) const
+    {
+        return r * cols + c;
     }
 };
 
@@ -653,7 +665,7 @@ struct String
         return data == nullptr || *data == '\0' || size == 0;
     }
 
-    operator bool() const
+    explicit operator bool() const
     {
         return !IsNullOrEmpty();
     }
@@ -987,7 +999,7 @@ struct BucketArray
         Bucket* base;
         u32 index;
 
-        operator bool() const
+        explicit operator bool() const
         {
             return IsValid();
         }

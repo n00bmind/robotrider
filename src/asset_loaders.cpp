@@ -191,7 +191,7 @@ LoadWFCVars( const char* path, MemoryArena* arena, const TemporaryMemory& tempMe
                         LOG( "ERROR :: Argument to 'outputDim' must be a vector2 of unsigned integer at line %d",
                              currentLineNumber );
                     else
-                        currentSpec->outputChunkDim = V2u( x, y );
+                        currentSpec->outputChunkDim = V3u( x, y, 0 );
                 }
             }
             else if( var.IsEqual( "periodic", false ) )

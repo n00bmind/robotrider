@@ -11,8 +11,9 @@
 // x Add a maximum snapshot stack size and tweak the snapshot sampling curve so it's easier to get to early snapshots
 // x Make the snapshot stack non-circular and make sure we're always backtracking from the correct snapshot
 // x Pack wave data in bits similar to the adjacency counters to keep lowering memory consumption (check sizes!)
-// - Do tiled multithreading
-// - 3D ffs!!
+// - Do tiled multithreading (***review wrapping conditions***)
+// - FIXME Pattern frequencies are all wrong
+// - 3D (someday)
 //
 
 namespace WFC
@@ -104,12 +105,10 @@ namespace WFC
         Texture source;
         u32 N;
 
-        v2u outputChunkDim;         // In voxels
-        v2u outputChunkCount;
+        v3u outputChunkDim;         // In voxels
+        v3u outputChunkCount;
+        u32 safeMarginWidth;        // Extra wave cells to add on top of the actual chunk dim
         bool periodic;
-
-        // @ToDo Properly account for this everywhere and review we still work properly when this is off
-        bool multiThreaded;
     };
     inline Spec DefaultSpec()
     {
@@ -120,8 +119,8 @@ namespace WFC
             2,
             { 64, 64 },
             { 4, 4 },
+            5,
             false,
-            true,
         };
         return result;
     }
@@ -153,8 +152,6 @@ namespace WFC
 
         // TODO Layout this differently (and rename it)
         IndexCell patternsIndex[Adjacency::Count];      // propagator
-        u32 waveWidth;
-        u32 waveHeight;
     };
 
     struct Snapshot
@@ -192,7 +189,7 @@ namespace WFC
 
         u32 observationCount;
         u32 contradictionCount;
-        Result currentResult;
+        volatile Result currentResult;
     };
 
     struct Job;
@@ -202,6 +199,8 @@ namespace WFC
         Job* buildJob;          // Only for visualization
         Array<u32> collapsedWave;
         Array2<u8> outputSamples;
+
+        v2u pChunk;
         volatile Result result;
         bool canProceed;
         bool done;

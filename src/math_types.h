@@ -235,6 +235,74 @@ operator -( const v3i &a, const v3i &b )
     return result;
 }
 
+// Vector 3 unsigned
+
+union v3u
+{
+    struct
+    {
+        u32 x, y, z;
+    };
+    struct
+    {
+        v2u xy;
+        i32 _ignored0;
+    };
+    struct
+    {
+        i32 _ignored1;
+        v2u yz;
+    };
+    u32 e[3];
+};
+
+inline v3u
+V3u( u32 x, u32 y, u32 z )
+{
+    v3u result = { x, y, z };
+    return result;
+}
+
+inline v3u
+V3u( u32 s )
+{
+    v3u result = { s, s, s };
+    return result;
+}
+
+inline bool
+operator ==( const v3u &a, const v3u &b )
+{
+    return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+inline bool
+operator !=( const v3u &a, const v3u &b )
+{
+    return a.x != b.x || a.y != b.y || a.z != b.z;
+}
+
+inline v3u
+operator +( const v3u &a, const v3u &b )
+{
+    v3u result = { a.x + b.x, a.y + b.y, a.z + b.z };
+    return result;
+}
+
+inline v3u
+operator -( const v3u &a, const v3u &b )
+{
+    v3u result = { a.x - b.x, a.y - b.y, a.z - b.z };
+    return result;
+}
+
+inline v3u
+Hadamard( const v3u& a, const v3u& b )
+{
+    v3u result = { a.x * b.x, a.y * b.y, a.z * b.z };
+    return result;
+}
+
 // Vector 3
 
 union v3

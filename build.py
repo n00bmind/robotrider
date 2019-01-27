@@ -116,6 +116,13 @@ class colors:
 # print '\033[1;47mHighlighted Gray like Ghost\033[1;m'
 # print '\033[1;48mHighlighted Crimson like Chianti\033[1;m'
 
+def print_color(output, color_string):
+    print color_string,
+    print output,
+    # For Python 3
+    # print(colors.GRAY, end='')
+    # print(out_args, end='')
+    print(colors.END)
 
 
 def begin_time():
@@ -180,10 +187,8 @@ if __name__ == '__main__':
         out_args.append('/PDB:robotrider_{}.pdb'.format(random.randint(0, 100000)))
 
         if in_args.verbose:
-            print('Building game library...')
-            print(colors.GRAY)
-            print(out_args)
-            print(colors.END)
+            print('\nBuilding game library...')
+            print_color(out_args, colors.GRAY)
         ret = subprocess.call(out_args, cwd=binpath)
 
         # Build platform executable
@@ -199,10 +204,8 @@ if __name__ == '__main__':
         out_args.extend(platform.libs)
 
         if in_args.verbose:
-            print('Building platform executable...')
-            print(colors.GRAY)
-            print(out_args)
-            print(colors.END)
+            print('\nBuilding platform executable...')
+            print_color(out_args, colors.GRAY)
         ret |= subprocess.call(out_args, cwd=binpath)
 
         # Build test suite
@@ -217,10 +220,8 @@ if __name__ == '__main__':
         # out_args.extend(platform.libs)
 
         if in_args.verbose:
-            print('Building platform executable...')
-            print(colors.GRAY)
-            print(out_args)
-            print(colors.END)
+            print('\nBuilding test suite...')
+            print_color(out_args, colors.GRAY)
         ret |= subprocess.call(out_args, cwd=binpath)
 
     else:
