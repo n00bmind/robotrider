@@ -81,10 +81,10 @@ namespace WFC
     };
     const AdjacencyMeta adjacencyMeta[] =
     {
-        { Left,     { -1,  0,  0 }, Right,  (u64)Left * BitsPerAxis,     u64(MaxAdjacencyCount - 1) << (Left * BitsPerAxis) },
-        { Bottom,   {  0,  1,  0 }, Top,    (u64)Bottom * BitsPerAxis,   u64(MaxAdjacencyCount - 1) << (Bottom * BitsPerAxis) },
-        { Right,    {  1,  0,  0 }, Left,   (u64)Right * BitsPerAxis,    u64(MaxAdjacencyCount - 1) << (Right * BitsPerAxis) },
-        { Top,      {  0, -1,  0 }, Bottom, (u64)Top * BitsPerAxis,      u64(MaxAdjacencyCount - 1) << (Top * BitsPerAxis) },
+        { Left,     { -1,  0,  0 }, Right,  (u64)Left * BitsPerAxis,     (u64(MaxAdjacencyCount - 1)) << (Left * BitsPerAxis) },
+        { Bottom,   {  0,  1,  0 }, Top,    (u64)Bottom * BitsPerAxis,   (u64(MaxAdjacencyCount - 1)) << (Bottom * BitsPerAxis) },
+        { Right,    {  1,  0,  0 }, Left,   (u64)Right * BitsPerAxis,    (u64(MaxAdjacencyCount - 1)) << (Right * BitsPerAxis) },
+        { Top,      {  0, -1,  0 }, Bottom, (u64)Top * BitsPerAxis,      (u64(MaxAdjacencyCount - 1)) << (Top * BitsPerAxis) },
     };
 
     struct BannedTuple

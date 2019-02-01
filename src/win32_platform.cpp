@@ -220,7 +220,7 @@ DEBUG_PLATFORM_LIST_ALL_ASSETS(Win32ListAllAssets)
                 info->name = FindFilename( info->fullPath );
                 info->size = ((sz)findData.nFileSizeHigh << 32) | findData.nFileSizeLow;
                 info->lastUpdated = ((u64)findData.ftLastWriteTime.dwHighDateTime << 32) | findData.ftLastWriteTime.dwLowDateTime;
-                info->isFolder = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+                info->isFolder = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
             }
 
         } while( FindNextFile( hFind, &findData ) );

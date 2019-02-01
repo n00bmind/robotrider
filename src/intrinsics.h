@@ -307,7 +307,7 @@ AtomicExchange( volatile bool* value, bool newValue )
     ASSERT( sizeof(bool) == sizeof(u8) );
     bool previousValue = 0;
 #if _MSC_VER
-    previousValue = _InterlockedExchange8( (volatile char*)value, newValue );
+    previousValue = _InterlockedExchange8( (volatile char*)value, newValue ) != 0;
 #else
     previousValue = __atomic_exchange_n( value, newValue, __ATOMIC_SEQ_CST );
 #endif
@@ -334,7 +334,7 @@ AtomicLoad( volatile bool* value )
     ASSERT( sizeof(bool) == sizeof(u8) );
     bool result = 0;
 #if _MSC_VER
-    result = _InterlockedOr8( (volatile char*)value, 0 );
+    result = _InterlockedOr8( (volatile char*)value, 0 ) != 0;
 #else
     result = __atomic_load_n( value, __ATOMIC_SEQ_CST );
 #endif
