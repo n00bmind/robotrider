@@ -855,9 +855,8 @@ FilterHits( const Array<Hit>& hits, const v2i& gridCoords, Array<Hit>* result )
 }
 
 Mesh*
-ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool,
-                         const TemporaryMemory& tmpMemory, RenderCommands* renderCommands,
-                         const EditorState& editorState )
+ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displayedLayer, MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool,
+                         const TemporaryMemory& tmpMemory, RenderCommands* renderCommands )
 {
     // Make bounds same length on all axes
     r32 xDim = sourceMesh.bounds.xMax - sourceMesh.bounds.xMin;
@@ -999,16 +998,16 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, MarchingCacheBuffers* cacheBuff
                 v3 p = pGridOrigin + V3i( i, j, k ) * step;
 
 #if 1
-                if( editorState.displayedLayer == k )
+                if( displayedLayer == k )
                 {
                     u32 color = Pack01ToRGBA( 0, 1, 0, 1 );
                     r32 value = cacheBuffers->bottomLayerSamples[i * gridLinesPerAxis + j];
                     //if( value < 0 )
-                        //DrawBoxAt( p, 0.005f * editorState.drawingDistance, color, renderCommands );
+                        //DrawBoxAt( p, 0.005f * drawingDistance, color, renderCommands );
 
                     value = cacheBuffers->topLayerSamples[i * gridLinesPerAxis + j];
                     if( value < 0 )
-                        DrawBoxAt( p + V3( 0, 0, step ), 0.005f * editorState.drawingDistance, color, renderCommands );
+                        DrawBoxAt( p + V3( 0, 0, step ), 0.005f * drawingDistance, color, renderCommands );
                 }
 #endif
 

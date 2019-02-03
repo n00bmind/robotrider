@@ -72,6 +72,16 @@ struct GameState
 
 struct TransientState
 {
+#if 1
+    // Mesh resampling test
+    MarchingCacheBuffers cacheBuffers;
+    Mesh testMesh;
+    Mesh* testIsoSurfaceMesh;
+    EditorEntity testEditorEntity;
+    r32 drawingDistance;
+    u32 displayedLayer;
+#endif
+    
     // Wave Function Collapse test
     Array<WFC::Spec> wfcSpecs;
     u32 selectedSpecIndex;

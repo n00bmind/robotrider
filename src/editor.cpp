@@ -32,7 +32,7 @@ CreateEditorEntityFor( Mesh* mesh, u32 cellsPerSide )
 }
 
 internal void
-DrawEditorEntity( const EditorEntity& editorEntity, const EditorState& editorState, RenderCommands* renderCommands )
+DrawEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, RenderCommands* renderCommands )
 {
     if( editorEntity.mesh )
     {
@@ -47,8 +47,8 @@ DrawEditorEntity( const EditorEntity& editorEntity, const EditorState& editorSta
         r32 xMax = box.xMax;
         r32 yMin = box.yMin;
         r32 yMax = box.yMax;
-        //for( u32 layer = editorState.displayedLayer; layer <= editorState.displayedLayer + 1; ++layer )
-        u32 layer = editorState.displayedLayer + 1;
+        //for( u32 layer = displayedLayer; layer <= displayedLayer + 1; ++layer )
+        u32 layer = displayedLayer + 1;
         {
             r32 z = box.zMin + layer * step;
 
@@ -63,33 +63,114 @@ DrawEditorEntity( const EditorEntity& editorEntity, const EditorState& editorSta
     }
 }
 
-void
-InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState, TransientState* transientState,
-            MemoryArena* editorArena, MemoryArena* transientArena )
+internal void
+InitMeshSamplerTest( TransientState* transientState, MemoryArena* editorArena, MemoryArena* transientArena )
 {
-    // Mesh resampling test
-    // TODO Move out of the way
-#if 0
-    editorState->testMesh = LoadOBJ( "bunny.obj", worldArena, tmpMemory,
-                                      Scale( V3( 10.f, 10.f, 10.f ) ) * Translation( V3( 0, 0, 1.f ) ) );
+    transientState->cacheBuffers = InitMarchingCacheBuffers( editorArena, 50 );
 
-    editorState->cacheBuffers = InitMarchingCacheBuffers( worldArena, 50 );
-#endif
+    TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
+    transientState->testMesh = LoadOBJ( "bunny.obj", editorArena, tmpMemory, Scale( V3( 10.f, 10.f, 10.f ) ) * Translation( V3( 0, 0, 1.f ) ) );
+    EndTemporaryMemory( tmpMemory );
+}
 
-    RandomSeed();
+internal void
+TickMeshSamplerTest( const EditorState& editorState, TransientState* transientState, MeshPool* meshPoolArray, const TemporaryMemory& frameMemory,
+                     r32 elapsedT, RenderCommands* renderCommands )
+{
+    if( !transientState->testIsoSurfaceMesh ) //|| input->executableReloaded )
+    {
+        transientState->displayedLayer = (transientState->displayedLayer + 1) % transientState->cacheBuffers.cellsPerAxis;
+        transientState->drawingDistance = Distance( GetTranslation( transientState->testMesh.mTransform ), editorState.pCamera );
+        transientState->displayedLayer = 172;
 
-    /// WFC test
+        if( transientState->testIsoSurfaceMesh )
+            ReleaseMesh( &transientState->testIsoSurfaceMesh );
+        transientState->testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( transientState->testMesh, transientState->drawingDistance,
+                                                                      transientState->displayedLayer, &transientState->cacheBuffers, meshPoolArray,
+                                                                      frameMemory, renderCommands );
+    }
+
+    PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
+    //PushMesh( transientState->testMesh, renderCommands );
+    PushMesh( *transientState->testIsoSurfaceMesh, renderCommands );
+
+    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
+    PushMaterial( nullptr, renderCommands );
+
+	transientState->testEditorEntity = CreateEditorEntityFor(transientState->testIsoSurfaceMesh, transientState->cacheBuffers.cellsPerAxis);
+	DrawEditorEntity( transientState->testEditorEntity, transientState->displayedLayer, renderCommands );
+}
+
+internal void
+InitWFCTest( TransientState* transientState, MemoryArena* editorArena, MemoryArena* transientArena )
+{
     if( !IsInitialized( transientState->wfcArena ) )
         transientState->wfcArena = MakeSubArena( transientArena, MEGABYTES(512) );
     if( !IsInitialized( transientState->wfcDisplayArena ) )
         transientState->wfcDisplayArena = MakeSubArena( transientArena, MEGABYTES(16) );
 
-    TemporaryMemory tempMemory = BeginTemporaryMemory( transientArena );
+    TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
 
-    transientState->wfcSpecs = LoadWFCVars( "wfc.vars", editorArena, tempMemory );
+    transientState->wfcSpecs = LoadWFCVars( "wfc.vars", editorArena, tmpMemory );
     ASSERT( transientState->wfcSpecs.count );
 
-    EndTemporaryMemory( tempMemory );
+    EndTemporaryMemory( tmpMemory );
+}
+
+internal void
+TickWFCTest( TransientState* transientState, DebugState* debugState, const TemporaryMemory& frameMemory, RenderCommands* renderCommands )
+{
+    if( !transientState->wfcGlobalState )
+    {
+        WFC::Spec& spec = transientState->wfcSpecs[transientState->wfcDisplayState.currentSpecIndex];
+        WFC::Spec defaultSpec = WFC::DefaultSpec();
+        // Ignore certain attributes
+        spec.outputChunkDim = defaultSpec.outputChunkDim;
+        spec.periodic = defaultSpec.periodic;
+
+        transientState->wfcGlobalState = WFC::StartWFCAsync( spec, { 0, 0 }, &transientState->wfcArena );
+    }
+
+    WFC::UpdateWFCAsync( transientState->wfcGlobalState );
+    {
+        v2 renderDim = V2( renderCommands->width, renderCommands->height );
+        v2 displayDim = renderDim * 0.9f;
+        v2 pDisplay = (renderDim - displayDim) / 2.f;
+
+        u32 selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, transientState->wfcGlobalState,
+                                               &transientState->wfcDisplayState, pDisplay, displayDim, debugState,
+                                               &transientState->wfcDisplayArena, frameMemory );
+
+        if( selectedSpecIndex != U32MAX )
+        {
+            transientState->selectedSpecIndex = selectedSpecIndex;
+            transientState->wfcGlobalState->cancellationRequested = true;
+        }
+
+        // Wait until cancelled or done
+        if( transientState->wfcGlobalState->cancellationRequested &&
+            transientState->wfcGlobalState->done )
+        {
+            ClearArena( &transientState->wfcArena, true );
+            ClearArena( &transientState->wfcDisplayArena, true );
+            transientState->wfcDisplayState = {};
+            transientState->wfcDisplayState.currentSpecIndex = transientState->selectedSpecIndex;
+            transientState->wfcGlobalState = nullptr;
+        }
+    }
+}
+
+void
+InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState, TransientState* transientState,
+            MemoryArena* editorArena, MemoryArena* transientArena )
+{
+    RandomSeed();
+
+#if 0
+    InitMeshSamplerTest( transientState, editorArena, transientArena );
+#endif
+
+    InitWFCTest( transientState, editorArena, transientArena );
 }
 
 void
@@ -152,83 +233,20 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
         renderCommands->camera.mTransform = mCamRot * Translation( -editorState->pCamera );
     }
 
+    TickWFCTest( transientState, debugState, frameMemory, renderCommands );
 
-    if( !transientState->wfcGlobalState )
-    {
-        WFC::Spec& spec = transientState->wfcSpecs[transientState->wfcDisplayState.currentSpecIndex];
-        WFC::Spec defaultSpec = WFC::DefaultSpec();
-        // Ignore certain attributes
-        spec.outputChunkDim = defaultSpec.outputChunkDim;
-        spec.periodic = defaultSpec.periodic;
-
-        transientState->wfcGlobalState = WFC::StartWFCAsync( spec, { 0, 0 }, &transientState->wfcArena );
-    }
-
-    WFC::UpdateWFCAsync( transientState->wfcGlobalState );
-    {
-        v2 renderDim = V2( renderCommands->width, renderCommands->height );
-        v2 displayDim = renderDim * 0.9f;
-        v2 pDisplay = (renderDim - displayDim) / 2.f;
-
-        u32 selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, transientState->wfcGlobalState,
-                                               &transientState->wfcDisplayState, pDisplay, displayDim, debugState,
-                                               &transientState->wfcDisplayArena, frameMemory );
-
-        if( selectedSpecIndex != U32MAX )
-        {
-            transientState->selectedSpecIndex = selectedSpecIndex;
-            transientState->wfcGlobalState->cancellationRequested = true;
-        }
-
-        // Wait until cancelled or done
-        if( transientState->wfcGlobalState->cancellationRequested &&
-            transientState->wfcGlobalState->done )
-        {
-            ClearArena( &transientState->wfcArena, true );
-            ClearArena( &transientState->wfcDisplayArena, true );
-            transientState->wfcDisplayState = {};
-            transientState->wfcDisplayState.currentSpecIndex = transientState->selectedSpecIndex;
-            transientState->wfcGlobalState = nullptr;
-        }
-    }
-
-
-    // Mesh resampling test
-    // TODO Move out of the way
 #if 0
-    if( !editorState->testIsoSurfaceMesh || input->executableReloaded )
-    {
-        editorState->displayedLayer = (editorState->displayedLayer + 1) % editorState->cacheBuffers.cellsPerAxis;
-        editorState->lastUpdateTimeSeconds = input->totalElapsedSeconds;
-        editorState->drawingDistance = Distance( GetTranslation( editorState->testMesh.mTransform ), editorState->pCamera );
-        editorState->displayedLayer = 172;
-
-        MeshPool* meshPool = &world->meshPools[0];
-        if( editorState->testIsoSurfaceMesh )
-            ReleaseMesh( &editorState->testIsoSurfaceMesh );
-        editorState->testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( editorState->testMesh, &editorState->cacheBuffers,
-                                                                  meshPool, frameMemory, renderCommands, editorState );
-    }
-
-    PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
-    //PushMesh( editorState->testMesh, renderCommands );
-    PushMesh( *editorState->testIsoSurfaceMesh, renderCommands );
+    TickMeshSamplerTest( *editorState, transientState, &world->meshPools[0], frameMemory, elapsedT, renderCommands );
 #endif
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMaterial( nullptr, renderCommands );
-
-#if 0
-	editorState->testEditorEntity = CreateEditorEntityFor(editorState->testIsoSurfaceMesh, editorState->cacheBuffers.cellsPerAxis);
-	DrawEditorEntity( editorState->testEditorEntity, editorState, renderCommands );
-#endif
 
 	DrawFloorGrid(CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands);
     DrawAxisGizmos( renderCommands );
 
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
-    r32 elapsedSeconds = input->totalElapsedSeconds;
-    DrawEditorStats( width, height, statsText, (i32)elapsedSeconds % 2 == 0 );
+    DrawEditorStats( width, height, statsText, (i32)elapsedT % 2 == 0 );
 }
 #endif
