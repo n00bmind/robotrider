@@ -80,7 +80,6 @@ struct TransientState
     EditorEntity testEditorEntity;
     r32 drawingDistance;
     u32 displayedLayer;
-#endif
     
     // Wave Function Collapse test
     Array<WFC::Spec> wfcSpecs;
@@ -89,6 +88,7 @@ struct TransientState
     MemoryArena wfcDisplayArena;
     WFC::GlobalState* wfcGlobalState;
     WFC::DisplayState wfcDisplayState;
+#endif
 };
 
 #endif /* __ROBOTRIDER_H__ */

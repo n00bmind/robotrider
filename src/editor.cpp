@@ -168,9 +168,9 @@ InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState,
 
 #if 0
     InitMeshSamplerTest( transientState, editorArena, transientArena );
-#endif
 
     InitWFCTest( transientState, editorArena, transientArena );
+#endif
 }
 
 void
@@ -199,6 +199,7 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
     {
         GameControllerInput *input0 = GetController( input, 0 );
         r32 camSpeed = 9.f;
+        r32 camRotMultiplier = 1.f;
 
         v3 vCamDelta = {};
         if( input0->dLeft.endedDown )
@@ -218,8 +219,8 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
 
         if( input0->rightStick.avgX || input0->rightStick.avgY )
         {
-            editorState->camPitch += input0->rightStick.avgY / 15.f * dT;
-            editorState->camYaw += input0->rightStick.avgX / 15.f * dT; 
+            editorState->camPitch += input0->rightStick.avgY * camRotMultiplier * dT;
+            editorState->camYaw += input0->rightStick.avgX * camRotMultiplier * dT; 
         }
 
         m4 mCamRot = XRotation( editorState->camPitch )
@@ -233,10 +234,10 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
         renderCommands->camera.mTransform = mCamRot * Translation( -editorState->pCamera );
     }
 
-    TickWFCTest( transientState, debugState, frameMemory, renderCommands );
-
 #if 0
     TickMeshSamplerTest( *editorState, transientState, &world->meshPools[0], frameMemory, elapsedT, renderCommands );
+
+    TickWFCTest( transientState, debugState, frameMemory, renderCommands );
 #endif
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );

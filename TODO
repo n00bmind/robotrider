@@ -14,6 +14,7 @@ WORLDGEN
   in the thread, then copying it to the mesh pool _afterwards_
 
 EDITOR
+- Hot reloading doesn't seem to work here? (was testing editor camera params)
 - Entity selection mode and showing debug data about them
 - Orbiting camera around selected entity (with progressive zoom)
 
