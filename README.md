@@ -39,29 +39,31 @@ Wave Function Collapse :: https://github.com/mxgmn/WaveFunctionCollapse & https:
 ## Zen of Programming
 
 After many many years dedicated to the ultimate creative endeavour, the beautiful art of programming (or 'coding' as I prefer to call it), I've grown more and more frustrated with the way software is conceived these days, what the industry considers 'best practices' and the path software development has taken. From a phylosophical standpoint I believe this actually merely reflects the sad state of the modern world at large, but that's certainly a huge topic for another time.
+
 In the last few years, however, thanks to the internet, I've discovered I'm not alone in thinking so, and have introduced myself to the ideas of some great minds out there, people like Casey Muratori, Jonathan Blow, Mike Acton, Sean Barrett, Brian Will, Omar Ocornut and others (to all of them, my most sincere thanks!). They showed me there is indeed another way, and above all, that this way is actually *superior*. This project is my first serious attempt to put some of these ideas into practice, to see where they take me.
+
 With time, I found some of these ideas I actually knew already, I had only be taught very early on to forget about that stuff and write yet another stupid class hierarchy instead. I've seriously rediscovered the joy of programming, and why I started doing this in the first place. And so, to make sure I don't forget them ever again, I've decided to write down my very own
 
-
+<br/>
 
    :: ZEN OF PROGRAMMING ::
 
- · Complexity is the enemy
- · Quality is a metric
- · Beauty matters
- · Consistency is the mother of mastery
- · Code is for people, not machines
- · Your dependencies will enslave you
- · Your turnaround is way too long
- · Dumb code is very easy to debug
- · Marrying data and behaviour is like marrying Heaven and Hell
- · C++ is just evil
- · When tempted to abstract away, think twice
- · When tempted to design for the future, don't
- · Code will reveal its own design to those who listen
- · When in doubt, make it an explicit parameter
- · Implicit-ness is like karma. It will come back and bite you
- · Don't be afraid of long functions
- · Focus. Pay attention. The devil is in the details
+ · Complexity is the enemy<br/>
+ · Quality is a metric<br/>
+ · Beauty matters<br/>
+ · Consistency is the mother of mastery<br/>
+ · Code is for people, not machines<br/>
+ · Your dependencies will enslave you<br/>
+ · Your turnaround is way too long<br/>
+ · Dumb code is very easy to debug<br/>
+ · Marrying data and behaviour is like marrying Heaven and Hell<br/>
+ · C++ is just evil<br/>
+ · When tempted to abstract away, think twice<br/>
+ · When tempted to design for the future, don't<br/>
+ · Code will reveal its own design to those who listen<br/>
+ · When in doubt, make it an explicit parameter<br/>
+ · Implicit-ness is like karma. It will come back and bite you<br/>
+ · Don't be afraid of long functions<br/>
+ · Focus. Pay attention. The devil is in the details<br/>
 
 
