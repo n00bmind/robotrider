@@ -1,20 +1,37 @@
 #ifndef __WFC_H__
 #define __WFC_H__ 
 
-
-
-// TODO Review all TODOs!!
-// TODO Inline and collapse where possible
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// So... We finally managed to find an inter-chunk propagation pattern that works! (sort of)
+// It seems the best method is to leave a "safe margin" of a certain width on each side of each wave, and then copy just the inner area
+// (the area that truly belongs to each chunk) when propagating to a neighbour.
+// (see Sketchup diagram in wfc_merging_tiles.skp)
+//  
+// However, some cells are _still_ causing contradictions, which is incredibly weird since the very same patterns in the corresponding
+// cells of the source chunk were obviously playing along nicely (otherwise it wouldn't have completed).
+// I've managed to ignore the errors by just forcing the collapsed wave cell to the pattern we want and everything seems to work out
+// in the end, so who cares... right?
+//
+// Also, the way we're doing multithreading can be made faster by extending the neighbouring chunks we examine when deciding whether to
+// start a new one to also include the diagonal chunks (see UpdateWFCAsync).
+// Finally, there's surely a few quirks to iron out like the issue with the pattern frequencies below.
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 // x Add counters so we can start getting a sense of what's what
 // x Add a maximum snapshot stack size and tweak the snapshot sampling curve so it's easier to get to early snapshots
 // x Make the snapshot stack non-circular and make sure we're always backtracking from the correct snapshot
 // x Pack wave data in bits similar to the adjacency counters to keep lowering memory consumption (check sizes!)
-// - Do tiled multithreading (***review wrapping conditions***)
-// - FIXME Pattern frequencies are all wrong
+// x Do tiled multithreading
+// - FIXME Pattern frequencies are all wrong (see displayed data in DrawTest)
 // - 3D (someday)
 //
+
+
+// TODO Inline and collapse functions where possible
+
 
 namespace WFC
 {

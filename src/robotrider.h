@@ -72,6 +72,7 @@ struct GameState
 
 struct TransientState
 {
+    // Wave Function Collapse test
     Array<WFC::Spec> wfcSpecs;
     u32 selectedSpecIndex;
     MemoryArena wfcArena;

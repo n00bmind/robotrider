@@ -80,7 +80,7 @@ ReflectPattern( u8* input, u32 N, u8* output )
 inline u32
 PatternHash( const Pattern& key, u32 entryCount )
 {
-    // TODO Test!
+    // TODO Test! (could this be related to the obviously wrong frequency figures!?)
     u32 result = Fletcher32( key.data, key.stride * key.stride );
     return result;
 }
@@ -287,7 +287,7 @@ DecreaseAdjacencyAndTestZeroAt( u32 cellIndex, u32 patternIndex, u32 dirIndex, S
 
     u64& counter = snapshot->adjacencyCounters.AtRowCol( cellIndex, patternIndex );
 
-    // NOTE This has been seen to underflow (trying to prevent that actually seems to break things!)
+    // NOTE This has been seen to underflow (trying to prevent that actually seems to break things!) (maybe test this again?)
     u64 value = (counter & mask) - one;
     counter = (counter & ~mask) | (value & mask);
 
@@ -438,13 +438,13 @@ GetCellCountForAdjacency( u32 adjacencyIndex, const Spec& spec )
         case Adjacency::Left:
         case Adjacency::Right:
         {
-            result = waveDim.y;
+            result = waveDim.y - 2 * spec.safeMarginWidth;
         } break;
 
         case Adjacency::Top:
         case Adjacency::Bottom:
         {
-            result = waveDim.x;
+            result = waveDim.x - 2 * spec.safeMarginWidth;
         } break;
 
         INVALID_DEFAULT_CASE;
@@ -456,34 +456,42 @@ GetCellCountForAdjacency( u32 adjacencyIndex, const Spec& spec )
 inline u32 
 GetCellIndexAtAdjacencyBorder( u32 adjacencyIndex, u32 borderCellCounter, const Spec& spec, u32 fromBorder )
 {
-    u32 result = 0;
+    u32 cellX = 0, cellY = 0;
     v3u waveDim = GetWaveDim( spec );
+    u32 margin = spec.safeMarginWidth;
 
     switch( adjacencyIndex )
     {
         case Adjacency::Left:
         {
-            result = borderCellCounter * waveDim.x + fromBorder;
+            cellX = fromBorder;
+            cellY = margin + borderCellCounter;
         } break;
 
         case Adjacency::Right:
         {
-            result = borderCellCounter * waveDim.x + waveDim.x - (fromBorder + 1);
+            cellX = waveDim.x - (fromBorder + 1);
+            cellY = margin + borderCellCounter;
         } break;
 
         case Adjacency::Top:
         {
-            result = borderCellCounter + fromBorder * waveDim.x;
+            cellX = margin + borderCellCounter;
+            cellY = fromBorder;
         } break;
 
         case Adjacency::Bottom:
         {
-            result = (waveDim.y - (fromBorder + 1)) * waveDim.x + borderCellCounter;
+            cellX = margin + borderCellCounter;
+            cellY = waveDim.y - (fromBorder + 1);
         } break;
 
         INVALID_DEFAULT_CASE;
     }
 
+    ASSERT( cellX >= 0 && cellX < waveDim.x );
+    ASSERT( cellY >= 0 && cellY < waveDim.y );
+    u32 result = cellY * waveDim.x + cellX;
     return result;
 }
 
@@ -607,9 +615,7 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
     CopySnapshot( initInfo.snapshot0, &snapshot0 );
     state->currentSnapshot = state->snapshotStack.Push( snapshot0 );
 
-#if 1
     // Propagate results from adjacent chunks
-
     // TODO Corners  !!!!!
     for( u32 d = 0; d < Adjacency::Count; ++d )
     {
@@ -632,7 +638,12 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
                     // Observe
                     {
                         bool compatiblesRemaining = ApplyObservedPatternAt( currentChunkCellIndex, collapsedPatternIndex, state, input );
+                        // FIXME How do we stop getting these
                         //ASSERT( compatiblesRemaining );
+                        // Fake it till you make it
+                        CollapseWaveAt( &state->currentSnapshot->wave, currentChunkCellIndex, collapsedPatternIndex, patternCount );
+                        state->currentSnapshot->compatiblesCount[currentChunkCellIndex] = 1;
+
                         state->observationCount++;
                     }
 
@@ -645,7 +656,6 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
             }
         }
     }
-#endif
 
     state->currentResult = InProgress;
     return result;
@@ -826,7 +836,7 @@ RewindSnapshot( State* state, const Input& input )
                 if( BacktrackedCellsCacheCount )
                 {
                     // Discard this cell index entirely and try a different one
-                    // TODO Do we somehow want to retry distribution options once we discard new cells?
+                    // Do we somehow want to retry distribution options once we discard new cells?
                     state->backtrackedCellIndices.Push( snapshot->lastObservedCellIndex );
                 }
 #if 0
@@ -928,6 +938,7 @@ DoWFCSync( Job* job )
                 state->currentResult = RewindSnapshot( state, input );
             }
 
+            // We currently just restart the job instead
 #if 0
             if( state->currentResult == Failed )
             {
@@ -1045,7 +1056,7 @@ StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena )
     result->globalWFCArena = wfcArena;
 
     // Process global input data
-    // NOTE This should be done either offline or on a thread
+    // TODO This probably should be done either offline or on a thread
     Input& input = result->input;
     {
         PalettizeSource( spec.source, &input, wfcArena );
@@ -1203,6 +1214,8 @@ UpdateWFCAsync( GlobalState* globalState )
                                 continue;
 #endif
                             // Start processing if no adjacent is currently in progress
+                            // TODO Make everything faster by removing the 'canProceed' concept and instead extending this loop
+                            // to also account for the diagonal neighbours
                             for( u32 i = 0; i < Adjacency::Count; ++i )
                             {
                                 v3i pAdjacent = pChunk + AdjacencyMeta[i].cellDelta;
@@ -1298,7 +1311,7 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
                         u8 sample = chunkInfo.outputSamples[y * chunkWidth + x];
                         u32 color = input.palette[sample];
 
-                        if( failed || x == 0 || y == 0 )
+                        if( failed ) // || x == 0 || y == 0 )
                         {
                             v4 unpacked = UnpackRGBAToV401( color );
                             unpacked = Hadamard( unpacked, { .5f, .5f, .5f, 1.f } );
@@ -1364,7 +1377,7 @@ CreateOutputTexture( const Spec& spec, const GlobalState* globalState, u32* imag
                             if( contributors )
                             {
                                 color = PackRGBA( r / contributors, g / contributors, b / contributors, 0xFF );
-#if 0
+#if 1
                                 if( x == 0 || y == 0 )
                                 {
                                     v4 unpacked = UnpackRGBAToV401( color );
@@ -1569,7 +1582,7 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
             if( !displayState->allDone )
             {
                 // Do one more pass after all progress stopped
-                // NOTE Very Broken Synchronization, but I don't really care right now!
+                // TODO Very Broken Synchronization, but I don't really care right now!
                 displayState->allDone = !inProgress;
 
                 if( !displayState->outputImageBuffer )
