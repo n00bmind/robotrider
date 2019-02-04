@@ -4,11 +4,11 @@
 
 
 NEXT
-- WFC Parallelization
-- WFC 3D
+- Basic BSP partitioning of Volumes/clusters
+- Room generation and connectivity
 
 WORLDGEN
-- Wave Function Collapse parallel 3D
+- Space Volumes partitioning using BSP at various scale levels
 - Procedural generation of some kind of infinite pipe-like world structure
 - Unify all mesh pools and put them behind a ticket mutex so they can be shared by threads. Remember to _first_ do the mesh generation
   in the thread, then copying it to the mesh pool _afterwards_
