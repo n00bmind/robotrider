@@ -117,26 +117,157 @@ struct GameControllerInput
     };
 };
 
+enum GameMouseButtons
+{
+    MouseButtonLeft = 0,
+    MouseButtonMiddle = 1,
+    MouseButtonRight = 2,
+    MouseButton4 = 3,
+    MouseButton5 = 4,
+};
+
+#pragma region USB HID Key Codes
+enum GameKeyCodes
+{
+    KeyNone = 0,
+
+    KeyA = 4,
+    KeyB = 5,
+    KeyC = 6,
+    KeyD = 7,
+    KeyE = 8,
+    KeyF = 9,
+    KeyG = 10,
+    KeyH = 11,
+    KeyI = 12,
+    KeyJ = 13,
+    KeyK = 14,
+    KeyL = 15,
+    KeyM = 16,
+    KeyN = 17,
+    KeyO = 18,
+    KeyP = 19,
+    KeyQ = 20,
+    KeyR = 21,
+    KeyS = 22,
+    KeyT = 23,
+    KeyU = 24,
+    KeyV = 25,
+    KeyW = 26,
+    KeyX = 27,
+    KeyY = 28,
+    KeyZ = 29,
+
+    Key1 = 30,
+    Key2 = 31,
+    Key3 = 32,
+    Key4 = 33,
+    Key5 = 34,
+    Key6 = 35,
+    Key7 = 36,
+    Key8 = 37,
+    Key9 = 38,
+    Key0 = 39,
+
+    KeyEnter = 40,
+    KeyEscape = 41,
+    KeyDelete = 42,
+    KeyTab = 43,
+    KeySpace = 44,
+    KeyMinus = 45,
+    KeyEquals = 46,
+    KeyLeftBracket = 47,
+    KeyRightBracket = 48,
+    KeyBackslash = 49,
+    KeySemicolon = 51,
+    KeyQuote = 52,
+    KeyGrave = 53,
+    KeyComma = 54,
+    KeyPeriod = 55,
+    KeySlash = 56,
+    KeyCapsLock = 57,
+
+    KeyF1 = 58,
+    KeyF2 = 59,
+    KeyF3 = 60,
+    KeyF4 = 61,
+    KeyF5 = 62,
+    KeyF6 = 63,
+    KeyF7 = 64,
+    KeyF8 = 65,
+    KeyF9 = 66,
+    KeyF10 = 67,
+    KeyF11 = 68,
+    KeyF12 = 69,
+
+    KeyPrintScreen = 70,
+    KeyScrollLock = 71,
+    KeyPause = 72,
+    KeyInsert = 73,
+    KeyHome = 74,
+    KeyPageUp = 75,
+    KeyDeleteForward = 76,
+    KeyEnd = 77,
+    KeyPageDown = 78,
+    KeyRight = 79,
+    KeyLeft = 80,
+    KeyDown = 81,
+    KeyUp = 82,
+
+    KeyNumLock = 83,
+    KeyKPDivide = 84,
+    KeyKPMultiply = 85,
+    KeyKPSubtract = 86,
+    KeyKPAdd = 87,
+    KeyKPEnter = 88,
+    KeyKP1 = 89,
+    KeyKP2 = 90,
+    KeyKP3 = 91,
+    KeyKP4 = 92,
+    KeyKP5 = 93,
+    KeyKP6 = 94,
+    KeyKP7 = 95,
+    KeyKP8 = 96,
+    KeyKP9 = 97,
+    KeyKP0 = 98,
+    KeyKPPoint = 99,
+    KeyKPEquals = 103,
+
+    KeyHelp = 117,
+    KeyMenu = 118,
+    KeyLeftControl = 224,
+    KeyLeftShift = 225,
+    KeyLeftAlt = 226,
+    KeyLeftGUI = 227,
+    KeyRightControl = 228,
+    KeyRightShift = 229,
+    KeyRightAlt = 230,
+    KeyRightGUI = 231,
+
+    KeyMediaPlayPause = 0xE8,
+    KeyMediaPrevious = 0xEA,
+    KeyMediaNext = 0xEB,
+    KeyMediaVolumeUp = 0xED,
+    KeyMediaVolumeDown = 0xEE,
+    KeyMediaMute = 0xEF,
+    KeyMediaBack = 0xF1,
+    KeyMediaForward = 0xF2,
+    KeyMediaStop = 0xF3,
+
+    KeyUnknown = 0xFF,
+    COUNT
+};
+#pragma endregion USB HID Key Codes
+
 // OPTIONAL: some platforms may not provide this
-struct EditorInput
+struct KeyMouseInput
 {
     // This is normal desktop mouse data (with standard system ballistics applied)
     i32 mouseX, mouseY, mouseZ;
     GameButtonState mouseButtons[5];
 
-    // TODO Platform-agnostic way to pass raw keypress data to the game?
-    union
-    {
-        struct
-        {
-            GameButtonState openEditor; // TODO
-            GameButtonState closeEditor; // TODO
-            GameButtonState triggerEditor; // TODO
-
-            GameButtonState nextStep;
-        };
-        GameButtonState buttons[4];
-    };
+    // Platform-agnostic key codes
+    bool keysDown[GameKeyCodes::COUNT];
 };
 
 struct GameInput
@@ -148,8 +279,8 @@ struct GameInput
 
     GameControllerInput _controllers[5];
 
-    bool hasEditorInput;
-    EditorInput editor;
+    bool hasKeyMouseInput;
+    KeyMouseInput keyMouse;
 };
 
 #define PLATFORM_KEYMOUSE_CONTROLLER_SLOT 0

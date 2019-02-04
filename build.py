@@ -23,9 +23,10 @@
 
 #!/usr/bin/env python2
 
+from __future__ import print_function
+
 import os, sys, subprocess, atexit, random, argparse
 from collections import namedtuple
-
 
 
 Platform = namedtuple('Platform', ['name', 'compiler', 'toolset', 'common_compiler_flags', 'libs', 'common_linker_flags'])
@@ -117,11 +118,8 @@ class colors:
 # print '\033[1;48mHighlighted Crimson like Chianti\033[1;m'
 
 def print_color(output, color_string):
-    print color_string,
-    print output,
-    # For Python 3
-    # print(colors.GRAY, end='')
-    # print(out_args, end='')
+    print(color_string, end='')
+    print(output, end='')
     print(colors.END)
 
 

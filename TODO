@@ -40,10 +40,6 @@ AUDIO
   https://msdn.microsoft.com/en-us/library/windows/desktop/dd370844(v=vs.85).aspx
   https://github.com/pauldotknopf/WindowsSDK7-Samples/blob/master/multimedia/audio/RenderExclusiveEventDriven/WASAPIRenderer.cpp
 
-INPUT
-- Decent handling
-- Implement a platform-independent keyboard representation (use tables from https://github.com/depp/keycode) ?
-
 ENGINE
 - Add a separate arena per thread so we don't have to keep thinking where to put per-thread work memory
 - Separate physics & input thread running at a high framerate

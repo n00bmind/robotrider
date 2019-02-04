@@ -184,10 +184,12 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
     EditorState* editorState = &gameState->DEBUGeditorState;
     World* world = gameState->world;
 
-    // Setup a zenithal camera initially
+    // TODO 
+    //EditorInput editorInput = MapGameInputToEditorInput( *input );
+
     if( editorState->pCamera == V3Zero )
     {
-        editorState->pCamera = V3( 0, -20, 20 );
+        editorState->pCamera = V3( 0, -150, 150 );
         editorState->camYaw = 0;
         editorState->camPitch = 0;
         //v3 pLookAt = gameState->pPlayer;

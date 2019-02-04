@@ -996,15 +996,15 @@ Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
     newInput->totalElapsedSeconds = totalSeconds;
     newInput->frameCounter = frameCounter;
 
-    newInput->hasEditorInput = true;
-    newInput->editor.mouseX = oldInput->editor.mouseX;
-    newInput->editor.mouseY = oldInput->editor.mouseY;
-    newInput->editor.mouseZ = oldInput->editor.mouseZ;
+    newInput->hasKeyMouseInput = true;
+    newInput->keyMouse.mouseX = oldInput->keyMouse.mouseX;
+    newInput->keyMouse.mouseY = oldInput->keyMouse.mouseY;
+    newInput->keyMouse.mouseZ = oldInput->keyMouse.mouseZ;
 
-    for( u32 i = 0; i < ARRAYCOUNT(newInput->editor.mouseButtons); ++i )
-        newInput->editor.mouseButtons[i] = oldInput->editor.mouseButtons[i];
-    for( u32 i = 0; i < ARRAYCOUNT(newInput->editor.buttons); ++i )
-        newInput->editor.buttons[i] = oldInput->editor.buttons[i];
+    for( u32 i = 0; i < ARRAYCOUNT(newInput->keyMouse.mouseButtons); ++i )
+        newInput->keyMouse.mouseButtons[i] = oldInput->keyMouse.mouseButtons[i];
+    for( u32 i = 0; i < ARRAYCOUNT(newInput->keyMouse.keysDown); ++i )
+        newInput->keyMouse.keysDown[i] = oldInput->keyMouse.keysDown[i];
 }
 
 
@@ -1249,6 +1249,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 UINT scancode = (message.lParam & 0x00ff0000) >> 16;
                 bool extended  = (message.lParam & 0x01000000) != 0;
 
+                // @Test
                 message.wParam = Win32MapLeftRightKeys( message.wParam, message.lParam );
                 u32 vkCode = ToU32Safe( message.wParam );
                 if( vkCode < 256 )
@@ -1271,6 +1272,16 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 // (don't ever send keys to game if ImGui is handling them)
                 if( isDown != wasDown && !imGuiIO.WantCaptureKeyboard )
                 {
+                    // Translate key code into the game's platform agnostic codes
+                    if( message.wParam >= 0 && message.wParam < ARRAYCOUNT(Win32NativeToHID) )
+                    {
+                        // @Test Check left/right shift, alt, etc. specifically
+                        u32 hidCode = Win32NativeToHID[message.wParam];
+                        if( hidCode < ARRAYCOUNT(input->keyMouse.keysDown) )
+                            input->keyMouse.keysDown[hidCode] = isDown;
+                    }
+
+                    // Emulate controller from keys
                     if( vkCode == 'W' )
                     {
                         Win32SetButtonState( &keyMouseController->dUp, isDown );
@@ -1319,7 +1330,6 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     }
                     else if( vkCode == VK_RIGHT )
                     {
-                        Win32SetButtonState( &input->editor.nextStep, isDown );
                     }
                     else if( vkCode == VK_RETURN )
                     {
@@ -1362,26 +1372,30 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                         }
                     }
 
-                    // FIXME This only works on a spanish keyboard it seems
-                    else if( vkCode == VK_OEM_5 )
+                    // @Test The "key above TAB"
+                    else if( vkCode == VK_OEM_3 || vkCode == VK_OEM_5 )
                     {
                         if( ctrlKeyDown )
                             gameMemory->DEBUGglobalEditing = true;
                         else if( !gameMemory->DEBUGglobalDebugging && !gameMemory->DEBUGglobalEditing )
                             Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
                     }
+
                     else if( vkCode == VK_F1 )
                     {
-                        if( platformState->inputPlaybackIndex == 0 )
+                        if( !gameMemory->DEBUGglobalDebugging && !gameMemory->DEBUGglobalEditing )
                         {
-                            if( platformState->inputRecordingIndex == 0 )
+                            if( platformState->inputPlaybackIndex == 0 )
                             {
-                                Win32BeginInputRecording( platformState, 1 );
-                            }
-                            else if( platformState->inputRecordingIndex == 1 )
-                            {
-                                Win32EndInputRecording( platformState );
-                                Win32BeginInputPlayback( platformState, 1 );
+                                if( platformState->inputRecordingIndex == 0 )
+                                {
+                                    Win32BeginInputRecording( platformState, 1 );
+                                }
+                                else if( platformState->inputRecordingIndex == 1 )
+                                {
+                                    Win32EndInputRecording( platformState );
+                                    Win32BeginInputPlayback( platformState, 1 );
+                                }
                             }
                         }
                     }
@@ -1401,11 +1415,11 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
 
             case WM_MOUSEMOVE:
             {
-                input->editor.mouseX = GET_SIGNED_LO( message.lParam );
-                input->editor.mouseY = GET_SIGNED_HI( message.lParam );
+                input->keyMouse.mouseX = GET_SIGNED_LO( message.lParam );
+                input->keyMouse.mouseY = GET_SIGNED_HI( message.lParam );
                 
-                imGuiIO.MousePos.x = (float)input->editor.mouseX;
-                imGuiIO.MousePos.y = (float)input->editor.mouseY;
+                imGuiIO.MousePos.x = (float)input->keyMouse.mouseX;
+                imGuiIO.MousePos.y = (float)input->keyMouse.mouseY;
             } break;
 
             case WM_MOUSEWHEEL:
@@ -1414,11 +1428,11 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 pt.x = GET_SIGNED_LO( message.lParam );
                 pt.y = GET_SIGNED_HI( message.lParam );
                 ScreenToClient( platformState->mainWindow, &pt );
-                input->editor.mouseX = pt.x;
-                input->editor.mouseY = pt.y;
-                input->editor.mouseZ = GET_WHEEL_DELTA_WPARAM( message.wParam );
+                input->keyMouse.mouseX = pt.x;
+                input->keyMouse.mouseY = pt.y;
+                input->keyMouse.mouseZ = GET_WHEEL_DELTA_WPARAM( message.wParam );
 
-                imGuiIO.MouseWheel = input->editor.mouseZ > 0 ? +1.0f : -1.0f;
+                imGuiIO.MouseWheel = input->keyMouse.mouseZ > 0 ? +1.0f : -1.0f;
             } break;
 
             case WM_LBUTTONDOWN:
@@ -1464,36 +1478,36 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     bDown = (buttonFlags & RI_MOUSE_LEFT_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->editor.mouseButtons[0], bDown );
-                        imGuiIO.MouseDown[0] = input->editor.mouseButtons[0].endedDown;
+                        Win32SetButtonState( &input->keyMouse.mouseButtons[MouseButtonLeft], bDown );
+                        imGuiIO.MouseDown[0] = input->keyMouse.mouseButtons[MouseButtonLeft].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_MIDDLE_BUTTON_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->editor.mouseButtons[1], bDown );
-                        imGuiIO.MouseDown[1] = input->editor.mouseButtons[1].endedDown;
+                        Win32SetButtonState( &input->keyMouse.mouseButtons[MouseButtonMiddle], bDown );
+                        imGuiIO.MouseDown[1] = input->keyMouse.mouseButtons[MouseButtonMiddle].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_RIGHT_BUTTON_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->editor.mouseButtons[2], bDown );
-                        imGuiIO.MouseDown[2] = input->editor.mouseButtons[2].endedDown;
+                        Win32SetButtonState( &input->keyMouse.mouseButtons[MouseButtonRight], bDown );
+                        imGuiIO.MouseDown[2] = input->keyMouse.mouseButtons[MouseButtonRight].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_BUTTON_4_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_BUTTON_4_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->editor.mouseButtons[3], bDown  );
-                        imGuiIO.MouseDown[3] = input->editor.mouseButtons[3].endedDown;
+                        Win32SetButtonState( &input->keyMouse.mouseButtons[MouseButton4], bDown  );
+                        imGuiIO.MouseDown[3] = input->keyMouse.mouseButtons[MouseButton4].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_BUTTON_5_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_BUTTON_5_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->editor.mouseButtons[4], bDown  );
-                        imGuiIO.MouseDown[4] = input->editor.mouseButtons[4].endedDown;
+                        Win32SetButtonState( &input->keyMouse.mouseButtons[MouseButton5], bDown  );
+                        imGuiIO.MouseDown[4] = input->keyMouse.mouseButtons[MouseButton5].endedDown;
                     }
 
                     if( buttonFlags & RI_MOUSE_WHEEL )
