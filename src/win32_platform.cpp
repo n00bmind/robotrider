@@ -984,27 +984,32 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput, GameCon
 }
 
 internal void
-Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
+Win32PrepareInputData( GameInput** oldInput, GameInput** newInput,
                        float elapsedSeconds, float totalSeconds, u32 frameCounter )
 {
-    GameInput *temp = newInput;
-    newInput = oldInput;
-    oldInput = temp;
+    // Swap pointers
+    GameInput *temp = *newInput;
+    *newInput = *oldInput;
+    *oldInput = temp;
 
-    newInput->executableReloaded = false;
-    newInput->frameElapsedSeconds = elapsedSeconds;
-    newInput->totalElapsedSeconds = totalSeconds;
-    newInput->frameCounter = frameCounter;
+    (*newInput)->executableReloaded = false;
+    (*newInput)->frameElapsedSeconds = elapsedSeconds;
+    (*newInput)->totalElapsedSeconds = totalSeconds;
+    (*newInput)->frameCounter = frameCounter;
 
-    newInput->hasKeyMouseInput = true;
-    newInput->keyMouse.mouseX = oldInput->keyMouse.mouseX;
-    newInput->keyMouse.mouseY = oldInput->keyMouse.mouseY;
-    newInput->keyMouse.mouseZ = oldInput->keyMouse.mouseZ;
+    // Copy over key & mouse state
+    (*newInput)->hasKeyMouseInput = true;
+    (*newInput)->keyMouse.mouseX = (*oldInput)->keyMouse.mouseX;
+    (*newInput)->keyMouse.mouseY = (*oldInput)->keyMouse.mouseY;
+    (*newInput)->keyMouse.mouseZ = (*oldInput)->keyMouse.mouseZ;
+    (*newInput)->keyMouse.mouseRawXDelta = 0;
+    (*newInput)->keyMouse.mouseRawYDelta = 0;
+    (*newInput)->keyMouse.mouseRawZDelta = 0;
 
-    for( u32 i = 0; i < ARRAYCOUNT(newInput->keyMouse.mouseButtons); ++i )
-        newInput->keyMouse.mouseButtons[i] = oldInput->keyMouse.mouseButtons[i];
-    for( u32 i = 0; i < ARRAYCOUNT(newInput->keyMouse.keysDown); ++i )
-        newInput->keyMouse.keysDown[i] = oldInput->keyMouse.keysDown[i];
+    for( u32 i = 0; i < ARRAYCOUNT((*newInput)->keyMouse.mouseButtons); ++i )
+        (*newInput)->keyMouse.mouseButtons[i] = (*oldInput)->keyMouse.mouseButtons[i];
+    for( u32 i = 0; i < ARRAYCOUNT((*newInput)->keyMouse.keysDown); ++i )
+        (*newInput)->keyMouse.keysDown[i] = (*oldInput)->keyMouse.keysDown[i];
 }
 
 
@@ -1410,13 +1415,15 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     imGuiIO.AddInputCharacter( (ImWchar)ch );
             } break;
 
-#define GET_SIGNED_LO(dw) ((int)(short)LOWORD(dw))
-#define GET_SIGNED_HI(dw) ((int)(short)HIWORD(dw))
+// Copied from windowsx.h
+#define GET_X_LPARAM(lp)    ((int)(short)LOWORD(lp))
+#define GET_Y_LPARAM(lp)    ((int)(short)HIWORD(lp))
 
             case WM_MOUSEMOVE:
             {
-                input->keyMouse.mouseX = GET_SIGNED_LO( message.lParam );
-                input->keyMouse.mouseY = GET_SIGNED_HI( message.lParam );
+                // Can be negative on multiple monitors
+                input->keyMouse.mouseX = GET_X_LPARAM( message.lParam );
+                input->keyMouse.mouseY = GET_Y_LPARAM( message.lParam );
                 
                 imGuiIO.MousePos.x = (float)input->keyMouse.mouseX;
                 imGuiIO.MousePos.y = (float)input->keyMouse.mouseY;
@@ -1424,12 +1431,6 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
 
             case WM_MOUSEWHEEL:
             {
-                POINT pt;
-                pt.x = GET_SIGNED_LO( message.lParam );
-                pt.y = GET_SIGNED_HI( message.lParam );
-                ScreenToClient( platformState->mainWindow, &pt );
-                input->keyMouse.mouseX = pt.x;
-                input->keyMouse.mouseY = pt.y;
                 input->keyMouse.mouseZ = GET_WHEEL_DELTA_WPARAM( message.wParam );
 
                 imGuiIO.MouseWheel = input->keyMouse.mouseZ > 0 ? +1.0f : -1.0f;
@@ -1465,10 +1466,12 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 {
                     if( raw->data.mouse.usFlags == MOUSE_MOVE_RELATIVE )
                     {
-                        int xPosRelative = raw->data.mouse.lLastX;
-                        int yPosRelative = raw->data.mouse.lLastY;
-                        keyMouseController->rightStick.avgX += xPosRelative;
-                        keyMouseController->rightStick.avgY += yPosRelative;
+                        i32 xMotionRelative = raw->data.mouse.lLastX;
+                        i32 yMotionRelative = raw->data.mouse.lLastY;
+                        input->keyMouse.mouseRawXDelta += xMotionRelative;
+                        input->keyMouse.mouseRawYDelta += yMotionRelative;
+                        keyMouseController->rightStick.avgX += xMotionRelative;
+                        keyMouseController->rightStick.avgY += yMotionRelative;
                     }
 
                     bool bUp, bDown;
@@ -1512,8 +1515,9 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
 
                     if( buttonFlags & RI_MOUSE_WHEEL )
                     {
-                        int zPosRelative = raw->data.mouse.usButtonData;
-                        //keyMouseController->rightStick.avgZ += zPosRelative;
+                        i32 zMotionRelative = raw->data.mouse.usButtonData;
+                        input->keyMouse.mouseRawZDelta += zMotionRelative;
+                        //keyMouseController->rightStick.avgZ += zMotionRelative;
                     }
                 } 
             } break;
@@ -2191,7 +2195,7 @@ main( int argC, char **argV )
 #endif
                             totalElapsedSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
 
-                        Win32PrepareInputData( oldInput, newInput,
+                        Win32PrepareInputData( &oldInput, &newInput,
                                                lastDeltaTimeSecs, totalElapsedSeconds, runningFrameCounter );
                         if( runningFrameCounter == 0 )
                             newInput->executableReloaded = true;

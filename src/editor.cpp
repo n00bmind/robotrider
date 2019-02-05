@@ -173,8 +173,10 @@ MapGameInputToEditorInput( const GameInput& input )
     result.camUp        = input.keyMouse.keysDown[KeySpace] || input0.rightShoulder.endedDown;
     result.camDown      = input.keyMouse.keysDown[KeyLeftControl] || input0.leftShoulder.endedDown;
 
-    result.camYawDelta = input.keyMouse.mouseX || input0.rightStick.avgX;
-    result.camPitchDelta = input.keyMouse.mouseY || input0.rightStick.avgY;
+    result.camYawDelta = input.keyMouse.mouseRawXDelta
+        ? input.keyMouse.mouseRawXDelta : input0.rightStick.avgX;
+    result.camPitchDelta = input.keyMouse.mouseRawYDelta
+        ? input.keyMouse.mouseRawYDelta : input0.rightStick.avgY;
     // TODO Progressive zoom
     result.camZoomDelta = input.keyMouse.mouseZ || input0.leftStick.avgY;
     result.camOrbit = input.keyMouse.mouseButtons[MouseButtonRight].endedDown;
@@ -196,17 +198,17 @@ InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState,
 }
 
 void
-UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* transientState, 
+UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientState* transientState, 
                        DebugState* debugState, RenderCommands *renderCommands, const char* statsText, 
                        const TemporaryMemory& frameMemory )
 {
-    float dT = input->frameElapsedSeconds;
-    float elapsedT = input->totalElapsedSeconds;
+    float dT = input.frameElapsedSeconds;
+    float elapsedT = input.totalElapsedSeconds;
 
     EditorState* editorState = &gameState->DEBUGeditorState;
     World* world = gameState->world;
 
-    EditorInput editorInput = MapGameInputToEditorInput( *input );
+    EditorInput editorInput = MapGameInputToEditorInput( input );
 
     if( editorState->pCamera == V3Zero )
     {

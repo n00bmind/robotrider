@@ -205,8 +205,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     if( memory->DEBUGglobalEditing )
     {
-        UpdateAndRenderEditor( input, gameState, transientState, debugState, renderCommands, statsText,
-                               frameMemory );
+        UpdateAndRenderEditor( *input, gameState, transientState, debugState, renderCommands, statsText, frameMemory );
     }
     else if( memory->DEBUGglobalDebugging )
     {
