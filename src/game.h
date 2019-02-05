@@ -292,6 +292,12 @@ GetController( GameInput *input, u32 controllerIndex )
     GameControllerInput *result = &input->_controllers[controllerIndex];
     return result;
 }
+inline const GameControllerInput&
+GetController( const GameInput& input, u32 controllerIndex )
+{
+    ASSERT( controllerIndex < ARRAYCOUNT( input._controllers ) );
+    return input._controllers[controllerIndex];
+}
 
 
 struct ImGuiContext;

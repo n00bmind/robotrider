@@ -9,6 +9,20 @@ struct EditorEntity
     u32 cellsPerSide;
 };
 
+struct EditorInput
+{
+    bool camLeft;
+    bool camRight;
+    bool camForward;
+    bool camBackwards;
+    bool camUp;
+    bool camDown;
+    r32 camPitchDelta;
+    r32 camYawDelta;
+    r32 camZoomDelta;
+    bool camOrbit;
+};
+
 struct EditorState
 {
     v3 pCamera;

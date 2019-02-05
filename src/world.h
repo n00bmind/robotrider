@@ -119,7 +119,6 @@ inline u32 EntityHash( const u32& key, u32 tableSize );
 
 struct World
 {
-    // TODO Move to the player struct
     v3 pPlayer;
     r32 playerPitch;
     r32 playerYaw;

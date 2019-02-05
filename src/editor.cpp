@@ -160,6 +160,28 @@ TickWFCTest( TransientState* transientState, DebugState* debugState, const Tempo
     }
 }
 
+internal EditorInput
+MapGameInputToEditorInput( const GameInput& input )
+{
+    EditorInput result = {};
+    const GameControllerInput& input0 = GetController( input, 0 );
+
+    result.camLeft      = input.keyMouse.keysDown[KeyA] || input0.dLeft.endedDown;
+    result.camRight     = input.keyMouse.keysDown[KeyD] || input0.dRight.endedDown;
+    result.camForward   = input.keyMouse.keysDown[KeyW] || input0.dUp.endedDown;
+    result.camBackwards = input.keyMouse.keysDown[KeyS] || input0.dDown.endedDown;
+    result.camUp        = input.keyMouse.keysDown[KeySpace] || input0.rightShoulder.endedDown;
+    result.camDown      = input.keyMouse.keysDown[KeyLeftControl] || input0.leftShoulder.endedDown;
+
+    result.camYawDelta = input.keyMouse.mouseX || input0.rightStick.avgX;
+    result.camPitchDelta = input.keyMouse.mouseY || input0.rightStick.avgY;
+    // TODO Progressive zoom
+    result.camZoomDelta = input.keyMouse.mouseZ || input0.leftStick.avgY;
+    result.camOrbit = input.keyMouse.mouseButtons[MouseButtonRight].endedDown;
+
+    return result;
+}
+
 void
 InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState, TransientState* transientState,
             MemoryArena* editorArena, MemoryArena* transientArena )
@@ -184,8 +206,7 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
     EditorState* editorState = &gameState->DEBUGeditorState;
     World* world = gameState->world;
 
-    // TODO 
-    //EditorInput editorInput = MapGameInputToEditorInput( *input );
+    EditorInput editorInput = MapGameInputToEditorInput( *input );
 
     if( editorState->pCamera == V3Zero )
     {
@@ -199,31 +220,29 @@ UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* t
 
     // Update camera based on input
     {
-        GameControllerInput *input0 = GetController( input, 0 );
         r32 camSpeed = 9.f;
         r32 camRotMultiplier = 1.f;
 
         v3 vCamDelta = {};
-        if( input0->dLeft.endedDown )
+        if( editorInput.camLeft )
             vCamDelta.x -= camSpeed * dT;
-        if( input0->dRight.endedDown )
+        if( editorInput.camRight )
             vCamDelta.x += camSpeed * dT;
 
-        if( input0->dUp.endedDown )
+        if( editorInput.camForward )
             vCamDelta.z -= camSpeed * dT;
-        if( input0->dDown.endedDown )
+        if( editorInput.camBackwards )
             vCamDelta.z += camSpeed * dT;
 
-        if( input0->leftShoulder.endedDown )
+        if( editorInput.camDown )
             vCamDelta.y -= camSpeed * dT;
-        if( input0->rightShoulder.endedDown )
+        if( editorInput.camUp )
             vCamDelta.y += camSpeed * dT;
 
-        if( input0->rightStick.avgX || input0->rightStick.avgY )
-        {
-            editorState->camPitch += input0->rightStick.avgY * camRotMultiplier * dT;
-            editorState->camYaw += input0->rightStick.avgX * camRotMultiplier * dT; 
-        }
+        if( editorInput.camPitchDelta )
+            editorState->camPitch += editorInput.camPitchDelta * camRotMultiplier * dT;
+        if( editorInput.camYawDelta )
+            editorState->camYaw += editorInput.camYawDelta * camRotMultiplier * dT; 
 
         m4 mCamRot = XRotation( editorState->camPitch )
             * ZRotation( editorState->camYaw );

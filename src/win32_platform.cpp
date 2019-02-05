@@ -1286,22 +1286,22 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     {
                         Win32SetButtonState( &keyMouseController->dUp, isDown );
                         // Simulate fake stick
-                        keyMouseController->leftStick.avgY += isDown ? 0.5f : -0.5f;
+                        keyMouseController->leftStick.avgY += isDown ? 1 : -1;
                     }
                     else if( vkCode == 'A' )
                     {
                         Win32SetButtonState( &keyMouseController->dLeft, isDown );
-                        keyMouseController->leftStick.avgX += isDown ? -0.5f : 0.5f;
+                        keyMouseController->leftStick.avgX += isDown ? -1 : 1;
                     }
                     else if( vkCode == 'S' )
                     {
                         Win32SetButtonState( &keyMouseController->dDown, isDown );
-                        keyMouseController->leftStick.avgY += isDown ? -0.5f : 0.5f;
+                        keyMouseController->leftStick.avgY += isDown ? -1 : 1;
                     }
                     else if( vkCode == 'D' )
                     {
                         Win32SetButtonState( &keyMouseController->dRight, isDown );
-                        keyMouseController->leftStick.avgX += isDown ? 0.5f : -0.5f;
+                        keyMouseController->leftStick.avgX += isDown ? 1 : -1;
                     }
                     else if( vkCode == VK_LSHIFT )
                     {
