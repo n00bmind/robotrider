@@ -212,12 +212,15 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     if( editorState->pCamera == V3Zero )
     {
-        editorState->pCamera = V3( 0, -150, 150 );
-        editorState->camYaw = 0;
-        editorState->camPitch = 0;
-        //v3 pLookAt = gameState->pPlayer;
-        //m4 mInitialRot = CameraLookAt( editorState->pCamera, pLookAt, V3Up() );
-        editorState->camPitch = -PI / 4.f;
+        editorState->pCamera = V3( 0, -10, 0 );
+        //editorState->pCamera = V3( 0, -150, 150 );
+
+        //editorState->camYaw = 0;
+        //editorState->camPitch = 0;
+        //editorState->camPitch = -PI / 4.f;
+
+        //editorState->cameraRotation = QnIdentity;
+        editorState->cameraRotation = QnCameraLookAt( editorState->pCamera, world->pPlayer, V3Up );
     }
 
     // Update camera based on input
@@ -225,6 +228,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
         r32 camSpeed = 9.f;
         r32 camRotMultiplier = 1.f;
 
+#if 0
         v3 vCamDelta = {};
         if( editorInput.camLeft )
             vCamDelta.x -= camSpeed * dT;
@@ -249,12 +253,15 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
         m4 mCamRot = XRotation( editorState->camPitch )
             * ZRotation( editorState->camYaw );
 
-        v3 vCamForward = GetColumn( mCamRot, 2 ).xyz;
-        v3 vCamRight = GetColumn( mCamRot, 0 ).xyz;
         editorState->pCamera += Transposed( mCamRot ) * vCamDelta;
+#endif
+
+        m4 mCameraRotation = ToM4( editorState->cameraRotation );
+        v3 vCamForward = GetColumn( mCameraRotation, 2 ).xyz;
+        v3 vCamRight = GetColumn( mCameraRotation, 0 ).xyz;
 
         renderCommands->camera = DefaultCamera();
-        renderCommands->camera.mTransform = mCamRot * Translation( -editorState->pCamera );
+        renderCommands->camera.mTransform = mCameraRotation * Translation( -editorState->pCamera );
     }
 
 #if 0

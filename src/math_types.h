@@ -468,21 +468,6 @@ Cross( const v3 &a, const v3 &b )
     return result;
 }
 
-inline void
-Normalize( v3& v )
-{
-    r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
-    v *= invL;
-}
-
-inline v3
-Normalized( const v3 &v )
-{
-    r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
-    v3 result = v * invL;
-    return result;
-}
-
 inline r32
 Length( const v3& v )
 {
@@ -497,6 +482,12 @@ LengthSq( const v3& v )
     return result;
 }
 
+inline bool
+IsUnit( const v3& v )
+{
+    return AlmostEqual( LengthSq( v ), 1.f );
+}
+
 inline r32
 Distance( const v3& a, const v3& b )
 {
@@ -508,6 +499,28 @@ inline r32
 DistanceSq( const v3& a, const v3& b )
 {
     r32 result = LengthSq(a - b);
+    return result;
+}
+
+inline void
+Normalize( v3& v )
+{
+    if( !IsUnit( v ) )
+    {
+        r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
+        v *= invL;
+    }
+}
+
+inline v3
+Normalized( const v3 &v )
+{
+    v3 result = v;
+    if( !IsUnit( v ) )
+    {
+        r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
+        result = v * invL;
+    }
     return result;
 }
 
@@ -967,10 +980,12 @@ CameraTransform( const m4 &rot, const v3 &p )
 }
 
 inline m4
-CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
+M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 {
     v3 vUpN = Normalized( vUp );
     v3 vZ = Normalized( pSrc - pTgt );
+    // TODO Deal with this
+    ASSERT( !AlmostEqual( vUpN, vZ ) && !AlmostEqual( -vUpN, vZ ) );
     v3 vX = Cross( vUpN, vZ );
     v3 vY = Cross( vZ, vX );
 
@@ -981,10 +996,12 @@ CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 }
 
 inline m4
-CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
+M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
 {
     v3 vUpN = Normalized( vUp );
     v3 vZ = Normalized( -vDir );
+    // TODO Deal with this
+    ASSERT( !AlmostEqual( vUpN, vZ ) && !AlmostEqual( -vUpN, vZ ) );
     v3 vX = Cross( vUpN, vZ );
     v3 vY = Cross( vZ, vX );
 
@@ -1088,9 +1105,11 @@ union qn
     r32 e[4];
 };
 
+const qn QnIdentity = { 0.0f, 0.0f, 0.0f, 1.0f };
+
 // TODO (Unit) Test everything quaternion related
 inline qn
-QN( const m4 &m )
+Qn( const m4 &m )
 {
     qn r;
     float tr = m.e[0][0] + m.e[1][1] + m.e[2][2];
@@ -1131,6 +1150,52 @@ QN( const m4 &m )
     return r;
 }
 
+inline qn
+Qn( const v3& vAxis, r32 angleRads )
+{
+    v3 vAxisN = Normalized( vAxis );
+
+    r32 halfAngleRads = angleRads * 0.5f;
+    r32 sinTheta = Sin( halfAngleRads );
+    r32 cosTheta = Cos( halfAngleRads );
+
+    qn result =
+    {
+        vAxisN.x * sinTheta,
+        vAxisN.y * sinTheta,
+        vAxisN.z * sinTheta,
+        cosTheta
+    };
+    return result;
+}
+
+inline qn
+QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
+{
+    v3 vUpN = Normalized( vUp );
+
+    v3 vTargetFwdN = -Normalized( pTgt - pSrc );
+    v3 vCamFwdDefaultN = V3( 0, 0, -1 );
+    // TODO Deal with this
+    ASSERT( !AlmostEqual( vTargetFwdN, vCamFwdDefaultN ) && !AlmostEqual( -vTargetFwdN, vCamFwdDefaultN ) );
+
+    r32 cosTheta = Dot( vCamFwdDefaultN, vTargetFwdN );
+    // @Speed Find a way to build the quat directly without this
+    r32 theta = ACos( cosTheta );
+
+    v3 vRotAxis = Normalized( Cross( vCamFwdDefaultN, vTargetFwdN ) );
+
+    qn result = Qn( vRotAxis, theta );
+    return result;
+}
+
+inline bool
+IsUnit( const qn& q )
+{
+    r32 sqLen = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    return AlmostEqual( sqLen, 1.f );
+}
+
 inline void
 ToEulerXYZ( const qn &r, float *pitch, float *yaw, float *roll )
 {
@@ -1147,27 +1212,34 @@ ToM4( const qn& q )
     r64 sqz = q.z * q.z;
 
     m4 result = {};
-    // Inverse square lenght, only required if quaternion is not already normalized (multiply all matrix terms by it)
-    //r64 invs = 1.0 / (sqx + sqy + sqz + sqw);
-    result.e[0][0] = (r32)( sqx - sqy - sqz + sqw);
-    result.e[1][1] = (r32)(-sqx + sqy - sqz + sqw);
-    result.e[2][2] = (r32)(-sqx - sqy + sqz + sqw);
+    r64 invs = 1.0;
+    r64 sqLen = sqx + sqy + sqz + sqw;
+    if( !AlmostEqual( sqLen, 1.0 ) )
+    {
+        // Inverse square lenght, only required if quaternion is not already normalized (multiply all matrix terms by it)
+        invs = 1.0 / sqLen;
+    }
+
+    result.e[0][0] = r32(( sqx - sqy - sqz + sqw) * invs);
+    result.e[1][1] = r32((-sqx + sqy - sqz + sqw) * invs);
+    result.e[2][2] = r32((-sqx - sqy + sqz + sqw) * invs);
 
     r64 tmp1 = q.x * q.y;
     r64 tmp2 = q.z * q.w;
-    result.e[1][0] = (r32)(2.0 * (tmp1 + tmp2));
-    result.e[0][1] = (r32)(2.0 * (tmp1 - tmp2));
+    result.e[1][0] = r32(2.0 * (tmp1 + tmp2) * invs);
+    result.e[0][1] = r32(2.0 * (tmp1 - tmp2) * invs);
     
     tmp1 = q.x * q.z;
     tmp2 = q.y * q.w;
-    result.e[2][0] = (r32)(2.0 * (tmp1 - tmp2));
-    result.e[0][2] = (r32)(2.0 * (tmp1 + tmp2));
+    result.e[2][0] = r32(2.0 * (tmp1 - tmp2) * invs);
+    result.e[0][2] = r32(2.0 * (tmp1 + tmp2) * invs);
 
     tmp1 = q.y * q.z;
     tmp2 = q.x * q.w;
-    result.e[2][1] = (r32)(2.0 * (tmp1 + tmp2));
-    result.e[1][2] = (r32)(2.0 * (tmp1 - tmp2));
+    result.e[2][1] = r32(2.0 * (tmp1 + tmp2) * invs);
+    result.e[1][2] = r32(2.0 * (tmp1 - tmp2) * invs);
 
+    result.e[3][3] = 1.f;
     return result;
 }
 

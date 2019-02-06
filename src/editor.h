@@ -26,8 +26,7 @@ struct EditorInput
 struct EditorState
 {
     v3 pCamera;
-    r32 camPitch;
-    r32 camYaw;
+    qn cameraRotation;
 };
 
 #endif /* __EDITOR_H__ */

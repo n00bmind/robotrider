@@ -43,6 +43,7 @@ AUDIO
 ENGINE
 - Add a separate arena per thread so we don't have to keep thinking where to put per-thread work memory
 - Separate physics & input thread running at a high framerate
+- Compare Fletcher against MurmurHash and maybe switch (https://github.com/aappleby/smhasher/wiki)
 
 DEBUGGING
 - Make sure out-of-frame counters are handled and shown correctly so we can properly profile multithreaded code

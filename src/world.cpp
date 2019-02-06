@@ -506,11 +506,11 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         // Create a chasing camera
         // TODO Use a PID controller
         Player *player = world->player;
-        v3 pCam = player->mesh.mTransform * V3( 0, -8, 5 );
+        v3 pCam = player->mesh.mTransform * V3( 0, -15, 7 );
         v3 pLookAt = player->mesh.mTransform * V3( 0, 1, 0 );
         v3 vUp = GetColumn( player->mesh.mTransform, 2 ).xyz;
         renderCommands->camera = DefaultCamera();
-        renderCommands->camera.mTransform = CameraLookAt( pCam, pLookAt, vUp );
+        renderCommands->camera.mTransform = M4CameraLookAt( pCam, pLookAt, vUp );
     }
     
     // Mesh simplification test
