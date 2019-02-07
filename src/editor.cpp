@@ -212,7 +212,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     if( editorState->pCamera == V3Zero || input.gameCodeReloaded )
     {
-        editorState->pCamera = V3( 0, -50, 0 );
+        editorState->pCamera = V3( -30, -50, 10 );
         //editorState->pCamera = V3( 0, -150, 150 );
 
         //editorState->camYaw = 0;

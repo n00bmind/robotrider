@@ -1172,20 +1172,35 @@ Qn( const v3& vAxis, r32 angleRads )
 inline qn
 QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 {
+    // TODO How to enforce this?
     v3 vUpN = Normalized( vUp );
 
-    v3 vTargetFwdN = -Normalized( pTgt - pSrc );
+    v3 vTargetFwdN = Normalized( pTgt - pSrc );
     v3 vCamFwdDefaultN = V3( 0, 0, -1 );
-    // TODO Deal with this
-    ASSERT( !AlmostEqual( vTargetFwdN, vCamFwdDefaultN ) && !AlmostEqual( -vTargetFwdN, vCamFwdDefaultN ) );
 
-    r32 cosTheta = Dot( vCamFwdDefaultN, vTargetFwdN );
-    // @Speed Find a way to build the quat directly without this
-    r32 theta = ACos( cosTheta );
+    r32 theta = PI;
+    v3 vRotAxis = { 1, 0, 0 };
+    qn result = QnIdentity;
 
-    v3 vRotAxis = Normalized( Cross( vCamFwdDefaultN, vTargetFwdN ) );
+    if( AlmostEqual( vTargetFwdN, vCamFwdDefaultN ) )
+        // No-op
+        ;
+    else if( AlmostEqual( -vTargetFwdN, vCamFwdDefaultN ) )
+    {
+        result = Qn( vRotAxis, theta );
+    }
+    else
+    {
+        r32 cosTheta = Dot( vCamFwdDefaultN, vTargetFwdN );
+        // The camera transform is actually the transform we would apply to the _world_ to put it in front of the camera,
+        // so we invert the angle here..
+        // @Speed Find a way to build the quat directly without this
+        theta = -ACos( cosTheta );
+        vRotAxis = Normalized( Cross( vCamFwdDefaultN, vTargetFwdN ) );
 
-    qn result = Qn( vRotAxis, theta );
+        result = Qn( vRotAxis, theta );
+    }
+
     return result;
 }
 
