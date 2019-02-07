@@ -210,9 +210,9 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     EditorInput editorInput = MapGameInputToEditorInput( input );
 
-    if( editorState->pCamera == V3Zero )
+    if( editorState->pCamera == V3Zero || input.executableReloaded )
     {
-        editorState->pCamera = V3( 0, -10, 0 );
+        editorState->pCamera = V3( 0, -50, 0 );
         //editorState->pCamera = V3( 0, -150, 150 );
 
         //editorState->camYaw = 0;
@@ -221,6 +221,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
         //editorState->cameraRotation = QnIdentity;
         editorState->cameraRotation = QnCameraLookAt( editorState->pCamera, world->pPlayer, V3Up );
+        LOG( "Restart camera" );
     }
 
     // Update camera based on input

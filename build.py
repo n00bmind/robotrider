@@ -153,7 +153,8 @@ if __name__ == '__main__':
         os.mkdir(binpath)
     else:
         for file in os.listdir(binpath):
-            if file.lower().endswith('.pdb'):
+            filelow = file.lower()
+            if filelow.startswith('robotrider') and filelow.endswith('.pdb'):
                 try:
                     pdbpath = os.path.join(binpath, file)
                     os.remove(pdbpath)

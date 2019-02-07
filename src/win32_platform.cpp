@@ -369,7 +369,13 @@ Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameMemory *gameMemor
     Win32GameCode result = {};
     result.lastDLLWriteTime = Win32GetLastWriteTime( sourceDLLPath );
 
-    CopyFile( sourceDLLPath, tempDLLPath, FALSE );
+    BOOL res = CopyFile( sourceDLLPath, tempDLLPath, FALSE );
+    if( !res )
+    {
+        DWORD err = GetLastError();
+        INVALID_CODE_PATH
+    }
+
     result.gameCodeDLL = LoadLibrary( tempDLLPath );
     if( result.gameCodeDLL )
     {
@@ -1660,7 +1666,7 @@ Win32ResolvePaths( Win32State *state )
 
         ASSERT( result );
         if( !result )
-            LOG( ".FATAL: Could not find game DLL!" );
+            LOG( ".FATAL: Could not data root folder!" );
     }
 }
 

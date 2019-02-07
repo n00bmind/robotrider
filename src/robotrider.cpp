@@ -162,9 +162,10 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         auxArena = &gameState->worldArena;
 
 #if !RELEASE
-        memory->DEBUGglobalEditing = true;
+        //memory->DEBUGglobalEditing = true;
         InitEditor( { width, height }, gameState, &gameState->DEBUGeditorState, transientState,
                     &gameState->worldArena, &gameState->transientArena );
+        LOG( "Init editor" );
 #endif
     }
 
