@@ -188,7 +188,11 @@ if __name__ == '__main__':
         if in_args.verbose:
             print('\nBuilding game library...')
             print_color(out_args, colors.GRAY)
+        # Create a lock file so the platform doesn't try to load the dll too soon
+        lockfilepath = os.path.join(binpath, 'dll.lock')
+        os.close(os.open(lockfilepath, os.O_CREAT))
         ret = subprocess.call(out_args, cwd=binpath)
+        os.remove(lockfilepath)
 
         # Build platform executable
         out_args = [platform.compiler]

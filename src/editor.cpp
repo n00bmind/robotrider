@@ -77,7 +77,7 @@ internal void
 TickMeshSamplerTest( const EditorState& editorState, TransientState* transientState, MeshPool* meshPoolArray, const TemporaryMemory& frameMemory,
                      r32 elapsedT, RenderCommands* renderCommands )
 {
-    if( !transientState->testIsoSurfaceMesh ) //|| input->executableReloaded )
+    if( !transientState->testIsoSurfaceMesh ) //|| input->gameCodeReloaded )
     {
         transientState->displayedLayer = (transientState->displayedLayer + 1) % transientState->cacheBuffers.cellsPerAxis;
         transientState->drawingDistance = Distance( GetTranslation( transientState->testMesh.mTransform ), editorState.pCamera );
@@ -210,7 +210,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     EditorInput editorInput = MapGameInputToEditorInput( input );
 
-    if( editorState->pCamera == V3Zero || input.executableReloaded )
+    if( editorState->pCamera == V3Zero || input.gameCodeReloaded )
     {
         editorState->pCamera = V3( 0, -50, 0 );
         //editorState->pCamera = V3( 0, -150, 150 );
@@ -221,7 +221,6 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
         //editorState->cameraRotation = QnIdentity;
         editorState->cameraRotation = QnCameraLookAt( editorState->pCamera, world->pPlayer, V3Up );
-        LOG( "Restart camera" );
     }
 
     // Update camera based on input

@@ -151,7 +151,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
 
-    if( input->executableReloaded )
+    if( input->gameCodeReloaded )
     {
         // TODO Check if these are all ok here so that we can remove GAME_SETUP_AFTER_RELOAD
         gameConsole = &gameState->gameConsole;
@@ -162,10 +162,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         auxArena = &gameState->worldArena;
 
 #if !RELEASE
-        //memory->DEBUGglobalEditing = true;
+        memory->DEBUGglobalEditing = true;
         InitEditor( { width, height }, gameState, &gameState->DEBUGeditorState, transientState,
                     &gameState->worldArena, &gameState->transientArena );
-        LOG( "Init editor" );
 #endif
     }
 
@@ -180,7 +179,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             dummyInput =
             {
-                input->executableReloaded,
+                input->gameCodeReloaded,
                 input->frameElapsedSeconds,
                 input->totalElapsedSeconds,
                 input->frameCounter,

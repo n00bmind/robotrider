@@ -189,7 +189,7 @@ DEBUG_PLATFORM_LIST_ALL_ASSETS(Win32ListAllAssets)
     DEBUGFileInfoList result = {};
 
     char joinedPath[PLATFORM_PATH_MAX] = {};
-    Win32JoinPaths( globalPlatformState.assetDataPath, relativeRootPath, joinedPath, true );
+    Win32JoinPaths( globalPlatformState.dataFolderPath, relativeRootPath, joinedPath, true );
     char findPath[PLATFORM_PATH_MAX] = {};
     Win32JoinPaths( joinedPath, "*", findPath, false );
 
@@ -245,8 +245,8 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
     char absolutePath[PLATFORM_PATH_MAX];
     if( PathIsRelative( filename ) )
     {
-        // If path is relative, use executable location to complete it
-        Win32JoinPaths( globalPlatformState.assetDataPath, filename, absolutePath, true );
+        // If path is relative, use data location to complete it
+        Win32JoinPaths( globalPlatformState.dataFolderPath, filename, absolutePath, true );
     }
 
     HANDLE fileHandle = CreateFile( absolutePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
@@ -302,8 +302,8 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGWin32WriteEntireFile)
     char absolutePath[PLATFORM_PATH_MAX];
     if( PathIsRelative( filename ) )
     {
-        // If path is relative, use executable location to complete it
-        Win32JoinPaths( globalPlatformState.assetDataPath, filename, absolutePath, true );
+        // If path is relative, use data location to complete it
+        Win32JoinPaths( globalPlatformState.dataFolderPath, filename, absolutePath, true );
         filename = absolutePath;
     }
 
@@ -373,6 +373,7 @@ Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameMemory *gameMemor
     if( !res )
     {
         DWORD err = GetLastError();
+        LOG( "ERROR: DLL copy to temp location failed! (%08x)", err );
         INVALID_CODE_PATH
     }
 
@@ -416,7 +417,7 @@ Win32SetupAssetUpdateListeners( Win32State *platformState )
         Win32AssetUpdateListener& listener = platformState->assetListeners[i];
 
         char absolutePath[PLATFORM_PATH_MAX];
-        Win32JoinPaths( platformState->assetDataPath, listener.relativePath, absolutePath, true );
+        Win32JoinPaths( platformState->dataFolderPath, listener.relativePath, absolutePath, true );
 
         listener.dirHandle
             = CreateFile( absolutePath, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
@@ -998,7 +999,7 @@ Win32PrepareInputData( GameInput** oldInput, GameInput** newInput,
     *newInput = *oldInput;
     *oldInput = temp;
 
-    (*newInput)->executableReloaded = false;
+    (*newInput)->gameCodeReloaded = false;
     (*newInput)->frameElapsedSeconds = elapsedSeconds;
     (*newInput)->totalElapsedSeconds = totalSeconds;
     (*newInput)->frameCounter = frameCounter;
@@ -1025,7 +1026,7 @@ Win32GetInputFilePath( const Win32State& platformState, u32 slotIndex, bool isIn
     char buffer[PLATFORM_PATH_MAX];
     sprintf_s( buffer, ARRAYCOUNT(buffer), "%s%d%s%s", "gamestate", slotIndex, isInputStream ? "_input" : "", ".in" );
 
-    Win32JoinPaths( platformState.exeFilePath, buffer, destination, false );
+    Win32JoinPaths( platformState.binFolderPath, buffer, destination, false );
 }
 
 internal Win32ReplayBuffer*
@@ -1605,7 +1606,7 @@ Win32ResolvePaths( Win32State *state )
     LOG( state->currentDirectory );
 
     pathLen = GetModuleFileName( 0, state->exeFilePath, ARRAYCOUNT(state->exeFilePath) );
-    Win32GetParentPath( state->exeFilePath, state->exeFilePath );
+    Win32GetParentPath( state->exeFilePath, state->binFolderPath );
 
     {
         bool result = false;
@@ -1615,7 +1616,7 @@ Win32ResolvePaths( Win32State *state )
         // This is just to support the dist mechanism
         {
             char* sourceDLLName = "robotrider.debug.dll";
-            Win32JoinPaths( globalPlatformState.exeFilePath, sourceDLLName, state->sourceDLLPath, false );
+            Win32JoinPaths( state->binFolderPath, sourceDLLName, state->sourceDLLPath, false );
             if( PathFileExists( state->sourceDLLPath ) )
             {
                 result = true;
@@ -1626,7 +1627,7 @@ Win32ResolvePaths( Win32State *state )
         char *sourceDLLName = buffer;
         if( !result )
         {
-            Win32JoinPaths( globalPlatformState.exeFilePath, sourceDLLName, state->sourceDLLPath, false );
+            Win32JoinPaths( state->binFolderPath, sourceDLLName, state->sourceDLLPath, false );
             if( PathFileExists( state->sourceDLLPath ) )
             {
                 result = true;
@@ -1637,12 +1638,15 @@ Win32ResolvePaths( Win32State *state )
         {
             TrimFileExtension( sourceDLLName );
             char tempDLLPath[PLATFORM_PATH_MAX];
-            sprintf_s( state->tempDLLPath, ARRAYCOUNT(state->tempDLLPath), "%s\\%s.temp.dll", globalPlatformState.exeFilePath, sourceDLLName );
+            sprintf_s( state->tempDLLPath, ARRAYCOUNT(state->tempDLLPath), "%s\\%s.temp.dll",
+                       state->binFolderPath, sourceDLLName );
         }
 
         ASSERT( result );
         if( !result )
             LOG( ".FATAL: Could not find game DLL!" );
+
+        Win32JoinPaths( state->binFolderPath, "dll.lock", state->lockFilePath, false );
     }
 
     {
@@ -1656,8 +1660,8 @@ Win32ResolvePaths( Win32State *state )
 
         for( int i = 0; i < ARRAYCOUNT( supportedDataPaths ); ++i )
         {
-            Win32JoinPaths( state->exeFilePath, supportedDataPaths[i], state->assetDataPath, true );
-            if( PathFileExists( state->assetDataPath ) )
+            Win32JoinPaths( state->binFolderPath, supportedDataPaths[i], state->dataFolderPath, true );
+            if( PathFileExists( state->dataFolderPath ) )
             {
                 result = true;
                 break;
@@ -2204,7 +2208,7 @@ main( int argC, char **argV )
                         Win32PrepareInputData( &oldInput, &newInput,
                                                lastDeltaTimeSecs, totalElapsedSeconds, runningFrameCounter );
                         if( runningFrameCounter == 0 )
-                            newInput->executableReloaded = true;
+                            newInput->gameCodeReloaded = true;
 
 #if !RELEASE
                         // Check for game code updates
@@ -2213,11 +2217,28 @@ main( int argC, char **argV )
                         {
                             Win32CompleteAllJobs( globalPlatform.hiPriorityQueue );
 
-                            LOG( "Detected updated game DLL. Reloading.." );
+                            if( !globalPlatformState.gameCodeReloading )
+                                LOG( "Detected updated game DLL. Reloading.." );
                             Win32UnloadGameCode( &globalPlatformState.gameCode );
-                            globalPlatformState.gameCode
-                                = Win32LoadGameCode( globalPlatformState.sourceDLLPath, globalPlatformState.tempDLLPath, &gameMemory );
-                            newInput->executableReloaded = true;
+
+                            WIN32_FILE_ATTRIBUTE_DATA data;
+                            if( !GetFileAttributesEx( globalPlatformState.lockFilePath, GetFileExInfoStandard, &data ) )
+                            {
+                                globalPlatformState.gameCode = Win32LoadGameCode( globalPlatformState.sourceDLLPath,
+                                                                                  globalPlatformState.tempDLLPath,
+                                                                                  &gameMemory );
+                                globalPlatformState.gameCodeReloading = false;
+                                newInput->gameCodeReloaded = true;
+                                LOG( "Game code reloaded" );
+                            }
+                            else
+                            {
+                                if( !globalPlatformState.gameCodeReloading )
+                                {
+                                    LOG( "Waiting for DLL lock.." );
+                                    globalPlatformState.gameCodeReloading = true;
+                                }
+                            }
                         }
 
                         // Check for asset updates

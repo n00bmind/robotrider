@@ -273,7 +273,7 @@ struct KeyMouseInput
 
 struct GameInput
 {
-    bool executableReloaded;
+    bool gameCodeReloaded;
     r32 frameElapsedSeconds;
     r32 totalElapsedSeconds;
     u32 frameCounter;

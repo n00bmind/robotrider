@@ -110,11 +110,14 @@ struct Win32State
 
     char currentDirectory[PLATFORM_PATH_MAX];
     char exeFilePath[PLATFORM_PATH_MAX];
+    char binFolderPath[PLATFORM_PATH_MAX];
     char sourceDLLPath[PLATFORM_PATH_MAX];
     char tempDLLPath[PLATFORM_PATH_MAX];
-    char assetDataPath[PLATFORM_PATH_MAX];
+    char lockFilePath[PLATFORM_PATH_MAX];
+    char dataFolderPath[PLATFORM_PATH_MAX];
 
     Win32GameCode gameCode;
+    bool gameCodeReloading;
     Renderer renderer;
 
     void *gameMemoryBlock;
