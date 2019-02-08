@@ -67,13 +67,12 @@ config_win_debug = Config(
         compiler_flags = ['-DDEBUG=1', '-Z7', '-Od'],
         linker_flags   = ['/debug:full']                # Required for debugging after hot reloading
 )
-# This config is extremely confusing and we need to clarify this:
+# This config is a bit confusing and we need to clarify this:
 # The choice of whether we have certain "development" features (like an editor mode) is a platform thing
-# totally unrelated to build mode, and so it should be reflected in the platform - game interface.
-# (for example, by adding keyboard/mouse info for the editor, which a PC would provide by a phone wouldn't)
-# This build only makes sense as a faster non-release build to use during development when Debug is just
-# too slow, and hence it should be renamed to something like 'Profile' or similar (also, it remains to
-# be seen how useful all the debug information is in this context)
+# totally unrelated to build mode, and so it is reflected in the platform - game interface.
+# (for example, by adding keyboard/mouse info for the editor, which a PC would provide but a phone wouldn't)
+# This build is meant to be a faster non-release build to use during day to day development when Debug is just
+# too slow, for example one that artists could use as their everyday default.
 config_win_develop = Config(
         name           = 'Develop',
         platform       = platform_win,
@@ -85,15 +84,13 @@ config_win_release = Config(
         name           = 'Release',
         platform       = platform_win,
         cmdline_opts   = ['r', 'rel', 'release'],
-        compiler_flags = ['-DRELEASE=1', '-O2'],
+        compiler_flags = ['-DRELEASE=1', '-Z7', '-O2'],
         linker_flags   = ['/debug:full']
 )
 
 
 default_platform = platform_win
-# default_config = config_win_debug
 default_config = config_win_develop
-# default_config = config_win_release
 
 
 class colors:
