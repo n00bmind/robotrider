@@ -47,7 +47,7 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     world->player = PUSH_STRUCT( worldArena, Player );
     world->player->mesh =
         LoadOBJ( "feisar/feisar_ship.obj", worldArena, tmpMemory,
-                 ZRotation( PI ) * XRotation( PI/2 ) * Scale( V3( 0.02f, 0.02f, 0.02f ) ) );
+                 M4ZRotation( PI ) * M4XRotation( PI/2 ) * M4Scale( V3( 0.02f, 0.02f, 0.02f ) ) );
     world->player->mesh.mTransform = M4Identity;
 
     Texture textureResult = LoadTexture( "feisar/maps/diffuse.bmp", true, true, 4 );
@@ -426,9 +426,9 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             world->playerPitch += -input1->rightStick.avgY * rotationSpeed * dT; 
         }
 
-        m4 mPlayerRot = ZRotation( world->playerYaw ) * XRotation( world->playerPitch );
+        m4 mPlayerRot = M4ZRotation( world->playerYaw ) * M4XRotation( world->playerPitch );
         pPlayer = pPlayer + mPlayerRot * vPlayerDelta;
-        player->mesh.mTransform = RotPos( mPlayerRot, pPlayer );
+        player->mesh.mTransform = M4RotPos( mPlayerRot, pPlayer );
 
         world->pPlayer = pPlayer;
 

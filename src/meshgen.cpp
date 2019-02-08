@@ -1120,10 +1120,10 @@ GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advance
     m4 rotations[4] =
     {
         // Expressed as if +Y == 'forward'
-        ZRotation(  pi2 ),
-        ZRotation( -pi2 ),
-        XRotation(  pi2 ),
-        XRotation( -pi2 ),
+        M4ZRotation(  pi2 ),
+        M4ZRotation( -pi2 ),
+        M4XRotation(  pi2 ),
+        M4XRotation( -pi2 ),
     };
     u32 random = RandomU32();
     u32 rotIndex = random & 0x3;
@@ -1158,7 +1158,7 @@ GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advance
 
     *outMesh = MarchAreaFast( V3Zero, path->areaSideMeters, resolutionMeters,
                               SampleCuboid, path, cacheBuffers, meshPool );
-    (*outMesh)->mTransform = Translation( path->pCenter );
+    (*outMesh)->mTransform = M4Translation( path->pCenter );
 
     // Advance to next chunk
     if( advancePosition )
@@ -1204,7 +1204,7 @@ GENERATOR_FUNC(GeneratorHullNodeFunc)
     Mesh* result = MarchAreaFast( V3Zero, areaSideMeters, resolutionMeters,
                                   SampleHullNode, generatorData,
                                   cacheBuffers, meshPool );
-    result->mTransform = Translation( p.pClusterOffset );
+    result->mTransform = M4Translation( p.pClusterOffset );
 
     return result;
 }

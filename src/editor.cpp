@@ -69,7 +69,8 @@ InitMeshSamplerTest( TransientState* transientState, MemoryArena* editorArena, M
     transientState->cacheBuffers = InitMarchingCacheBuffers( editorArena, 50 );
 
     TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
-    transientState->testMesh = LoadOBJ( "bunny.obj", editorArena, tmpMemory, Scale( V3( 10.f, 10.f, 10.f ) ) * Translation( V3( 0, 0, 1.f ) ) );
+    transientState->testMesh = LoadOBJ( "bunny.obj", editorArena, tmpMemory, 
+                                        M4Scale( V3( 10.f, 10.f, 10.f ) ) * M4Translation( V3( 0, 0, 1.f ) ) );
     EndTemporaryMemory( tmpMemory );
 }
 
@@ -212,56 +213,76 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     if( editorState->pCamera == V3Zero || input.gameCodeReloaded )
     {
-        editorState->pCamera = V3( -30, -50, 10 );
         //editorState->pCamera = V3( 0, -150, 150 );
+        editorState->pCamera = V3( 50, -50, 50 );
 
-        //editorState->camYaw = 0;
-        //editorState->camPitch = 0;
-        //editorState->camPitch = -PI / 4.f;
-
-        //editorState->cameraRotation = QnIdentity;
-        editorState->cameraRotation = QnCameraLookAt( editorState->pCamera, world->pPlayer, V3Up );
+        m4 mLookAt = M4CameraLookAt( editorState->pCamera, world->pPlayer, V3Up );
+        editorState->cameraRotation = Qn( mLookAt );
+        Normalize( editorState->cameraRotation );
     }
 
     // Update camera based on input
     {
-        r32 camSpeed = 9.f;
-        r32 camRotMultiplier = 1.f;
+        r32 camMovementSpeed = 9.f;
+        r32 camRotationSpeed = 1.f;
 
-#if 0
         v3 vCamDelta = {};
         if( editorInput.camLeft )
-            vCamDelta.x -= camSpeed * dT;
+            vCamDelta.x -= camMovementSpeed * dT;
         if( editorInput.camRight )
-            vCamDelta.x += camSpeed * dT;
+            vCamDelta.x += camMovementSpeed * dT;
 
         if( editorInput.camForward )
-            vCamDelta.z -= camSpeed * dT;
+            vCamDelta.z -= camMovementSpeed * dT;
         if( editorInput.camBackwards )
-            vCamDelta.z += camSpeed * dT;
+            vCamDelta.z += camMovementSpeed * dT;
 
         if( editorInput.camDown )
-            vCamDelta.y -= camSpeed * dT;
+            vCamDelta.y -= camMovementSpeed * dT;
         if( editorInput.camUp )
-            vCamDelta.y += camSpeed * dT;
+            vCamDelta.y += camMovementSpeed * dT;
 
+        r32 camPitchDelta = 0, camYawDelta = 0;
         if( editorInput.camPitchDelta )
-            editorState->camPitch += editorInput.camPitchDelta * camRotMultiplier * dT;
+            camPitchDelta += editorInput.camPitchDelta * camRotationSpeed * dT;
         if( editorInput.camYawDelta )
-            editorState->camYaw += editorInput.camYawDelta * camRotMultiplier * dT; 
+            camYawDelta += editorInput.camYawDelta * camRotationSpeed * dT; 
 
+#if 1
+        // TODO Time this whole block against the equivalent done with matrices
+        v3 vX, vY, vZ;
+        m4 mCameraRotation = ToM4( editorState->cameraRotation );
+        GetCameraBasis( mCameraRotation, &vX, &vY, &vZ );
+
+        editorState->cameraRotation *= Qn( vX, camPitchDelta );
+        editorState->cameraRotation *= QnZRotation( camYawDelta );
+        r32 norm = Norm( editorState->cameraRotation );
+
+        //editorState->pCamera += Transposed( mCamRot ) * vCamDelta;
+        qn invCamerRot = Inverse( editorState->cameraRotation );
+        editorState->pCamera += Rotate( vCamDelta, invCamerRot );
+
+        mCameraRotation = ToM4( editorState->cameraRotation );
+        v3 vCamForward = GetColumn( mCameraRotation, 2 ).xyz;
+        v3 vCamRight = GetColumn( mCameraRotation, 0 ).xyz;
+
+        renderCommands->camera = DefaultCamera();
+        renderCommands->camera.mTransform = mCameraRotation * M4Translation( -editorState->pCamera );
+        //renderCommands->camera.mTransform = M4RotPos( mCameraRotation, -editorState->pCamera );
+#else
         m4 mCamRot = XRotation( editorState->camPitch )
             * ZRotation( editorState->camYaw );
 
         editorState->pCamera += Transposed( mCamRot ) * vCamDelta;
-#endif
 
+        // NOTE Get this as it was when using matrices
         m4 mCameraRotation = ToM4( editorState->cameraRotation );
         v3 vCamForward = GetColumn( mCameraRotation, 2 ).xyz;
         v3 vCamRight = GetColumn( mCameraRotation, 0 ).xyz;
 
         renderCommands->camera = DefaultCamera();
         renderCommands->camera.mTransform = mCameraRotation * Translation( -editorState->pCamera );
+#endif
     }
 
 #if 0

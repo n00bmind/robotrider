@@ -428,7 +428,7 @@ OpenGLRenderImGui( const OpenGLState& gl, ImDrawData *drawData )
 
     // Setup viewport, orthographic projection matrix
     glViewport( 0, 0, (GLsizei)fbWidth, (GLsizei)fbHeight );
-    m4 orthoProj = CreateOrthographicMatrix( io.DisplaySize.x, io.DisplaySize.y );
+    m4 orthoProj = M4Orthographic( io.DisplaySize.x, io.DisplaySize.y );
     glUseProgram( gl.imGui.program );
     glUniform1i( gl.imGui.texUniformId, 0 );
     glUniformMatrix4fv( gl.imGui.projUniformId, 1, GL_FALSE, orthoProj.e[0] );
@@ -771,7 +771,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
 {
     OpenGLNewFrame( commands.width, commands.height );
 
-    m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
+    m4 mProjView = M4Perspective( (r32)commands.width / commands.height, commands.camera.fovYDeg );
     mProjView = mProjView * commands.camera.mTransform;
     gl->mCurrentProjView = mProjView;
 
