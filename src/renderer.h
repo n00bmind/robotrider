@@ -51,9 +51,9 @@ struct Camera
 };
 
 inline Camera
-DefaultCamera()
+DefaultCamera( r32 fovYDeg = 60 )
 {
-    Camera result = { 60, M4Identity };
+    Camera result = { fovYDeg, M4Identity };
     return result;
 }
 

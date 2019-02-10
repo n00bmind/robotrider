@@ -1032,9 +1032,9 @@ internal r32
 SampleCuboid( const void* sampleData, const v3& p )
 {
     GeneratorPathData* path = (GeneratorPathData*)sampleData;
-    v3 vRight = GetXBasis( path->basis );
-    v3 vForward = GetYBasis( path->basis );
-    v3 vUp = GetZBasis( path->basis );
+    v3 vRight = GetBasisX( path->basis );
+    v3 vForward = GetBasisY( path->basis );
+    v3 vUp = GetBasisZ( path->basis );
 
     // Calc distance to both aligned planes along dir
     // NOTE Max() means 'intersection'
@@ -1051,9 +1051,9 @@ SampleCuboid( const void* sampleData, const v3& p )
         r32 d = 0; // path->areaSideMeters/2 - path->distanceToNextTurn;
         result += Clamp0( Dot( vForward, p ) + d );
 
-        vRight = GetXBasis( *path->nextBasis );
-        vForward = GetYBasis( *path->nextBasis );
-        vUp = GetZBasis( *path->nextBasis );
+        vRight = GetBasisX( *path->nextBasis );
+        vForward = GetBasisY( *path->nextBasis );
+        vUp = GetBasisZ( *path->nextBasis );
 
         dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
         dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
@@ -1071,9 +1071,9 @@ SampleCuboid( const void* sampleData, const v3& p )
     //Forks
     if( path->nextFork )
     {
-        vRight = GetXBasis( path->nextFork->basis );
-        vForward = GetYBasis( path->nextFork->basis );
-        vUp = GetZBasis( path->nextFork->basis );
+        vRight = GetBasisX( path->nextFork->basis );
+        vForward = GetBasisY( path->nextFork->basis );
+        vUp = GetBasisZ( path->nextFork->basis );
 
         dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
         dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
@@ -1096,7 +1096,7 @@ internal r32
 SampleCylinder( const void* sampleData, const v3& p )
 {
     GeneratorPathData* path = (GeneratorPathData*)sampleData;
-    v3 vForward = GetYBasis( path->basis );
+    v3 vForward = GetBasisY( path->basis );
 
     v3 vP = p - path->pCenter;
     // l is the length of the projection of vP along the director line
@@ -1175,7 +1175,7 @@ GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advance
             path->distanceToNextFork = RandomRangeR32( path->minDistanceToFork, path->maxDistanceToFork );
         }
 
-        v3 vForward = GetYBasis( path->basis );
+        v3 vForward = GetBasisY( path->basis );
         path->pCenter += vForward * (path->areaSideMeters + 0.1f);
     }
 

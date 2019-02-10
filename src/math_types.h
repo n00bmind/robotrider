@@ -842,6 +842,12 @@ operator*( const m4 &m1, const m4 &m2 )
     return result;
 }
 
+inline void
+operator *=( m4& m1, const m4& m2 )
+{
+    m1 = m1 * m2;
+}
+
 inline m4
 Translate( m4 &m, const v3 &v )
 {
@@ -853,27 +859,46 @@ Translate( m4 &m, const v3 &v )
 }
 
 inline m4
+GetRotation( const m4 &m )
+{
+    m4 result =
+    {{
+         { m.e[0][0], m.e[0][1], m.e[0][2], 0 },
+         { m.e[1][0], m.e[1][1], m.e[1][2], 0 },
+         { m.e[2][0], m.e[2][1], m.e[2][2], 0 },
+         {         0,         0,         0, 1 }
+    }};
+
+    return result;
+}
+
+inline m4
 M4CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
 {
     m4 r = M4Rows( x, y, z );
-    r = Translate( r, -(r*p) );
-
+    Translate( r, -(r*p) );
     return r;
+}
+
+inline m4
+M4CameraTransform( const m4& rot, const v3& p )
+{
+    m4 result = GetRotation( rot );
+    Translate( result, -(result * p) );
+    return result;
 }
 
 inline m4
 M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 {
     v3 vUpN = Normalized( vUp );
-    v3 vZ = Normalized( pSrc - pTgt );
+    v3 vZ = Normalized( -(pTgt - pSrc) );
     // TODO Deal with this
     ASSERT( !AlmostEqual( vUpN, vZ ) && !AlmostEqual( -vUpN, vZ ) );
     v3 vX = Cross( vUpN, vZ );
     v3 vY = Cross( vZ, vX );
 
-    m4 r = M4Rows( vX, vY, vZ );
-    r = Translate( r, -(r*pSrc) );
-
+    m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
     return r;
 }
 
@@ -887,9 +912,7 @@ M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
     v3 vX = Cross( vUpN, vZ );
     v3 vY = Cross( vZ, vX );
 
-    m4 r = M4Rows( vX, vY, vZ );
-    r = Translate( r, -(r*pSrc) );
-
+    m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
     return r;
 }
 
@@ -957,20 +980,6 @@ SetTranslation( m4 &m, const v3 &p )
     m.e[2][3] = p.z;
 }
 
-inline m4
-GetRotation( const m4 &m )
-{
-    m4 result =
-    {{
-         { m.e[0][0], m.e[0][1], m.e[0][2], 0 },
-         { m.e[1][0], m.e[1][1], m.e[1][2], 0 },
-         { m.e[2][0], m.e[2][1], m.e[2][2], 0 },
-         {         0,         0,         0, 1 }
-    }};
-
-    return result;
-}
-
 inline v4
 GetRow( const m4 &m, u32 row )
 {
@@ -988,21 +997,21 @@ GetColumn( const m4 &m, u32 col )
 }
 
 inline v3
-GetXBasis( const m4& m )
+GetBasisX( const m4& m )
 {
     v3 result = { m.e[0][0], m.e[1][0], m.e[2][0] };
     return result;
 }
 
 inline v3
-GetYBasis( const m4& m )
+GetBasisY( const m4& m )
 {
     v3 result = { m.e[0][1], m.e[1][1], m.e[2][1] };
     return result;
 }
 
 inline v3
-GetZBasis( const m4& m )
+GetBasisZ( const m4& m )
 {
     v3 result = { m.e[0][2], m.e[1][2], m.e[2][2] };
     return result;
@@ -1014,6 +1023,27 @@ GetBasis( const m4& m, v3* vX, v3* vY, v3* vZ )
     *vX = { m.e[0][0], m.e[1][0], m.e[2][0] };
     *vY = { m.e[0][1], m.e[1][1], m.e[2][1] };
     *vZ = { m.e[0][2], m.e[1][2], m.e[2][2] };
+}
+
+inline v3
+GetCameraBasisX( const m4& m )
+{
+    v3 result = { m.e[0][0], m.e[0][1], m.e[0][2] };
+    return result;
+}
+
+inline v3
+GetCameraBasisY( const m4& m )
+{
+    v3 result = { m.e[1][0], m.e[1][1], m.e[1][2] };
+    return result;
+}
+
+inline v3
+GetCameraBasisZ( const m4& m )
+{
+    v3 result = { m.e[2][0], m.e[2][1], m.e[2][2] };
+    return result;
 }
 
 inline void

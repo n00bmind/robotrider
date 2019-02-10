@@ -88,9 +88,9 @@ void
 DrawAxisGizmos( RenderCommands *renderCommands )
 {
     const m4 &currentCamTransform = renderCommands->camera.mTransform;
-    v3 vCamFwd = -GetRow( currentCamTransform, 2 ).xyz;
-    v3 vCamX = GetRow( currentCamTransform, 0 ).xyz;
-    v3 vCamY = GetRow( currentCamTransform, 1 ).xyz;
+    v3 vCamX = GetCameraBasisX( currentCamTransform );
+    v3 vCamY = GetCameraBasisY( currentCamTransform );
+    v3 vCamFwd = -GetCameraBasisZ( currentCamTransform );
 
     v3 p = GetTranslation( currentCamTransform );
     v3 pCamera = Transposed( currentCamTransform ) * (-p);
