@@ -47,7 +47,7 @@ enum class RenderSwitch
 struct Camera
 {
     r32 fovYDeg;
-    m4 mTransform;
+    m4 mWorldToCamera;
 };
 
 inline Camera

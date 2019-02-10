@@ -81,7 +81,7 @@ TickMeshSamplerTest( const EditorState& editorState, TransientState* transientSt
     if( !transientState->testIsoSurfaceMesh ) //|| input->gameCodeReloaded )
     {
         transientState->displayedLayer = (transientState->displayedLayer + 1) % transientState->cacheBuffers.cellsPerAxis;
-        transientState->drawingDistance = Distance( GetTranslation( transientState->testMesh.mTransform ), editorState.pCameraCached );
+        transientState->drawingDistance = Distance( GetTranslation( transientState->testMesh.mTransform ), editorState.cameraWorldP );
         transientState->displayedLayer = 172;
 
         if( transientState->testIsoSurfaceMesh )
@@ -211,15 +211,17 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     EditorInput editorInput = MapGameInputToEditorInput( input );
 
-    if( editorState->pCameraCached == V3Zero || input.gameCodeReloaded )
+    if( editorState->cameraWorldP == V3Zero || input.gameCodeReloaded )
     {
-        v3 pCamera = V3( 0, -150, 150 );
+        //v3 pCamera = V3( 0, -100, 100 );
+        v3 pCamera = V3( 0, -100, 0 );
         m4 mLookAt = M4CameraLookAt( pCamera, world->pPlayer, V3Up );
 #if 0
         editorState->cameraRotation = Qn( mLookAt );
         Normalize( editorState->cameraRotation );
 #else
-        editorState->cameraTransform = mLookAt;
+        editorState->camera.mWorldToCamera = mLookAt;
+        //editorState->cameraTransform = M4Translation( { 0, 0, -100 } );
 #endif
     }
 
@@ -272,17 +274,19 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
         renderCommands->camera.mTransform = mCameraRotation * M4Translation( -editorState->pCamera );
         //renderCommands->camera.mTransform = M4RotPos( mCameraRotation, -editorState->pCamera );
 #else
-        m4& mCameraTransform = editorState->cameraTransform;
+        m4& worldToCameraM = editorState->camera.mWorldToCamera;
 
-        //m4 mCameraBasis = Transposed( mCameraRotation );
-        //m4 mXRotation = mCameraBasis * M4XRotation( camPitchDelta );
+        m4 cameraToWorldM = Transposed( worldToCameraM );
+        //m4 mXRotation = cameraToWorldM * M4XRotation( camPitchDelta );
         //mCameraRotation = Transposed( mXRotation ) * M4ZRotation( camYawDelta );
-        //editorState->pCamera += mCameraBasis * vCamDelta;
+        Translate( worldToCameraM, -vCamDelta );
 
-        // TODO 
-        editorState->pCameraCached = { 1, 1, 1 };
         renderCommands->camera = DefaultCamera();
-        renderCommands->camera.mTransform = mCameraTransform;
+        renderCommands->camera.mWorldToCamera = worldToCameraM;
+
+        v3 vCamZero = worldToCameraM * V3Zero;
+        editorState->cameraWorldP = -(Transposed( worldToCameraM ) * GetTranslation( worldToCameraM ));
+        int bla = 0;
 #endif
     }
 

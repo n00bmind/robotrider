@@ -772,7 +772,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
     OpenGLNewFrame( commands.width, commands.height );
 
     m4 mProjView = M4Perspective( (r32)commands.width / commands.height, commands.camera.fovYDeg );
-    mProjView = mProjView * commands.camera.mTransform;
+    mProjView = mProjView * commands.camera.mWorldToCamera;
     gl->mCurrentProjView = mProjView;
 
 #if !RELEASE

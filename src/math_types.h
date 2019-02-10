@@ -849,11 +849,11 @@ operator *=( m4& m1, const m4& m2 )
 }
 
 inline m4
-Translate( m4 &m, const v3 &v )
+Translate( m4 &m, const v3& vDelta )
 {
-    m.e[0][3] += v.x;
-    m.e[1][3] += v.y;
-    m.e[2][3] += v.z;
+    m.e[0][3] += vDelta.x;
+    m.e[1][3] += vDelta.y;
+    m.e[2][3] += vDelta.z;
 
     return m;
 }
@@ -893,10 +893,18 @@ M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 {
     v3 vUpN = Normalized( vUp );
     v3 vZ = Normalized( -(pTgt - pSrc) );
-    // TODO Deal with this
-    ASSERT( !AlmostEqual( vUpN, vZ ) && !AlmostEqual( -vUpN, vZ ) );
-    v3 vX = Cross( vUpN, vZ );
-    v3 vY = Cross( vZ, vX );
+    
+    v3 vX = V3X;
+    v3 vY = V3Y;
+    if( AlmostEqual( vUpN, vZ ) )
+        ; // No-op
+    else if( AlmostEqual( -vUpN, vZ ) )
+        vY = -V3Y;
+    else
+    {
+        vX = Cross( vUpN, vZ );
+        vY = Cross( vZ, vX );
+    }
 
     m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
     return r;
@@ -907,10 +915,18 @@ M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
 {
     v3 vUpN = Normalized( vUp );
     v3 vZ = Normalized( -vDir );
-    // TODO Deal with this
-    ASSERT( !AlmostEqual( vUpN, vZ ) && !AlmostEqual( -vUpN, vZ ) );
-    v3 vX = Cross( vUpN, vZ );
-    v3 vY = Cross( vZ, vX );
+
+    v3 vX = V3X;
+    v3 vY = V3Y;
+    if( AlmostEqual( vUpN, vZ ) )
+        ; // No-op
+    else if( AlmostEqual( -vUpN, vZ ) )
+        vY = -V3Y;
+    else
+    {
+        vX = Cross( vUpN, vZ );
+        vY = Cross( vZ, vX );
+    }
 
     m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
     return r;
