@@ -272,14 +272,20 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
         renderCommands->camera = DefaultCamera();
         renderCommands->camera.mTransform = mCameraRotation * M4Translation( -editorState->pCamera );
-        //renderCommands->camera.mTransform = M4RotPos( mCameraRotation, -editorState->pCamera );
 #else
         m4& worldToCameraM = editorState->camera.mWorldToCamera;
+        // Orbit around world Z
+        //worldToCameraM = Transposed( mXRotation ) * M4ZRotation( camYawDelta );
 
         m4 cameraToWorldM = Transposed( worldToCameraM );
-        //m4 mXRotation = cameraToWorldM * M4XRotation( camPitchDelta );
-        //mCameraRotation = Transposed( mXRotation ) * M4ZRotation( camYawDelta );
-        Translate( worldToCameraM, -vCamDelta );
+        //m4 mXRotation = cameraToWorldM * M4XRotation( camPitchDelta ) * M4YRotation( camYawDelta );
+        //worldToCameraM = Transposed( mXRotation );
+
+        //Translate( worldToCameraM, -vCamDelta );
+        //v3 cameraP = GetTranslation( worldToCameraM );
+        // Rotate around world Z axis
+        m4 worldZRot = M4ZRotation( camYawDelta ) * cameraToWorldM;
+        worldToCameraM *= worldZRot; // Transposed( worldZRot );
 
         renderCommands->camera = DefaultCamera();
         renderCommands->camera.mWorldToCamera = worldToCameraM;

@@ -848,14 +848,23 @@ operator *=( m4& m1, const m4& m2 )
     m1 = m1 * m2;
 }
 
-inline m4
+inline void
 Translate( m4 &m, const v3& vDelta )
 {
     m.e[0][3] += vDelta.x;
     m.e[1][3] += vDelta.y;
     m.e[2][3] += vDelta.z;
+}
 
-    return m;
+inline m4
+Translated( const m4& m, const v3& vDelta )
+{
+    m4 result = m;
+    result.e[0][3] += vDelta.x;
+    result.e[1][3] += vDelta.y;
+    result.e[2][3] += vDelta.z;
+
+    return result;
 }
 
 inline m4
