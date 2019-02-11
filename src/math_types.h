@@ -483,9 +483,13 @@ LengthSq( const v3& v )
 }
 
 inline bool
-IsUnit( const v3& v )
+IsUnit( const v3& v, r32* outLengthSq = nullptr )
 {
-    return AlmostEqual( LengthSq( v ), 1.f );
+    r32 lengthSq = LengthSq( v );
+    if( outLengthSq )
+        *outLengthSq = lengthSq;
+
+    return AlmostEqual( lengthSq, 1.f );
 }
 
 inline r32
@@ -505,9 +509,10 @@ DistanceSq( const v3& a, const v3& b )
 inline void
 Normalize( v3& v )
 {
-    if( !IsUnit( v ) )
+    r32 lengthSq;
+    if( !IsUnit( v, &lengthSq ) )
     {
-        r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
+        r32 invL = 1.0f / Sqrt( lengthSq );
         v *= invL;
     }
 }
@@ -515,10 +520,11 @@ Normalize( v3& v )
 inline v3
 Normalized( const v3 &v )
 {
+    r32 lengthSq;
     v3 result = v;
-    if( !IsUnit( v ) )
+    if( !IsUnit( v, &lengthSq ) )
     {
-        r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
+        r32 invL = 1.0f / Sqrt( lengthSq );
         result = v * invL;
     }
     return result;
@@ -680,12 +686,20 @@ M4Columns( const v3 &x, const v3 &y, const v3 &z )
 inline m4
 M4Basis( const v3& x, const v3& y, const v3& z )
 {
+    ASSERT( IsUnit( x ) );
+    ASSERT( IsUnit( y ) );
+    ASSERT( IsUnit( z ) );
+
     return M4Columns( x, y, z );
 }
 
 inline m4
 M4CameraBasis( const v3 &x, const v3 &y, const v3 &z )
 {
+    ASSERT( IsUnit( x ) );
+    ASSERT( IsUnit( y ) );
+    ASSERT( IsUnit( z ) );
+
     return M4Rows( x, y, z );
 }
 
@@ -884,14 +898,33 @@ GetRotation( const m4 &m )
 inline m4
 M4CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
 {
+    ASSERT( IsUnit( x ) );
+    ASSERT( IsUnit( y ) );
+    ASSERT( IsUnit( z ) );
+
     m4 r = M4Rows( x, y, z );
     Translate( r, -(r*p) );
     return r;
 }
 
+inline void
+GetCameraBasis( const m4& m, v3* vX, v3* vY, v3* vZ )
+{
+    *vX = { m.e[0][0], m.e[0][1], m.e[0][2] };
+    *vY = { m.e[1][0], m.e[1][1], m.e[1][2] };
+    *vZ = { m.e[2][0], m.e[2][1], m.e[2][2] };
+}
+
 inline m4
 M4CameraTransform( const m4& rot, const v3& p )
 {
+#if !RELEASE
+    v3 x, y, z;
+    GetCameraBasis( rot, &x, &y, &z );
+    ASSERT( IsUnit( x ) );
+    ASSERT( IsUnit( y ) );
+    ASSERT( IsUnit( z ) );
+#endif
     m4 result = GetRotation( rot );
     Translate( result, -(result * p) );
     return result;
@@ -911,8 +944,8 @@ M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
         vY = -V3Y;
     else
     {
-        vX = Cross( vUpN, vZ );
-        vY = Cross( vZ, vX );
+        vX = Normalized( Cross( vUpN, vZ ) );
+        vY = Normalized( Cross( vZ, vX ) );
     }
 
     m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
@@ -933,8 +966,8 @@ M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
         vY = -V3Y;
     else
     {
-        vX = Cross( vUpN, vZ );
-        vY = Cross( vZ, vX );
+        vX = Normalized( Cross( vUpN, vZ ) );
+        vY = Normalized( Cross( vZ, vX ) );
     }
 
     m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
@@ -1071,14 +1104,6 @@ GetCameraBasisZ( const m4& m )
     return result;
 }
 
-inline void
-GetCameraBasis( const m4& m, v3* vX, v3* vY, v3* vZ )
-{
-    *vX = { m.e[0][0], m.e[0][1], m.e[0][2] };
-    *vY = { m.e[1][0], m.e[1][1], m.e[1][2] };
-    *vZ = { m.e[2][0], m.e[2][1], m.e[2][2] };
-}
-
 inline m4
 Transposed( const m4 &m )
 {
@@ -1192,14 +1217,28 @@ Norm( const qn& q )
     return Sqrt( SqNorm( q ) );
 }
 
+inline bool
+IsUnit( const qn& q, r32* outSqNorm = nullptr )
+{
+    r32 sqNorm = SqNorm( q );
+    if( outSqNorm )
+        *outSqNorm = sqNorm;
+    
+    return AlmostEqual( sqNorm, 1.f, 1e-05f );
+}
+
 inline void
 Normalize( qn& q )
 {
-    r32 invNorm = 1.0f / Norm( q );
-    q.x *= invNorm;
-    q.y *= invNorm;
-    q.z *= invNorm;
-    q.w *= invNorm;
+    r32 sqNorm;
+    if( !IsUnit( q, &sqNorm ) )
+    {
+        r32 invNorm = 1.0f / Sqrt( sqNorm );
+        q.x *= invNorm;
+        q.y *= invNorm;
+        q.z *= invNorm;
+        q.w *= invNorm;
+    }
 }
 
 inline qn
@@ -1290,6 +1329,8 @@ Qn( const m4 &m )
     return r;
 }
 
+#if 0
+// NOTE Untested
 inline qn
 QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 {
@@ -1326,6 +1367,7 @@ QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 
     return result;
 }
+#endif
 
 inline m4
 ToM4( const qn& q )
@@ -1365,12 +1407,6 @@ ToM4( const qn& q )
 
     result.e[3][3] = 1.f;
     return result;
-}
-
-inline bool
-IsUnit( const qn& q )
-{
-    return AlmostEqual( SqNorm( q ), 1.f, 1e-05f );
 }
 
 inline qn

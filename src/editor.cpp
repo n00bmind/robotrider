@@ -213,9 +213,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     if( editorState->cameraWorldP == V3Zero || input.gameCodeReloaded )
     {
-        v3 pCamera = V3( 0, -100, 0 );
-        // FIXME
-        //v3 pCamera = V3( 0, -100, 100 );
+        v3 pCamera = V3( 0, -100, 100 );
         m4 mLookAt = M4CameraLookAt( pCamera, world->pPlayer, V3Up );
 #if 0
         editorState->cameraRotation = Qn( mLookAt );
