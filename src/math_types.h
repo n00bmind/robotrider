@@ -468,6 +468,13 @@ Cross( const v3 &a, const v3 &b )
     return result;
 }
 
+inline v3
+Hadamard( const v3& a, const v3& b )
+{
+    v3 result = { a.x * b.x, a.y * b.y, a.z * b.z };
+    return result;
+}
+
 inline r32
 Length( const v3& v )
 {
@@ -489,7 +496,7 @@ IsUnit( const v3& v, r32* outLengthSq = nullptr )
     if( outLengthSq )
         *outLengthSq = lengthSq;
 
-    return AlmostEqual( lengthSq, 1.f );
+    return AlmostEqual( lengthSq, 1.f, 1e-05f );
 }
 
 inline r32

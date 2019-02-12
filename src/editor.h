@@ -26,7 +26,8 @@ struct EditorInput
 struct EditorState
 {
     Camera camera;
-    v3 cameraWorldP;
+    v3 cachedCameraWorldP;
+    bool wasOrbiting;
 };
 
 #endif /* __EDITOR_H__ */

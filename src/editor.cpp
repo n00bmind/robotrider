@@ -81,7 +81,7 @@ TickMeshSamplerTest( const EditorState& editorState, TransientState* transientSt
     if( !transientState->testIsoSurfaceMesh ) //|| input->gameCodeReloaded )
     {
         transientState->displayedLayer = (transientState->displayedLayer + 1) % transientState->cacheBuffers.cellsPerAxis;
-        transientState->drawingDistance = Distance( GetTranslation( transientState->testMesh.mTransform ), editorState.cameraWorldP );
+        transientState->drawingDistance = Distance( GetTranslation( transientState->testMesh.mTransform ), editorState.cachedCameraWorldP );
         transientState->displayedLayer = 172;
 
         if( transientState->testIsoSurfaceMesh )
@@ -211,7 +211,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     EditorInput editorInput = MapGameInputToEditorInput( input );
 
-    if( editorState->cameraWorldP == V3Zero || input.gameCodeReloaded )
+    if( editorState->cachedCameraWorldP == V3Zero || input.gameCodeReloaded )
     {
         v3 pCamera = V3( 0, -100, 100 );
         m4 mLookAt = M4CameraLookAt( pCamera, world->pPlayer, V3Up );
@@ -273,30 +273,49 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 #else
         // TODO Use mouse wheel to switch translation speed steps
         m4& worldToCameraM = editorState->camera.mWorldToCamera;
-
-        // Orbit around world Z
-        //worldToCameraM = Transposed( mXRotation ) * M4ZRotation( camYawDelta );
-
-        // Rotate around camera X axis
         m4 cameraToWorldM = Transposed( worldToCameraM );
-        m4 mXRotation = cameraToWorldM * M4XRotation( camPitchDelta );
-        worldToCameraM = Transposed( mXRotation );
 
         // Find camera position in the world
         v3 cameraWorldP = -(cameraToWorldM * GetTranslation( worldToCameraM ));
-        // Rotate around world Z axis
-        m4 worldZRot = M4Translation( cameraWorldP ) * M4ZRotation( camYawDelta ) * M4Translation( -cameraWorldP );
-        worldToCameraM *= worldZRot;
 
-        // Apply translation (already in camera space)
-        Translate( worldToCameraM, -vCamDelta );
+        if( editorInput.camOrbit )
+        {
+            if( !editorState->wasOrbiting )
+            {
+                v3 cameraFocusP = V3Zero; // For now
+                worldToCameraM = M4CameraLookAt( cameraWorldP, cameraFocusP, V3Up );
+            }
+            // Orbit around world axes
+            m4 mXRotation = Transposed( cameraToWorldM * M4XRotation( camPitchDelta ) );
+            m4 worldXRot = M4Translation( cameraWorldP ) * mXRotation * M4Translation( -cameraWorldP );
+
+            //worldToCameraM *= worldXRot;
+            worldToCameraM *= Transposed( M4XRotation( camPitchDelta ) );
+            //worldToCameraM *= M4ZRotation( camYawDelta );
+
+            // Apply translation (already in camera space)
+            vCamDelta = Hadamard( vCamDelta, { 0, 0, 1 } );
+            Translate( worldToCameraM, -vCamDelta );
+        }
+        else
+        {
+            // Rotate around camera X axis
+            m4 mXRotation = cameraToWorldM * M4XRotation( camPitchDelta );
+            worldToCameraM = Transposed( mXRotation );
+
+            // Rotate around world Z axis
+            m4 worldZRot = M4Translation( cameraWorldP ) * M4ZRotation( camYawDelta ) * M4Translation( -cameraWorldP );
+            worldToCameraM *= worldZRot;
+
+            // Apply translation (already in camera space)
+            Translate( worldToCameraM, -vCamDelta );
+        }
 
         renderCommands->camera = DefaultCamera();
         renderCommands->camera.mWorldToCamera = worldToCameraM;
 
-        editorState->cameraWorldP = cameraWorldP;
-        v3 vCamZero = worldToCameraM * V3Zero;
-        int bla = 0;
+        editorState->cachedCameraWorldP = cameraWorldP;
+        editorState->wasOrbiting = editorInput.camOrbit;
 #endif
     }
 
