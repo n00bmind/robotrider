@@ -92,7 +92,7 @@ struct OpenGLState
 {
     GLuint vertexBuffer;
     GLuint indexBuffer;
-    m4 mCurrentProjView;
+    m4 currentProjectViewM;
 
     OpenGLImGuiState imGui;
 

@@ -19,7 +19,7 @@ struct EditorInput
     bool camDown;
     r32 camPitchDelta;
     r32 camYawDelta;
-    r32 camZoomDelta;
+    r32 camZDelta;
     bool camOrbit;
 };
 
@@ -27,6 +27,7 @@ struct EditorState
 {
     Camera camera;
     v3 cachedCameraWorldP;
+    i32 translationSpeedStep;
     bool wasOrbiting;
 };
 

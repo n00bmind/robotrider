@@ -732,7 +732,7 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
 
             // Material *matPtr = entry->materialArray;
 
-            glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, gl->mCurrentProjView.e[0] );
+            glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, gl->currentProjectViewM.e[0] );
 
             GLuint pAttribId = 0;
             GLuint uvAttribId = 1;
@@ -771,9 +771,9 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
 {
     OpenGLNewFrame( commands.width, commands.height );
 
-    m4 mProjView = M4Perspective( (r32)commands.width / commands.height, commands.camera.fovYDeg );
-    mProjView = mProjView * commands.camera.mWorldToCamera;
-    gl->mCurrentProjView = mProjView;
+    m4 projectViewM = M4Perspective( (r32)commands.width / commands.height, commands.camera.fovYDeg )
+        * commands.camera.worldToCamera;
+    gl->currentProjectViewM = projectViewM;
 
 #if !RELEASE
     DebugState* debugState = (DebugState*)gameMemory->debugStorage;

@@ -1522,7 +1522,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
 
                     if( buttonFlags & RI_MOUSE_WHEEL )
                     {
-                        i32 zMotionRelative = raw->data.mouse.usButtonData;
+                        r32 zMotionRelative = (r32)(i16)raw->data.mouse.usButtonData / (r32)WHEEL_DELTA;
                         input->keyMouse.mouseRawZDelta += zMotionRelative;
                         //keyMouseController->rightStick.avgZ += zMotionRelative;
                     }

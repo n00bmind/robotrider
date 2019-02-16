@@ -21,6 +21,8 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+// TODO Make sure everything here uses resolution-independant (0 to 1) coordinates
+
 // Some global constants for colors, styling, etc.
 ImVec4 UInormalTextColor( 0.9f, 0.9f, 0.9f, 1.0f );
 ImVec4 UIdarkTextColor( .0f, .0f, .0f, 1.0f );
@@ -32,7 +34,7 @@ DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
 {
     ImVec2 statsPos( 0, 0 );
 
-    ImGui::SetNextWindowPos( statsPos, ImGuiCond_FirstUseEver );
+    ImGui::SetNextWindowPos( statsPos, ImGuiCond_Always );
     ImGui::SetNextWindowSize( ImVec2( windowWidth, ImGui::GetTextLineHeight() ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.0f );
     ImGui::PushStyleColor( ImGuiCol_WindowBg, UIlightOverlayBgColor );
@@ -56,7 +58,7 @@ DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool 
 {
     ImVec2 statsPos( 0, 0 );
 
-    ImGui::SetNextWindowPos( statsPos, ImGuiCond_FirstUseEver );
+    ImGui::SetNextWindowPos( statsPos, ImGuiCond_Always );
     ImGui::SetNextWindowSize( ImVec2( windowWidth, ImGui::GetTextLineHeight() ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.0f );
     ImGui::PushStyleColor( ImGuiCol_WindowBg, UIlightOverlayBgColor );
@@ -87,7 +89,7 @@ DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, r32 xLen, const v3&
 void
 DrawAxisGizmos( RenderCommands *renderCommands )
 {
-    const m4 &currentCamTransform = renderCommands->camera.mWorldToCamera;
+    const m4 &currentCamTransform = renderCommands->camera.worldToCamera;
     v3 vCamX = GetCameraBasisX( currentCamTransform );
     v3 vCamY = GetCameraBasisY( currentCamTransform );
     v3 vCamFwd = -GetCameraBasisZ( currentCamTransform );
@@ -234,8 +236,8 @@ void
 DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight,
                                const TemporaryMemory& tmpMemory )
 {
-    ImGui::SetNextWindowPos( ImVec2( 100.f, windowHeight * 0.25f + 100 ), ImGuiCond_FirstUseEver );
-    ImGui::SetNextWindowSize( ImVec2( 500.f, windowHeight * 0.25f ), ImGuiCond_Appearing );
+    ImGui::SetNextWindowPos( ImVec2( 100.f, windowHeight * 0.25f + 100 ), ImGuiCond_Always );
+    ImGui::SetNextWindowSize( ImVec2( 500.f, windowHeight * 0.25f ), ImGuiCond_Always );
     ImGui::SetNextWindowSizeConstraints( ImVec2( -1, 100 ), ImVec2( -1, FLT_MAX ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 3.f );
     ImGui::PushStyleColor( ImGuiCol_WindowBg, UItoolWindowBgColor );
@@ -251,5 +253,20 @@ DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u3
     ImGui::End();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
+}
+
+void
+DrawEditorStateWindow( const v2u& windowP, const v2u& windowDim, const EditorState& state )
+{
+    ImGui::SetNextWindowPos( windowP, ImGuiCond_Always );
+    ImGui::SetNextWindowSize( windowDim, ImGuiCond_Always );
+
+    ImGui::Begin( "window_editor_state", NULL,
+                  ImGuiWindowFlags_NoTitleBar |
+                  ImGuiWindowFlags_NoResize |
+                  ImGuiWindowFlags_NoMove );
+
+    ImGui::Text( "Camera translation speed: %d", state.translationSpeedStep );
+    ImGui::End();
 }
 

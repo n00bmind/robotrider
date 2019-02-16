@@ -179,7 +179,7 @@ MapGameInputToEditorInput( const GameInput& input )
     result.camPitchDelta = input.keyMouse.mouseRawYDelta
         ? -input.keyMouse.mouseRawYDelta : input0.rightStick.avgY;
     // TODO Progressive zoom
-    result.camZoomDelta = input.keyMouse.mouseZ || input0.leftStick.avgY;
+    result.camZDelta = input.keyMouse.mouseRawZDelta;
     result.camOrbit = input.keyMouse.mouseButtons[MouseButtonRight].endedDown;
 
     return result;
@@ -215,34 +215,35 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
     {
         v3 pCamera = V3( 0, -150, 150 );
         m4 mLookAt = M4CameraLookAt( pCamera, world->pPlayer, V3Up );
-#if 0
-        editorState->cameraRotation = Qn( mLookAt );
-        Normalize( editorState->cameraRotation );
-#else
-        editorState->camera.mWorldToCamera = mLookAt;
-#endif
+
+        editorState->camera = DefaultCamera();
+        editorState->camera.worldToCamera = mLookAt;
+        editorState->translationSpeedStep = 2;
     }
 
     // Update camera based on input
     {
-        r32 camMovementSpeed = 9.f;
+        editorState->translationSpeedStep += (int)editorInput.camZDelta;
+        Clamp( &editorState->translationSpeedStep, 0, 2 );
+
+        r32 camMovementSpeed = Pow( 10, (r32)editorState->translationSpeedStep );
         r32 camRotationSpeed = 1.f;
 
-        v3 vCamDelta = {};
+        v3 camTranslationDelta = {};
         if( editorInput.camLeft )
-            vCamDelta.x -= camMovementSpeed * dT;
+            camTranslationDelta.x -= camMovementSpeed * dT;
         if( editorInput.camRight )
-            vCamDelta.x += camMovementSpeed * dT;
+            camTranslationDelta.x += camMovementSpeed * dT;
 
         if( editorInput.camForward )
-            vCamDelta.z -= camMovementSpeed * dT;
+            camTranslationDelta.z -= camMovementSpeed * dT;
         if( editorInput.camBackwards )
-            vCamDelta.z += camMovementSpeed * dT;
+            camTranslationDelta.z += camMovementSpeed * dT;
 
         if( editorInput.camDown )
-            vCamDelta.y -= camMovementSpeed * dT;
+            camTranslationDelta.y -= camMovementSpeed * dT;
         if( editorInput.camUp )
-            vCamDelta.y += camMovementSpeed * dT;
+            camTranslationDelta.y += camMovementSpeed * dT;
 
         r32 camPitchDelta = 0, camYawDelta = 0;
         if( editorInput.camPitchDelta )
@@ -250,71 +251,48 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
         if( editorInput.camYawDelta )
             camYawDelta += editorInput.camYawDelta * camRotationSpeed * dT; 
 
-#if 0
-        // TODO Time this whole block against the equivalent done with matrices
-        v3 vX, vY, vZ;
-        m4 mCameraRotation = ToM4( editorState->cameraRotation );
-        GetCameraBasis( mCameraRotation, &vX, &vY, &vZ );
 
-        //editorState->cameraRotation *= Qn( vX, camPitchDelta );
-        //editorState->cameraRotation *= QnZRotation( camYawDelta );
-        //r32 norm = Norm( editorState->cameraRotation );
-
-        //editorState->pCamera += Transposed( mCamRot ) * vCamDelta;
-        qn invCamerRot = Inverse( editorState->cameraRotation );
-        editorState->pCamera += Rotate( vCamDelta, invCamerRot );
-
-        mCameraRotation = ToM4( editorState->cameraRotation );
-        v3 vCamForward = GetColumn( mCameraRotation, 2 ).xyz;
-        v3 vCamRight = GetColumn( mCameraRotation, 0 ).xyz;
-
-        renderCommands->camera = DefaultCamera();
-        renderCommands->camera.mTransform = mCameraRotation * M4Translation( -editorState->pCamera );
-#else
-        // TODO Use mouse wheel to switch translation speed steps
-        m4& worldToCameraM = editorState->camera.mWorldToCamera;
-        m4 cameraToWorldM = Transposed( worldToCameraM );
+        m4& worldToCamera = editorState->camera.worldToCamera;
+        m4 cameraToWorld = Transposed( worldToCamera );
 
         // Find camera position in the world
-        v3 cameraWorldP = -(cameraToWorldM * GetTranslation( worldToCameraM ));
+        v3 cameraWorldP = -(cameraToWorld * GetTranslation( worldToCamera ));
 
         if( editorInput.camOrbit )
         {
             if( !editorState->wasOrbiting )
             {
-                v3 cameraFocusP = V3Zero; // For now
-                worldToCameraM = M4CameraLookAt( cameraWorldP, cameraFocusP, V3Up );
-                cameraToWorldM = Transposed( worldToCameraM );
+                v3 cameraTargetP = V3Zero; // For now
+                worldToCamera = M4CameraLookAt( cameraWorldP, cameraTargetP, V3Up );
+                cameraToWorld = Transposed( worldToCamera );
             }
 
             // Orbit around world axes
-            worldToCameraM *= M4AxisAngle( GetCameraBasisX( worldToCameraM ), -camPitchDelta );
-            worldToCameraM *= M4ZRotation( camYawDelta );
+            worldToCamera *= M4AxisAngle( GetCameraBasisX( worldToCamera ), -camPitchDelta );
+            worldToCamera *= M4ZRotation( camYawDelta );
 
             // Apply translation (already in camera space)
-            vCamDelta = Hadamard( vCamDelta, { 0, 0, 1 } );
-            Translate( worldToCameraM, -vCamDelta );
+            camTranslationDelta = Hadamard( camTranslationDelta, { 0, 0, 1 } );
+            Translate( worldToCamera, -camTranslationDelta );
         }
         else
         {
             // Rotate around camera X axis
-            m4 mXRotation = cameraToWorldM * M4XRotation( camPitchDelta );
-            worldToCameraM = Transposed( mXRotation );
+            m4 localXRotation = cameraToWorld * M4XRotation( camPitchDelta );
+            worldToCamera = Transposed( localXRotation );
 
             // Rotate around world Z axis
-            m4 worldZRot = M4Translation( cameraWorldP ) * M4ZRotation( camYawDelta ) * M4Translation( -cameraWorldP );
-            worldToCameraM *= worldZRot;
+            m4 worldZRotation = M4Translation( cameraWorldP ) * M4ZRotation( camYawDelta ) * M4Translation( -cameraWorldP );
+            worldToCamera *= worldZRotation;
 
             // Apply translation (already in camera space)
-            Translate( worldToCameraM, -vCamDelta );
+            Translate( worldToCamera, -camTranslationDelta );
         }
 
-        renderCommands->camera = DefaultCamera();
-        renderCommands->camera.mWorldToCamera = worldToCameraM;
+        renderCommands->camera = editorState->camera;
 
         editorState->cachedCameraWorldP = cameraWorldP;
         editorState->wasOrbiting = editorInput.camOrbit;
-#endif
     }
 
 #if 0
@@ -331,6 +309,8 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
+    DrawEditorStateWindow( V2u( width - 300, 100 ), V2u( 250, height - 200 ), *editorState );
+
     DrawEditorStats( width, height, statsText, (i32)elapsedT % 2 == 0 );
 }
 #endif

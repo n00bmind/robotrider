@@ -170,6 +170,18 @@ Median( i32 a, i32 b, i32 c )
     return result;
 }
 
+inline void
+Clamp( i32* value, i32 min, i32 max )
+{
+    *value = Min( Max( *value, min ), max );
+}
+
+inline void
+Clamp( r32* value, r32 min, r32 max )
+{
+    *value = Min( Max( *value, min ), max );
+}
+
 inline r32
 Clamp0( r32 value )
 {

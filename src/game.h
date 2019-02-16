@@ -264,7 +264,9 @@ struct KeyMouseInput
 {
     // This is normal desktop mouse data (with standard system ballistics applied)
     i32 mouseX, mouseY, mouseZ;
-    i32 mouseRawXDelta, mouseRawYDelta, mouseRawZDelta;
+    // Raw mouse data as obtained from the platform
+    i32 mouseRawXDelta, mouseRawYDelta;
+    r32 mouseRawZDelta;
     GameButtonState mouseButtons[5];
 
     // Platform-agnostic key codes
