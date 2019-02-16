@@ -776,6 +776,30 @@ M4ZRotation( r32 yawAngleRads )
 }
 
 inline m4
+M4AxisAngle( const v3& v, const r32 angleRads )
+{
+    r32 s = Sin( angleRads );
+    r32 c = Cos( angleRads );
+    r32 c1 = 1 - c;
+
+    r32 xx = v.x * v.x;
+    r32 yy = v.y * v.y;
+    r32 zz = v.z * v.z;
+    r32 xy = v.x * v.y;
+    r32 xz = v.x * v.z;
+    r32 yz = v.y * v.z;
+
+    m4 result =
+    {{
+         { c + xx * c1,             xy * c1 - v.z * s,      xz * c1 + v.y * s,  0 },
+         { xy * c1 + v.z * s,       c + yy * c1,            yz * c1 - v.x * s,  0 },
+         { xz * c1 - v.y * s,       yz * c1 + v.x * s,      c + zz * c1,        0 },
+         { 0,                       0,                      0,                  1 }
+    }};
+    return result;
+}
+
+inline m4
 M4Scale( const v3 &f )
 {
     m4 result =

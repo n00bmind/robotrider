@@ -213,7 +213,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     if( editorState->cachedCameraWorldP == V3Zero || input.gameCodeReloaded )
     {
-        v3 pCamera = V3( 0, -100, 100 );
+        v3 pCamera = V3( 0, -150, 150 );
         m4 mLookAt = M4CameraLookAt( pCamera, world->pPlayer, V3Up );
 #if 0
         editorState->cameraRotation = Qn( mLookAt );
@@ -284,14 +284,12 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
             {
                 v3 cameraFocusP = V3Zero; // For now
                 worldToCameraM = M4CameraLookAt( cameraWorldP, cameraFocusP, V3Up );
+                cameraToWorldM = Transposed( worldToCameraM );
             }
-            // Orbit around world axes
-            m4 mXRotation = Transposed( cameraToWorldM * M4XRotation( camPitchDelta ) );
-            m4 worldXRot = M4Translation( cameraWorldP ) * mXRotation * M4Translation( -cameraWorldP );
 
-            //worldToCameraM *= worldXRot;
-            worldToCameraM *= Transposed( M4XRotation( camPitchDelta ) );
-            //worldToCameraM *= M4ZRotation( camYawDelta );
+            // Orbit around world axes
+            worldToCameraM *= M4AxisAngle( GetCameraBasisX( worldToCameraM ), -camPitchDelta );
+            worldToCameraM *= M4ZRotation( camYawDelta );
 
             // Apply translation (already in camera space)
             vCamDelta = Hadamard( vCamDelta, { 0, 0, 1 } );
