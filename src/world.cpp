@@ -87,12 +87,13 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 }
 
 internal void
-CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, Generator* meshGenerators )
+CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, Generator* meshGenerators, MemoryArena* worldArena )
 {
+#if 0
     const r32 margin = 3.f;
     const r32 step = 50.f;
 
-    // TEST Place an entity every few meters, leaving some margin
+    // Place an entity every few meters, leaving some margin
     for( r32 x = -CLUSTER_HALF_SIZE_METERS + margin; x <= CLUSTER_HALF_SIZE_METERS - margin; x += step )
     {
         for( r32 y = -CLUSTER_HALF_SIZE_METERS + margin; y <= CLUSTER_HALF_SIZE_METERS - margin; y += step )
@@ -109,6 +110,15 @@ CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, Generator* 
             }
         }
     }
+#endif
+
+    // Partition cluster space
+    // NOTE This will be transient but we'll keep it for now for debugging
+    //TemporaryMemory tmpMemory = BeginTemporaryMemory( worldArena );
+    aabb rootBounds = AABB( V3Zero /*clusterCoords*/, CLUSTER_HALF_SIZE_METERS * 2 );
+    Volume rootVolume = { rootBounds };
+
+    //EndTemporaryMemory( tmpMemory );
 }
 
 internal v3
@@ -200,7 +210,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 
     if( !cluster->populated )
     {
-        CreateEntitiesInCluster( clusterCoords, cluster, world->meshGenerators );
+        CreateEntitiesInCluster( clusterCoords, cluster, world->meshGenerators, arena );
         cluster->populated = true;
     }
 
@@ -455,10 +465,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     }
 
 
-#if !RELEASE
-    if( !gameMemory->DEBUGglobalEditing )
-#endif
-        UpdateWorldGeneration( input, world, &gameState->worldArena );
+    UpdateWorldGeneration( input, world, &gameState->worldArena );
 
 
 
@@ -467,7 +474,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
 
 #if !RELEASE
-    if( !gameMemory->DEBUGglobalEditing )
+    //if( !gameMemory->DEBUGglobalEditing )
 #endif
     {
         PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
@@ -511,50 +518,5 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         v3 vUp = GetColumn( player->mesh.mTransform, 2 ).xyz;
         renderCommands->camera = DefaultCamera();
         renderCommands->camera.worldToCamera = M4CameraLookAt( pCam, pLookAt, vUp );
-    }
-    
-    // Mesh simplification test
-    // TODO Move this out of the way
-#if 0
-    Mesh testMesh;
-    {
-        if( ((i32)input->frameCounter - 180) % 300 == 0 )
-        {
-            InflatedMesh gen;
-            {
-                genVertices.count = testVertices.count;
-                for( u32 i = 0; i < genVertices.count; ++i )
-                    genVertices[i].p = testVertices[i].p;
-                genTriangles.count = testIndices.count / 3;
-                for( u32 i = 0; i < genTriangles.count; ++i )
-                {
-                    genTriangles[i].v[0] = testIndices[i*3];
-                    genTriangles[i].v[1] = testIndices[i*3 + 1];
-                    genTriangles[i].v[2] = testIndices[i*3 + 2];
-                }
-                gen.vertices = genVertices;
-                gen.triangles = genTriangles;
-            }
-            FastQuadricSimplify( &gen, (u32)(gen.triangles.count * 0.75f) );
-
-            testVertices.count = gen.vertices.count;
-            for( u32 i = 0; i < testVertices.count; ++i )
-                testVertices[i].p = gen.vertices[i].p;
-            testIndices.count = gen.triangles.count * 3;
-            for( u32 i = 0; i < gen.triangles.count; ++i )
-            {
-                testIndices[i*3 + 0] = gen.triangles[i].v[0];
-                testIndices[i*3 + 1] = gen.triangles[i].v[1];
-                testIndices[i*3 + 2] = gen.triangles[i].v[2];
-            }
-        }
-
-        testMesh.vertices = testVertices.data;
-        testMesh.indices = testIndices.data;
-        testMesh.vertexCount = testVertices.count;
-        testMesh.indexCount = testIndices.count;
-        testMesh.mTransform = Scale({ 10, 10, 10 });
-    }
-    PushMesh( testMesh, renderCommands );
-#endif
+    }    
 }

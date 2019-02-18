@@ -78,7 +78,7 @@ internal void
 TickMeshSamplerTest( const EditorState& editorState, TransientState* transientState, MeshPool* meshPoolArray, const TemporaryMemory& frameMemory,
                      r32 elapsedT, RenderCommands* renderCommands )
 {
-    if( !transientState->testIsoSurfaceMesh ) //|| input->gameCodeReloaded )
+    if( !transientState->testIsoSurfaceMesh ) //|| input.gameCodeReloaded )
     {
         transientState->displayedLayer = (transientState->displayedLayer + 1) % transientState->cacheBuffers.cellsPerAxis;
         transientState->drawingDistance = Distance( GetTranslation( transientState->testMesh.mTransform ), editorState.cachedCameraWorldP );
@@ -184,6 +184,55 @@ MapGameInputToEditorInput( const GameInput& input )
 
     return result;
 }
+
+#if 0
+internal void
+TickMeshSimplifierTest()
+{
+    // Mesh simplification test
+    // TODO Update
+    Mesh testMesh;
+    {
+        if( ((i32)input.frameCounter - 180) % 300 == 0 )
+        {
+            InflatedMesh gen;
+            {
+                genVertices.count = testVertices.count;
+                for( u32 i = 0; i < genVertices.count; ++i )
+                    genVertices[i].p = testVertices[i].p;
+                genTriangles.count = testIndices.count / 3;
+                for( u32 i = 0; i < genTriangles.count; ++i )
+                {
+                    genTriangles[i].v[0] = testIndices[i*3];
+                    genTriangles[i].v[1] = testIndices[i*3 + 1];
+                    genTriangles[i].v[2] = testIndices[i*3 + 2];
+                }
+                gen.vertices = genVertices;
+                gen.triangles = genTriangles;
+            }
+            FastQuadricSimplify( &gen, (u32)(gen.triangles.count * 0.75f) );
+
+            testVertices.count = gen.vertices.count;
+            for( u32 i = 0; i < testVertices.count; ++i )
+                testVertices[i].p = gen.vertices[i].p;
+            testIndices.count = gen.triangles.count * 3;
+            for( u32 i = 0; i < gen.triangles.count; ++i )
+            {
+                testIndices[i*3 + 0] = gen.triangles[i].v[0];
+                testIndices[i*3 + 1] = gen.triangles[i].v[1];
+                testIndices[i*3 + 2] = gen.triangles[i].v[2];
+            }
+        }
+
+        testMesh.vertices = testVertices.data;
+        testMesh.indices = testIndices.data;
+        testMesh.vertexCount = testVertices.count;
+        testMesh.indexCount = testIndices.count;
+        testMesh.mTransform = Scale({ 10, 10, 10 });
+    }
+    PushMesh( testMesh, renderCommands );
+}
+#endif
 
 void
 InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState, TransientState* transientState,
@@ -297,6 +346,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
 #if 0
     TickMeshSamplerTest( *editorState, transientState, &world->meshPools[0], frameMemory, elapsedT, renderCommands );
+    TickMeshSimplifierTest();
 
     TickWFCTest( transientState, debugState, frameMemory, renderCommands );
 #endif

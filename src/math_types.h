@@ -1528,6 +1528,19 @@ struct aabb
     r32 zMin, zMax;
 };
 
+inline aabb
+AABB( const v3& p, r32 dim )
+{
+    r32 halfDim = dim * 0.5f;
+    aabb result =
+    {
+        p.x - halfDim, p.x + halfDim,
+        p.y - halfDim, p.y + halfDim,
+        p.z - halfDim, p.z + halfDim,
+    };
+    return result;
+}
+
 
 // Ray
 
