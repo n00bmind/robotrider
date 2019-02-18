@@ -282,12 +282,7 @@ DrawBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
 internal void
 DrawBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
 {
-    aabb box =
-    {
-        p.x - size / 2, p.x + size / 2,
-        p.y - size / 2, p.y + size / 2,
-        p.z - size / 2, p.z + size / 2,
-    };
+    aabb box = AABB( p, size );
     DrawBounds( box, color, renderCommands );
 }
 

@@ -42,6 +42,8 @@ EntityHash( const u32& entityId, u32 tableSize )
 void
 InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 {
+    RandomSeed();
+
     TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
 
     world->player = PUSH_STRUCT( worldArena, Player );
@@ -87,7 +89,7 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 }
 
 internal void
-CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, Generator* meshGenerators, MemoryArena* worldArena )
+CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* meshGenerators, MemoryArena* arena )
 {
 #if 0
     const r32 margin = 3.f;
@@ -114,9 +116,113 @@ CreateEntitiesInCluster( const v3i& clusterCoords, Cluster* cluster, Generator* 
 
     // Partition cluster space
     // NOTE This will be transient but we'll keep it for now for debugging
-    //TemporaryMemory tmpMemory = BeginTemporaryMemory( worldArena );
+    //TemporaryMemory tmpMemory = BeginTemporaryMemory( arena );
+
     aabb rootBounds = AABB( V3Zero /*clusterCoords*/, CLUSTER_HALF_SIZE_METERS * 2 );
     Volume rootVolume = { rootBounds };
+
+    SectorParams params = CollectSectorParams( clusterCoords );
+    // TODO Calc an upper bound given cluster size and minimal volume size
+    u32 maxSplits = 8192;
+    //Array<Volume> volumes = Array<Volume>( arena, 0, maxSplits );
+    cluster->volumes = Array<Volume>( arena, 0, maxSplits );
+    Array<Volume>& volumes = cluster->volumes;
+
+    volumes.Push( rootVolume );
+    bool didSplit = true;
+
+    // TODO This is probably all done just in the first pass !?
+    // TODO Step through this, make sure we're generating as few volumes as strictly needed
+    while( didSplit )
+    {
+        didSplit = false;
+        for( u32 i = 0; i < volumes.count; ++i )
+        {
+            Volume& v = volumes[i];
+
+            // If this volume is too big, or 75% chance...
+			if( XSize( v.bounds ) > params.maxVolumeSize ||
+			    YSize( v.bounds ) > params.maxVolumeSize ||
+			    ZSize( v.bounds ) > params.maxVolumeSize ||
+			    RandomNormalizedR32() > 0.25f )
+			{
+                if( v.leftChild == nullptr && v.rightChild == nullptr )
+                {
+                    u32 splitDimIndex = 0;
+
+                    // Split by the dimension which is >25% larger than the others, otherwise split randomly
+                    r32 sizes[3] = {0};
+                    u32 maxSizeIndex = 0;
+                    u32 remainingDimCount = 3;
+
+                    for( u32 d = 0; d < 3; ++d )
+                    {
+                        sizes[d] = Size( v.bounds, d );
+                        if( sizes[d] > sizes[maxSizeIndex] )
+                        {
+                            maxSizeIndex = d;
+                        }
+                    }
+
+                    for( u32 d = 0; d < 3; ++d )
+                    {
+                        if( sizes[d] < sizes[maxSizeIndex] * 0.75f )
+                        {
+                            sizes[d] = 0.f;
+                            remainingDimCount--;
+                        }
+                    }
+
+                    ASSERT( remainingDimCount );
+                    if( remainingDimCount == 1 )
+                        splitDimIndex = maxSizeIndex;
+                    else
+                    {
+                        splitDimIndex = RandomRangeU32( 0, remainingDimCount - 1 );
+                        if( sizes[splitDimIndex] == 0.f )
+                            splitDimIndex++;
+                    }
+
+                    ASSERT( sizes[splitDimIndex] > 0.f );
+
+                    r32 splitSizeMax = sizes[splitDimIndex] - params.minVolumeSize;
+                    if( splitSizeMax > params.minVolumeSize )
+                    {
+                        r32 splitSize = RandomRangeR32( params.minVolumeSize, splitSizeMax );
+                        aabb left = v.bounds, right = v.bounds;
+
+                        switch( splitDimIndex )
+                        {
+                            case 0:   // X
+                            {
+                                left.x = { v.bounds.xMin, v.bounds.xMin + splitSize };
+                                right.x = { v.bounds.xMin + splitSize, v.bounds.xMax };
+                            } break;
+                            case 1:   // Y
+                            {
+                                left.y = { v.bounds.yMin, v.bounds.yMin + splitSize };
+                                right.y = { v.bounds.yMin + splitSize, v.bounds.yMax };
+                            } break;
+                            case 2:   // Z
+                            {
+                                left.z = { v.bounds.zMin, v.bounds.zMin + splitSize };
+                                right.z = { v.bounds.zMin + splitSize, v.bounds.zMax };
+                            } break;
+                            INVALID_DEFAULT_CASE
+                        }
+
+                        v.leftChild = volumes.PushEmpty();
+                        *v.leftChild = { left };
+
+                        v.rightChild = volumes.PushEmpty();
+                        *v.rightChild = { right };
+
+                        didSplit = true;
+                    }
+                }
+            }
+        }
+    }
 
     //EndTemporaryMemory( tmpMemory );
 }
@@ -210,7 +316,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 
     if( !cluster->populated )
     {
-        CreateEntitiesInCluster( clusterCoords, cluster, world->meshGenerators, arena );
+        CreateEntitiesInCluster( cluster, clusterCoords, world->meshGenerators, arena );
         cluster->populated = true;
     }
 
@@ -507,7 +613,19 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     // Render current cluster limits
     PushMaterial( nullptr, renderCommands );
     u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
-    DrawBoxAt( V3Zero, CLUSTER_HALF_SIZE_METERS, red, renderCommands );
+    DrawBoxAt( V3Zero, CLUSTER_HALF_SIZE_METERS * 2, red, renderCommands );
+
+    // Render partitioned volumes
+    {
+        u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );
+        Cluster* cluster = world->clusterTable.Find( world->pWorldOrigin );
+        for( u32 i = 0; i < cluster->volumes.count; ++i )
+        {
+            Volume& v = cluster->volumes[i];
+            if( v.leftChild == nullptr && v.rightChild == nullptr )
+                DrawBounds( v.bounds, halfRed, renderCommands );
+        }
+    }
 
     {
         // Create a chasing camera

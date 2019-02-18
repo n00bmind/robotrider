@@ -135,6 +135,10 @@ union v2
     {
         r32 u, v;
     };
+    struct
+    {
+        r32 min, max;
+    };
     r32 e[2];
 };
 
@@ -1523,24 +1527,96 @@ Tri( const v3& v0, const v3& v1, const v3& v2, bool findNormal = false )
 
 struct aabb
 {
-    r32 xMin, xMax;
-    r32 yMin, yMax;
-    r32 zMin, zMax;
+    union
+    {
+        struct
+        {
+            union
+            {
+                struct
+                {
+                    r32 xMin, xMax;
+                };
+                v2 x;
+            };
+            union
+            {
+                struct
+                {
+                    r32 yMin, yMax;
+                };
+                v2 y;
+            };
+            union
+            {
+                struct
+                {
+                    r32 zMin, zMax;
+                };
+                v2 z;
+            };
+        };
+        v2 dim[3];
+    };
 };
 
 inline aabb
-AABB( const v3& p, r32 dim )
+AABB( const v3& p, r32 size )
 {
-    r32 halfDim = dim * 0.5f;
+    r32 halfSize = size * 0.5f;
     aabb result =
     {
-        p.x - halfDim, p.x + halfDim,
-        p.y - halfDim, p.y + halfDim,
-        p.z - halfDim, p.z + halfDim,
+        p.x - halfSize, p.x + halfSize,
+        p.y - halfSize, p.y + halfSize,
+        p.z - halfSize, p.z + halfSize,
     };
     return result;
 }
 
+inline r32
+XSize( const aabb& b )
+{
+    return b.xMax - b.xMin;
+}
+
+inline r32
+YSize( const aabb& b )
+{
+    return b.yMax - b.yMin;
+}
+
+inline r32
+ZSize( const aabb& b )
+{
+    return b.zMax - b.zMin;
+}
+
+inline r32
+Size( const aabb& b, u32 d )
+{
+    ASSERT( d >= 0 && d < 3 );
+    return b.dim[d].max - b.dim[d].min;
+}
+
+inline void
+GetXYZSize( const aabb& b, r32* xSize, r32* ySize, r32* zSize )
+{
+    *xSize = XSize( b );
+    *ySize = YSize( b );
+    *zSize = ZSize( b );
+}
+
+inline v3
+Center( const aabb& b )
+{
+    v3 result =
+    {
+        b.xMin + XSize( b ) * 0.5f,
+        b.yMin + YSize( b ) * 0.5f,
+        b.zMin + ZSize( b ) * 0.5f,
+    };
+    return result;
+}
 
 // Ray
 

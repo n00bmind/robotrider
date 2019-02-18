@@ -238,8 +238,6 @@ void
 InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState, TransientState* transientState,
             MemoryArena* editorArena, MemoryArena* transientArena )
 {
-    RandomSeed();
-
 #if 0
     InitMeshSamplerTest( transientState, editorArena, transientArena );
 
