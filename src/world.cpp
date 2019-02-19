@@ -131,8 +131,6 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* 
     volumes.Push( rootVolume );
     bool didSplit = true;
 
-    // TODO This is probably all done just in the first pass !?
-    // TODO Step through this, make sure we're generating as few volumes as strictly needed
     while( didSplit )
     {
         didSplit = false;
@@ -140,13 +138,13 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* 
         {
             Volume& v = volumes[i];
 
-            // If this volume is too big, or 75% chance...
-			if( XSize( v.bounds ) > params.maxVolumeSize ||
-			    YSize( v.bounds ) > params.maxVolumeSize ||
-			    ZSize( v.bounds ) > params.maxVolumeSize ||
-			    RandomNormalizedR32() > 0.25f )
+            if( v.leftChild == nullptr && v.rightChild == nullptr )
 			{
-                if( v.leftChild == nullptr && v.rightChild == nullptr )
+                // If this volume is too big, or 75% chance...
+                if( XSize( v.bounds ) > params.maxVolumeSize ||
+                    YSize( v.bounds ) > params.maxVolumeSize ||
+                    ZSize( v.bounds ) > params.maxVolumeSize ||
+                    RandomNormalizedR32() > 0.25f )
                 {
                     u32 splitDimIndex = 0;
 
