@@ -65,8 +65,8 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     new (&world->liveEntities) BucketArray<LiveEntity>( worldArena, 256 );
     new (&world->entityRefs) HashTable<u32, StoredEntity *, EntityHash>( worldArena, 1024 );
 
-    world->pWorldOrigin = { 0, 0, 0 };
-    world->pLastWorldOrigin = INITIAL_CLUSTER_COORDS;
+    world->originClusterP = { 0, 0, 0 };
+    world->lastOriginClusterP = INITIAL_CLUSTER_COORDS;
 
     GeneratorHullNodeData* hullGenData = PUSH_STRUCT( worldArena, GeneratorHullNodeData );
     hullGenData->areaSideMeters = world->marchingAreaSize;
@@ -89,10 +89,10 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 }
 
 internal void
-AddEntityToCluster( Cluster* cluster, const v3i& clusterP, const v3& clusterRelativeP, const v3& entityDim, Generator* generator )
+AddEntityToCluster( Cluster* cluster, const v3i& clusterP, const v3& entityRelativeP, const v3& entityDim, Generator* generator )
 {
     StoredEntity* newEntity = cluster->entityStorage.PushEmpty();
-    newEntity->coords = { clusterP, clusterRelativeP };
+    newEntity->coords = { clusterP, entityRelativeP };
     newEntity->dim = entityDim;
     newEntity->generator = generator;
 }
@@ -266,20 +266,20 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, Generator* meshG
 }
 
 internal v3
-GetClusterWorldOffset( const v3i& clusterP, const World* world )
+GetClusterOffsetFromOrigin( const v3i& clusterP, const v3i& worldOriginClusterP )
 {
-    v3 result = V3(clusterP - world->pWorldOrigin) * CLUSTER_HALF_SIZE_METERS * 2;
+    v3 result = V3(clusterP - worldOriginClusterP) * CLUSTER_HALF_SIZE_METERS * 2;
     return result;
 }
 
 internal bool
-IsInSimRegion( const v3i& pClusterCoords, const v3i& pWorldOrigin )
+IsInSimRegion( const v3i& clusterP, const v3i& worldOriginClusterP )
 {
-    v3i vRelativeCoords = pClusterCoords - pWorldOrigin;
+    v3i clusterOffset = clusterP - worldOriginClusterP;
 
-    return vRelativeCoords.x >= -SIM_REGION_WIDTH && vRelativeCoords.x <= SIM_REGION_WIDTH &&
-        vRelativeCoords.y >= -SIM_REGION_WIDTH && vRelativeCoords.y <= SIM_REGION_WIDTH &&
-        vRelativeCoords.z >= -SIM_REGION_WIDTH && vRelativeCoords.z <= SIM_REGION_WIDTH;
+    return clusterOffset.x >= -SIM_REGION_WIDTH && clusterOffset.x <= SIM_REGION_WIDTH &&
+        clusterOffset.y >= -SIM_REGION_WIDTH && clusterOffset.y <= SIM_REGION_WIDTH &&
+        clusterOffset.z >= -SIM_REGION_WIDTH && clusterOffset.z <= SIM_REGION_WIDTH;
 }
 
 inline GeneratorJob*
@@ -315,7 +315,8 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 
     const v3i& clusterP = job->storedEntity->coords.clusterP;
 
-    if( IsInSimRegion( clusterP, *job->pWorldOrigin ) )
+    // TODO Review how to synchronize this
+    if( IsInSimRegion( clusterP, *job->worldOriginClusterP ) )
     {
         // TODO Find a much more explicit and general way to associate thread-job data like this
         MarchingCacheBuffers* cacheBuffers = &job->cacheBuffers[workerThreadIndex];
@@ -376,15 +377,13 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
             {
                 outputEntity->state = EntityState::Invalid;
 
-                const v3i& pWorldOrigin = world->pWorldOrigin;
-
 
                 // Start new job in a hi priority thread
                 GeneratorJob* job = FindFreeJob( world );
                 *job =
                 {
                     &storedEntity,
-                    &world->pWorldOrigin,
+                    &world->originClusterP,
                     world->cacheBuffers,
                     world->meshPools,
                     outputEntity,
@@ -425,7 +424,7 @@ StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
     }
 
     cluster->entityStorage.Clear();
-    v3 vClusterWorldOffset = GetClusterWorldOffset( clusterP, world );
+    v3 clusterWorldOffset = GetClusterOffsetFromOrigin( clusterP, world->originClusterP );
     // FIXME Not nice! Better float comparisons!
     // http://floating-point-gui.de/errors/comparison/
     // https://bitbashing.io/comparing-floats.html
@@ -436,19 +435,23 @@ StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
     while( it )
     {
         LiveEntity& liveEntity = ((LiveEntity&)it);
-        v3 clusterRelativeP = GetTranslation( liveEntity.mesh->mTransform ) - vClusterWorldOffset;
-        if( clusterRelativeP.x > -augmentedHalfSize && clusterRelativeP.x < augmentedHalfSize &&
-            clusterRelativeP.y > -augmentedHalfSize && clusterRelativeP.y < augmentedHalfSize &&
-            clusterRelativeP.z > -augmentedHalfSize && clusterRelativeP.z < augmentedHalfSize )
+        if( liveEntity.mesh )
         {
-            StoredEntity& storedEntity = liveEntity.stored;
-            storedEntity.coords.clusterP = clusterP;
-            storedEntity.coords.relativeP = clusterRelativeP;
+            v3 entityRelativeP = GetTranslation( liveEntity.mesh->mTransform ) - clusterWorldOffset;
 
-            cluster->entityStorage.Add( storedEntity );
+            if( entityRelativeP.x > -augmentedHalfSize && entityRelativeP.x < augmentedHalfSize &&
+                entityRelativeP.y > -augmentedHalfSize && entityRelativeP.y < augmentedHalfSize &&
+                entityRelativeP.z > -augmentedHalfSize && entityRelativeP.z < augmentedHalfSize )
+            {
+                StoredEntity& storedEntity = liveEntity.stored;
+                storedEntity.coords.clusterP = clusterP;
+                storedEntity.coords.relativeP = entityRelativeP;
 
-            ReleaseMesh( &liveEntity.mesh );
-            world->liveEntities.Remove( it );
+                cluster->entityStorage.Add( storedEntity );
+
+                ReleaseMesh( &liveEntity.mesh );
+                world->liveEntities.Remove( it );
+            }
         }
 
         it.Prev();
@@ -464,9 +467,9 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
     // so we can test for a good cluster size, evaluate current generation speeds,
     // debug moving across clusters, etc.
 
-    if( world->pWorldOrigin != world->pLastWorldOrigin )
+    if( world->originClusterP != world->lastOriginClusterP )
     {
-        v3 vWorldDelta = (world->pLastWorldOrigin - world->pWorldOrigin) * CLUSTER_HALF_SIZE_METERS * 2;
+        v3 vWorldDelta = (world->lastOriginClusterP - world->originClusterP) * CLUSTER_HALF_SIZE_METERS * 2;
 
         // Offset all live entities by the world delta
         // NOTE This could be done more efficiently _after_ storing entities
@@ -474,11 +477,15 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
         auto it = world->liveEntities.First();
         while( it )
         {
-            Translate( ((LiveEntity&)it).mesh->mTransform, vWorldDelta );
+            LiveEntity& liveEntity = ((LiveEntity&)it);
+
+            if( liveEntity.mesh )
+                Translate( liveEntity.mesh->mTransform, vWorldDelta );
+
             it.Next();
         }
         // TODO Should we put the player(s) in the live entities table?
-        if( world->pLastWorldOrigin != INITIAL_CLUSTER_COORDS )
+        if( world->lastOriginClusterP != INITIAL_CLUSTER_COORDS )
             world->pPlayer += vWorldDelta;
 
         for( int i = -SIM_REGION_WIDTH; i <= SIM_REGION_WIDTH; ++i )
@@ -487,10 +494,10 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
             {
                 for( int k = -SIM_REGION_WIDTH; k <= SIM_REGION_WIDTH; ++k )
                 {
-                    v3i pLastClusterCoords = world->pLastWorldOrigin + V3i( i, j, k );
+                    v3i lastClusterP = world->lastOriginClusterP + V3i( i, j, k );
 
                     // Evict all entities contained in a cluster which is now out of bounds
-                    if( !IsInSimRegion( pLastClusterCoords, world->pWorldOrigin ) )
+                    if( !IsInSimRegion( lastClusterP, world->originClusterP ) )
                     {
                         // FIXME This is very dumb!
                         // We first iterate clusters and then iterate the whole liveEntities
@@ -499,7 +506,7 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
                         // (Just call IsInSimRegion())
                         // Also! Don't forget to check the cluster an entity belongs to
                         // everytime you move them!
-                        StoreEntitiesInCluster( pLastClusterCoords, world, arena );
+                        StoreEntitiesInCluster( lastClusterP, world, arena );
                     }
                 }
             }
@@ -511,19 +518,19 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
             {
                 for( int k = -SIM_REGION_WIDTH; k <= SIM_REGION_WIDTH; ++k )
                 {
-                    v3i pClusterCoords = world->pWorldOrigin + V3i( i, j, k );
+                    v3i clusterP = world->originClusterP + V3i( i, j, k );
 
                     // Retrieve all entities contained in a cluster which is now inside bounds
                     // and put them in the live entities list
-                    if( !IsInSimRegion( pClusterCoords, world->pLastWorldOrigin ) )
+                    if( !IsInSimRegion( clusterP, world->lastOriginClusterP ) )
                     {
-                        LoadEntitiesInCluster( pClusterCoords, world, arena );
+                        LoadEntitiesInCluster( clusterP, world, arena );
                     }
                 }
             }
         }
     }
-    world->pLastWorldOrigin = world->pWorldOrigin;
+    world->lastOriginClusterP = world->originClusterP;
 
 
     {
@@ -536,15 +543,25 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
             LiveEntity& entity = ((LiveEntity&)it);
             if( entity.state == EntityState::Loaded )
             {
-                v3 vClusterWorldOffset
-                    = GetClusterWorldOffset( entity.stored.coords.clusterP, world );
-                Translate( entity.mesh->mTransform, vClusterWorldOffset );
+                if( entity.mesh )
+                {
+                    v3 clusterWorldOffset = GetClusterOffsetFromOrigin( entity.stored.coords.clusterP, world->originClusterP );
+                    Translate( entity.mesh->mTransform, clusterWorldOffset );
+                }
 
                 entity.state = EntityState::Active;
             }
             it.Next();
         }
     }
+}
+
+internal v3
+GetLiveEntityWorldP( const UniversalCoords& coords, const v3i& worldOriginClusterP )
+{
+    v3 clusterOffset = GetClusterOffsetFromOrigin( coords.clusterP, worldOriginClusterP );
+    v3 result = clusterOffset + coords.relativeP;
+    return result;
 }
 
 void
@@ -601,23 +618,23 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
         // Check if we moved to a different cluster
         {
-            v3i pWorldOrigin = world->pWorldOrigin;
+            v3i originClusterP = world->originClusterP;
 
             if( pPlayer.x > CLUSTER_HALF_SIZE_METERS )
-                pWorldOrigin.x++;
+                originClusterP.x++;
             else if( pPlayer.x < -CLUSTER_HALF_SIZE_METERS )
-                pWorldOrigin.x--;
+                originClusterP.x--;
             if( pPlayer.y > CLUSTER_HALF_SIZE_METERS )
-                pWorldOrigin.y++;
+                originClusterP.y++;
             else if( pPlayer.y < -CLUSTER_HALF_SIZE_METERS )
-                pWorldOrigin.y--;
+                originClusterP.y--;
             if( pPlayer.z > CLUSTER_HALF_SIZE_METERS )
-                pWorldOrigin.z++;
+                originClusterP.z++;
             else if( pPlayer.z < -CLUSTER_HALF_SIZE_METERS )
-                pWorldOrigin.z--;
+                originClusterP.z--;
 
-            if( pWorldOrigin != world->pWorldOrigin )
-                world->pWorldOrigin = pWorldOrigin;
+            if( originClusterP != world->originClusterP )
+                world->originClusterP = originClusterP;
         }
     }
 
@@ -635,7 +652,6 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #endif
     {
         PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
-        u32 black = Pack01ToRGBA( 0, 0, 0, 1 );
 
         auto it = world->liveEntities.First();
         while( it )
@@ -645,9 +661,26 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             LiveEntity& entity = (LiveEntity&)it;
             if( entity.state == EntityState::Active )
             {
-                PushMesh( *entity.mesh, renderCommands );
+                if( entity.mesh )
+                    PushMesh( *entity.mesh, renderCommands );
+            }
 
-                v3 entityP = GetLiveEntityPosition( entity.stored.coords );
+            it.Next();
+        }
+
+        PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
+        PushMaterial( nullptr, renderCommands );
+        u32 black = Pack01ToRGBA( 0, 0, 0, 1 );
+
+        it = world->liveEntities.First();
+        while( it )
+        {
+            TIMED_BLOCK;
+
+            LiveEntity& entity = (LiveEntity&)it;
+            if( entity.state == EntityState::Active )
+            {
+                v3 entityP = GetLiveEntityWorldP( entity.stored.coords, world->originClusterP );
                 aabb entityBounds = AABB( entityP, entity.stored.dim );
                 DrawBounds( entityBounds, black, renderCommands );
             }
@@ -675,7 +708,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     // Render partitioned volumes
     {
         u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );
-        Cluster* cluster = world->clusterTable.Find( world->pWorldOrigin );
+        Cluster* cluster = world->clusterTable.Find( world->originClusterP );
         for( u32 i = 0; i < cluster->volumes.count; ++i )
         {
             Volume& v = cluster->volumes[i];

@@ -110,7 +110,7 @@ struct Cluster
 struct GeneratorJob
 {
     const StoredEntity*     storedEntity;
-    const v3i*              pWorldOrigin;
+    const v3i*              worldOriginClusterP;
     MarchingCacheBuffers*   cacheBuffers;
     MeshPool*               meshPools;
     LiveEntity*             outputEntity;
@@ -121,7 +121,8 @@ struct GeneratorJob
 inline u32 ClusterHash( const v3i& key, u32 tableSize );
 inline u32 EntityHash( const u32& key, u32 tableSize );
 
-// 'Thickness' in clusters of the sim region on each side of the origin cluster
+// 'Thickness' of the sim region on each side of the origin cluster
+// (in number of clusters)
 #define SIM_REGION_WIDTH 1
 
 struct World
@@ -151,9 +152,9 @@ struct World
     // across clusters
     HashTable<u32, StoredEntity*, EntityHash> entityRefs;
 
-    // Coordinates of the current cluster
-    v3i pWorldOrigin;
-    v3i pLastWorldOrigin;
+    // Coordinates of the 'origin' cluster
+    v3i originClusterP;
+    v3i lastOriginClusterP;
 
     r32 marchingAreaSize;
     r32 marchingCubeSize;
