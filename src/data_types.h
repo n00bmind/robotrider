@@ -1062,7 +1062,7 @@ struct BucketArray
     BucketArray( const BucketArray& ) = delete;
     BucketArray& operator =( const BucketArray& ) = delete;
 
-    T* Reserve()
+    T* PushEmpty()
     {
         if( last->count == last->size )
             AddEmptyBucket();
@@ -1073,9 +1073,14 @@ struct BucketArray
 
     T* Add( const T& item )
     {
-        T* slot = Reserve();
+        T* slot = PushEmpty();
         *slot = item;
         return slot;
+    }
+
+    T* Push( const T& item )
+    {
+        return Add( item );
     }
 
     T Remove( const Idx& index )

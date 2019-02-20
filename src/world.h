@@ -52,20 +52,25 @@ struct UniversalCoords
 {
     // Cluster coordinates wrap around with int32, so our space wraps around itself around every X,Y,Z cartesian coordinate
     // This is a... 3-thorus?? :: https://en.wikipedia.org/wiki/Three-torus_model_of_the_universe
-    v3i pCluster;
-    v3 pClusterOffset;
+    v3i clusterP;
+    v3 relativeP;
 };
 
 // Minimal stored version of an entity
 // (for entities that have it)
 struct StoredEntity
 {
-    UniversalCoords pUniverse;
+    UniversalCoords universeCoords;
+    // Dimensions of the aligned bounding box
+    v3 dim;
 
     // We're not gonna generate using connected paths anymore. Instead, each chunk must be
     // correctly and deterministically generated everytime just based on its coordinates.
     // TODO Are we sure we want to have to regenerate the mesh?
     Generator* generator;
+
+    // NOTE This will be a bit of a mishmash for now
+
 };
 
 enum class EntityState

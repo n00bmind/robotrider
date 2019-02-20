@@ -1599,7 +1599,7 @@ Size( const aabb& b, u32 d )
 }
 
 inline void
-GetXYZSize( const aabb& b, r32* xSize, r32* ySize, r32* zSize )
+XYZSize( const aabb& b, r32* xSize, r32* ySize, r32* zSize )
 {
     *xSize = XSize( b );
     *ySize = YSize( b );

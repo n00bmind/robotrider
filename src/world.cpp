@@ -89,6 +89,15 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 }
 
 internal void
+AddEntityToCluster( Cluster* cluster, const v3i& clusterCoords, const v3& clusterRelativeP, const v3& entityDim, Generator* generator )
+{
+    StoredEntity* newEntity = cluster->entityStorage.PushEmtpy();
+    newEntity->universeCoords = { clusterCoords, clusterRelativeP };
+    newEntity->dim = entityDim;
+    newEntity->generator = generator;
+}
+
+internal void
 CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* meshGenerators, MemoryArena* arena )
 {
 #if 0
@@ -123,7 +132,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* 
 
     SectorParams params = CollectSectorParams( clusterCoords );
     // TODO Calc an upper bound given cluster size and minimal volume size
-    u32 maxSplits = 8192;
+    u32 maxSplits = 1024;
     //Array<Volume> volumes = Array<Volume>( arena, 0, maxSplits );
     cluster->volumes = Array<Volume>( arena, 0, maxSplits );
     Array<Volume>& volumes = cluster->volumes;
@@ -219,6 +228,37 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* 
                     }
                 }
             }
+        }
+    }
+
+    // Create a room in each volume
+    for( u32 i = 0; i < volumes.count; ++i )
+    {
+        Volume& v = volumes[i];
+        if( v.leftChild == nullptr && v.rightChild == nullptr )
+        {
+            v3 vDim;
+            XYZSize( v.bounds, &vDim.x, &vDim.y, &vDim.z );
+
+            v3 roomDim =
+            {
+                RandomRangeR32( vDim.x * params.minRoomSizeRatio, vDim.x * params.maxRoomSizeRatio ),
+                RandomRangeR32( vDim.y * params.minRoomSizeRatio, vDim.y * params.maxRoomSizeRatio ),
+                RandomRangeR32( vDim.z * params.minRoomSizeRatio, vDim.z * params.maxRoomSizeRatio ),
+            };
+
+            v3 roomP =
+            {
+                RandomRangeR32( v.bounds.xMin + roomDim.x * 0.5f + params.volumeSafeMarginSize,
+                                v.bounds.xMax - roomDim.x * 0.5f - params.volumeSafeMarginSize ),
+                RandomRangeR32( v.bounds.yMin + roomDim.y * 0.5f + params.volumeSafeMarginSize,
+                                v.bounds.yMax - roomDim.y * 0.5f - params.volumeSafeMarginSize ),
+                RandomRangeR32( v.bounds.zMin + roomDim.z * 0.5f + params.volumeSafeMarginSize,
+                                v.bounds.zMax - roomDim.z * 0.5f - params.volumeSafeMarginSize ),
+            };
+
+            Generator* generator = nullptr;
+            AddEntityToCluster( cluster, clusterCoords, roomP, roomDim, generator );
         }
     }
 
@@ -330,7 +370,7 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
         while( it )
         {
             StoredEntity& storedEntity = it;
-            LiveEntity* outputEntity = world->liveEntities.Reserve();
+            LiveEntity* outputEntity = world->liveEntities.PushEmpty();
             outputEntity->state = EntityState::Invalid;
 
             const v3i& pWorldOrigin = world->pWorldOrigin;
