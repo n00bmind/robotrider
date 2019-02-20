@@ -23,10 +23,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 inline u32
-ClusterHash( const v3i& clusterCoords, u32 tableSize )
+ClusterHash( const v3i& clusterP, u32 tableSize )
 {
     // TODO Better hash function! x)
-    u32 hashValue = (u32)(19*clusterCoords.x + 7*clusterCoords.y + 3*clusterCoords.z);
+    u32 hashValue = (u32)(19*clusterP.x + 7*clusterP.y + 3*clusterP.z);
     return hashValue;
 }
 
@@ -89,16 +89,16 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 }
 
 internal void
-AddEntityToCluster( Cluster* cluster, const v3i& clusterCoords, const v3& clusterRelativeP, const v3& entityDim, Generator* generator )
+AddEntityToCluster( Cluster* cluster, const v3i& clusterP, const v3& clusterRelativeP, const v3& entityDim, Generator* generator )
 {
-    StoredEntity* newEntity = cluster->entityStorage.PushEmtpy();
-    newEntity->universeCoords = { clusterCoords, clusterRelativeP };
+    StoredEntity* newEntity = cluster->entityStorage.PushEmpty();
+    newEntity->coords = { clusterP, clusterRelativeP };
     newEntity->dim = entityDim;
     newEntity->generator = generator;
 }
 
 internal void
-CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* meshGenerators, MemoryArena* arena )
+CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, Generator* meshGenerators, MemoryArena* arena )
 {
 #if 0
     const r32 margin = 3.f;
@@ -113,7 +113,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* 
             {
                 StoredEntity newEntity =
                 {
-                    { clusterCoords, V3( x, y, z ) },
+                    { clusterP, V3( x, y, z ) },
                     // TODO Think of how to assign specific generators to the created entities
                     &meshGenerators[0],
                 };
@@ -127,10 +127,10 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* 
     // NOTE This will be transient but we'll keep it for now for debugging
     //TemporaryMemory tmpMemory = BeginTemporaryMemory( arena );
 
-    aabb rootBounds = AABB( V3Zero /*clusterCoords*/, CLUSTER_HALF_SIZE_METERS * 2 );
+    aabb rootBounds = AABB( V3Zero /*clusterP*/, CLUSTER_HALF_SIZE_METERS * 2 );
     Volume rootVolume = { rootBounds };
 
-    SectorParams params = CollectSectorParams( clusterCoords );
+    SectorParams params = CollectSectorParams( clusterP );
     // TODO Calc an upper bound given cluster size and minimal volume size
     u32 maxSplits = 1024;
     //Array<Volume> volumes = Array<Volume>( arena, 0, maxSplits );
@@ -258,7 +258,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* 
             };
 
             Generator* generator = nullptr;
-            AddEntityToCluster( cluster, clusterCoords, roomP, roomDim, generator );
+            AddEntityToCluster( cluster, clusterP, roomP, roomDim, generator );
         }
     }
 
@@ -266,9 +266,9 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterCoords, Generator* 
 }
 
 internal v3
-GetClusterWorldOffset( const v3i& clusterCoords, const World* world )
+GetClusterWorldOffset( const v3i& clusterP, const World* world )
 {
-    v3 result = V3(clusterCoords - world->pWorldOrigin) * CLUSTER_HALF_SIZE_METERS * 2;
+    v3 result = V3(clusterP - world->pWorldOrigin) * CLUSTER_HALF_SIZE_METERS * 2;
     return result;
 }
 
@@ -313,9 +313,9 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 {
     GeneratorJob* job = (GeneratorJob*)userData;
 
-    const v3i& clusterCoords = job->storedEntity->pUniverse.pCluster;
+    const v3i& clusterP = job->storedEntity->coords.clusterP;
 
-    if( IsInSimRegion( clusterCoords, *job->pWorldOrigin ) )
+    if( IsInSimRegion( clusterP, *job->pWorldOrigin ) )
     {
         // TODO Find a much more explicit and general way to associate thread-job data like this
         MarchingCacheBuffers* cacheBuffers = &job->cacheBuffers[workerThreadIndex];
@@ -326,7 +326,7 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
         {
             *job->storedEntity,
             job->storedEntity->generator->func( job->storedEntity->generator->data,
-                                                job->storedEntity->pUniverse,
+                                                job->storedEntity->coords,
                                                 cacheBuffers, meshPool ),
             EntityState::Loaded,
         };
@@ -339,22 +339,22 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 }
 
 internal void
-LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena )
+LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
 {
     TIMED_BLOCK;
 
-    Cluster* cluster = world->clusterTable.Find( clusterCoords );
+    Cluster* cluster = world->clusterTable.Find( clusterP );
 
     if( !cluster )
     {
-        cluster = world->clusterTable.Reserve( clusterCoords );
+        cluster = world->clusterTable.Reserve( clusterP );
         cluster->populated = false;
         new (&cluster->entityStorage) BucketArray<StoredEntity>( arena, 256 );
     }
 
     if( !cluster->populated )
     {
-        CreateEntitiesInCluster( cluster, clusterCoords, world->meshGenerators, arena );
+        CreateEntitiesInCluster( cluster, clusterP, world->meshGenerators, arena );
         cluster->populated = true;
     }
 
@@ -371,26 +371,39 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
         {
             StoredEntity& storedEntity = it;
             LiveEntity* outputEntity = world->liveEntities.PushEmpty();
-            outputEntity->state = EntityState::Invalid;
 
-            const v3i& pWorldOrigin = world->pWorldOrigin;
-
-
-            // Start new job in a hi priority thread
-            GeneratorJob* job = FindFreeJob( world );
-            *job =
+            if( storedEntity.generator )
             {
-                &storedEntity,
-                &world->pWorldOrigin,
-                world->cacheBuffers,
-                world->meshPools,
-                outputEntity,
-            };
-            job->occupied = true;
+                outputEntity->state = EntityState::Invalid;
 
-            globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
-                                      GenerateOneEntity,
-                                      job );
+                const v3i& pWorldOrigin = world->pWorldOrigin;
+
+
+                // Start new job in a hi priority thread
+                GeneratorJob* job = FindFreeJob( world );
+                *job =
+                {
+                    &storedEntity,
+                    &world->pWorldOrigin,
+                    world->cacheBuffers,
+                    world->meshPools,
+                    outputEntity,
+                };
+                job->occupied = true;
+
+                globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
+                                          GenerateOneEntity,
+                                          job );
+            }
+            else
+            {
+                *outputEntity =
+                {
+                    storedEntity,
+                    nullptr,
+                    EntityState::Loaded,
+                };
+            }
 
             it.Next();
         }
@@ -398,11 +411,11 @@ LoadEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* aren
 }
 
 internal void
-StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* arena )
+StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
 {
     TIMED_BLOCK;
 
-    Cluster* cluster = world->clusterTable.Find( clusterCoords );
+    Cluster* cluster = world->clusterTable.Find( clusterP );
 
     if( !cluster )
     {
@@ -412,7 +425,7 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
     }
 
     cluster->entityStorage.Clear();
-    v3 vClusterWorldOffset = GetClusterWorldOffset( clusterCoords, world );
+    v3 vClusterWorldOffset = GetClusterWorldOffset( clusterP, world );
     // FIXME Not nice! Better float comparisons!
     // http://floating-point-gui.de/errors/comparison/
     // https://bitbashing.io/comparing-floats.html
@@ -423,14 +436,14 @@ StoreEntitiesInCluster( const v3i& clusterCoords, World* world, MemoryArena* are
     while( it )
     {
         LiveEntity& liveEntity = ((LiveEntity&)it);
-        v3 pClusterOffset = GetTranslation( liveEntity.mesh->mTransform ) - vClusterWorldOffset;
-        if( pClusterOffset.x > -augmentedHalfSize && pClusterOffset.x < augmentedHalfSize &&
-            pClusterOffset.y > -augmentedHalfSize && pClusterOffset.y < augmentedHalfSize &&
-            pClusterOffset.z > -augmentedHalfSize && pClusterOffset.z < augmentedHalfSize )
+        v3 clusterRelativeP = GetTranslation( liveEntity.mesh->mTransform ) - vClusterWorldOffset;
+        if( clusterRelativeP.x > -augmentedHalfSize && clusterRelativeP.x < augmentedHalfSize &&
+            clusterRelativeP.y > -augmentedHalfSize && clusterRelativeP.y < augmentedHalfSize &&
+            clusterRelativeP.z > -augmentedHalfSize && clusterRelativeP.z < augmentedHalfSize )
         {
             StoredEntity& storedEntity = liveEntity.stored;
-            storedEntity.pUniverse.pCluster = clusterCoords;
-            storedEntity.pUniverse.pClusterOffset = pClusterOffset;
+            storedEntity.coords.clusterP = clusterP;
+            storedEntity.coords.relativeP = clusterRelativeP;
 
             cluster->entityStorage.Add( storedEntity );
 
@@ -524,7 +537,7 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
             if( entity.state == EntityState::Loaded )
             {
                 v3 vClusterWorldOffset
-                    = GetClusterWorldOffset( entity.stored.pUniverse.pCluster, world );
+                    = GetClusterWorldOffset( entity.stored.coords.clusterP, world );
                 Translate( entity.mesh->mTransform, vClusterWorldOffset );
 
                 entity.state = EntityState::Active;
@@ -622,6 +635,8 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #endif
     {
         PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
+        u32 black = Pack01ToRGBA( 0, 0, 0, 1 );
+
         auto it = world->liveEntities.First();
         while( it )
         {
@@ -631,6 +646,10 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             if( entity.state == EntityState::Active )
             {
                 PushMesh( *entity.mesh, renderCommands );
+
+                v3 entityP = GetLiveEntityPosition( entity.stored.coords );
+                aabb entityBounds = AABB( entityP, entity.stored.dim );
+                DrawBounds( entityBounds, black, renderCommands );
             }
 
             it.Next();

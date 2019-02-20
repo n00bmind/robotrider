@@ -1573,6 +1573,22 @@ AABB( const v3& p, r32 size )
     return result;
 }
 
+inline aabb
+AABB( const v3& p, const v3& dim )
+{
+    r32 halfXSize = dim.x * 0.5f;
+    r32 halfYSize = dim.y * 0.5f;
+    r32 halfZSize = dim.z * 0.5f;
+    aabb result =
+    {
+        p.x - halfXSize, p.x + halfXSize,
+        p.y - halfYSize, p.y + halfYSize,
+        p.z - halfZSize, p.z + halfZSize,
+    };
+
+    return result;
+}
+
 inline r32
 XSize( const aabb& b )
 {

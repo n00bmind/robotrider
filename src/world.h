@@ -60,7 +60,7 @@ struct UniversalCoords
 // (for entities that have it)
 struct StoredEntity
 {
-    UniversalCoords universeCoords;
+    UniversalCoords coords;
     // Dimensions of the aligned bounding box
     v3 dim;
 
@@ -82,6 +82,7 @@ enum class EntityState
 
 struct LiveEntity
 {
+    // TODO We may want to turn this into a pointer
     StoredEntity stored;
 
     // NOTE Mesh translation is always relative to the current sim-region center
@@ -92,7 +93,7 @@ struct LiveEntity
     // changes and weird concurrency glitches, their final position is recalculated
     // by the main thread after they've been already built (they remain invisible until
     // that happens).
-    EntityState state;
+    volatile EntityState state;
 };
 
 #define CLUSTER_HALF_SIZE_METERS 200

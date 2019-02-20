@@ -1204,7 +1204,7 @@ GENERATOR_FUNC(GeneratorHullNodeFunc)
     Mesh* result = MarchAreaFast( V3Zero, areaSideMeters, resolutionMeters,
                                   SampleHullNode, generatorData,
                                   cacheBuffers, meshPool );
-    result->mTransform = M4Translation( p.pClusterOffset );
+    result->mTransform = M4Translation( entityCoords.relativeP );
 
     return result;
 }

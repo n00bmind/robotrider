@@ -102,8 +102,8 @@ struct GeneratorData
 };
 
 struct UniversalCoords;
-#define GENERATOR_FUNC(name) \
-    Mesh* name( const GeneratorData* generatorData, const UniversalCoords& p, MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool ) 
+#define GENERATOR_FUNC(name) Mesh* name( const GeneratorData* generatorData, const UniversalCoords& entityCoords, \
+                                         MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool ) 
 typedef GENERATOR_FUNC(GeneratorFunc);
 
 struct Generator
