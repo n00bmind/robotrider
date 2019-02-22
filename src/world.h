@@ -146,6 +146,8 @@ struct World
     // (we take the clusters we want to simulate, expand the entities stored there to their live version, and then store them back)
     // (clusters around the player are always kept live)
     // TODO Is the previous sentence true?
+    // TODO Actually do that at least with the entity coords (always used the value calculated from the stored coords)
+    // instead of the weird en-mass translation!
     // TODO Investigate what a good bucket size is
     BucketArray<LiveEntity> liveEntities;
     // Handles to stored entities to allow arbitrary entity cross-referencing even for entities that move

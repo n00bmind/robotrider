@@ -73,7 +73,7 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     hullGenData->resolutionMeters = world->marchingCubeSize;
     Generator hullGenerator = { GeneratorHullNodeFunc, &hullGenData->header };
     // TODO Check if we need to reinstate these pointers after a reload
-    world->meshGenerators[0] = hullGenerator;
+    world->meshGenerators[MeshGeneratorType::Room] = roomGenerator;
 
     world->cacheBuffers = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MarchingCacheBuffers );
     world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MeshPool );
@@ -257,7 +257,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, Generator* meshG
                                 v.bounds.zMax - roomDim.z * 0.5f - params.volumeSafeMarginSize ),
             };
 
-            Generator* generator = nullptr;
+            const Generator& generator = world->meshGenerators[MeshGeneratorType::Room];
             AddEntityToCluster( cluster, clusterP, roomP, roomDim, generator );
         }
     }
