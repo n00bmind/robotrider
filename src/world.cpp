@@ -65,15 +65,15 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     new (&world->liveEntities) BucketArray<LiveEntity>( worldArena, 256 );
     new (&world->entityRefs) HashTable<u32, StoredEntity *, EntityHash>( worldArena, 1024 );
 
-    world->originClusterP = { 0, 0, 0 };
+    world->originClusterP = V3iZero;
     world->lastOriginClusterP = INITIAL_CLUSTER_COORDS;
 
-    GeneratorHullNodeData* hullGenData = PUSH_STRUCT( worldArena, GeneratorHullNodeData );
-    hullGenData->areaSideMeters = world->marchingAreaSize;
-    hullGenData->resolutionMeters = world->marchingCubeSize;
-    Generator hullGenerator = { GeneratorHullNodeFunc, &hullGenData->header };
+    MeshGeneratorRoomData* roomData = PUSH_STRUCT( worldArena, MeshGeneratorRoomData );
+    roomData->areaSideMeters = world->marchingAreaSize;
+    roomData->resolutionMeters = world->marchingCubeSize;
+    MeshGenerator roomGenerator = { MeshGeneratorRoomFunc, &roomData->header };
     // TODO Check if we need to reinstate these pointers after a reload
-    world->meshGenerators[MeshGeneratorType::Room] = roomGenerator;
+    world->meshGenerators[GenRoom] = roomGenerator;
 
     world->cacheBuffers = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MarchingCacheBuffers );
     world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MeshPool );
@@ -89,16 +89,16 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 }
 
 internal void
-AddEntityToCluster( Cluster* cluster, const v3i& clusterP, const v3& entityRelativeP, const v3& entityDim, Generator* generator )
+AddEntityToCluster( Cluster* cluster, const v3i& clusterP, const v3& entityRelativeP, const v3& entityDim, const MeshGenerator& generator )
 {
     StoredEntity* newEntity = cluster->entityStorage.PushEmpty();
     newEntity->coords = { clusterP, entityRelativeP };
     newEntity->dim = entityDim;
-    newEntity->generator = generator;
+    newEntity->generator = &generator;
 }
 
 internal void
-CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, Generator* meshGenerators, MemoryArena* arena )
+CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, MeshGenerator* meshGenerators, MemoryArena* arena )
 {
 #if 0
     const r32 margin = 3.f;
@@ -257,7 +257,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, Generator* meshG
                                 v.bounds.zMax - roomDim.z * 0.5f - params.volumeSafeMarginSize ),
             };
 
-            const Generator& generator = world->meshGenerators[MeshGeneratorType::Room];
+            const MeshGenerator& generator = meshGenerators[GenRoom];
             AddEntityToCluster( cluster, clusterP, roomP, roomDim, generator );
         }
     }
@@ -282,11 +282,11 @@ IsInSimRegion( const v3i& clusterP, const v3i& worldOriginClusterP )
         clusterOffset.z >= -SIM_REGION_WIDTH && clusterOffset.z <= SIM_REGION_WIDTH;
 }
 
-inline GeneratorJob*
+inline MeshGeneratorJob*
 FindFreeJob( World* world )
 {
     bool found = false;
-    GeneratorJob* result = nullptr;
+    MeshGeneratorJob* result = nullptr;
 
     u32 index = world->lastAddedJob;
 
@@ -311,7 +311,7 @@ FindFreeJob( World* world )
 internal
 PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 {
-    GeneratorJob* job = (GeneratorJob*)userData;
+    MeshGeneratorJob* job = (MeshGeneratorJob*)userData;
 
     const v3i& clusterP = job->storedEntity->coords.clusterP;
 
@@ -379,7 +379,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
 
 
                 // Start new job in a hi priority thread
-                GeneratorJob* job = FindFreeJob( world );
+                MeshGeneratorJob* job = FindFreeJob( world );
                 *job =
                 {
                     &storedEntity,
@@ -458,6 +458,20 @@ StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
     }
 }
 
+// @Leak
+internal void
+RestartWorldGeneration( World* world )
+{
+    // TODO 
+    RandomSeed();
+
+    world->liveEntities.Clear();
+    world->clusterTable.Clear();
+
+    world->originClusterP = V3iZero;
+    world->lastOriginClusterP = INITIAL_CLUSTER_COORDS;
+}
+
 internal void
 UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
 {
@@ -466,6 +480,11 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
     // TODO Make an infinite connected 'cosmic grid structure'
     // so we can test for a good cluster size, evaluate current generation speeds,
     // debug moving across clusters, etc.
+
+#if !RELEASE
+    if( input->gameCodeReloaded )
+        RestartWorldGeneration( world );
+#endif
 
     if( world->originClusterP != world->lastOriginClusterP )
     {

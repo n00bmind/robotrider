@@ -255,7 +255,7 @@ enum GameKeyCodes
     KeyMediaStop = 0xF3,
 
     KeyUnknown = 0xFF,
-    COUNT
+    KeyCOUNT
 };
 #pragma endregion USB HID Key Codes
 
@@ -270,7 +270,7 @@ struct KeyMouseInput
     GameButtonState mouseButtons[5];
 
     // Platform-agnostic key codes
-    bool keysDown[GameKeyCodes::COUNT];
+    bool keysDown[KeyCOUNT];
 };
 
 struct GameInput

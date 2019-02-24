@@ -355,6 +355,12 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters, Marche
     return result;
 }
 
+struct Metaball
+{
+    v3 pCenter;
+    r32 radiusMeters;
+};
+
 internal r32
 SampleMetaballs( const void* sampleData, const v3& pos )
 {
@@ -1031,7 +1037,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displa
 internal r32
 SampleCuboid( const void* sampleData, const v3& p )
 {
-    GeneratorPathData* path = (GeneratorPathData*)sampleData;
+    MeshGeneratorPathData* path = (MeshGeneratorPathData*)sampleData;
     v3 vRight = GetBasisX( path->basis );
     v3 vForward = GetBasisY( path->basis );
     v3 vUp = GetBasisZ( path->basis );
@@ -1095,7 +1101,7 @@ SampleCuboid( const void* sampleData, const v3& p )
 internal r32
 SampleCylinder( const void* sampleData, const v3& p )
 {
-    GeneratorPathData* path = (GeneratorPathData*)sampleData;
+    MeshGeneratorPathData* path = (MeshGeneratorPathData*)sampleData;
     v3 vForward = GetBasisY( path->basis );
 
     v3 vP = p - path->pCenter;
@@ -1109,9 +1115,9 @@ SampleCylinder( const void* sampleData, const v3& p )
 }
 
 u32
-GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advancePosition,
+GenerateOnePathStep( MeshGeneratorPathData* path, r32 resolutionMeters, bool advancePosition,
                      MarchingCacheBuffers* cacheBuffers,
-                     MeshPool* meshPool, Mesh** outMesh, GeneratorPathData* nextFork )
+                     MeshPool* meshPool, Mesh** outMesh, MeshGeneratorPathData* nextFork )
 {
     bool turnInThisStep = path->distanceToNextTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToNextFork < path->areaSideMeters;
@@ -1183,26 +1189,26 @@ GenerateOnePathStep( GeneratorPathData* path, r32 resolutionMeters, bool advance
 }
 
 internal r32
-SampleHullNode( const void* sampleData, const v3& p )
+SampleRoomBody( const void* sampleData, const v3& p )
 {
     TIMED_BLOCK;
 
-    GeneratorHullNodeData* genData = (GeneratorHullNodeData*)sampleData;
+    MeshGeneratorRoomData* genData = (MeshGeneratorRoomData*)sampleData;
 
     // Just a sphere for now
     r32 result = DistanceSq( p, V3Zero ) - 5;
     return result;
 }
 
-GENERATOR_FUNC(GeneratorHullNodeFunc)
+MESH_GENERATOR_FUNC(MeshGeneratorRoomFunc)
 {
-    const GeneratorHullNodeData* hullGenData = (const GeneratorHullNodeData*)generatorData;
+    const MeshGeneratorRoomData* roomData = (const MeshGeneratorRoomData*)generatorData;
 
-    r32 areaSideMeters = hullGenData->areaSideMeters;
-    r32 resolutionMeters = hullGenData->resolutionMeters;
+    r32 areaSideMeters = roomData->areaSideMeters;
+    r32 resolutionMeters = roomData->resolutionMeters;
 
     Mesh* result = MarchAreaFast( V3Zero, areaSideMeters, resolutionMeters,
-                                  SampleHullNode, generatorData,
+                                  SampleRoomBody, generatorData,
                                   cacheBuffers, meshPool );
     result->mTransform = M4Translation( entityCoords.relativeP );
 

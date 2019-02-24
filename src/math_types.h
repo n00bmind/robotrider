@@ -206,6 +206,8 @@ union v3i
     i32 e[3];
 };
 
+const v3i V3iZero = { 0, 0, 0 };
+
 inline v3i
 V3i( i32 x, i32 y, i32 z )
 {

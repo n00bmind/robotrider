@@ -15,10 +15,10 @@ CollectSectorParams( const v3i& clusterCoords )
 {
     // TODO Just return some test values for now
     SectorParams result = {};
-    result.minVolumeSize = 45;
-    result.maxVolumeSize = 95;
+    result.minVolumeSize = 55;
+    result.maxVolumeSize = 125;
     result.minRoomSizeRatio = 0.25f;
-    result.maxRoomSizeRatio = 0.8f;
+    result.maxRoomSizeRatio = 0.75f;
     result.volumeSafeMarginSize = 5;
 
     return result;

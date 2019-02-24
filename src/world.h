@@ -67,7 +67,7 @@ struct StoredEntity
     // We're not gonna generate using connected paths anymore. Instead, each chunk must be
     // correctly and deterministically generated everytime just based on its coordinates.
     // TODO Are we sure we want to have to regenerate the mesh?
-    Generator* generator;
+    const MeshGenerator* generator;
 
     // NOTE This will be a bit of a mishmash for now
 
@@ -107,23 +107,19 @@ struct Cluster
     Array<Volume> volumes;
 };
 
-struct GeneratorJob
-{
-    const StoredEntity*     storedEntity;
-    const v3i*              worldOriginClusterP;
-    MarchingCacheBuffers*   cacheBuffers;
-    MeshPool*               meshPools;
-    LiveEntity*             outputEntity;
-
-    volatile bool occupied;
-};
-
 inline u32 ClusterHash( const v3i& key, u32 tableSize );
 inline u32 EntityHash( const u32& key, u32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
 #define SIM_REGION_WIDTH 1
+
+enum MeshGeneratorType
+{
+    GenRoom,
+
+    GenCOUNT
+};
 
 struct World
 {
@@ -135,7 +131,7 @@ struct World
 
 #if 0
     Array<Mesh> hullMeshes;
-    Array<GeneratorPath> pathsBuffer;
+    Array<MeshGeneratorPath> pathsBuffer;
 #endif
 
     // 'REAL' stuff
@@ -161,12 +157,12 @@ struct World
     r32 marchingAreaSize;
     r32 marchingCubeSize;
 
-    Generator meshGenerators[16];
+    MeshGenerator meshGenerators[GenCOUNT];
     // TODO Should this be aligned and/or padded for cache niceness?
     MarchingCacheBuffers* cacheBuffers;
     MeshPool* meshPools;
 
-    GeneratorJob generatorJobs[PLATFORM_MAX_JOBQUEUE_JOBS];
+    MeshGeneratorJob generatorJobs[PLATFORM_MAX_JOBQUEUE_JOBS];
     u32 lastAddedJob;
 };
 

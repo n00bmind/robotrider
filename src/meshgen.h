@@ -81,11 +81,38 @@ struct InflatedMesh
 
 
 
-struct Metaball
+
+// NOTE MUST be read only data, so that it can be used by multiple threads!
+struct MeshGeneratorData
 {
-    v3 pCenter;
-    r32 radiusMeters;
+    // ...
 };
+
+struct UniversalCoords;
+#define MESH_GENERATOR_FUNC(name) Mesh* name( const MeshGeneratorData* generatorData, const UniversalCoords& entityCoords, \
+                                         MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool ) 
+typedef MESH_GENERATOR_FUNC(MeshGeneratorFunc);
+
+struct MeshGenerator
+{
+    MeshGeneratorFunc* func;
+    MeshGeneratorData* data;
+};
+
+struct StoredEntity;
+struct LiveEntity;
+
+struct MeshGeneratorJob
+{
+    const StoredEntity*     storedEntity;
+    const v3i*              worldOriginClusterP;
+    MarchingCacheBuffers*   cacheBuffers;
+    MeshPool*               meshPools;
+    LiveEntity*             outputEntity;
+
+    volatile bool occupied;
+};
+
 
 enum class IsoSurfaceType
 {
@@ -94,28 +121,9 @@ enum class IsoSurfaceType
     Cylinder,
 };
 
-
-// NOTE MUST be read only data, so that it can be used by multiple threads!
-struct GeneratorData
+struct MeshGeneratorPathData
 {
-    // ...
-};
-
-struct UniversalCoords;
-#define GENERATOR_FUNC(name) Mesh* name( const GeneratorData* generatorData, const UniversalCoords& entityCoords, \
-                                         MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool ) 
-typedef GENERATOR_FUNC(GeneratorFunc);
-
-struct Generator
-{
-    GeneratorFunc* func;
-    GeneratorData* data;
-};
-
-
-struct GeneratorPathData
-{
-    GeneratorData header;
+    MeshGeneratorData header;
 
     // Center point and area around it for cube marching
     v3 pCenter;
@@ -136,13 +144,13 @@ struct GeneratorPathData
     r32 distanceToNextFork;
     m4* nextBasis;
     // TODO Support multiple forks?
-    GeneratorPathData* nextFork;
+    MeshGeneratorPathData* nextFork;
 };
 
 struct StoredEntity;
-struct GeneratorHullNodeData
+struct MeshGeneratorRoomData
 {
-    GeneratorData header;
+    MeshGeneratorData header;
 
     r32 areaSideMeters;
     r32 resolutionMeters;
