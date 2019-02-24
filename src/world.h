@@ -67,7 +67,7 @@ struct StoredEntity
     // We're not gonna generate using connected paths anymore. Instead, each chunk must be
     // correctly and deterministically generated everytime just based on its coordinates.
     // TODO Are we sure we want to have to regenerate the mesh?
-    const MeshGenerator* generator;
+    MeshGenerator generator;
 
     // NOTE This will be a bit of a mishmash for now
 
@@ -112,7 +112,7 @@ inline u32 EntityHash( const u32& key, u32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
-#define SIM_REGION_WIDTH 1
+#define SIM_REGION_WIDTH 0
 
 enum MeshGeneratorType
 {
@@ -157,7 +157,6 @@ struct World
     r32 marchingAreaSize;
     r32 marchingCubeSize;
 
-    MeshGenerator meshGenerators[GenCOUNT];
     // TODO Should this be aligned and/or padded for cache niceness?
     MarchingCacheBuffers* cacheBuffers;
     MeshPool* meshPools;

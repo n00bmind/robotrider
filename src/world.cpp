@@ -57,10 +57,6 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     playerMaterial->diffuseMap = textureResult.handle;
     world->player->mesh.material = playerMaterial;
 
-    world->marchingAreaSize = 10;
-    world->marchingCubeSize = 1;
-    srand( 1234 );
-
     new (&world->clusterTable) HashTable<v3i, Cluster, ClusterHash>( worldArena, 256*1024 );
     new (&world->liveEntities) BucketArray<LiveEntity>( worldArena, 256 );
     new (&world->entityRefs) HashTable<u32, StoredEntity *, EntityHash>( worldArena, 1024 );
@@ -68,12 +64,14 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     world->originClusterP = V3iZero;
     world->lastOriginClusterP = INITIAL_CLUSTER_COORDS;
 
+#if 0
     MeshGeneratorRoomData* roomData = PUSH_STRUCT( worldArena, MeshGeneratorRoomData );
     roomData->areaSideMeters = world->marchingAreaSize;
     roomData->resolutionMeters = world->marchingCubeSize;
     MeshGenerator roomGenerator = { MeshGeneratorRoomFunc, &roomData->header };
     // TODO Check if we need to reinstate these pointers after a reload
-    world->meshGenerators[GenRoom] = roomGenerator;
+    world->meshGenerators[GenRoom] = MeshGeneratorRoomFunc;
+#endif
 
     world->cacheBuffers = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MarchingCacheBuffers );
     world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MeshPool );
@@ -84,21 +82,24 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
         world->cacheBuffers[i] = InitMarchingCacheBuffers( worldArena, 10 );
         Init( &world->meshPools[i], worldArena, maxPerThread );
     }
+    world->marchingAreaSize = 100;
+    world->marchingCubeSize = 10;
 
     EndTemporaryMemory( tmpMemory );
 }
 
 internal void
-AddEntityToCluster( Cluster* cluster, const v3i& clusterP, const v3& entityRelativeP, const v3& entityDim, const MeshGenerator& generator )
+AddEntityToCluster( Cluster* cluster, const v3i& clusterP, const v3& entityRelativeP, const v3& entityDim, MeshGeneratorFunc* generatorFunc,
+                    const MeshGeneratorData& generatorData )
 {
     StoredEntity* newEntity = cluster->entityStorage.PushEmpty();
     newEntity->coords = { clusterP, entityRelativeP };
     newEntity->dim = entityDim;
-    newEntity->generator = &generator;
+    newEntity->generator = { generatorFunc, generatorData };
 }
 
 internal void
-CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, MeshGenerator* meshGenerators, MemoryArena* arena )
+CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, MemoryArena* arena )
 {
 #if 0
     const r32 margin = 3.f;
@@ -257,8 +258,12 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, MeshGenerator* m
                                 v.bounds.zMax - roomDim.z * 0.5f - params.volumeSafeMarginSize ),
             };
 
-            const MeshGenerator& generator = meshGenerators[GenRoom];
-            AddEntityToCluster( cluster, clusterP, roomP, roomDim, generator );
+            MeshGeneratorData generatorData;
+            generatorData.areaSideMeters = world->marchingAreaSize;
+            generatorData.resolutionMeters = world->marchingCubeSize;
+            generatorData.room.dim = roomDim;
+
+            AddEntityToCluster( cluster, clusterP, roomP, roomDim, MeshGeneratorRoomFunc, generatorData );
         }
     }
 
@@ -323,12 +328,11 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
         MeshPool* meshPool = &job->meshPools[workerThreadIndex];
 
         // Make live entity from stored and put it in the world
+        Mesh* generatedMesh = job->storedEntity->generator.func( job->storedEntity->generator.data, job->storedEntity->coords, cacheBuffers, meshPool );
         *job->outputEntity =
         {
             *job->storedEntity,
-            job->storedEntity->generator->func( job->storedEntity->generator->data,
-                                                job->storedEntity->coords,
-                                                cacheBuffers, meshPool ),
+            generatedMesh,
             EntityState::Loaded,
         };
     }
@@ -355,11 +359,9 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
 
     if( !cluster->populated )
     {
-        CreateEntitiesInCluster( cluster, clusterP, world->meshGenerators, arena );
+        CreateEntitiesInCluster( cluster, clusterP, world, arena );
         cluster->populated = true;
     }
-
-
 
 
     {
@@ -373,7 +375,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
             StoredEntity& storedEntity = it;
             LiveEntity* outputEntity = world->liveEntities.PushEmpty();
 
-            if( storedEntity.generator )
+            if( storedEntity.generator.func )
             {
                 outputEntity->state = EntityState::Invalid;
 

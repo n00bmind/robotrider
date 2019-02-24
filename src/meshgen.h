@@ -82,22 +82,11 @@ struct InflatedMesh
 
 
 
-// NOTE MUST be read only data, so that it can be used by multiple threads!
-struct MeshGeneratorData
-{
-    // ...
-};
-
+struct MeshGeneratorData;
 struct UniversalCoords;
-#define MESH_GENERATOR_FUNC(name) Mesh* name( const MeshGeneratorData* generatorData, const UniversalCoords& entityCoords, \
-                                         MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool ) 
+#define MESH_GENERATOR_FUNC(name) Mesh* name( const MeshGeneratorData& generatorData, const UniversalCoords& entityCoords, \
+                                              MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool ) 
 typedef MESH_GENERATOR_FUNC(MeshGeneratorFunc);
-
-struct MeshGenerator
-{
-    MeshGeneratorFunc* func;
-    MeshGeneratorData* data;
-};
 
 struct StoredEntity;
 struct LiveEntity;
@@ -114,6 +103,31 @@ struct MeshGeneratorJob
 };
 
 
+struct MeshGeneratorRoomData
+{
+    v3 dim;
+};
+
+// @Size Using this in the entity storage means every entity spans the maximum size which is very inefficient
+struct MeshGeneratorData
+{
+    r32 areaSideMeters;
+    r32 resolutionMeters;
+
+    union
+    {
+        MeshGeneratorRoomData room;
+        // ...
+    };
+};
+
+struct MeshGenerator
+{
+    MeshGeneratorFunc* func;
+    MeshGeneratorData data;
+};
+
+#if 0
 enum class IsoSurfaceType
 {
     Cuboid,
@@ -123,8 +137,6 @@ enum class IsoSurfaceType
 
 struct MeshGeneratorPathData
 {
-    MeshGeneratorData header;
-
     // Center point and area around it for cube marching
     v3 pCenter;
     r32 areaSideMeters;
@@ -146,14 +158,6 @@ struct MeshGeneratorPathData
     // TODO Support multiple forks?
     MeshGeneratorPathData* nextFork;
 };
-
-struct StoredEntity;
-struct MeshGeneratorRoomData
-{
-    MeshGeneratorData header;
-
-    r32 areaSideMeters;
-    r32 resolutionMeters;
-};
+#endif
 
 #endif /* __MESHGEN_H__ */

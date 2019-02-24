@@ -1034,6 +1034,8 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displa
 
 ///// MESH GENERATION /////
 
+#if 0
+
 internal r32
 SampleCuboid( const void* sampleData, const v3& p )
 {
@@ -1188,27 +1190,24 @@ GenerateOnePathStep( MeshGeneratorPathData* path, r32 resolutionMeters, bool adv
     return forkInThisStep ? 1 : 0;
 }
 
+#endif
+
 internal r32
 SampleRoomBody( const void* sampleData, const v3& p )
 {
     TIMED_BLOCK;
 
-    MeshGeneratorRoomData* genData = (MeshGeneratorRoomData*)sampleData;
+    MeshGeneratorRoomData* roomData = (MeshGeneratorRoomData*)sampleData;
 
-    // Just a sphere for now
-    r32 result = DistanceSq( p, V3Zero ) - 5;
+    // Box
+    v3 d = Abs( p ) - roomData->dim;
+    r32 result = Max( Max( d.x, d.y ), d.z );
     return result;
 }
 
 MESH_GENERATOR_FUNC(MeshGeneratorRoomFunc)
 {
-    const MeshGeneratorRoomData* roomData = (const MeshGeneratorRoomData*)generatorData;
-
-    r32 areaSideMeters = roomData->areaSideMeters;
-    r32 resolutionMeters = roomData->resolutionMeters;
-
-    Mesh* result = MarchAreaFast( V3Zero, areaSideMeters, resolutionMeters,
-                                  SampleRoomBody, generatorData,
+    Mesh* result = MarchAreaFast( V3Zero, generatorData.areaSideMeters, generatorData.resolutionMeters, SampleRoomBody, &generatorData.room,
                                   cacheBuffers, meshPool );
     result->mTransform = M4Translation( entityCoords.relativeP );
 

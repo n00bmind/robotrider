@@ -481,6 +481,13 @@ Hadamard( const v3& a, const v3& b )
     return result;
 }
 
+inline v3
+Abs( const v3& v )
+{
+    v3 result = { Abs( v.x ), Abs( v.y ), Abs( v.z ) };
+    return result;
+}
+
 inline r32
 Length( const v3& v )
 {
