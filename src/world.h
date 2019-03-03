@@ -96,15 +96,18 @@ struct LiveEntity
     volatile EntityState state;
 };
 
-#define CLUSTER_HALF_SIZE_METERS 200
+const r32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;
+typedef u8 ClusterVoxelLayer[VoxelsPerClusterAxis][VoxelsPerClusterAxis];
 
 struct Cluster
 {
     bool populated;
     // TODO Determine what the bucket size should be so we have just one bucket most of the time
     BucketArray<StoredEntity> entityStorage;
+
     // @Remove Just for visualization
     Array<Volume> volumes;
+    ClusterVoxelLayer* voxelGrid;
 };
 
 inline u32 ClusterHash( const v3i& key, u32 tableSize );
@@ -112,7 +115,7 @@ inline u32 EntityHash( const u32& key, u32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
-#define SIM_REGION_WIDTH 0
+const int SimRegionWidth = 0;
 
 enum MeshGeneratorType
 {

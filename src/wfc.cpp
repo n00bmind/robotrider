@@ -5,7 +5,7 @@ namespace WFC
 internal void
 PalettizeSource( const Texture& source, Input* input, MemoryArena* arena )
 {
-    input->inputSamples = PUSH_ARRAY( arena, source.width * source.height, u8 );
+    input->inputSamples = PUSH_ARRAY( arena, u8, source.width * source.height );
 
     for( u32 i = 0; i < source.width * source.height; ++i )
     {
@@ -115,7 +115,7 @@ AddPatternWithData( u8* data, const u32 N, Input* input, MemoryArena* arena )
         // This is '<=' because we never count ourselves in each pattern adjacency count
         if (input->patternsHash.count <= MaxAdjacencyCount)
         {
-            u8* patternData = PUSH_ARRAY(arena, N * N, u8);
+            u8* patternData = PUSH_ARRAY( arena, u8, N * N );
             COPY(data, patternData, N * N);
             input->patternsHash.Add({ patternData, N }, 1 );
         }
@@ -127,9 +127,9 @@ AddPatternWithData( u8* data, const u32 N, Input* input, MemoryArena* arena )
 internal void
 BuildPatternsFromSource( const u32 N, const v2u& inputDim, Input* input, MemoryArena* arena )
 {
-    u8* patternData = PUSH_ARRAY( arena, N * N, u8 );
-    u8* rotatedPatternData = PUSH_ARRAY( arena, N * N, u8 );
-    u8* reflectedPatternData = PUSH_ARRAY( arena, N * N, u8 );
+    u8* patternData = PUSH_ARRAY( arena, u8, N * N );
+    u8* rotatedPatternData = PUSH_ARRAY( arena, u8, N * N );
+    u8* reflectedPatternData = PUSH_ARRAY( arena, u8, N * N );
 
     // NOTE Totally arbitrary number for the entry count
     new (&input->patternsHash) HashTable<Pattern, u32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
@@ -173,7 +173,7 @@ internal Texture
 CreatePatternTexture( const Pattern& pattern, const u32* palette, MemoryArena* arena )
 {
     u32 len = pattern.stride * pattern.stride;
-    u32* imageBuffer = PUSH_ARRAY( arena, len, u32 );
+    u32* imageBuffer = PUSH_ARRAY( arena, u32, len );
     for( u32 i = 0; i < len; ++i )
         imageBuffer[i] = palette[pattern.data[i]];
 
@@ -1586,7 +1586,7 @@ DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState
                 displayState->allDone = !inProgress;
 
                 if( !displayState->outputImageBuffer )
-                    displayState->outputImageBuffer = PUSH_ARRAY( wfcDisplayArena, imageSize.x * imageSize.y, u32 );
+                    displayState->outputImageBuffer = PUSH_ARRAY( wfcDisplayArena, u32, imageSize.x * imageSize.y );
 
                 CreateOutputTexture( spec, globalState, displayState->outputImageBuffer, &displayState->outputTexture );
             }

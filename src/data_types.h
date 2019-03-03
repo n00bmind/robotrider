@@ -46,7 +46,7 @@ struct Array
 
     Array( MemoryArena* arena, u32 count_, u32 maxCount_, MemoryParams params = DefaultMemoryParams() )
     {
-        data = PUSH_ARRAY( arena, maxCount_, T, params );
+        data = PUSH_ARRAY( arena, T, maxCount_, params );
         count = count_;
         maxCount = maxCount_;
     }
@@ -187,7 +187,7 @@ struct Array2
     {
         rows = rows_;
         cols = cols_;
-        data = PUSH_ARRAY( arena, rows * cols, T, params );
+        data = PUSH_ARRAY( arena, T, rows * cols, params );
     }
 
     T& AtRowCol( u32 r, u32 c )
@@ -433,7 +433,7 @@ struct HashTable
 
     HashTable( MemoryArena* arena_, u32 size, MemoryParams params = DefaultMemoryParams() )
     {
-        table = PUSH_ARRAY( arena_, size, Slot, params );
+        table = PUSH_ARRAY( arena_, Slot, size, params );
         tableSize = size;
         count = 0;
         arena = arena_;
@@ -648,13 +648,13 @@ struct String
     {
         target->size = size;
         target->maxSize = size;
-        target->data = PUSH_ARRAY( arena, size, char );
+        target->data = PUSH_ARRAY( arena, char, size );
         COPY( data, (char*)target->data, size * sizeof(char) );
     }
 
     const char* CString( MemoryArena* arena, MemoryParams params = DefaultMemoryParams() ) const
     {
-        char* result = PUSH_ARRAY( arena, size + 1, char, params );
+        char* result = PUSH_ARRAY( arena, char, size + 1, params );
         COPY( data, result, size * sizeof(char) );
 
         return result;
@@ -981,7 +981,7 @@ struct BucketArray
 
         Bucket( MemoryArena* arena, u32 size_, MemoryParams params )
         {
-            data = PUSH_ARRAY( arena, size_, T, params );
+            data = PUSH_ARRAY( arena, T, size_, params );
             size = size_;
             count = 0;
             next = prev = nullptr;

@@ -1546,7 +1546,7 @@ struct aabb
                 {
                     r32 xMin, xMax;
                 };
-                v2 x;
+                v2 xSpan;
             };
             union
             {
@@ -1554,7 +1554,7 @@ struct aabb
                 {
                     r32 yMin, yMax;
                 };
-                v2 y;
+                v2 ySpan;
             };
             union
             {
@@ -1562,7 +1562,7 @@ struct aabb
                 {
                     r32 zMin, zMax;
                 };
-                v2 z;
+                v2 zSpan;
             };
         };
         v2 dim[3];
@@ -1642,6 +1642,62 @@ Center( const aabb& b )
     };
     return result;
 }
+
+// AABBi
+
+struct aabbi
+{
+    union
+    {
+        struct
+        {
+            union
+            {
+                struct
+                {
+                    i32 xMin, xMax;
+                };
+                v2i xSpan;
+            };
+            union
+            {
+                struct
+                {
+                    i32 yMin, yMax;
+                };
+                v2i ySpan;
+            };
+            union
+            {
+                struct
+                {
+                    i32 zMin, zMax;
+                };
+                v2i zSpan;
+            };
+        };
+        v2i dim[3];
+    };
+};
+
+inline aabbi
+AABBi( const v2i& xSpan, const v2i& ySpan, const v2i zSpan )
+{
+    aabbi result;
+    result.xSpan = xSpan;
+    result.ySpan = ySpan;
+    result.zSpan = zSpan;
+    return result;
+}
+
+inline void
+XYZSize( const aabbi& b, i32* xSize, i32* ySize, i32* zSize )
+{
+    *xSize = b.xMax - b.xMin;
+    *ySize = b.yMax - b.yMin;
+    *zSize = b.zMax - b.zMin;
+}
+
 
 // Ray
 

@@ -42,6 +42,9 @@ EntityHash( const u32& entityId, u32 tableSize )
 void
 InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 {
+    // Is this really necessary now?
+    ASSERT( (r32)(u32)(VoxelsPerClusterAxis * VoxelSizeMeters) == ClusterSizeMeters );
+
     RandomSeed();
 
     TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
@@ -73,17 +76,20 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     world->meshGenerators[GenRoom] = MeshGeneratorRoomFunc;
 #endif
 
-    world->cacheBuffers = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MarchingCacheBuffers );
-    world->meshPools = PUSH_ARRAY( worldArena, globalPlatform.coreThreadsCount, MeshPool );
+    world->marchingAreaSize = 100;
+    world->marchingCubeSize = 5;
+    r32 cellsPerAxis = world->marchingAreaSize / world->marchingCubeSize;
+    ASSERT( cellsPerAxis == (u32)cellsPerAxis );
+
+    world->cacheBuffers = PUSH_ARRAY( worldArena, MarchingCacheBuffers, globalPlatform.coreThreadsCount );
+    world->meshPools = PUSH_ARRAY( worldArena, MeshPool, globalPlatform.coreThreadsCount );
     sz arenaAvailable = Available( *worldArena );
     sz maxPerThread = arenaAvailable / 2 / globalPlatform.coreThreadsCount;
     for( u32 i = 0; i < globalPlatform.coreThreadsCount; ++i )
     {
-        world->cacheBuffers[i] = InitMarchingCacheBuffers( worldArena, 10 );
+        world->cacheBuffers[i] = InitMarchingCacheBuffers( worldArena, (u32)cellsPerAxis );
         Init( &world->meshPools[i], worldArena, maxPerThread );
     }
-    world->marchingAreaSize = 100;
-    world->marchingCubeSize = 10;
 
     EndTemporaryMemory( tmpMemory );
 }
@@ -106,11 +112,12 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     const r32 step = 50.f;
 
     // Place an entity every few meters, leaving some margin
-    for( r32 x = -CLUSTER_HALF_SIZE_METERS + margin; x <= CLUSTER_HALF_SIZE_METERS - margin; x += step )
+    r32 clusterHalfSize = ClusterSizeMeters  / 2.f;
+    for( r32 x = -clusterHalfSize + margin; x <= clusterHalfSize - margin; x += step )
     {
-        for( r32 y = -CLUSTER_HALF_SIZE_METERS + margin; y <= CLUSTER_HALF_SIZE_METERS - margin; y += step )
+        for( r32 y = -clusterHalfSize + margin; y <= clusterHalfSize - margin; y += step )
         {
-            for( r32 z = -CLUSTER_HALF_SIZE_METERS + margin; z <= CLUSTER_HALF_SIZE_METERS - margin; z += step )
+            for( r32 z = -clusterHalfSize + margin; z <= clusterHalfSize - margin; z += step )
             {
                 StoredEntity newEntity =
                 {
@@ -128,12 +135,14 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     // NOTE This will be transient but we'll keep it for now for debugging
     //TemporaryMemory tmpMemory = BeginTemporaryMemory( arena );
 
-    aabb rootBounds = AABB( V3Zero /*clusterP*/, CLUSTER_HALF_SIZE_METERS * 2 );
+    v2i clusterSpan = { 0, VoxelsPerClusterAxis };
+    aabbi rootBounds = AABBi( clusterSpan, clusterSpan, clusterSpan );
     Volume rootVolume = { rootBounds };
 
     SectorParams params = CollectSectorParams( clusterP );
+
     // TODO Calc an upper bound given cluster size and minimal volume size
-    u32 maxSplits = 1024;
+    u32 maxSplits = 4096;
     //Array<Volume> volumes = Array<Volume>( arena, 0, maxSplits );
     cluster->volumes = Array<Volume>( arena, 0, maxSplits );
     Array<Volume>& volumes = cluster->volumes;
@@ -150,23 +159,24 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
 
             if( v.leftChild == nullptr && v.rightChild == nullptr )
 			{
-                // If this volume is too big, or 75% chance...
-                if( XSize( v.bounds ) > params.maxVolumeSize ||
-                    YSize( v.bounds ) > params.maxVolumeSize ||
-                    ZSize( v.bounds ) > params.maxVolumeSize ||
-                    RandomNormalizedR32() > 0.25f )
+                v3i boundsDim;
+                XYZSize( v.bounds, &boundsDim.x, &boundsDim.y, &boundsDim.z );
+
+                // If this volume is too big, or a certain chance...
+                if( boundsDim.x > params.maxVolumeSize ||
+                    boundsDim.y > params.maxVolumeSize ||
+                    boundsDim.z > params.maxVolumeSize ||
+                    RandomNormalizedR32() > params.volumeExtraPartitioningProbability )
                 {
                     u32 splitDimIndex = 0;
 
                     // Split by the dimension which is >25% larger than the others, otherwise split randomly
-                    r32 sizes[3] = {0};
                     u32 maxSizeIndex = 0;
                     u32 remainingDimCount = 3;
 
                     for( u32 d = 0; d < 3; ++d )
                     {
-                        sizes[d] = Size( v.bounds, d );
-                        if( sizes[d] > sizes[maxSizeIndex] )
+                        if( boundsDim.e[d] > boundsDim.e[maxSizeIndex] )
                         {
                             maxSizeIndex = d;
                         }
@@ -174,9 +184,9 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
 
                     for( u32 d = 0; d < 3; ++d )
                     {
-                        if( sizes[d] < sizes[maxSizeIndex] * 0.75f )
+                        if( boundsDim.e[d] < boundsDim.e[maxSizeIndex] * 0.75f )
                         {
-                            sizes[d] = 0.f;
+                            boundsDim.e[d] = 0;
                             remainingDimCount--;
                         }
                     }
@@ -187,34 +197,37 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
                     else
                     {
                         splitDimIndex = RandomRangeU32( 0, remainingDimCount - 1 );
-                        if( sizes[splitDimIndex] == 0.f )
+                        if( boundsDim.e[splitDimIndex] == 0.f )
                             splitDimIndex++;
                     }
 
-                    ASSERT( sizes[splitDimIndex] > 0.f );
+                    ASSERT( splitDimIndex < 3 && boundsDim.e[splitDimIndex] > 0.f );
 
-                    r32 splitSizeMax = sizes[splitDimIndex] - params.minVolumeSize;
+                    // TODO Really start considering ditching unsigneds!!
+                    i32 splitSizeMax = boundsDim.e[splitDimIndex] - params.minVolumeSize;
                     if( splitSizeMax > params.minVolumeSize )
                     {
-                        r32 splitSize = RandomRangeR32( params.minVolumeSize, splitSizeMax );
-                        aabb left = v.bounds, right = v.bounds;
+                        i32 splitSize = RandomRangeI32( params.minVolumeSize, splitSizeMax );
+                        // TODO Really start considering ditching unsigneds!!
+                        i32 splitSizeI32 = (i32)splitSize;
+                        aabbi left = v.bounds, right = v.bounds;
 
                         switch( splitDimIndex )
                         {
                             case 0:   // X
                             {
-                                left.x = { v.bounds.xMin, v.bounds.xMin + splitSize };
-                                right.x = { v.bounds.xMin + splitSize, v.bounds.xMax };
+                                left.xSpan = { v.bounds.xMin, v.bounds.xMin + splitSizeI32 };
+                                right.xSpan = { v.bounds.xMin + splitSizeI32 + 1, v.bounds.xMax };
                             } break;
                             case 1:   // Y
                             {
-                                left.y = { v.bounds.yMin, v.bounds.yMin + splitSize };
-                                right.y = { v.bounds.yMin + splitSize, v.bounds.yMax };
+                                left.ySpan = { v.bounds.yMin, v.bounds.yMin + splitSizeI32 };
+                                right.ySpan = { v.bounds.yMin + splitSizeI32 + 1, v.bounds.yMax };
                             } break;
                             case 2:   // Z
                             {
-                                left.z = { v.bounds.zMin, v.bounds.zMin + splitSize };
-                                right.z = { v.bounds.zMin + splitSize, v.bounds.zMax };
+                                left.zSpan = { v.bounds.zMin, v.bounds.zMin + splitSizeI32 };
+                                right.zSpan = { v.bounds.zMin + splitSizeI32 + 1, v.bounds.zMax };
                             } break;
                             INVALID_DEFAULT_CASE
                         }
@@ -232,38 +245,43 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
         }
     }
 
+    // TODO Make it sparse!
+    cluster->voxelGrid = (ClusterVoxelLayer*)PUSH_ARRAY( arena, u8, VoxelsPerClusterAxis * VoxelsPerClusterAxis * VoxelsPerClusterAxis );
+
     // Create a room in each volume
-    for( u32 i = 0; i < volumes.count; ++i )
+    for( u32 idx = 0; idx < volumes.count; ++idx )
     {
-        Volume& v = volumes[i];
+        Volume& v = volumes[idx];
         if( v.leftChild == nullptr && v.rightChild == nullptr )
         {
-            v3 vDim;
+            v3i vDim;
             XYZSize( v.bounds, &vDim.x, &vDim.y, &vDim.z );
 
-            v3 roomDim =
+            v3i roomDim =
             {
-                RandomRangeR32( vDim.x * params.minRoomSizeRatio, vDim.x * params.maxRoomSizeRatio ),
-                RandomRangeR32( vDim.y * params.minRoomSizeRatio, vDim.y * params.maxRoomSizeRatio ),
-                RandomRangeR32( vDim.z * params.minRoomSizeRatio, vDim.z * params.maxRoomSizeRatio ),
+                RandomRangeI32( (i32)(vDim.x * params.minRoomSizeRatio), (i32)(vDim.x * params.maxRoomSizeRatio) ),
+                RandomRangeI32( (i32)(vDim.y * params.minRoomSizeRatio), (i32)(vDim.y * params.maxRoomSizeRatio) ),
+                RandomRangeI32( (i32)(vDim.z * params.minRoomSizeRatio), (i32)(vDim.z * params.maxRoomSizeRatio) ),
             };
 
-            v3 roomP =
+            v3i roomOffset =
             {
-                RandomRangeR32( v.bounds.xMin + roomDim.x * 0.5f + params.volumeSafeMarginSize,
-                                v.bounds.xMax - roomDim.x * 0.5f - params.volumeSafeMarginSize ),
-                RandomRangeR32( v.bounds.yMin + roomDim.y * 0.5f + params.volumeSafeMarginSize,
-                                v.bounds.yMax - roomDim.y * 0.5f - params.volumeSafeMarginSize ),
-                RandomRangeR32( v.bounds.zMin + roomDim.z * 0.5f + params.volumeSafeMarginSize,
-                                v.bounds.zMax - roomDim.z * 0.5f - params.volumeSafeMarginSize ),
+                RandomRangeI32( params.volumeSafeMarginSize, vDim.x - roomDim.x - params.volumeSafeMarginSize ),
+                RandomRangeI32( params.volumeSafeMarginSize, vDim.y - roomDim.y - params.volumeSafeMarginSize ),
+                RandomRangeI32( params.volumeSafeMarginSize, vDim.z - roomDim.z - params.volumeSafeMarginSize ),
             };
 
-            MeshGeneratorData generatorData;
-            generatorData.areaSideMeters = world->marchingAreaSize;
-            generatorData.resolutionMeters = world->marchingCubeSize;
-            generatorData.room.dim = roomDim;
+            aabbi roomBounds =
+            {
+                v.bounds.xMin + roomOffset.x, v.bounds.xMin + roomOffset.x + roomDim.x,
+                v.bounds.yMin + roomOffset.y, v.bounds.yMin + roomOffset.y + roomDim.y,
+                v.bounds.zMin + roomOffset.z, v.bounds.zMin + roomOffset.z + roomDim.z,
+            };
 
-            AddEntityToCluster( cluster, clusterP, roomP, roomDim, MeshGeneratorRoomFunc, generatorData );
+            for( int i = roomBounds.xMin; i <= roomBounds.xMax; ++i )
+                for( int j = roomBounds.yMin; j <= roomBounds.yMax; ++j )
+                    for( int k = roomBounds.zMin; k <= roomBounds.zMax; ++k )
+                        cluster->voxelGrid[i][j][k] = 1;
         }
     }
 
@@ -273,7 +291,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
 internal v3
 GetClusterOffsetFromOrigin( const v3i& clusterP, const v3i& worldOriginClusterP )
 {
-    v3 result = V3(clusterP - worldOriginClusterP) * CLUSTER_HALF_SIZE_METERS * 2;
+    v3 result = V3(clusterP - worldOriginClusterP) * ClusterSizeMeters ;
     return result;
 }
 
@@ -282,9 +300,9 @@ IsInSimRegion( const v3i& clusterP, const v3i& worldOriginClusterP )
 {
     v3i clusterOffset = clusterP - worldOriginClusterP;
 
-    return clusterOffset.x >= -SIM_REGION_WIDTH && clusterOffset.x <= SIM_REGION_WIDTH &&
-        clusterOffset.y >= -SIM_REGION_WIDTH && clusterOffset.y <= SIM_REGION_WIDTH &&
-        clusterOffset.z >= -SIM_REGION_WIDTH && clusterOffset.z <= SIM_REGION_WIDTH;
+    return clusterOffset.x >= -SimRegionWidth  && clusterOffset.x <= SimRegionWidth  &&
+        clusterOffset.y >= -SimRegionWidth  && clusterOffset.y <= SimRegionWidth  &&
+        clusterOffset.z >= -SimRegionWidth  && clusterOffset.z <= SimRegionWidth ;
 }
 
 inline MeshGeneratorJob*
@@ -427,11 +445,8 @@ StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
 
     cluster->entityStorage.Clear();
     v3 clusterWorldOffset = GetClusterOffsetFromOrigin( clusterP, world->originClusterP );
-    // FIXME Not nice! Better float comparisons!
-    // http://floating-point-gui.de/errors/comparison/
-    // https://bitbashing.io/comparing-floats.html
-    // (although we may be ok for now?)
-    r32 augmentedHalfSize = CLUSTER_HALF_SIZE_METERS + 0.01f;
+
+    r32 clusterHalfSize = ClusterSizeMeters  / 2.f;
 
     BucketArray<LiveEntity>::Idx it = world->liveEntities.Last();
     while( it )
@@ -441,9 +456,9 @@ StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
         {
             v3 entityRelativeP = GetTranslation( liveEntity.mesh->mTransform ) - clusterWorldOffset;
 
-            if( entityRelativeP.x > -augmentedHalfSize && entityRelativeP.x < augmentedHalfSize &&
-                entityRelativeP.y > -augmentedHalfSize && entityRelativeP.y < augmentedHalfSize &&
-                entityRelativeP.z > -augmentedHalfSize && entityRelativeP.z < augmentedHalfSize )
+            if( entityRelativeP.x > -clusterHalfSize && entityRelativeP.x < clusterHalfSize &&
+                entityRelativeP.y > -clusterHalfSize && entityRelativeP.y < clusterHalfSize &&
+                entityRelativeP.z > -clusterHalfSize && entityRelativeP.z < clusterHalfSize )
             {
                 StoredEntity& storedEntity = liveEntity.stored;
                 storedEntity.coords.clusterP = clusterP;
@@ -490,7 +505,7 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
 
     if( world->originClusterP != world->lastOriginClusterP )
     {
-        v3 vWorldDelta = (world->lastOriginClusterP - world->originClusterP) * CLUSTER_HALF_SIZE_METERS * 2;
+        v3 vWorldDelta = (world->lastOriginClusterP - world->originClusterP) * ClusterSizeMeters ;
 
         // Offset all live entities by the world delta
         // NOTE This could be done more efficiently _after_ storing entities
@@ -509,11 +524,11 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
         if( world->lastOriginClusterP != INITIAL_CLUSTER_COORDS )
             world->pPlayer += vWorldDelta;
 
-        for( int i = -SIM_REGION_WIDTH; i <= SIM_REGION_WIDTH; ++i )
+        for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
         {
-            for( int j = -SIM_REGION_WIDTH; j <= SIM_REGION_WIDTH; ++j )
+            for( int j = -SimRegionWidth; j <= SimRegionWidth; ++j )
             {
-                for( int k = -SIM_REGION_WIDTH; k <= SIM_REGION_WIDTH; ++k )
+                for( int k = -SimRegionWidth; k <= SimRegionWidth; ++k )
                 {
                     v3i lastClusterP = world->lastOriginClusterP + V3i( i, j, k );
 
@@ -533,11 +548,11 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
             }
         }
 
-        for( int i = -SIM_REGION_WIDTH; i <= SIM_REGION_WIDTH; ++i )
+        for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
         {
-            for( int j = -SIM_REGION_WIDTH; j <= SIM_REGION_WIDTH; ++j )
+            for( int j = -SimRegionWidth; j <= SimRegionWidth; ++j )
             {
-                for( int k = -SIM_REGION_WIDTH; k <= SIM_REGION_WIDTH; ++k )
+                for( int k = -SimRegionWidth; k <= SimRegionWidth; ++k )
                 {
                     v3i clusterP = world->originClusterP + V3i( i, j, k );
 
@@ -621,7 +636,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             vPlayerDelta.y += input1->leftStick.avgY * translationSpeed * dT;
         }
 
-        r32 rotationSpeed = 0.05f;
+        r32 rotationSpeed = 0.1f;
         if( input1->rightStick.avgX != 0 )
         {
             world->playerYaw += -input1->rightStick.avgX * rotationSpeed * dT; 
@@ -640,18 +655,19 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         // Check if we moved to a different cluster
         {
             v3i originClusterP = world->originClusterP;
+            r32 clusterHalfSize = ClusterSizeMeters  / 2.f;
 
-            if( pPlayer.x > CLUSTER_HALF_SIZE_METERS )
+            if( pPlayer.x > clusterHalfSize )
                 originClusterP.x++;
-            else if( pPlayer.x < -CLUSTER_HALF_SIZE_METERS )
+            else if( pPlayer.x < -clusterHalfSize )
                 originClusterP.x--;
-            if( pPlayer.y > CLUSTER_HALF_SIZE_METERS )
+            if( pPlayer.y > clusterHalfSize )
                 originClusterP.y++;
-            else if( pPlayer.y < -CLUSTER_HALF_SIZE_METERS )
+            else if( pPlayer.y < -clusterHalfSize )
                 originClusterP.y--;
-            if( pPlayer.z > CLUSTER_HALF_SIZE_METERS )
+            if( pPlayer.z > clusterHalfSize )
                 originClusterP.z++;
-            else if( pPlayer.z < -CLUSTER_HALF_SIZE_METERS )
+            else if( pPlayer.z < -clusterHalfSize )
                 originClusterP.z--;
 
             if( originClusterP != world->originClusterP )
@@ -724,17 +740,28 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     // Render current cluster limits
     PushMaterial( nullptr, renderCommands );
     u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
-    DrawBoxAt( V3Zero, CLUSTER_HALF_SIZE_METERS * 2, red, renderCommands );
+    DrawBoxAt( V3Zero, ClusterSizeMeters , red, renderCommands );
 
     // Render partitioned volumes
     {
+        // Volume bounds are in voxel units
+        r32 clusterHalfSize = ClusterSizeMeters * 0.5f;
         u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );
+
         Cluster* cluster = world->clusterTable.Find( world->originClusterP );
         for( u32 i = 0; i < cluster->volumes.count; ++i )
         {
             Volume& v = cluster->volumes[i];
             if( v.leftChild == nullptr && v.rightChild == nullptr )
-                DrawBounds( v.bounds, halfRed, renderCommands );
+            {
+                aabb worldBounds =
+                {
+                    v.bounds.xMin * VoxelSizeMeters - clusterHalfSize, v.bounds.xMax * VoxelSizeMeters - clusterHalfSize,
+                    v.bounds.yMin * VoxelSizeMeters - clusterHalfSize, v.bounds.yMax * VoxelSizeMeters - clusterHalfSize,
+                    v.bounds.zMin * VoxelSizeMeters - clusterHalfSize, v.bounds.zMax * VoxelSizeMeters - clusterHalfSize,
+                };
+                DrawBounds( worldBounds, halfRed, renderCommands );
+            }
         }
     }
 

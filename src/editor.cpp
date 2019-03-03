@@ -258,7 +258,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     EditorInput editorInput = MapGameInputToEditorInput( input );
 
-    if( editorState->cachedCameraWorldP == V3Zero || input.gameCodeReloaded )
+    if( editorState->cachedCameraWorldP == V3Zero )
     {
         v3 pCamera = V3( 0, -150, 150 );
         m4 mLookAt = M4CameraLookAt( pCamera, world->pPlayer, V3Up );
@@ -352,7 +352,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMaterial( nullptr, renderCommands );
 
-	DrawFloorGrid(CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands);
+	DrawFloorGrid( ClusterSizeMeters, gameState->world->marchingCubeSize, renderCommands );
     DrawAxisGizmos( renderCommands );
 
     u16 width = renderCommands->width;

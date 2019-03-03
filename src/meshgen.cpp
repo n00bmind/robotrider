@@ -8,11 +8,11 @@ InitMarchingCacheBuffers( MemoryArena* arena, u32 cellsPerAxis )
     u32 stepsPerAxis = cellsPerAxis + 1;
     u32 layerCellCount = stepsPerAxis * stepsPerAxis;
 
-    result.bottomLayerSamples = PUSH_ARRAY( arena, layerCellCount, r32 );
-    result.topLayerSamples = PUSH_ARRAY( arena, layerCellCount, r32 );
-    result.bottomLayerVertexIndices = PUSH_ARRAY( arena, layerCellCount * 2, u32 );
-    result.middleLayerVertexIndices = PUSH_ARRAY( arena, layerCellCount, u32 );
-    result.topLayerVertexIndices = PUSH_ARRAY( arena, layerCellCount * 2, u32 );
+    result.bottomLayerSamples = PUSH_ARRAY( arena, r32, layerCellCount );
+    result.topLayerSamples = PUSH_ARRAY( arena, r32, layerCellCount );
+    result.bottomLayerVertexIndices = PUSH_ARRAY( arena, u32, layerCellCount * 2 );
+    result.middleLayerVertexIndices = PUSH_ARRAY( arena, u32, layerCellCount );
+    result.topLayerVertexIndices = PUSH_ARRAY( arena, u32, layerCellCount * 2 );
 
     return result;
 }
@@ -170,8 +170,7 @@ namespace
 }
 
 internal void
-MarchCube( const v3& pOrigin, r32 cubeSize,
-           const v2i& pLayerOrigin, MarchingCacheBuffers* cacheBuffers, u32 layerStepsCount,
+MarchCube( const v3& pOrigin, r32 cubeSize, const v2i& pLayerOrigin, MarchingCacheBuffers* cacheBuffers, u32 layerStepsCount,
            BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
 {
     TIMED_BLOCK;
@@ -229,7 +228,7 @@ MarchCube( const v3& pOrigin, r32 cubeSize,
                 vertexCacheOffset = 2 * vertexCacheOffset + idx.cacheTableOffset;
             }
 
-#if 1       // Use vertex cache (produces around 7x less vertices)
+#if 1       // Use vertex cache (produces around 1/8th vertices)
             u32 cachedVertexIndex = vertexCache[vertexCacheOffset];
             if( cachedVertexIndex != U32MAX )
             {
@@ -317,6 +316,7 @@ MarchAreaFast( const v3& pCenter, r32 areaSideMeters, r32 cubeSizeMeters, Marche
                 v3 p = pCenter + cornerOffset + V3i( 0, 0, k + n ) * cubeSizeMeters;
 
                 r32* sample = sampledLayer;
+                // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
                 for( u32 i = 0; i < gridLinesPerAxis; ++i )
                 {
                     v3 pAtRowStart = p;
@@ -1200,7 +1200,7 @@ SampleRoomBody( const void* sampleData, const v3& p )
     MeshGeneratorRoomData* roomData = (MeshGeneratorRoomData*)sampleData;
 
     // Box
-    v3 d = Abs( p ) - roomData->dim;
+    v3 d = Abs( p ) - roomData->dim * 0.5f;
     r32 result = Max( Max( d.x, d.y ), d.z );
     return result;
 }
@@ -1266,8 +1266,8 @@ namespace
         { { 0, 1 }, 1 }
     };
 
-    // List of vertex indices for every triangle & for every possible case
-    // Up to 15 vertices per case, -1 indicates end of sequence
+    // List of edge indices for every triangle & for every possible case
+    // Up to 15 indices per case, -1 indicates end of sequence
     int triangleTable[][16] =
     {
         {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},

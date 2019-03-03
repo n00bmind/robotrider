@@ -205,7 +205,7 @@ DEBUG_PLATFORM_LIST_ALL_ASSETS(Win32ListAllAssets)
         FindClose( hFind );
     }
 
-    result.files = PUSH_ARRAY( arena, result.entryCount, DEBUGFileInfo );
+    result.files = PUSH_ARRAY( arena, DEBUGFileInfo, result.entryCount );
     hFind = FindFirstFile( findPath, &findData );
     if( hFind != INVALID_HANDLE_VALUE )
     {

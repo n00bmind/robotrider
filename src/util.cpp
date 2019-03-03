@@ -114,7 +114,7 @@ QuickSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
 void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
 {
     u8* in = (u8*)inOut;
-    u8* out = PUSH_ARRAY( tmpArena, count * stride, u8, Temporary() );
+    u8* out = PUSH_ARRAY( tmpArena, u8, count * stride, Temporary() );
 
     const u32 RadixBits = 8;
     const u64 Radix = 1 << RadixBits;
@@ -287,7 +287,7 @@ RadixSort( Array<T>* inputOutput, sz offset, RadixKey keyType, bool ascending, M
 void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, MemoryArena* tmpArena )
 {
     u32* in = inOut;
-    u32* out = PUSH_ARRAY( tmpArena, count, u32, Temporary() );
+    u32* out = PUSH_ARRAY( tmpArena, u32, count, Temporary() );
 
 #define MASK0(x) ( ascending ? (x & 0x7FF)            : (~x & 0x7FF) )
 #define MASK1(x) ( ascending ? ((x >> 11) & 0x7FF)    : (~(x >> 11) & 0x7FF) )
