@@ -4,12 +4,12 @@
 
 // NOTE Everything related to maze generation and connectivity is measured in voxel units
 const r32 VoxelSizeMeters = 1.f;
-const u32 VoxelsPerClusterAxis = 512;
+const i32 VoxelsPerClusterAxis = 256;
 
 struct SectorParams
 {
-    i32 minVolumeSize;
-    i32 maxVolumeSize;
+    r32 minVolumeRatio;
+    r32 maxVolumeRatio;
     r32 minRoomSizeRatio;
     r32 maxRoomSizeRatio;
     i32 volumeSafeMarginSize;
@@ -22,8 +22,8 @@ CollectSectorParams( const v3i& clusterCoords )
 {
     // TODO Just return some test values for now
     SectorParams result = {};
-    result.minVolumeSize = 100;
-    result.maxVolumeSize = 250;
+    result.minVolumeRatio = 0.2f;
+    result.maxVolumeRatio = 0.5f;
     result.minRoomSizeRatio = 0.15f;
     result.maxRoomSizeRatio = 0.75f;
     result.volumeSafeMarginSize = 1;

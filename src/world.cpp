@@ -140,6 +140,8 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     Volume rootVolume = { rootBounds };
 
     SectorParams params = CollectSectorParams( clusterP );
+    i32 minVolumeSize = (i32)(params.minVolumeRatio * (r32)VoxelsPerClusterAxis);
+    i32 maxVolumeSize = (i32)(params.maxVolumeRatio * (r32)VoxelsPerClusterAxis);
 
     // TODO Calc an upper bound given cluster size and minimal volume size
     u32 maxSplits = 4096;
@@ -163,9 +165,9 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
                 XYZSize( v.bounds, &boundsDim.x, &boundsDim.y, &boundsDim.z );
 
                 // If this volume is too big, or a certain chance...
-                if( boundsDim.x > params.maxVolumeSize ||
-                    boundsDim.y > params.maxVolumeSize ||
-                    boundsDim.z > params.maxVolumeSize ||
+                if( boundsDim.x > maxVolumeSize ||
+                    boundsDim.y > maxVolumeSize ||
+                    boundsDim.z > maxVolumeSize ||
                     RandomNormalizedR32() > params.volumeExtraPartitioningProbability )
                 {
                     u32 splitDimIndex = 0;
@@ -204,10 +206,10 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
                     ASSERT( splitDimIndex < 3 && boundsDim.e[splitDimIndex] > 0.f );
 
                     // TODO Really start considering ditching unsigneds!!
-                    i32 splitSizeMax = boundsDim.e[splitDimIndex] - params.minVolumeSize;
-                    if( splitSizeMax > params.minVolumeSize )
+                    i32 splitSizeMax = boundsDim.e[splitDimIndex] - minVolumeSize;
+                    if( splitSizeMax > minVolumeSize )
                     {
-                        i32 splitSize = RandomRangeI32( params.minVolumeSize, splitSizeMax );
+                        i32 splitSize = RandomRangeI32( minVolumeSize, splitSizeMax );
                         // TODO Really start considering ditching unsigneds!!
                         i32 splitSizeI32 = (i32)splitSize;
                         aabbi left = v.bounds, right = v.bounds;
@@ -740,18 +742,18 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     // Render current cluster limits
     PushMaterial( nullptr, renderCommands );
     u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
-    DrawBoxAt( V3Zero, ClusterSizeMeters , red, renderCommands );
+    DrawBoundsAt( V3Zero, ClusterSizeMeters , red, renderCommands );
+
+    Cluster* currentCluster = world->clusterTable.Find( world->originClusterP );
+    r32 clusterHalfSize = ClusterSizeMeters * 0.5f;
+    u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );
 
     // Render partitioned volumes
     {
         // Volume bounds are in voxel units
-        r32 clusterHalfSize = ClusterSizeMeters * 0.5f;
-        u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );
-
-        Cluster* cluster = world->clusterTable.Find( world->originClusterP );
-        for( u32 i = 0; i < cluster->volumes.count; ++i )
+        for( u32 i = 0; i < currentCluster->volumes.count; ++i )
         {
-            Volume& v = cluster->volumes[i];
+            Volume& v = currentCluster->volumes[i];
             if( v.leftChild == nullptr && v.rightChild == nullptr )
             {
                 aabb worldBounds =
@@ -764,6 +766,22 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             }
         }
     }
+
+    // Voxel grid
+    v3 clusterOffsetP = -V3One * clusterHalfSize;
+    v3 voxelCenterP = V3One * VoxelSizeMeters * 0.5f;
+    u32 grey = Pack01ToRGBA( 0.5f, 0.5f, 0.5f, 1.f );
+
+    for( int i = 0; i <= VoxelsPerClusterAxis; ++i )
+        for( int j = 0; j <= VoxelsPerClusterAxis; ++j )
+            for( int k = 0; k <= VoxelsPerClusterAxis; ++k )
+            {
+                if( currentCluster->voxelGrid[i][j][k] != 0 )
+                {
+                    v3 voxelP = V3( (r32)i, (r32)j, (r32)k ) + clusterOffsetP + voxelCenterP;
+                    DrawBoxAt( voxelP, VoxelSizeMeters, grey, renderCommands );
+                }
+            }
 
     {
         // Create a chasing camera

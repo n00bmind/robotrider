@@ -280,10 +280,32 @@ DrawBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
 }
 
 internal void
+DrawBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
+{
+    aabb bounds = AABB( p, size );
+    DrawBounds( bounds, color, renderCommands );
+}
+
+internal void
 DrawBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
 {
-    aabb box = AABB( p, size );
-    DrawBounds( box, color, renderCommands );
+    v3 p1, p2, p3, p4;
+    v3 vR = V3Right * size;
+    v3 vF = V3Forward * size;
+    v3 vU = V3Up * size;
+
+    p1 = p - vR + vF - vU;
+    p2 = p - vR - vF - vU;
+    p3 = p + vR - vF - vU;
+    p4 = p + vR + vF - vU;
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
+
+    p1 = p - vR + vF + vU;
+    p2 = p - vR - vF + vU;
+    p3 = p + vR - vF + vU;
+    p4 = p + vR + vF + vU;
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
+
 }
 
 internal void

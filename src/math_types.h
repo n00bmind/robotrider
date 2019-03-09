@@ -344,6 +344,7 @@ union v3
 };
 
 const v3 V3Zero = { 0.0f, 0.0f, 0.0f };
+const v3 V3One = { 1.f, 1.f, 1.f };
 const v3 V3Undefined = { R32NAN, R32NAN, R32NAN };
 // Canonical world orientations
 // We define our right-handed game world as having the positive Z axis pointing up

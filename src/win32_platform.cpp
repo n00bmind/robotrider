@@ -2092,7 +2092,7 @@ main( int argC, char **argV )
             u32 renderBufferSize = MEGABYTES( 4 );
             u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize,
                                                    MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-            u32 vertexBufferMaxCount = 8*1024*1024;
+            u32 vertexBufferMaxCount = 32*1024*1024;
             TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferMaxCount * sizeof(TexturedVertex),
                                                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
             u32 indexBufferMaxCount = vertexBufferMaxCount * 8;
