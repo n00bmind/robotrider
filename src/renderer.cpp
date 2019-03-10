@@ -161,7 +161,40 @@ PushLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )
 }
 
 void
-PushMesh( const Mesh& mesh, RenderCommands *commands )
+PushProgramChange( ShaderProgramName programName, RenderCommands *commands )
+{
+    RenderEntryProgramChange *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryProgramChange );
+    if( entry )
+    {
+        entry->programName = programName;
+    }
+}
+
+void
+PushMaterial( Material* material, RenderCommands* commands )
+{
+    RenderEntryMaterial *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryMaterial );
+    if( entry )
+    {
+        entry->material = material;
+    }
+}
+
+void
+PushSwitch( RenderSwitch renderSwitch, bool enable, RenderCommands* commands )
+{
+    RenderEntrySwitch *entry = PUSH_RENDER_ELEMENT( commands, RenderEntrySwitch );
+    if( entry )
+    {
+        entry->renderSwitch = renderSwitch;
+        entry->enable = enable;
+    }
+}
+
+
+
+void
+RenderMesh( const Mesh& mesh, RenderCommands *commands )
 {
     TIMED_BLOCK;
 
@@ -230,38 +263,7 @@ PushMesh( const Mesh& mesh, RenderCommands *commands )
 }
 
 void
-PushProgramChange( ShaderProgramName programName, RenderCommands *commands )
-{
-    RenderEntryProgramChange *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryProgramChange );
-    if( entry )
-    {
-        entry->programName = programName;
-    }
-}
-
-void
-PushMaterial( Material* material, RenderCommands* commands )
-{
-    RenderEntryMaterial *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryMaterial );
-    if( entry )
-    {
-        entry->material = material;
-    }
-}
-
-void
-PushSwitch( RenderSwitch renderSwitch, bool enable, RenderCommands* commands )
-{
-    RenderEntrySwitch *entry = PUSH_RENDER_ELEMENT( commands, RenderEntrySwitch );
-    if( entry )
-    {
-        entry->renderSwitch = renderSwitch;
-        entry->enable = enable;
-    }
-}
-
-internal void
-DrawBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
+RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
 {
     PushLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMin ), color, renderCommands );
     PushLine( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMin ), color, renderCommands );
@@ -279,37 +281,66 @@ DrawBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
     PushLine( V3( box.xMax, box.yMin, box.zMax ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
 }
 
-internal void
-DrawBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
+void
+RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
 {
     aabb bounds = AABB( p, size );
-    DrawBounds( bounds, color, renderCommands );
+    RenderBounds( bounds, color, renderCommands );
 }
 
-internal void
-DrawBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
+void
+RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
 {
     v3 p1, p2, p3, p4;
-    v3 vR = V3Right * size;
-    v3 vF = V3Forward * size;
-    v3 vU = V3Up * size;
+    v3 vR = V3Right * size * 0.5f;
+    v3 vF = V3Forward * size * 0.5f;
+    v3 vU = V3Up * size * 0.5f;
 
-    p1 = p - vR + vF - vU;
-    p2 = p - vR - vF - vU;
-    p3 = p + vR - vF - vU;
-    p4 = p + vR + vF - vU;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
-
+    // Up
     p1 = p - vR + vF + vU;
     p2 = p - vR - vF + vU;
     p3 = p + vR - vF + vU;
     p4 = p + vR + vF + vU;
     PushQuad( p1, p2, p3, p4, color, renderCommands );
 
+    // Down
+    p1 = p - vR - vF - vU;
+    p2 = p - vR + vF - vU;
+    p3 = p + vR + vF - vU;
+    p4 = p + vR - vF - vU;
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
+
+    // Front
+    p1 = p - vR - vF + vU;
+    p2 = p - vR - vF - vU;
+    p3 = p + vR - vF - vU;
+    p4 = p + vR - vF + vU;
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
+
+    // Back
+    p1 = p + vR + vF + vU;
+    p2 = p + vR + vF - vU;
+    p3 = p - vR + vF - vU;
+    p4 = p - vR + vF + vU;
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
+
+    // Left
+    p1 = p - vR + vF + vU;
+    p2 = p - vR + vF - vU;
+    p3 = p - vR - vF - vU;
+    p4 = p - vR - vF + vU;
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
+
+    // Right
+    p1 = p + vR - vF + vU;
+    p2 = p + vR - vF - vU;
+    p3 = p + vR + vF - vU;
+    p4 = p + vR + vF + vU;
+    PushQuad( p1, p2, p3, p4, color, renderCommands );
 }
 
-internal void
-DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands )
+void
+RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands )
 {
     const r32 areaHalf = areaSizeMeters / 2;
 
@@ -330,8 +361,8 @@ DrawFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderC
     }
 }
 
-internal void
-DrawCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands )
+void
+RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands )
 {
     ASSERT( step > 0.f );
 
@@ -361,3 +392,12 @@ DrawCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, Ren
     }
 }
 
+void
+RenderVoxelGrid( const VoxelGrid& grid, r32 voxelSizeMeters, u32 color, RenderCommands* renderCommands )
+{
+    // https://0fps.net/2012/06/30/meshing-in-a-minecraft-game/
+    // https://stackoverflow.com/questions/22948068/opengl-rendering-lots-of-cubes
+    // http://jojendersie.de/rendering-huge-amounts-of-voxels/
+
+
+}

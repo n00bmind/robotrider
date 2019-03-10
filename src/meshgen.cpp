@@ -411,7 +411,7 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, March
                                     SampleMetaballs, &balls,
                                     cacheBuffers, meshPool );
 
-    PushMesh( *metaMesh, renderCommands );
+    RenderMesh( *metaMesh, renderCommands );
 }
 
 ///// MESH SIMPLIFICATION /////
@@ -1009,11 +1009,11 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displa
                     u32 color = Pack01ToRGBA( 0, 1, 0, 1 );
                     r32 value = cacheBuffers->bottomLayerSamples[i * gridLinesPerAxis + j];
                     //if( value < 0 )
-                        //DrawBoundsAt( p, 0.005f * drawingDistance, color, renderCommands );
+                        //RenderBoundsAt( p, 0.005f * drawingDistance, color, renderCommands );
 
                     value = cacheBuffers->topLayerSamples[i * gridLinesPerAxis + j];
                     if( value < 0 )
-                        DrawBoundsAt( p + V3( 0, 0, step ), 0.005f * drawingDistance, color, renderCommands );
+                        RenderBoundsAt( p + V3( 0, 0, step ), 0.005f * drawingDistance, color, renderCommands );
                 }
 #endif
 

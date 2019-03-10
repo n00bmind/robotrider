@@ -32,15 +32,15 @@ CreateEditorEntityFor( Mesh* mesh, u32 cellsPerSide )
 }
 
 internal void
-DrawEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, RenderCommands* renderCommands )
+RenderEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, RenderCommands* renderCommands )
 {
     if( editorEntity.mesh )
     {
-        DrawBounds( editorEntity.mesh->bounds, editorEntity.color, renderCommands );
+        RenderBounds( editorEntity.mesh->bounds, editorEntity.color, renderCommands );
 
         aabb& box = editorEntity.mesh->bounds;
         r32 resolutionStep = (box.xMax - box.xMin) / editorEntity.cellsPerSide;
-        //DrawCubicGrid( box, resolutionStep, Pack01ToRGBA( 1, 0, 0, 0.05f ), false, renderCommands ); 
+        //RenderCubicGrid( box, resolutionStep, Pack01ToRGBA( 1, 0, 0, 0.05f ), false, renderCommands ); 
         r32 step = resolutionStep;
         u32 color = Pack01ToRGBA( 0, 0, 0, 0.3f );
         r32 xMin = box.xMin;
@@ -93,13 +93,13 @@ TickMeshSamplerTest( const EditorState& editorState, TransientState* transientSt
 
     PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
     //PushMesh( transientState->testMesh, renderCommands );
-    PushMesh( *transientState->testIsoSurfaceMesh, renderCommands );
+    RenderMesh( *transientState->testIsoSurfaceMesh, renderCommands );
 
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMaterial( nullptr, renderCommands );
 
 	transientState->testEditorEntity = CreateEditorEntityFor(transientState->testIsoSurfaceMesh, transientState->cacheBuffers.cellsPerAxis);
-	DrawEditorEntity( transientState->testEditorEntity, transientState->displayedLayer, renderCommands );
+	RenderEditorEntity( transientState->testEditorEntity, transientState->displayedLayer, renderCommands );
 }
 
 internal void
@@ -352,7 +352,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
     PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
     PushMaterial( nullptr, renderCommands );
 
-	DrawFloorGrid( ClusterSizeMeters, gameState->world->marchingCubeSize, renderCommands );
+	RenderFloorGrid( ClusterSizeMeters, gameState->world->marchingCubeSize, renderCommands );
     DrawAxisGizmos( renderCommands );
 
     u16 width = renderCommands->width;

@@ -701,7 +701,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             if( entity.state == EntityState::Active )
             {
                 if( entity.mesh )
-                    PushMesh( *entity.mesh, renderCommands );
+                    RenderMesh( *entity.mesh, renderCommands );
             }
 
             it.Next();
@@ -721,7 +721,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             {
                 v3 entityP = GetLiveEntityWorldP( entity.stored.coords, world->originClusterP );
                 aabb entityBounds = AABB( entityP, entity.stored.dim );
-                DrawBounds( entityBounds, black, renderCommands );
+                RenderBounds( entityBounds, black, renderCommands );
             }
 
             it.Next();
@@ -736,13 +736,14 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 //     if( !gameMemory->DEBUGglobalEditing )
     {
         PushMaterial( world->player->mesh.material, renderCommands );
-        PushMesh( world->player->mesh, renderCommands );
+        RenderMesh( world->player->mesh, renderCommands );
     }
 
     // Render current cluster limits
     PushMaterial( nullptr, renderCommands );
     u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
-    DrawBoundsAt( V3Zero, ClusterSizeMeters , red, renderCommands );
+    RenderBoundsAt( V3Zero, ClusterSizeMeters , red, renderCommands );
+    //RenderBoxAt( V3Zero, ClusterSizeMeters , red, renderCommands );
 
     Cluster* currentCluster = world->clusterTable.Find( world->originClusterP );
     r32 clusterHalfSize = ClusterSizeMeters * 0.5f;
@@ -762,11 +763,12 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
                     v.bounds.yMin * VoxelSizeMeters - clusterHalfSize, v.bounds.yMax * VoxelSizeMeters - clusterHalfSize,
                     v.bounds.zMin * VoxelSizeMeters - clusterHalfSize, v.bounds.zMax * VoxelSizeMeters - clusterHalfSize,
                 };
-                DrawBounds( worldBounds, halfRed, renderCommands );
+                RenderBounds( worldBounds, halfRed, renderCommands );
             }
         }
     }
 
+#if 0
     // Voxel grid
     v3 clusterOffsetP = -V3One * clusterHalfSize;
     v3 voxelCenterP = V3One * VoxelSizeMeters * 0.5f;
@@ -779,9 +781,12 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
                 if( currentCluster->voxelGrid[i][j][k] != 0 )
                 {
                     v3 voxelP = V3( (r32)i, (r32)j, (r32)k ) + clusterOffsetP + voxelCenterP;
-                    DrawBoxAt( voxelP, VoxelSizeMeters, grey, renderCommands );
+                    RenderBoxAt( voxelP, VoxelSizeMeters, grey, renderCommands );
                 }
             }
+#else
+    RenderVoxelGrid( currentCluster->voxelGrid, VoxelSizeMeters, blue, renderCommands );
+#endif
 
     {
         // Create a chasing camera
