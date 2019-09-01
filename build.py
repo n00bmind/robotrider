@@ -21,9 +21,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-#!/usr/bin/env python2
-
-from __future__ import print_function
+#!/usr/bin/env python3
 
 import os, sys, subprocess, atexit, random, argparse
 from collections import namedtuple
@@ -69,10 +67,10 @@ config_win_debug = Config(
 )
 # This config is a bit confusing and we need to clarify this:
 # The choice of whether we have certain "development" features (like an editor mode) is a platform thing
-# totally unrelated to build mode, and so it is reflected in the platform - game interface.
+# totally unrelated to build mode, and so it should be reflected in the platform - game interface.
 # (for example, by adding keyboard/mouse info for the editor, which a PC would provide but a phone wouldn't)
-# This build is meant to be a faster non-release build to use during day to day development when Debug is just
-# too slow, for example one that artists could use as their everyday default.
+# This build only makes sense as a faster non-release build to use during development when Debug is just
+# too slow, for example one that artists could use as their everyday default. (also, it remains to be seen how useful all the debug information is in this context)
 config_win_develop = Config(
         name           = 'Develop',
         platform       = platform_win,
@@ -90,7 +88,9 @@ config_win_release = Config(
 
 
 default_platform = platform_win
+# default_config = config_win_debug
 default_config = config_win_develop
+# default_config = config_win_release
 
 
 class colors:
@@ -114,9 +114,9 @@ class colors:
 # print '\033[1;47mHighlighted Gray like Ghost\033[1;m'
 # print '\033[1;48mHighlighted Crimson like Chianti\033[1;m'
 
-def print_color(output, color_string):
+def print_color(text, color_string):
     print(color_string, end='')
-    print(output, end='')
+    print(text, end='')
     print(colors.END)
 
 
