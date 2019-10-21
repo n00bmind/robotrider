@@ -37,7 +37,7 @@ Wave Function Collapse :: https://github.com/mxgmn/WaveFunctionCollapse & https:
 
 ## Zen of Programming
 
-After many many years dedicated to the ultimate creative endeavour, the beautiful art of programming (or 'coding' as I prefer to call it), I've grown more and more frustrated with the way software is conceived these days, what the industry considers 'best practices' and the path software development has taken. From a phylosophical standpoint I believe this actually merely reflects the sad state of the modern world at large, but that's certainly a huge topic for another time.
+After many many years dedicated to the ultimate creative endeavour, the beautiful art of programming (or 'coding' as I prefer to call it), I've grown more and more frustrated with the way software is conceived these days, what the industry considers 'best practices' and the path software development has taken. From a philosophical standpoint I believe this actually merely reflects the sad state of the modern world at large, but that's certainly a huge topic for another time.
 
 In the last few years, however, thanks to the internet, I've discovered I'm not alone in thinking so, and have introduced myself to the ideas of some great minds out there, people like Casey Muratori, Jonathan Blow, Mike Acton, Sean Barrett, Brian Will, Omar Ocornut and others (to all of them, my most sincere thanks!). They showed me there is indeed another way, and above all, that this way is actually *superior*. This project is my first serious attempt to put some of these ideas into practice, to see where they take me.
 
