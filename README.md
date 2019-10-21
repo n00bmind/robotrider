@@ -21,9 +21,8 @@ This is a (very work in progress) game & game engine where I get to experiment w
 · Debug mode (tilde) & editor mode (Ctrl+tilde)<br/>
 · Developer console with customizable commands<br />
 · Infinite procedural world (WIP)<br/>
-· Minimal dependencies (only ImGui and stb_image so far)
-· Pure C++ without all the OOP crap
-
+· Minimal dependencies (only ImGui and stb_image so far)<br/>
+· Pure C++ without all the OOP crap<br/>
 
 
 ## References
