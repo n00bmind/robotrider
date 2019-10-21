@@ -60,9 +60,7 @@ With time, I found some of these ideas I actually knew already, I had only be ta
  · C++ is just evil<br/>
  · When tempted to abstract away, think twice<br/>
  · When tempted to design for the future, don't<br/>
- · Code will reveal its own design to those who listen<br/>
- · When in doubt, make it an explicit parameter<br/>
- · Implicit-ness is like karma. It will come back and bite you<br/>
+ · When in doubt, make it explicit<br/>
  · Don't be afraid of long functions<br/>
  · Focus. Pay attention. The devil is in the details<br/>
 
