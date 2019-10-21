@@ -22,7 +22,7 @@ This is a (very work in progress) game & game engine where I get to experiment w
 · Developer console with customizable commands<br />
 · Infinite procedural world (WIP)<br/>
 · Minimal dependencies (only ImGui and stb_image so far)<br/>
-· Pure C++ without all the OOP crap<br/>
+· Pure C++ without all the OOP crap (a.k.a. "C+")<br/>
 
 
 ## References
