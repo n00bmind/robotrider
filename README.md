@@ -42,7 +42,7 @@ After many many years dedicated to the ultimate creative endeavour, the beautifu
 
 In the last few years, however, thanks to the internet, I've discovered I'm not alone in thinking so, and have introduced myself to the ideas of some great minds out there, people like Casey Muratori, Jonathan Blow, Mike Acton, Sean Barrett, Brian Will, Omar Ocornut and others (to all of them, my most sincere thanks!). They showed me there is indeed another way, and above all, that this way is actually *superior*. This project is my first serious attempt to put some of these ideas into practice, to see where they take me.
 
-With time, I found some of these ideas I actually knew already, I had only be taught very early on to forget about that stuff and write yet another stupid class hierarchy instead. I've seriously rediscovered the joy of programming, and why I started doing this in the first place. And so, just for fun, and also to make sure I don't forget them ever again, I've decided to write down my very own
+With time, I found some of these ideas I actually knew already, I had only be taught very early on to forget about that stuff and write yet another stupid class hierarchy instead. Now I've seriously rediscovered the joy of programming, and why I started doing this in the first place. And so, just for fun, and also to make sure I don't forget these ideas ever again, I've decided to write down my very own
 
 <br/>
 
