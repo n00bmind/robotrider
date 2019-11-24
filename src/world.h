@@ -35,13 +35,12 @@ struct Player
 //
 ///// HOW OUR UNIVERSE WILL WORK /////
 //
-// We will partition our universe in axis-aligned 'clusters', their length a (probably big) multiple of
-// what we end up using for the hull chunks (so N chunks in every XYZ direction will form a cluster).
+// We will partition our universe in axis-aligned 'clusters'.
 // At any given moment, one of this clusters will be the 'origin of the universe', meaning its center will be
-// our universe's (0, 0, 0) coord, and all active entities' positions will be relative to this point.
+// our universe's (0, 0, 0) coord, and the postitions of all active entities will be relative to this point.
 // Everytime the player moves we will check whether he's moved to a new cluster, and if so, we'll mark the new
 // cluster as the origin and offset all entities (including the player and the camera) as necessary.
-// (Only 'hi' entity positions will be modified, 'lo' entity data always contains the absolute cluster they're in).
+// (Only the positions of 'hot' entities will be modified, data for 'cold' entities always contains the absolute cluster they're in).
 //
 // We will maintain an apron around the origin where all entities will be active (something like a 3x3x3 cube probably),
 // so when switching origins a certain number of clusters will have to be filled (built) if they were never visited
