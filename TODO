@@ -4,11 +4,14 @@
 
 
 NEXT
-- WFC Parallelization
-- WFC 3D
+- Create a Handler struct so we never store bare pointers anywhere again
+  This will pack things like:
+  · an index into a global allocator table (we'll need a growable array for this to make it efficient)
+  · an index into the allocator's allocated blocks (again growable array)
+  · a generation number to detect invalid accesses (not sure how to implement this yet)
+  Also give it things like a operator * to dereference it and a Get() method to temporarily get the actual pointer
 
 WORLDGEN
-- Wave Function Collapse parallel 3D
 - Procedural generation of some kind of infinite pipe-like world structure
 - Unify all mesh pools and put them behind a ticket mutex so they can be shared by threads. Remember to _first_ do the mesh generation
   in the thread, then copying it to the mesh pool _afterwards_
@@ -27,6 +30,7 @@ GRAPHICS
   by just doing a simple edge detect on the triangle ID texture. Google for "edge detection" and/or "Sobel filter" for details.
   The nice things about this are that (a) you get hidden surface removal for free; and (b) it's a fixed cost to render, no matter how much geometry you have."
   (http://williamchyr.com/2014/03/development-update-edge-detection/)
+? GLTF reader
 
 AUDIO
 - Win32: switch WASAPI to callback mode to reduce buffer size and improve latency.

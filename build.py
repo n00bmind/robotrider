@@ -1,3 +1,4 @@
+#!py3
 # -*- coding: utf-8 -*-
 # The MIT License
 
