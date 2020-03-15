@@ -1,3 +1,4 @@
+#!py3
 # -*- coding: utf-8 -*-
 # The MIT License
 
@@ -21,7 +22,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-#!/usr/bin/env python3
 
 import os, sys, subprocess, atexit, random, argparse
 from collections import namedtuple
@@ -90,7 +90,6 @@ config_win_release = Config(
 default_platform = platform_win
 # default_config = config_win_debug
 default_config = config_win_develop
-# default_config = config_win_release
 
 
 class colors:

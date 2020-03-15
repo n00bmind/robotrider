@@ -36,11 +36,13 @@ enum class ShaderProgramName
 {
     None,
     PlainColor,
+    PlainColorVoxel,
     FlatShading,
 };
 
 enum class RenderSwitch
 {
+    Bla,
 };
 
 
@@ -63,6 +65,7 @@ struct TexturedVertex
     u32 color;
     v2 uv;
     // TODO Should we just ignore these and do it all in the GS based on what shading we want?
+    // TODO In any case, create a separate vertex format for all the debug stuff etc. that will never need this
     v3 n;
 };
 
@@ -139,6 +142,12 @@ CalcBounds( Mesh* mesh )
 }
 
 
+struct InstanceData
+{
+    v3 worldOffset;
+};
+
+
 enum class RenderEntryType
 {
     RenderEntryClear,
@@ -147,6 +156,7 @@ enum class RenderEntryType
     RenderEntryProgramChange,
     RenderEntryMaterial,
     RenderEntrySwitch,
+    RenderEntryVoxelGrid,
 };
 
 struct RenderEntry
@@ -204,6 +214,15 @@ struct RenderEntrySwitch
     bool enable;
 };
 
+struct RenderEntryVoxelGrid
+{
+    RenderEntry header;
+
+    u32 vertexBufferOffset;
+    u32 instanceBufferOffset;
+    u32 instanceCount;
+};
+
 
 
 struct RenderBuffer
@@ -227,6 +246,13 @@ struct IndexBuffer
     u32 maxCount;
 };
 
+struct InstanceBuffer
+{
+    u8* base;
+    u32 size;
+    u32 maxSize;
+};
+
 
 
 struct RenderCommands
@@ -236,9 +262,10 @@ struct RenderCommands
 
     Camera camera;
 
-    RenderBuffer renderBuffer;
-    VertexBuffer vertexBuffer;
-    IndexBuffer indexBuffer;
+    RenderBuffer   renderBuffer;
+    VertexBuffer   vertexBuffer;
+    IndexBuffer    indexBuffer;
+    InstanceBuffer instanceBuffer;
 
     RenderEntryTexturedTris *currentTris;
     RenderEntryLines *currentLines;
@@ -249,7 +276,8 @@ struct RenderCommands
 inline RenderCommands
 InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
                     TexturedVertex *vertexBuffer, u32 vertexBufferMaxCount,
-                    u32 *indexBuffer, u32 indexBufferMaxCount )
+                    u32 *indexBuffer, u32 indexBufferMaxCount,
+                    u8* instanceBuffer, u32 instanceBufferMaxSize )
 {
     RenderCommands result;
 
@@ -262,11 +290,14 @@ InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
     result.indexBuffer.base = indexBuffer;
     result.indexBuffer.count = 0;
     result.indexBuffer.maxCount = indexBufferMaxCount;
+    result.instanceBuffer.base = instanceBuffer;
+    result.instanceBuffer.size = 0;
+    result.instanceBuffer.maxSize = instanceBufferMaxSize;
 
     result.currentTris = nullptr;
     result.currentLines = nullptr;
 
-    result.isValid = renderBuffer && vertexBuffer && indexBuffer;
+    result.isValid = renderBuffer && vertexBuffer && indexBuffer && instanceBuffer;
 
     return result;
 }
@@ -277,7 +308,10 @@ ResetRenderCommands( RenderCommands *commands )
     commands->renderBuffer.size = 0;
     commands->vertexBuffer.count = 0;
     commands->indexBuffer.count = 0;
-    commands->currentTris = 0;
+    commands->instanceBuffer.size = 0;
+
+    commands->currentTris = nullptr;
+    commands->currentLines = nullptr;
 }
 
 

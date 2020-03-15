@@ -283,10 +283,16 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
             for( int i = roomBounds.xMin; i <= roomBounds.xMax; ++i )
                 for( int j = roomBounds.yMin; j <= roomBounds.yMax; ++j )
                     for( int k = roomBounds.zMin; k <= roomBounds.zMax; ++k )
-                        cluster->voxelGrid[i][j][k] = 1;
+                    {
+                        bool atBorder = (i == roomBounds.xMin || i == roomBounds.xMax)
+                            || (j == roomBounds.yMin || j == roomBounds.yMax)
+                            || (k == roomBounds.zMin || k == roomBounds.zMax);
+                        cluster->voxelGrid[i][j][k] = atBorder ? 2 : 1;
+                    }
         }
     }
 
+    // TODO Defer
     //EndTemporaryMemory( tmpMemory );
 }
 
@@ -684,13 +690,13 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
 
     ///// Render
-    PushClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
+    RenderClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
 
 #if !RELEASE
     //if( !gameMemory->DEBUGglobalEditing )
 #endif
     {
-        PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
+        RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
 
         auto it = world->liveEntities.First();
         while( it )
@@ -707,8 +713,8 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             it.Next();
         }
 
-        PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
-        PushMaterial( nullptr, renderCommands );
+        RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
+        RenderSetMaterial( nullptr, renderCommands );
         u32 black = Pack01ToRGBA( 0, 0, 0, 1 );
 
         it = world->liveEntities.First();
@@ -731,16 +737,16 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #endif
     }
 
-    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
+    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
 
 //     if( !gameMemory->DEBUGglobalEditing )
     {
-        PushMaterial( world->player->mesh.material, renderCommands );
+        RenderSetMaterial( world->player->mesh.material, renderCommands );
         RenderMesh( world->player->mesh, renderCommands );
     }
 
     // Render current cluster limits
-    PushMaterial( nullptr, renderCommands );
+    RenderSetMaterial( nullptr, renderCommands );
     u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
     RenderBoundsAt( V3Zero, ClusterSizeMeters , red, renderCommands );
     //RenderBoxAt( V3Zero, ClusterSizeMeters , red, renderCommands );
@@ -768,9 +774,9 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         }
     }
 
-#if 0
     // Voxel grid
     v3 clusterOffsetP = -V3One * clusterHalfSize;
+#if 0
     v3 voxelCenterP = V3One * VoxelSizeMeters * 0.5f;
     u32 grey = Pack01ToRGBA( 0.5f, 0.5f, 0.5f, 1.f );
 
@@ -785,7 +791,8 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
                 }
             }
 #else
-    RenderVoxelGrid( currentCluster->voxelGrid, VoxelSizeMeters, blue, renderCommands );
+    u32 blue = Pack01ToRGBA( 0, 0, 1, 1 );
+    RenderVoxelGrid( currentCluster->voxelGrid, clusterOffsetP, blue, renderCommands );
 #endif
 
     {

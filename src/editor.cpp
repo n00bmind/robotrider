@@ -53,11 +53,11 @@ RenderEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, Render
             r32 z = box.zMin + layer * step;
 
             for( r32 y = yMin; y <= yMax; y += step )
-                PushLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );
+                RenderLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );
 
             for( r32 x = xMin; x <= xMax; x += step )
             {
-                PushLine( { x, yMin, z }, { x, yMax, z }, color, renderCommands );
+                RenderLine( { x, yMin, z }, { x, yMax, z }, color, renderCommands );
             }
         }
     }
@@ -91,12 +91,12 @@ TickMeshSamplerTest( const EditorState& editorState, TransientState* transientSt
                                                                       frameMemory, renderCommands );
     }
 
-    PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
+    RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
     //PushMesh( transientState->testMesh, renderCommands );
     RenderMesh( *transientState->testIsoSurfaceMesh, renderCommands );
 
-    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
-    PushMaterial( nullptr, renderCommands );
+    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
+    RenderSetMaterial( nullptr, renderCommands );
 
 	transientState->testEditorEntity = CreateEditorEntityFor(transientState->testIsoSurfaceMesh, transientState->cacheBuffers.cellsPerAxis);
 	RenderEditorEntity( transientState->testEditorEntity, transientState->displayedLayer, renderCommands );
@@ -349,8 +349,8 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
     TickWFCTest( transientState, debugState, frameMemory, renderCommands );
 #endif
 
-    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
-    PushMaterial( nullptr, renderCommands );
+    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
+    RenderSetMaterial( nullptr, renderCommands );
 
 	RenderFloorGrid( ClusterSizeMeters, gameState->world->marchingCubeSize, renderCommands );
     DrawAxisGizmos( renderCommands );

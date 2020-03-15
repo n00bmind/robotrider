@@ -1812,6 +1812,8 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
     BINDGLPROC( glBeginQuery, PFNGLBEGINQUERYPROC );
     BINDGLPROC( glEndQuery, PFNGLENDQUERYPROC );
     BINDGLPROC( glGetQueryObjectuiv, PFNGLGETQUERYOBJECTUIVPROC );
+    BINDGLPROC( glVertexAttribDivisor, PFNGLVERTEXATTRIBDIVISORARBPROC );
+    BINDGLPROC( glDrawArraysInstanced, PFNGLDRAWARRAYSINSTANCEDPROC );
 #undef BINDGLPROC
 
 
@@ -2090,17 +2092,21 @@ main( int argC, char **argV )
 
             // TODO Decide a proper size for this
             u32 renderBufferSize = MEGABYTES( 4 );
-            u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize,
-                                                   MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-            u32 vertexBufferMaxCount = 32*1024*1024;
+            u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+
+            u32 vertexBufferMaxCount = MEGABYTES( 32 ); // Million vertices
             TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferMaxCount * sizeof(TexturedVertex),
                                                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
             u32 indexBufferMaxCount = vertexBufferMaxCount * 8;
-            u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferMaxCount * sizeof(u32),
-                                                    MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+            u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferMaxCount * sizeof(u32), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+
+            u32 instanceBufferSize = MEGABYTES( 32 );
+            u8 *instanceBuffer = (u8 *)VirtualAlloc( 0, instanceBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+
             RenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
-                                                                    vertexBuffer, vertexBufferMaxCount,
-                                                                    indexBuffer, indexBufferMaxCount );
+                                                                vertexBuffer, vertexBufferMaxCount,
+                                                                indexBuffer, indexBufferMaxCount,
+                                                                instanceBuffer, instanceBufferSize );
 
             if( Win32InitOpenGL( deviceContext, renderCommands, frameVSyncSkipCount ) )
             {

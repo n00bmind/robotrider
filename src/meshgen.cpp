@@ -890,8 +890,8 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displa
     u32 rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
     Array<Hit> gridHits( tmpMemory.arena, 0, 100000 );
 
-    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
-    PushMaterial( nullptr, renderCommands );
+    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
+    RenderSetMaterial( nullptr, renderCommands );
 
     // Get all triangles and find their bounds
     u32 triangleCount = sourceMesh.indexCount / 3;

@@ -21,6 +21,8 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+
+
 #define PUSH_RENDER_ELEMENT(commands, type) (type *)_PushRenderElement( commands, sizeof(type), RenderEntryType::type )
 internal RenderEntry *
 _PushRenderElement( RenderCommands *commands, u32 size, RenderEntryType type )
@@ -51,7 +53,7 @@ _PushRenderElement( RenderCommands *commands, u32 size, RenderEntryType type )
 }
 
 void
-PushClear( const v4& color, RenderCommands *commands )
+RenderClear( const v4& color, RenderCommands *commands )
 {
     RenderEntryClear *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryClear );
     if( entry )
@@ -92,10 +94,11 @@ GetOrCreateCurrentLines( RenderCommands *commands )
     return result;
 }
 
+// TODO Force inline
 inline internal void
 PushVertex( const v3 &p, u32 color, const v2 &uv, RenderCommands *commands )
 {
-    TIMED_BLOCK;
+    //TIMED_BLOCK;
 
     ASSERT( commands->vertexBuffer.count + 1 <= commands->vertexBuffer.maxCount );
 
@@ -110,7 +113,7 @@ PushVertex( const v3 &p, u32 color, const v2 &uv, RenderCommands *commands )
 inline internal void
 PushIndex( u32 value, RenderCommands* commands )
 {
-    TIMED_BLOCK;
+    //TIMED_BLOCK;
 
     ASSERT( commands->indexBuffer.count + 1 <= commands->indexBuffer.maxCount );
 
@@ -122,7 +125,7 @@ PushIndex( u32 value, RenderCommands* commands )
 
 // Push 4 vertices (1st vertex is "top-left" and counter-clockwise from there)
 void
-PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, RenderCommands *commands )
+RenderQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, RenderCommands *commands )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
@@ -148,7 +151,7 @@ PushQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, Ren
 }
 
 void
-PushLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )
+RenderLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )
 {
     RenderEntryLines *entry = GetOrCreateCurrentLines( commands );
     if( entry )
@@ -161,7 +164,7 @@ PushLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )
 }
 
 void
-PushProgramChange( ShaderProgramName programName, RenderCommands *commands )
+RenderSetShader( ShaderProgramName programName, RenderCommands *commands )
 {
     RenderEntryProgramChange *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryProgramChange );
     if( entry )
@@ -171,7 +174,7 @@ PushProgramChange( ShaderProgramName programName, RenderCommands *commands )
 }
 
 void
-PushMaterial( Material* material, RenderCommands* commands )
+RenderSetMaterial( Material* material, RenderCommands* commands )
 {
     RenderEntryMaterial *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryMaterial );
     if( entry )
@@ -181,7 +184,7 @@ PushMaterial( Material* material, RenderCommands* commands )
 }
 
 void
-PushSwitch( RenderSwitch renderSwitch, bool enable, RenderCommands* commands )
+RenderSwitch( RenderSwitch renderSwitch, bool enable, RenderCommands* commands )
 {
     RenderEntrySwitch *entry = PUSH_RENDER_ELEMENT( commands, RenderEntrySwitch );
     if( entry )
@@ -265,20 +268,20 @@ RenderMesh( const Mesh& mesh, RenderCommands *commands )
 void
 RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
 {
-    PushLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMin ), color, renderCommands );
-    PushLine( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMin ), color, renderCommands );
-    PushLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMax, box.zMin ), color, renderCommands );
-    PushLine( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMax, box.zMin ), color, renderCommands );
+    RenderLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMin ), color, renderCommands );
+    RenderLine( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMin ), color, renderCommands );
+    RenderLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMax, box.zMin ), color, renderCommands );
+    RenderLine( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMax, box.zMin ), color, renderCommands );
 
-    PushLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMin, box.zMax ), color, renderCommands );
-    PushLine( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMax ), color, renderCommands );
-    PushLine( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMin, box.yMax, box.zMax ), color, renderCommands );
-    PushLine( V3( box.xMax, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
+    RenderLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMin, box.zMax ), color, renderCommands );
+    RenderLine( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMax ), color, renderCommands );
+    RenderLine( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMin, box.yMax, box.zMax ), color, renderCommands );
+    RenderLine( V3( box.xMax, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
 
-    PushLine( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMax, box.yMin, box.zMax ), color, renderCommands );
-    PushLine( V3( box.xMin, box.yMax, box.zMax ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
-    PushLine( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMin, box.yMax, box.zMax ), color, renderCommands );
-    PushLine( V3( box.xMax, box.yMin, box.zMax ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
+    RenderLine( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMax, box.yMin, box.zMax ), color, renderCommands );
+    RenderLine( V3( box.xMin, box.yMax, box.zMax ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
+    RenderLine( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMin, box.yMax, box.zMax ), color, renderCommands );
+    RenderLine( V3( box.xMax, box.yMin, box.zMax ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
 }
 
 void
@@ -301,42 +304,42 @@ RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
     p2 = p - vR - vF + vU;
     p3 = p + vR - vF + vU;
     p4 = p + vR + vF + vU;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p1, p2, p3, p4, color, renderCommands );
 
     // Down
     p1 = p - vR - vF - vU;
     p2 = p - vR + vF - vU;
     p3 = p + vR + vF - vU;
     p4 = p + vR - vF - vU;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p1, p2, p3, p4, color, renderCommands );
 
     // Front
     p1 = p - vR - vF + vU;
     p2 = p - vR - vF - vU;
     p3 = p + vR - vF - vU;
     p4 = p + vR - vF + vU;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p1, p2, p3, p4, color, renderCommands );
 
     // Back
     p1 = p + vR + vF + vU;
     p2 = p + vR + vF - vU;
     p3 = p - vR + vF - vU;
     p4 = p - vR + vF + vU;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p1, p2, p3, p4, color, renderCommands );
 
     // Left
     p1 = p - vR + vF + vU;
     p2 = p - vR + vF - vU;
     p3 = p - vR - vF - vU;
     p4 = p - vR - vF + vU;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p1, p2, p3, p4, color, renderCommands );
 
     // Right
     p1 = p + vR - vF + vU;
     p2 = p + vR - vF - vU;
     p3 = p + vR + vF - vU;
     p4 = p + vR + vF + vU;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p1, p2, p3, p4, color, renderCommands );
 }
 
 void
@@ -351,13 +354,13 @@ RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* rende
     r32 yEnd = areaHalf;
     for( float x = -areaHalf; x <= areaHalf; x += resolutionMeters )
     {
-        PushLine( V3( x, yStart, 0 ) + off, V3( x, yEnd, 0 ) + off, semiBlack, renderCommands );
+        RenderLine( V3( x, yStart, 0 ) + off, V3( x, yEnd, 0 ) + off, semiBlack, renderCommands );
     }
     r32 xStart = -areaHalf;
     r32 xEnd = areaHalf;
     for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
     {
-        PushLine( V3( xStart, y, 0 ) + off, V3( xEnd, y, 0 ) + off, semiBlack, renderCommands );
+        RenderLine( V3( xStart, y, 0 ) + off, V3( xEnd, y, 0 ) + off, semiBlack, renderCommands );
     }
 }
 
@@ -376,10 +379,10 @@ RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, R
     for( r32 z = zMin; z <= zMax; z += step )
     {
         for( r32 y = yMin; y <= yMax; y += step )
-            PushLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );
+            RenderLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );
 
         for( r32 x = xMin; x <= xMax; x += step )
-            PushLine( { x, yMin, z }, { x, yMax, z }, color, renderCommands );
+            RenderLine( { x, yMin, z }, { x, yMax, z }, color, renderCommands );
     }
 
     if( drawZAxis )
@@ -387,17 +390,80 @@ RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, R
         for( r32 y = yMin; y <= yMax; y += step )
         {
             for( r32 x = xMin; x <= xMax; x += step )
-                PushLine( { x, y, zMin }, { x, y, zMax }, color, renderCommands );
+                RenderLine( { x, y, zMin }, { x, y, zMax }, color, renderCommands );
         }
     }
 }
 
-void
-RenderVoxelGrid( const VoxelGrid& grid, r32 voxelSizeMeters, u32 color, RenderCommands* renderCommands )
+inline void PushInstanceData( InstanceData const& data, RenderCommands* renderCommands )
 {
+    ASSERT( renderCommands->instanceBuffer.size + sizeof(InstanceData) <= renderCommands->instanceBuffer.maxSize );
+
+    InstanceData* dst = (InstanceData*)(renderCommands->instanceBuffer.base + renderCommands->instanceBuffer.size);
+    *dst = data;
+
+    renderCommands->instanceBuffer.size += sizeof(InstanceData); 
+}
+
+void
+RenderVoxelGrid( ClusterVoxelLayer const* grid, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands )
+{
+    TIMED_BLOCK;
+
+    RenderSetShader( ShaderProgramName::PlainColorVoxel, renderCommands );
+
+    RenderEntryVoxelGrid* entry = PUSH_RENDER_ELEMENT( renderCommands, RenderEntryVoxelGrid );
+    if( entry )
+    {
+        entry->vertexBufferOffset = renderCommands->vertexBuffer.count;
+        entry->instanceBufferOffset = renderCommands->instanceBuffer.size;
+
+        // Common instance data
+        aabb box = AABB( V3Zero, VoxelSizeMeters );
+
+        // TODO Only send the lines actually visible from the current lookAt vector of the camera (as a strip if possible!)
+#define PUSH_LINE( p1, p2 )                                \
+        PushVertex( p1, color, { 0, 0 }, renderCommands ); \
+        PushVertex( p2, color, { 0, 0 }, renderCommands ); \
+
+        PUSH_LINE( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMin ) );
+        PUSH_LINE( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMin ) );
+        PUSH_LINE( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMax, box.zMin ) );
+        PUSH_LINE( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMax, box.zMin ) );
+
+        PUSH_LINE( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMin, box.zMax ) );
+        PUSH_LINE( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMax ) );
+        PUSH_LINE( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMin, box.yMax, box.zMax ) );
+        PUSH_LINE( V3( box.xMax, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMax ) );
+
+        PUSH_LINE( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMax, box.yMin, box.zMax ) );
+        PUSH_LINE( V3( box.xMin, box.yMax, box.zMax ), V3( box.xMax, box.yMax, box.zMax ) );
+        PUSH_LINE( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMin, box.yMax, box.zMax ) );
+        PUSH_LINE( V3( box.xMax, box.yMin, box.zMax ), V3( box.xMax, box.yMax, box.zMax ) );
+#undef PUSH_LINE
+
+
+        InstanceData data = {};
+        u32 instanceCount = 0;
+
+        for( int i = 0; i <= VoxelsPerClusterAxis; ++i )
+            for( int j = 0; j <= VoxelsPerClusterAxis; ++j )
+                for( int k = 0; k <= VoxelsPerClusterAxis; ++k )
+                {
+                    if( grid[i][j][k] == 2 )
+                    {
+                        data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k );
+                        PushInstanceData( data, renderCommands );
+
+                        instanceCount++;
+                    }
+                }
+
+        entry->instanceCount = instanceCount;
+    }
+
     // https://0fps.net/2012/06/30/meshing-in-a-minecraft-game/
     // https://stackoverflow.com/questions/22948068/opengl-rendering-lots-of-cubes
     // http://jojendersie.de/rendering-huge-amounts-of-voxels/
-
 
 }

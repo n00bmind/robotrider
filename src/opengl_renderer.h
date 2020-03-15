@@ -92,6 +92,7 @@ struct OpenGLState
 {
     GLuint vertexBuffer;
     GLuint indexBuffer;
+    GLuint instanceBuffer;
     m4 currentProjectViewM;
 
     OpenGLImGuiState imGui;
@@ -106,6 +107,7 @@ struct OpenGLState
 
 // Pointers to extension functions setup natively by the platform
 // TODO Is this really cross-platform?
+// TODO Consider glew?
 PFNGLGETSTRINGIPROC	                    glGetStringi;
 PFNGLGENBUFFERSPROC	                    glGenBuffers;
 PFNGLBINDBUFFERPROC	                    glBindBuffer;
@@ -142,6 +144,8 @@ PFNGLGENQUERIESPROC                     glGenQueries;
 PFNGLBEGINQUERYPROC                     glBeginQuery;
 PFNGLENDQUERYPROC                       glEndQuery;
 PFNGLGETQUERYOBJECTUIVPROC              glGetQueryObjectuiv;
+PFNGLVERTEXATTRIBDIVISORARBPROC         glVertexAttribDivisor;
+PFNGLDRAWARRAYSINSTANCEDPROC            glDrawArraysInstanced;
 
 
 #endif /* __OPENGL_RENDERER_H__ */

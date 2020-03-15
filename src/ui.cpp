@@ -83,7 +83,7 @@ DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, r32 xLen, const v3&
     v3 p2 = origin + xAxis * xLen + yAxis * 0.f;
     v3 p3 = origin + xAxis * xLen + yAxis * yLen;
     v3 p4 = origin + xAxis * 0.f  + yAxis * yLen;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p1, p2, p3, p4, color, renderCommands );
 }
 
 void

@@ -33,6 +33,14 @@ OpenGLShaderProgram globalShaderPrograms[] =
         { "mTransform" },
     },
     {
+        ShaderProgramName::PlainColorVoxel,
+        "default_instanced.vs.glsl",
+        nullptr,
+        "plain_color.fs.glsl",
+        { "inPosition", "inTexCoords", "inColor", "inInstanceOffset" },
+        { "mTransform" },
+    },
+    {
         ShaderProgramName::FlatShading,
         "default.vs.glsl",
         "face_normal.gs.glsl",
@@ -341,6 +349,8 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     glBindBuffer( GL_ARRAY_BUFFER, gl.vertexBuffer );
     glGenBuffers( 1, &gl.indexBuffer );
     glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, gl.indexBuffer );
+    glGenBuffers( 1, &gl.instanceBuffer );
+    //glBindBuffer( GL_ARRAY_BUFFER, gl.instanceBuffer );
 
     // Compile all program definitions
     for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
@@ -732,6 +742,7 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
 
             // Material *matPtr = entry->materialArray;
 
+            // mTransform
             glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, gl->currentProjectViewM.e[0] );
 
             GLuint pAttribId = 0;
@@ -742,8 +753,11 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
             glEnableVertexAttribArray( uvAttribId );
             glEnableVertexAttribArray( cAttribId );
 
+            // inPosition
             glVertexAttribPointer( pAttribId, 3, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, p) );
+            // inTexCoords
             glVertexAttribPointer( uvAttribId, 2, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, uv) );
+            // inColor
             // NOTE glVertexAttribPointer cannot be used with integral data. Beware the I!!!
             glVertexAttribIPointer( cAttribId, 1, GL_UNSIGNED_INT, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color) );
 
@@ -776,16 +790,16 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
     gl->currentProjectViewM = projectViewM;
 
 #if !RELEASE
-    DebugState* debugState = (DebugState*)gameMemory->debugStorage;
-    debugState->totalDrawCalls = 0;
-    debugState->totalPrimitiveCount = 0;
-    debugState->totalVertexCount = 0;
-
     if( gl->queryObjectId == 0 )
         glGenQueries( 1, &gl->queryObjectId );
 
+    // Ask the GPU how many extra primitives were generated in shaders
     glBeginQuery( GL_PRIMITIVES_GENERATED, gl->queryObjectId );
 #endif
+
+    u32 totalDrawCalls = 0;
+    u32 totalPrimitiveCount = 0;
+    u32 totalVertexCount = 0;
 
     const RenderBuffer &buffer = commands.renderBuffer;
     for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
@@ -828,11 +842,10 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                               GL_STREAM_DRAW );
 
                 glDrawElements( GL_TRIANGLES, entry->indexCount, GL_UNSIGNED_INT, (void *)0 );
-#if !RELEASE
-                debugState->totalDrawCalls++;
-                debugState->totalVertexCount += entry->vertexCount;
-                debugState->totalPrimitiveCount += (entry->indexCount / 3);
-#endif
+
+                totalDrawCalls++;
+                totalVertexCount += entry->vertexCount;
+                totalPrimitiveCount += (entry->indexCount / 3);
             } break;
 
             case RenderEntryType::RenderEntryLines:
@@ -847,10 +860,9 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
 
                 glDrawArrays( GL_LINES, 0, entry->lineCount * 2 );
 
-#if !RELEASE
-                debugState->totalDrawCalls++;
-                debugState->totalPrimitiveCount += entry->lineCount;
-#endif
+                totalDrawCalls++;
+                totalVertexCount += entry->lineCount * 2;
+                totalPrimitiveCount += entry->lineCount;
             } break;
 
             case RenderEntryType::RenderEntryProgramChange:
@@ -881,6 +893,37 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                 //}
             } break;
 
+            case RenderEntryType::RenderEntryVoxelGrid:
+            {
+                RenderEntryVoxelGrid* entry = (RenderEntryVoxelGrid*)entryHeader;
+
+                const u32 lineCount = 12;
+                const GLuint countBytes = lineCount * 2 * sizeof(TexturedVertex);
+
+                // TODO Should be part of the shader setup
+                glBindBuffer( GL_ARRAY_BUFFER, gl->instanceBuffer );
+                glBufferData( GL_ARRAY_BUFFER, sizeof(InstanceData) * entry->instanceCount,
+                              commands.instanceBuffer.base + entry->instanceBufferOffset, GL_STATIC_DRAW );
+                const GLuint offAttribId = 3;
+                glEnableVertexAttribArray( offAttribId );
+                // inInstanceOffset
+                glVertexAttribPointer( offAttribId, 3, GL_FLOAT, false, sizeof(InstanceData), (void *)OFFSETOF(InstanceData, worldOffset) );
+                // Update per instance
+                glVertexAttribDivisor( offAttribId, 1 );
+
+
+                glBindBuffer( GL_ARRAY_BUFFER, gl->vertexBuffer );
+                glBufferData( GL_ARRAY_BUFFER,
+                              countBytes,
+                              commands.vertexBuffer.base + entry->vertexBufferOffset,
+                              GL_STATIC_DRAW );
+                glDrawArraysInstanced( GL_LINES, 0, lineCount * 2, entry->instanceCount );
+
+                totalDrawCalls++;
+                totalVertexCount += lineCount * 2;
+                totalPrimitiveCount += lineCount;
+            } break;
+
             default:
             {
                 LOG( "ERROR :: Unsupported RenderEntry type [%d]", entryHeader->type );
@@ -897,6 +940,11 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
 
 #if !RELEASE
     glEndQuery( GL_PRIMITIVES_GENERATED );
+
+    DebugState* debugState = (DebugState*)gameMemory->debugStorage;
+    debugState->totalDrawCalls = totalDrawCalls;
+    debugState->totalPrimitiveCount = totalPrimitiveCount;
+    debugState->totalVertexCount = totalVertexCount;
 
     // Ask for query object result asynchronously, otherwise we would stall the GPU until results are available
     u32 queryResult = 0;

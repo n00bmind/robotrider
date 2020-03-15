@@ -40,6 +40,16 @@ AUDIO
   https://msdn.microsoft.com/en-us/library/windows/desktop/dd370844(v=vs.85).aspx
   https://github.com/pauldotknopf/WindowsSDK7-Samples/blob/master/multimedia/audio/RenderExclusiveEventDriven/WASAPIRenderer.cpp
 
+ASSETS
+- Add a global Handle concept.
+  A Handle is about locating resources at runtime, hence it's a glorified pointer. For a 64-bit Handle this could be something like:
+  · 8 bit for the system allocator where the resource was allocated
+  · 8 bit for various flags
+  · 16 bit for a generation number
+  · 32 bit for the allocator-dependent "index"
+  This is of course only valid at runtime.
+  For persistence, we could have a 2-way association between asset ids and Handles. We could simply exchange asset ids for allocator index when going to/coming from disk.
+
 ENGINE
 - Add a separate arena per thread so we don't have to keep thinking where to put per-thread work memory
 - Separate physics & input thread running at a high framerate
@@ -53,7 +63,7 @@ DEBUGGING
 - Profiler
 - Live editable 'switches' data file (reloadable asset) that can overwrite generic game & platform variables
 - Command completion & history navigation in the console
-- Really dump game state to disk (asynchronously) and study how hard it would be to make it loadable across evolving game state revisions
+- Really dump game state to disk (asynchronously) and study how hard it would be to make it loadable across evolving game state revisions (this would need a proper serialization system)
 - Add a command line switch & ingame command to load a recorded input block from disk
 - Simple static analysis:
   - Detect usage of 'internal' functions outside of the file where they're defined (in case we wanna ever have non-Unity builds)

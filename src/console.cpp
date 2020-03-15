@@ -188,7 +188,9 @@ DrawConsole( GameConsole *console, u16 screenWidth, u16 screenHeight, const char
     ImGui::Separator();
 
     // Input
-    if( ImGui::InputText( "input_console", console->inputBuffer, ARRAYCOUNT(console->inputBuffer),
+    ImGui::PushItemWidth( ImGui::GetWindowWidth() ); ImGui::AlignTextToFramePadding(); ImGui::Text( "::" );
+    ImGui::SameLine();
+    if( ImGui::InputText( "##input_console", console->inputBuffer, ARRAYCOUNT(console->inputBuffer),
                           ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory,
                           &ConsoleInputCallback, console ) )
     {
