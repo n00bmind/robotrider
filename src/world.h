@@ -106,7 +106,7 @@ struct Cluster
     BucketArray<StoredEntity> entityStorage;
 
     // @Remove Just for visualization
-    Array<Volume> volumes;
+    Array<BinaryVolume> volumes;
     ClusterVoxelLayer* voxelGrid;
 };
 

@@ -85,6 +85,7 @@ Radians( r32 degrees )
 // https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/monte-carlo-methods-in-practice/generating-random-numbers
 // http://www.pcg-random.org/
 // Also, we should probably distinguish between "fast & repeatable" (for PCG) and "good distribution" (for other stuff) random numbers
+// FIXME All random functions should have the seed passed in, or even better, a Distribution which already was created using one.
 
 inline void
 RandomSeed()
@@ -95,7 +96,7 @@ RandomSeed()
 inline r32
 RandomNormalizedR32()
 {
-    r32 result = (r32)rand() / ((r32)RAND_MAX + 1.f);
+    r32 result = (r32)rand() / (r32)RAND_MAX;
     return result;
 }
 
@@ -109,7 +110,7 @@ RandomBinormalizedR32()
 inline r64
 RandomNormalizedR64()
 {
-    r64 result = (r64)rand() / ((r64)RAND_MAX + 1.);
+    r64 result = (r64)rand() / (r64)RAND_MAX;
     return result;
 }
 
@@ -148,20 +149,25 @@ RandomI64()
 inline i32
 RandomRangeI32( i32 min, i32 max )
 {
-    i32 result = min + rand() / (RAND_MAX / (max - min + 1) + 1);
+    ASSERT( min < max );
+    r32 t = RandomNormalizedR32();
+    i32 result = (i32)(min + t * (max - min));
     return result;
 }
 
 inline u32
 RandomRangeU32( u32 min, u32 max )
 {
-    u32 result = min + rand() / (RAND_MAX / max + 1);
+    ASSERT( min < max );
+    r32 t = RandomNormalizedR32();
+    u32 result = (u32)(min + t * (max - min));
     return result;
 }
 
 inline r32
 RandomRangeR32( r32 min, r32 max )
 {
+    ASSERT( min < max );
     r32 t = RandomNormalizedR32();
     r32 result = min + t * (max - min);
     return result;
@@ -170,6 +176,7 @@ RandomRangeR32( r32 min, r32 max )
 inline r64
 RandomRangeR64( r64 min, r64 max )
 {
+    ASSERT( min < max );
     r64 t = RandomNormalizedR64();
     r64 result = min + t * (max - min);
     return result;

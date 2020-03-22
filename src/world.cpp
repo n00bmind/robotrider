@@ -104,153 +104,143 @@ AddEntityToCluster( Cluster* cluster, const v3i& clusterP, const v3& entityRelat
     newEntity->generator = { generatorFunc, generatorData };
 }
 
+bool SplitVolume( BinaryVolume* v, Array<BinaryVolume>* volumes, const u32 minVolumeSize )
+{
+    if( v->leftChild || v->rightChild )
+        return false;
+
+    v3u dims = v->sizeVoxels;
+
+    // Determine axis of split
+    // Split by the dimension which is >25% larger than the others, otherwise split randomly
+    u32 maxDimIndex = 0;
+    for( u32 d = 1; d < 3; ++d )
+    {
+        if( dims.e[d] > dims.e[maxDimIndex] )
+            maxDimIndex = d;
+    }
+
+    u32 remainingDimCount = 3;
+    for( u32 d = 0; d < 3; ++d )
+    {
+        if( (r32)dims.e[maxDimIndex] / dims.e[d] > 1.25f )
+        {
+            dims.e[d] = 0;
+            remainingDimCount--;
+        }
+    }
+
+    u32 splitDimIndex = 0;
+    if( remainingDimCount == 1 )
+        splitDimIndex = maxDimIndex;
+    else
+    {
+        // FIXME Random functions should have the seed always passed in!
+        splitDimIndex = RandomRangeU32( 0, remainingDimCount - 1 );
+        if( dims.e[splitDimIndex] == 0.f )
+            splitDimIndex++;
+    }
+
+    ASSERT( splitDimIndex < 3 && dims.e[splitDimIndex] > 0.f );
+
+    bool result = false;
+    u32 splitSizeMax = dims.e[splitDimIndex] - minVolumeSize;
+    if( splitSizeMax > minVolumeSize )
+    {
+        u32 splitSize = RandomRangeU32( minVolumeSize, splitSizeMax );
+
+        BinaryVolume* left = volumes->PushEmpty();
+        left->voxelP = v->voxelP;
+        left->sizeVoxels = v->sizeVoxels;
+        BinaryVolume* right = volumes->PushEmpty();
+        right->voxelP = v->voxelP;
+        right->sizeVoxels = v->sizeVoxels;
+
+        switch( splitDimIndex )
+        {
+            case 0:   // X
+            {
+                left->sizeVoxels.x = splitSize;
+                right->voxelP.x += splitSize;
+                right->sizeVoxels.x -= splitSize;
+            } break;
+            case 1:   // Y
+            {
+                left->sizeVoxels.y = splitSize;
+                right->voxelP.y += splitSize;
+                right->sizeVoxels.y -= splitSize;
+            } break;
+            case 2:   // Z
+            {
+                left->sizeVoxels.z = splitSize;
+                right->voxelP.z += splitSize;
+                right->sizeVoxels.z -= splitSize;
+            } break;
+            INVALID_DEFAULT_CASE
+        }
+
+        v->leftChild = left;
+        v->rightChild = right;
+        result = true;
+    }
+
+    return result;
+}
+
 internal void
 CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, MemoryArena* arena )
 {
-#if 0
-    const r32 margin = 3.f;
-    const r32 step = 50.f;
-
-    // Place an entity every few meters, leaving some margin
-    r32 clusterHalfSize = ClusterSizeMeters  / 2.f;
-    for( r32 x = -clusterHalfSize + margin; x <= clusterHalfSize - margin; x += step )
-    {
-        for( r32 y = -clusterHalfSize + margin; y <= clusterHalfSize - margin; y += step )
-        {
-            for( r32 z = -clusterHalfSize + margin; z <= clusterHalfSize - margin; z += step )
-            {
-                StoredEntity newEntity =
-                {
-                    { clusterP, V3( x, y, z ) },
-                    // TODO Think of how to assign specific generators to the created entities
-                    &meshGenerators[0],
-                };
-                cluster->entityStorage.Add( newEntity );
-            }
-        }
-    }
-#endif
-
     // Partition cluster space
     // NOTE This will be transient but we'll keep it for now for debugging
     //TemporaryMemory tmpMemory = BeginTemporaryMemory( arena );
 
-    v2i clusterSpan = { 0, VoxelsPerClusterAxis };
-    aabbi rootBounds = AABBi( clusterSpan, clusterSpan, clusterSpan );
-    // TODO Something's busted here as this is NOT inclusive, check whether the children really are??
-    Volume rootVolume = { rootBounds };
+    BinaryVolume rootVolume = {};
+    rootVolume.voxelP = V3uZero;
+    rootVolume.sizeVoxels = V3u( VoxelsPerClusterAxis );
 
-    SectorParams params = CollectSectorParams( clusterP );
-    i32 minVolumeSize = (i32)(params.minVolumeRatio * (r32)VoxelsPerClusterAxis);
-    i32 maxVolumeSize = (i32)(params.maxVolumeRatio * (r32)VoxelsPerClusterAxis);
+    SectorParams genParams = CollectSectorParams( clusterP );
+    const u32 minVolumeSize = (u32)(genParams.minVolumeRatio * (r32)VoxelsPerClusterAxis);
+    const u32 maxVolumeSize = (u32)(genParams.maxVolumeRatio * (r32)VoxelsPerClusterAxis);
 
-    // TODO Calc an upper bound given cluster size and minimal volume size
-    u32 maxSplits = 4096;
-    //Array<Volume> volumes = Array<Volume>( arena, 0, maxSplits );
-    cluster->volumes = Array<Volume>( arena, 0, maxSplits );
-    Array<Volume>& volumes = cluster->volumes;
+    // TODO Calc an upper bound given cluster size and minimum volume size
+    const u32 maxSplits = 4096;
+    //Array<BinaryVolume> volumes = Array<BinaryVolume>( arena, 0, maxSplits );
+    cluster->volumes = Array<BinaryVolume>( arena, 0, maxSplits );
+    Array<BinaryVolume>& volumes = cluster->volumes;
 
     volumes.Push( rootVolume );
-    bool didSplit = true;
 
-    while( didSplit )
+
+    bool didSplit = true;
+    //while( didSplit )
     {
         didSplit = false;
+        // Iterate as we add more stuff
         for( u32 i = 0; i < volumes.count; ++i )
         {
-            Volume& v = volumes[i];
+            BinaryVolume& v = volumes[i];
 
             if( v.leftChild == nullptr && v.rightChild == nullptr )
-			{
-                v3i boundsDim;
-                XYZSize( v.bounds, &boundsDim.x, &boundsDim.y, &boundsDim.z );
-
+            {
                 // If this volume is too big, or a certain chance...
-                if( boundsDim.x > maxVolumeSize ||
-                    boundsDim.y > maxVolumeSize ||
-                    boundsDim.z > maxVolumeSize ||
-                    RandomNormalizedR32() > params.volumeExtraPartitioningProbability )
+                if( v.sizeVoxels.x > maxVolumeSize ||
+                    v.sizeVoxels.y > maxVolumeSize ||
+                    v.sizeVoxels.z > maxVolumeSize ||
+                    RandomNormalizedR32() > genParams.volumeExtraPartitioningProbability )
                 {
-                    u32 splitDimIndex = 0;
-
-                    // Split by the dimension which is >25% larger than the others, otherwise split randomly
-                    u32 maxSizeIndex = 0;
-                    u32 remainingDimCount = 3;
-
-                    for( u32 d = 0; d < 3; ++d )
-                    {
-                        if( boundsDim.e[d] > boundsDim.e[maxSizeIndex] )
-                        {
-                            maxSizeIndex = d;
-                        }
-                    }
-
-                    for( u32 d = 0; d < 3; ++d )
-                    {
-                        if( boundsDim.e[d] < boundsDim.e[maxSizeIndex] * 0.75f )
-                        {
-                            boundsDim.e[d] = 0;
-                            remainingDimCount--;
-                        }
-                    }
-
-                    ASSERT( remainingDimCount );
-                    if( remainingDimCount == 1 )
-                        splitDimIndex = maxSizeIndex;
-                    else
-                    {
-                        splitDimIndex = RandomRangeU32( 0, remainingDimCount - 1 );
-                        if( boundsDim.e[splitDimIndex] == 0.f )
-                            splitDimIndex++;
-                    }
-
-                    ASSERT( splitDimIndex < 3 && boundsDim.e[splitDimIndex] > 0.f );
-
-                    // TODO Really start considering ditching unsigneds!!
-                    i32 splitSizeMax = boundsDim.e[splitDimIndex] - minVolumeSize;
-                    if( splitSizeMax > minVolumeSize )
-                    {
-                        i32 splitSize = RandomRangeI32( minVolumeSize, splitSizeMax );
-                        // TODO Really start considering ditching unsigneds!!
-                        i32 splitSizeI32 = (i32)splitSize;
-                        aabbi left = v.bounds, right = v.bounds;
-
-                        switch( splitDimIndex )
-                        {
-                            case 0:   // X
-                            {
-                                left.xSpan = { v.bounds.xMin, v.bounds.xMin + splitSizeI32 };
-                                right.xSpan = { v.bounds.xMin + splitSizeI32 + 1, v.bounds.xMax };
-                            } break;
-                            case 1:   // Y
-                            {
-                                left.ySpan = { v.bounds.yMin, v.bounds.yMin + splitSizeI32 };
-                                right.ySpan = { v.bounds.yMin + splitSizeI32 + 1, v.bounds.yMax };
-                            } break;
-                            case 2:   // Z
-                            {
-                                left.zSpan = { v.bounds.zMin, v.bounds.zMin + splitSizeI32 };
-                                right.zSpan = { v.bounds.zMin + splitSizeI32 + 1, v.bounds.zMax };
-                            } break;
-                            INVALID_DEFAULT_CASE
-                        }
-
-                        v.leftChild = volumes.PushEmpty();
-                        *v.leftChild = { left };
-
-                        v.rightChild = volumes.PushEmpty();
-                        *v.rightChild = { right };
-
+                    if( SplitVolume( &v, &volumes, minVolumeSize ) )
                         didSplit = true;
-                    }
                 }
             }
         }
     }
 
-    // TODO Make it sparse!
+    u32 totalVolumes = volumes.count;
+
+    // TODO Make it sparse! (octree)
     cluster->voxelGrid = (ClusterVoxelLayer*)PUSH_ARRAY( arena, u8, VoxelsPerClusterAxis * VoxelsPerClusterAxis * VoxelsPerClusterAxis );
 
+#if 0
     // Create a room in each volume
     for( u32 idx = 0; idx < volumes.count; ++idx )
     {
@@ -292,7 +282,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
                     }
         }
     }
-
+#endif
     // TODO Defer
     //EndTemporaryMemory( tmpMemory );
 }
@@ -761,11 +751,11 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         // Volume bounds are in voxel units
         for( u32 i = 0; i < currentCluster->volumes.count; ++i )
         {
-            Volume& v = currentCluster->volumes[i];
+            BinaryVolume& v = currentCluster->volumes[i];
             if( v.leftChild == nullptr && v.rightChild == nullptr )
             {
-                v3 minBounds = { (r32)v.bounds.xMin, (r32)v.bounds.yMin, (r32)v.bounds.zMin };
-                v3 maxBounds = { (r32)v.bounds.xMax, (r32)v.bounds.yMax, (r32)v.bounds.zMax };
+                v3 minBounds = V3( v.voxelP );
+                v3 maxBounds = V3( v.voxelP + v.sizeVoxels );
                 aabb worldBounds =
                 {
                     { minBounds * VoxelSizeMeters - V3( clusterHalfSize ) },

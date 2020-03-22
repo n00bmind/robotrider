@@ -262,6 +262,8 @@ union v3u
     u32 e[3];
 };
 
+const v3u V3uZero = { 0, 0, 0 };
+
 inline v3u
 V3u( u32 x, u32 y, u32 z )
 {
@@ -380,6 +382,13 @@ V3( const v2 &v, r32 z )
 
 inline v3
 V3( const v3i& v )
+{
+    v3 result = { (r32)v.x, (r32)v.y, (r32)v.z };
+    return result;
+}
+
+inline v3
+V3( const v3u& v )
 {
     v3 result = { (r32)v.x, (r32)v.y, (r32)v.z };
     return result;
@@ -1585,66 +1594,6 @@ Center( const aabb& b )
     v3 result = b.min + (b.max - b.min) * 0.5f;
     return result;
 }
-
-// AABBi
-// TODO  REMOVE
-struct aabbi
-{
-    //v3i min;
-    //v3i max;
-
-    union
-    {
-        struct
-        {
-            union
-            {
-                struct
-                {
-                    i32 xMin, xMax;
-                };
-                v2i xSpan;
-            };
-            union
-            {
-                struct
-                {
-                    i32 yMin, yMax;
-                };
-                v2i ySpan;
-            };
-            union
-            {
-                struct
-                {
-                    i32 zMin, zMax;
-                };
-                v2i zSpan;
-            };
-        };
-        v2i dim[3];
-    };
-};
-
-#if 1
-inline aabbi
-AABBi( const v2i& xSpan, const v2i& ySpan, const v2i zSpan )
-{
-    aabbi result;
-    result.xSpan = xSpan;
-    result.ySpan = ySpan;
-    result.zSpan = zSpan;
-    return result;
-}
-
-inline void
-XYZSize( const aabbi& b, i32* xSize, i32* ySize, i32* zSize )
-{
-    *xSize = b.xMax - b.xMin;
-    *ySize = b.yMax - b.yMin;
-    *zSize = b.zMax - b.zMin;
-}
-#endif
 
 // Ray
 

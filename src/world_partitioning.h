@@ -20,7 +20,8 @@ struct SectorParams
 SectorParams
 CollectSectorParams( const v3i& clusterCoords )
 {
-    // TODO Just return some test values for now
+    // TODO Retrieve the generation params for the cluster according to our future sector hierarchy
+    // Just return some test values for now
     SectorParams result = {};
     result.minVolumeRatio = 0.2f;
     result.maxVolumeRatio = 0.5f;
@@ -37,13 +38,20 @@ CollectSectorParams( const v3i& clusterCoords )
 }
 
 
-typedef struct Volume* VolumePtr;
-
-struct Volume
+struct Room
 {
-    aabbi bounds;                       // Inclusive
-    VolumePtr leftChild;
-    VolumePtr rightChild;
+    v3i voxelP;
+    v3i sizeVoxels;
+};
+
+struct BinaryVolume
+{
+    struct BinaryVolume* leftChild;
+    struct BinaryVolume* rightChild;
+    Room* room;
+
+    v3u voxelP;
+    v3u sizeVoxels;
 };
 
 #endif /* __WORLD_PARTITIONING_H__ */
