@@ -111,34 +111,29 @@ Init( Mesh* mesh )
 inline void
 CalcBounds( Mesh* mesh )
 {
-    aabb boundingBox =
-    {
-        R32INF, -R32INF,
-        R32INF, -R32INF,
-        R32INF, -R32INF,
-    };
+    aabb result = { V3Inf, -V3Inf };
 
     for( u32 i = 0; i < mesh->vertexCount; ++i )
     {
         v3& p = mesh->vertices[i].p;
 
-        if( boundingBox.xMin > p.x )
-            boundingBox.xMin = p.x;
-        if( boundingBox.xMax < p.x )
-            boundingBox.xMax = p.x;
+        if( result.min.x > p.x )
+            result.min.x = p.x;
+        if( result.max.x < p.x )
+            result.max.x = p.x;
 
-        if( boundingBox.yMin > p.y )
-            boundingBox.yMin = p.y;
-        if( boundingBox.yMax < p.y )
-            boundingBox.yMax = p.y;
+        if( result.min.y > p.y )
+            result.min.y = p.y;
+        if( result.max.y < p.y )
+            result.max.y = p.y;
 
-        if( boundingBox.zMin > p.z )
-            boundingBox.zMin = p.z;
-        if( boundingBox.zMax < p.z )
-            boundingBox.zMax = p.z;
+        if( result.min.z > p.z )
+            result.min.z = p.z;
+        if( result.max.z < p.z )
+            result.max.z = p.z;
     }
 
-    mesh->bounds = boundingBox;
+    mesh->bounds = result;
 }
 
 

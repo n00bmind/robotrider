@@ -865,20 +865,12 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displa
                          const TemporaryMemory& tmpMemory, RenderCommands* renderCommands )
 {
     // Make bounds same length on all axes
-    r32 xDim = sourceMesh.bounds.xMax - sourceMesh.bounds.xMin;
-    r32 yDim = sourceMesh.bounds.yMax - sourceMesh.bounds.yMin;
-    r32 zDim = sourceMesh.bounds.zMax - sourceMesh.bounds.zMin;
+    v3 centerP = Center( sourceMesh.bounds );
+    v3 extents = Extents( sourceMesh.bounds );
+    r32 dim = Max( extents.x, Max( extents.y, extents.z ) );
 
-    v3 pCenter = { sourceMesh.bounds.xMin + xDim / 2, sourceMesh.bounds.yMin + yDim / 2, sourceMesh.bounds.zMin + zDim / 2 };
-    r32 dim = Max( xDim, Max( yDim, zDim ) );
-
-    aabb box =
-    {
-        pCenter.x - dim / 2, pCenter.x + dim / 2,
-        pCenter.y - dim / 2, pCenter.y + dim / 2,
-        pCenter.z - dim / 2, pCenter.z + dim / 2,
-    };
-    v3 pGridOrigin = { box.xMin, box.yMin, box.zMin };
+    aabb box = AABB( centerP, dim );
+    v3 const &gridOriginP = box.min;
 
     u32 cellsPerAxis = cacheBuffers->cellsPerAxis;
     u32 gridLinesPerAxis = cellsPerAxis + 1;
@@ -905,13 +897,19 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displa
         TexturedVertex& v2 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
         tri t = { v0.p, v1.p, v2.p };
 
-        aabb triBounds;
-        triBounds.xMin = Min( v0.p.x, Min( v1.p.x, v2.p.x ) );
-        triBounds.xMax = Max( v0.p.x, Max( v1.p.x, v2.p.x ) );
-        triBounds.yMin = Min( v0.p.y, Min( v1.p.y, v2.p.y ) );
-        triBounds.yMax = Max( v0.p.y, Max( v1.p.y, v2.p.y ) );
-        triBounds.zMin = Min( v0.p.z, Min( v1.p.z, v2.p.z ) );
-        triBounds.zMax = Max( v0.p.z, Max( v1.p.z, v2.p.z ) );
+        aabb triBounds =
+        {
+            {
+                Min( v0.p.x, Min( v1.p.x, v2.p.x ) ),
+                Min( v0.p.y, Min( v1.p.y, v2.p.y ) ),
+                Min( v0.p.z, Min( v1.p.z, v2.p.z ) ),
+            },
+            {
+                Max( v0.p.x, Max( v1.p.x, v2.p.x ) ),
+                Max( v0.p.y, Max( v1.p.y, v2.p.y ) ),
+                Max( v0.p.z, Max( v1.p.z, v2.p.z ) ),
+            }
+        };
 
         // Test each tri for intersection against all marching grid rays (early out using bounds first)
         // (this could be accelerated easily by using a binary search on grid coords)
@@ -919,21 +917,21 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displa
         // Y rays
         for( u32 x = 0; x < gridLinesPerAxis; ++x )
         {
-            r32 xGrid = box.xMin + x * step;
+            r32 xGrid = box.min.x + x * step;
 
-            if( triBounds.xMax < xGrid )
+            if( triBounds.max.x < xGrid )
                 break;
-            if( xGrid >= triBounds.xMin )
+            if( xGrid >= triBounds.min.x )
             {
                 for( u32 z = 0; z < gridLinesPerAxis; ++z )
                 {
-                    r32 zGrid = box.zMin + z * step;
+                    r32 zGrid = box.min.z + z * step;
 
-                    if( triBounds.zMax < zGrid )
+                    if( triBounds.max.z < zGrid )
                         break;
-                    if( zGrid >= triBounds.zMin )
+                    if( zGrid >= triBounds.min.z )
                     {
-                        ray r = { { xGrid, box.yMin, zGrid }, { 0, 1, 0 } };
+                        ray r = { { xGrid, box.min.y, zGrid }, { 0, 1, 0 } };
                         v3 pI = V3Zero;
 
                         // NOTE Rays intersecting at the very edges of tris can be a problem at finer resolutions
@@ -941,7 +939,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displa
                         if( Intersects( r, t, &pI ) )
                         {
                             // Store intersection coords relative to grid
-                            r32 hitCoord = (pI - pGridOrigin).y;
+                            r32 hitCoord = (pI - gridOriginP).y;
                             gridHits.Push( { V2i( x, z ), hitCoord } );
                         }
                     }
@@ -1001,7 +999,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displa
         {
             for( u32 j = 0; j < cellsPerAxis; ++j )
             {
-                v3 p = pGridOrigin + V3i( i, j, k ) * step;
+                v3 p = gridOriginP + V3i( i, j, k ) * step;
 
 #if 1
                 if( displayedLayer == k )

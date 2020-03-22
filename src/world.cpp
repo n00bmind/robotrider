@@ -137,6 +137,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
 
     v2i clusterSpan = { 0, VoxelsPerClusterAxis };
     aabbi rootBounds = AABBi( clusterSpan, clusterSpan, clusterSpan );
+    // TODO Something's busted here as this is NOT inclusive, check whether the children really are??
     Volume rootVolume = { rootBounds };
 
     SectorParams params = CollectSectorParams( clusterP );
@@ -763,11 +764,12 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             Volume& v = currentCluster->volumes[i];
             if( v.leftChild == nullptr && v.rightChild == nullptr )
             {
+                v3 minBounds = { (r32)v.bounds.xMin, (r32)v.bounds.yMin, (r32)v.bounds.zMin };
+                v3 maxBounds = { (r32)v.bounds.xMax, (r32)v.bounds.yMax, (r32)v.bounds.zMax };
                 aabb worldBounds =
                 {
-                    v.bounds.xMin * VoxelSizeMeters - clusterHalfSize, v.bounds.xMax * VoxelSizeMeters - clusterHalfSize,
-                    v.bounds.yMin * VoxelSizeMeters - clusterHalfSize, v.bounds.yMax * VoxelSizeMeters - clusterHalfSize,
-                    v.bounds.zMin * VoxelSizeMeters - clusterHalfSize, v.bounds.zMax * VoxelSizeMeters - clusterHalfSize,
+                    { minBounds * VoxelSizeMeters - V3( clusterHalfSize ) },
+                    { maxBounds * VoxelSizeMeters - V3( clusterHalfSize ) },
                 };
                 RenderBounds( worldBounds, halfRed, renderCommands );
             }

@@ -38,19 +38,19 @@ RenderEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, Render
     {
         RenderBounds( editorEntity.mesh->bounds, editorEntity.color, renderCommands );
 
-        aabb& box = editorEntity.mesh->bounds;
-        r32 resolutionStep = (box.xMax - box.xMin) / editorEntity.cellsPerSide;
+        aabb const& box = editorEntity.mesh->bounds;
+        r32 resolutionStep = (box.max.x - box.min.x) / editorEntity.cellsPerSide;
         //RenderCubicGrid( box, resolutionStep, Pack01ToRGBA( 1, 0, 0, 0.05f ), false, renderCommands ); 
         r32 step = resolutionStep;
         u32 color = Pack01ToRGBA( 0, 0, 0, 0.3f );
-        r32 xMin = box.xMin;
-        r32 xMax = box.xMax;
-        r32 yMin = box.yMin;
-        r32 yMax = box.yMax;
+        r32 xMin = box.min.x;
+        r32 xMax = box.max.x;
+        r32 yMin = box.min.y;
+        r32 yMax = box.max.y;
         //for( u32 layer = displayedLayer; layer <= displayedLayer + 1; ++layer )
         u32 layer = displayedLayer + 1;
         {
-            r32 z = box.zMin + layer * step;
+            r32 z = box.min.z + layer * step;
 
             for( r32 y = yMin; y <= yMax; y += step )
                 RenderLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );

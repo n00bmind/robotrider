@@ -42,7 +42,8 @@ typedef struct Volume* VolumePtr;
 struct Volume
 {
     aabbi bounds;                       // Inclusive
-    VolumePtr leftChild, rightChild;
+    VolumePtr leftChild;
+    VolumePtr rightChild;
 };
 
 #endif /* __WORLD_PARTITIONING_H__ */

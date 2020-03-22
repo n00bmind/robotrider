@@ -346,6 +346,7 @@ union v3
 const v3 V3Zero = { 0.0f, 0.0f, 0.0f };
 const v3 V3One = { 1.f, 1.f, 1.f };
 const v3 V3Undefined = { R32NAN, R32NAN, R32NAN };
+const v3 V3Inf = { R32INF, R32INF, R32INF };
 // Canonical world orientations
 // We define our right-handed game world as having the positive Z axis pointing up
 // (consequently the positive Y axis points 'forward')
@@ -355,6 +356,13 @@ const v3 V3Z = { 0.0f, 0.0f, 1.0f };
 const v3 V3Right   = { 1.0f, 0.0f, 0.0f };
 const v3 V3Forward = { 0.0f, 1.0f, 0.0f };
 const v3 V3Up      = { 0.0f, 0.0f, 1.0f };
+
+inline v3
+V3( r32 s )
+{
+    v3 result = { s, s, s };
+    return result;
+}
 
 inline v3
 V3( r32 x, r32 y, r32 z )
@@ -1537,37 +1545,8 @@ Tri( const v3& v0, const v3& v1, const v3& v2, bool findNormal = false )
 
 struct aabb
 {
-    union
-    {
-        struct
-        {
-            union
-            {
-                struct
-                {
-                    r32 xMin, xMax;
-                };
-                v2 xSpan;
-            };
-            union
-            {
-                struct
-                {
-                    r32 yMin, yMax;
-                };
-                v2 ySpan;
-            };
-            union
-            {
-                struct
-                {
-                    r32 zMin, zMax;
-                };
-                v2 zSpan;
-            };
-        };
-        v2 dim[3];
-    };
+    v3 min;
+    v3 max;
 };
 
 inline aabb
@@ -1576,9 +1555,8 @@ AABB( const v3& p, r32 size )
     r32 halfSize = size * 0.5f;
     aabb result =
     {
-        p.x - halfSize, p.x + halfSize,
-        p.y - halfSize, p.y + halfSize,
-        p.z - halfSize, p.z + halfSize,
+        { p.x - halfSize, p.y - halfSize, p.z - halfSize, },
+        { p.x + halfSize, p.y + halfSize, p.z + halfSize, }
     };
     return result;
 }
@@ -1586,68 +1564,35 @@ AABB( const v3& p, r32 size )
 inline aabb
 AABB( const v3& p, const v3& dim )
 {
-    r32 halfXSize = dim.x * 0.5f;
-    r32 halfYSize = dim.y * 0.5f;
-    r32 halfZSize = dim.z * 0.5f;
+    v3 halfDim = dim * 0.5f;
     aabb result =
     {
-        p.x - halfXSize, p.x + halfXSize,
-        p.y - halfYSize, p.y + halfYSize,
-        p.z - halfZSize, p.z + halfZSize,
+        { p.x - halfDim.x, p.y - halfDim.y, p.z - halfDim.z, },
+        { p.x + halfDim.x, p.y + halfDim.y, p.z + halfDim.z, }
     };
-
     return result;
 }
 
-inline r32
-XSize( const aabb& b )
+inline v3
+Extents( aabb const& b )
 {
-    return b.xMax - b.xMin;
-}
-
-inline r32
-YSize( const aabb& b )
-{
-    return b.yMax - b.yMin;
-}
-
-inline r32
-ZSize( const aabb& b )
-{
-    return b.zMax - b.zMin;
-}
-
-inline r32
-Size( const aabb& b, u32 d )
-{
-    ASSERT( d >= 0 && d < 3 );
-    return b.dim[d].max - b.dim[d].min;
-}
-
-inline void
-XYZSize( const aabb& b, r32* xSize, r32* ySize, r32* zSize )
-{
-    *xSize = XSize( b );
-    *ySize = YSize( b );
-    *zSize = ZSize( b );
+    return b.max - b.min;
 }
 
 inline v3
 Center( const aabb& b )
 {
-    v3 result =
-    {
-        b.xMin + XSize( b ) * 0.5f,
-        b.yMin + YSize( b ) * 0.5f,
-        b.zMin + ZSize( b ) * 0.5f,
-    };
+    v3 result = b.min + (b.max - b.min) * 0.5f;
     return result;
 }
 
 // AABBi
-
+// TODO  REMOVE
 struct aabbi
 {
+    //v3i min;
+    //v3i max;
+
     union
     {
         struct
@@ -1681,6 +1626,7 @@ struct aabbi
     };
 };
 
+#if 1
 inline aabbi
 AABBi( const v2i& xSpan, const v2i& ySpan, const v2i zSpan )
 {
@@ -1698,7 +1644,7 @@ XYZSize( const aabbi& b, i32* xSize, i32* ySize, i32* zSize )
     *ySize = b.yMax - b.yMin;
     *zSize = b.zMax - b.zMin;
 }
-
+#endif
 
 // Ray
 

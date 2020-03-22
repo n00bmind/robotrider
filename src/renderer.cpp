@@ -268,20 +268,20 @@ RenderMesh( const Mesh& mesh, RenderCommands *commands )
 void
 RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
 {
-    RenderLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMin ), color, renderCommands );
-    RenderLine( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMin ), color, renderCommands );
-    RenderLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMax, box.zMin ), color, renderCommands );
-    RenderLine( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMax, box.zMin ), color, renderCommands );
+    RenderLine( V3( box.min.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.min.z ), color, renderCommands );
+    RenderLine( V3( box.min.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ), color, renderCommands );
+    RenderLine( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.max.y, box.min.z ), color, renderCommands );
+    RenderLine( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ), color, renderCommands );
 
-    RenderLine( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMin, box.zMax ), color, renderCommands );
-    RenderLine( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMax ), color, renderCommands );
-    RenderLine( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMin, box.yMax, box.zMax ), color, renderCommands );
-    RenderLine( V3( box.xMax, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
+    RenderLine( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.min.y, box.max.z ), color, renderCommands );
+    RenderLine( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.max.z ), color, renderCommands );
+    RenderLine( V3( box.min.x, box.max.y, box.min.z ), V3( box.min.x, box.max.y, box.max.z ), color, renderCommands );
+    RenderLine( V3( box.max.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.max.z ), color, renderCommands );
 
-    RenderLine( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMax, box.yMin, box.zMax ), color, renderCommands );
-    RenderLine( V3( box.xMin, box.yMax, box.zMax ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
-    RenderLine( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMin, box.yMax, box.zMax ), color, renderCommands );
-    RenderLine( V3( box.xMax, box.yMin, box.zMax ), V3( box.xMax, box.yMax, box.zMax ), color, renderCommands );
+    RenderLine( V3( box.min.x, box.min.y, box.max.z ), V3( box.max.x, box.min.y, box.max.z ), color, renderCommands );
+    RenderLine( V3( box.min.x, box.max.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ), color, renderCommands );
+    RenderLine( V3( box.min.x, box.min.y, box.max.z ), V3( box.min.x, box.max.y, box.max.z ), color, renderCommands );
+    RenderLine( V3( box.max.x, box.min.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ), color, renderCommands );
 }
 
 void
@@ -369,28 +369,24 @@ RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, R
 {
     ASSERT( step > 0.f );
 
-    r32 xMin = boundingBox.xMin;
-    r32 xMax = boundingBox.xMax;
-    r32 yMin = boundingBox.yMin;
-    r32 yMax = boundingBox.yMax;
-    r32 zMin = boundingBox.zMin;
-    r32 zMax = boundingBox.zMax;
+    v3 const& min = boundingBox.min;
+    v3 const& max = boundingBox.max;
 
-    for( r32 z = zMin; z <= zMax; z += step )
+    for( r32 z = min.z; z <= max.z; z += step )
     {
-        for( r32 y = yMin; y <= yMax; y += step )
-            RenderLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );
+        for( r32 y = min.y; y <= max.y; y += step )
+            RenderLine( { min.x, y, z }, { max.x, y, z }, color, renderCommands );
 
-        for( r32 x = xMin; x <= xMax; x += step )
-            RenderLine( { x, yMin, z }, { x, yMax, z }, color, renderCommands );
+        for( r32 x = min.x; x <= max.x; x += step )
+            RenderLine( { x, min.y, z }, { x, max.y, z }, color, renderCommands );
     }
 
     if( drawZAxis )
     {
-        for( r32 y = yMin; y <= yMax; y += step )
+        for( r32 y = min.y; y <= max.y; y += step )
         {
-            for( r32 x = xMin; x <= xMax; x += step )
-                RenderLine( { x, y, zMin }, { x, y, zMax }, color, renderCommands );
+            for( r32 x = min.x; x <= max.x; x += step )
+                RenderLine( { x, y, min.z }, { x, y, max.z }, color, renderCommands );
         }
     }
 }
@@ -426,20 +422,20 @@ RenderVoxelGrid( ClusterVoxelLayer const* grid, v3 const& clusterOffsetP, u32 co
         PushVertex( p1, color, { 0, 0 }, renderCommands ); \
         PushVertex( p2, color, { 0, 0 }, renderCommands ); \
 
-        PUSH_LINE( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMin ) );
-        PUSH_LINE( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMin ) );
-        PUSH_LINE( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMax, box.zMin ) );
-        PUSH_LINE( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMax, box.zMin ) );
+        PUSH_LINE( V3( box.min.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.min.z ) );
+        PUSH_LINE( V3( box.min.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ) );
+        PUSH_LINE( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.max.y, box.min.z ) );
+        PUSH_LINE( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ) );
 
-        PUSH_LINE( V3( box.xMin, box.yMin, box.zMin ), V3( box.xMin, box.yMin, box.zMax ) );
-        PUSH_LINE( V3( box.xMax, box.yMin, box.zMin ), V3( box.xMax, box.yMin, box.zMax ) );
-        PUSH_LINE( V3( box.xMin, box.yMax, box.zMin ), V3( box.xMin, box.yMax, box.zMax ) );
-        PUSH_LINE( V3( box.xMax, box.yMax, box.zMin ), V3( box.xMax, box.yMax, box.zMax ) );
+        PUSH_LINE( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.min.y, box.max.z ) );
+        PUSH_LINE( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.max.z ) );
+        PUSH_LINE( V3( box.min.x, box.max.y, box.min.z ), V3( box.min.x, box.max.y, box.max.z ) );
+        PUSH_LINE( V3( box.max.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.max.z ) );
 
-        PUSH_LINE( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMax, box.yMin, box.zMax ) );
-        PUSH_LINE( V3( box.xMin, box.yMax, box.zMax ), V3( box.xMax, box.yMax, box.zMax ) );
-        PUSH_LINE( V3( box.xMin, box.yMin, box.zMax ), V3( box.xMin, box.yMax, box.zMax ) );
-        PUSH_LINE( V3( box.xMax, box.yMin, box.zMax ), V3( box.xMax, box.yMax, box.zMax ) );
+        PUSH_LINE( V3( box.min.x, box.min.y, box.max.z ), V3( box.max.x, box.min.y, box.max.z ) );
+        PUSH_LINE( V3( box.min.x, box.max.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ) );
+        PUSH_LINE( V3( box.min.x, box.min.y, box.max.z ), V3( box.min.x, box.max.y, box.max.z ) );
+        PUSH_LINE( V3( box.max.x, box.min.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ) );
 #undef PUSH_LINE
 
 
