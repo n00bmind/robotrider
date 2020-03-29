@@ -188,15 +188,54 @@ bool SplitVolume( BinaryVolume* v, Array<BinaryVolume>* volumes, const u32 minVo
 }
 
 internal void
+CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster )
+{
+    if( v->leftChild || v->rightChild )
+    {
+        if( v->leftChild )
+            CreateRooms( v->leftChild, genParams, cluster );
+        if( v->rightChild )
+            CreateRooms( v->rightChild, genParams, cluster ); 
+    }
+    else
+    {
+        v3u const& vSize = v->sizeVoxels;
+
+        v3u roomSizeVoxels =
+        {
+            RandomRangeU32( (u32)(vSize.x * genParams.minRoomSizeRatio), (u32)(vSize.x * genParams.maxRoomSizeRatio) ),
+            RandomRangeU32( (u32)(vSize.y * genParams.minRoomSizeRatio), (u32)(vSize.y * genParams.maxRoomSizeRatio) ),
+            RandomRangeU32( (u32)(vSize.z * genParams.minRoomSizeRatio), (u32)(vSize.z * genParams.maxRoomSizeRatio) ),
+        };
+
+        v3u roomOffset =
+        {
+            RandomRangeU32( genParams.volumeSafeMarginSize, vSize.x - roomSizeVoxels.x - genParams.volumeSafeMarginSize ),
+            RandomRangeU32( genParams.volumeSafeMarginSize, vSize.y - roomSizeVoxels.y - genParams.volumeSafeMarginSize ),
+            RandomRangeU32( genParams.volumeSafeMarginSize, vSize.z - roomSizeVoxels.z - genParams.volumeSafeMarginSize ),
+        };
+
+        v3u roomMinP = v->voxelP + roomOffset;
+        v3u roomMaxP = roomMinP + roomSizeVoxels - V3uOne;
+
+        for( u32 i = roomMinP.x; i <= roomMaxP.x; ++i )
+            for( u32 j = roomMinP.y; j <= roomMaxP.y; ++j )
+                for( u32 k = roomMinP.z; k <= roomMaxP.z; ++k )
+                {
+                    bool atBorder = (i == roomMinP.x || i == roomMaxP.x)
+                        || (j == roomMinP.y || j == roomMaxP.y)
+                        || (k == roomMinP.z || k == roomMaxP.z);
+                    cluster->voxelGrid[i][j][k] = atBorder ? 2 : 1;
+                }
+    }
+}
+
+internal void
 CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, MemoryArena* arena )
 {
     // Partition cluster space
     // NOTE This will be transient but we'll keep it for now for debugging
     //TemporaryMemory tmpMemory = BeginTemporaryMemory( arena );
-
-    BinaryVolume rootVolume = {};
-    rootVolume.voxelP = V3uZero;
-    rootVolume.sizeVoxels = V3u( VoxelsPerClusterAxis );
 
     SectorParams genParams = CollectSectorParams( clusterP );
     const u32 minVolumeSize = (u32)(genParams.minVolumeRatio * (r32)VoxelsPerClusterAxis);
@@ -208,10 +247,13 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     cluster->volumes = Array<BinaryVolume>( arena, 0, maxSplits );
     Array<BinaryVolume>& volumes = cluster->volumes;
 
-    volumes.Push( rootVolume );
+    BinaryVolume *rootVolume = volumes.PushEmpty();
+    rootVolume->voxelP = V3uZero;
+    rootVolume->sizeVoxels = V3u( VoxelsPerClusterAxis );
 
 
     bool didSplit = true;
+    // NOTE Doesnt seem necessary to insist, which means we can partition the whole thing in one go
     //while( didSplit )
     {
         didSplit = false;
@@ -240,49 +282,10 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     // TODO Make it sparse! (octree)
     cluster->voxelGrid = (ClusterVoxelLayer*)PUSH_ARRAY( arena, u8, VoxelsPerClusterAxis * VoxelsPerClusterAxis * VoxelsPerClusterAxis );
 
-#if 0
     // Create a room in each volume
-    for( u32 idx = 0; idx < volumes.count; ++idx )
-    {
-        Volume& v = volumes[idx];
-        if( v.leftChild == nullptr && v.rightChild == nullptr )
-        {
-            v3i vDim;
-            XYZSize( v.bounds, &vDim.x, &vDim.y, &vDim.z );
+    // TODO Add a certain chance for empty volumes
+    CreateRooms( rootVolume, genParams, cluster );
 
-            v3i roomDim =
-            {
-                RandomRangeI32( (i32)(vDim.x * params.minRoomSizeRatio), (i32)(vDim.x * params.maxRoomSizeRatio) ),
-                RandomRangeI32( (i32)(vDim.y * params.minRoomSizeRatio), (i32)(vDim.y * params.maxRoomSizeRatio) ),
-                RandomRangeI32( (i32)(vDim.z * params.minRoomSizeRatio), (i32)(vDim.z * params.maxRoomSizeRatio) ),
-            };
-
-            v3i roomOffset =
-            {
-                RandomRangeI32( params.volumeSafeMarginSize, vDim.x - roomDim.x - params.volumeSafeMarginSize ),
-                RandomRangeI32( params.volumeSafeMarginSize, vDim.y - roomDim.y - params.volumeSafeMarginSize ),
-                RandomRangeI32( params.volumeSafeMarginSize, vDim.z - roomDim.z - params.volumeSafeMarginSize ),
-            };
-
-            aabbi roomBounds =
-            {
-                v.bounds.xMin + roomOffset.x, v.bounds.xMin + roomOffset.x + roomDim.x,
-                v.bounds.yMin + roomOffset.y, v.bounds.yMin + roomOffset.y + roomDim.y,
-                v.bounds.zMin + roomOffset.z, v.bounds.zMin + roomOffset.z + roomDim.z,
-            };
-
-            for( int i = roomBounds.xMin; i <= roomBounds.xMax; ++i )
-                for( int j = roomBounds.yMin; j <= roomBounds.yMax; ++j )
-                    for( int k = roomBounds.zMin; k <= roomBounds.zMax; ++k )
-                    {
-                        bool atBorder = (i == roomBounds.xMin || i == roomBounds.xMax)
-                            || (j == roomBounds.yMin || j == roomBounds.yMax)
-                            || (k == roomBounds.zMin || k == roomBounds.zMax);
-                        cluster->voxelGrid[i][j][k] = atBorder ? 2 : 1;
-                    }
-        }
-    }
-#endif
     // TODO Defer
     //EndTemporaryMemory( tmpMemory );
 }

@@ -263,6 +263,7 @@ union v3u
 };
 
 const v3u V3uZero = { 0, 0, 0 };
+const v3u V3uOne = { 1, 1, 1 };
 
 inline v3u
 V3u( u32 x, u32 y, u32 z )
