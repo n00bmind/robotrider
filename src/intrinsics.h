@@ -151,6 +151,12 @@ Max( i32 a, i32 b )
     return a > b ? a : b;
 }
 
+inline u32
+Max( u32 a, u32 b )
+{
+    return a > b ? a : b;
+}
+
 inline r32
 Max( r32 a, r32 b )
 {

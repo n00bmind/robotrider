@@ -446,9 +446,11 @@ RenderVoxelGrid( ClusterVoxelLayer const* grid, v3 const& clusterOffsetP, u32 co
             for( int j = 0; j <= VoxelsPerClusterAxis; ++j )
                 for( int k = 0; k <= VoxelsPerClusterAxis; ++k )
                 {
-                    if( grid[i][j][k] == 2 )
+                    u32 voxelData = grid[i][j][k];
+                    if( voxelData > 1 )
                     {
                         data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k );
+                        data.color = voxelData == 2 ? Pack01ToRGBA( 1, 0, 1, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
                         PushInstanceData( data, renderCommands );
 
                         instanceCount++;

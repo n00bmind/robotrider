@@ -140,6 +140,7 @@ CalcBounds( Mesh* mesh )
 struct InstanceData
 {
     v3 worldOffset;
+    u32 color;
 };
 
 

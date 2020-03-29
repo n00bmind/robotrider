@@ -188,14 +188,119 @@ bool SplitVolume( BinaryVolume* v, Array<BinaryVolume>* volumes, const u32 minVo
 }
 
 internal void
+RoomBoundsToMinMaxP( Room const& room, v3u* minP, v3u* maxP )
+{
+    *minP = room.voxelP;
+    *maxP = room.voxelP + room.sizeVoxels - V3uOne;
+}
+
+internal void
+CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* cluster )
+{
+    v3u minP, maxP;
+
+    // Find a random point inside each room
+    RoomBoundsToMinMaxP( roomA, &minP, &maxP );
+    v->hall.startP =
+    {
+        RandomRangeU32( minP.x, maxP.x ),
+        RandomRangeU32( minP.y, maxP.y ),
+        RandomRangeU32( minP.z, maxP.z ),
+    };
+    RoomBoundsToMinMaxP( roomB, &minP, &maxP );
+    v->hall.endP =
+    {
+        RandomRangeU32( minP.x, maxP.x ),
+        RandomRangeU32( minP.y, maxP.y ),
+        RandomRangeU32( minP.z, maxP.z ),
+    };
+
+    // Walk along each axis in a random order
+    v3u& startP = v->hall.startP;
+    v3u& endP = v->hall.endP;
+    v3u currentP = startP;
+
+    u8 axisOrder = 0, remainingAxes = 3;
+    int nextAxis[] = { 0, 1, 2 };
+    while( remainingAxes )
+    {
+        u32 index = RandomRangeU32( 0, 2 );
+
+        if( nextAxis[index] == -1 )
+            continue;
+        else
+        {
+            int& next = nextAxis[index];
+            switch( next )
+            {
+                case 0:   // X
+                {
+                    u32 start = Min( currentP.x, endP.x );
+                    u32 end = Max( currentP.x, endP.x );
+                    u32 j = currentP.y;
+                    u32 k = currentP.z;
+
+                    for( u32 i = start; i <= end; ++i)
+                        cluster->voxelGrid[i][j][k] = 3;
+
+                    currentP.x = endP.x;
+                } break;
+                case 1:   // Y
+                {
+                    u32 start = Min( currentP.y, endP.y );
+                    u32 end = Max( currentP.y, endP.y );
+                    u32 i = currentP.x;
+                    u32 k = currentP.z;
+
+                    for( u32 j = start; j <= end; ++j)
+                        cluster->voxelGrid[i][j][k] = 3;
+
+                    currentP.y = endP.y;
+                } break;
+                case 2:   // Z
+                {
+                    u32 start = Min( currentP.z, endP.z );
+                    u32 end = Max( currentP.z, endP.z );
+                    u32 i = currentP.x;
+                    u32 j = currentP.y;
+
+                    for( u32 k = start; k <= end; ++k)
+                        cluster->voxelGrid[i][j][k] = 3;
+
+                    currentP.z = endP.z;
+                } break;
+                INVALID_DEFAULT_CASE
+            }
+
+            // Record which way we went
+            int bitOffset = (3 - remainingAxes) * 2;
+            v->hall.axisOrder |= ((next & 0x3) << bitOffset);
+
+            next = -1;
+            remainingAxes--;
+        }
+    }
+
+
+}
+
+internal Room*
 CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster )
 {
     if( v->leftChild || v->rightChild )
     {
+        Room* leftRoom = nullptr;
+        Room* rightRoom = nullptr;
+
         if( v->leftChild )
-            CreateRooms( v->leftChild, genParams, cluster );
+            leftRoom = CreateRooms( v->leftChild, genParams, cluster );
         if( v->rightChild )
-            CreateRooms( v->rightChild, genParams, cluster ); 
+            rightRoom = CreateRooms( v->rightChild, genParams, cluster ); 
+
+        if( leftRoom && rightRoom )
+            CreateHall( v, *leftRoom, *rightRoom, cluster );
+
+        return RandomNormalizedR32() < 0.5f ? leftRoom : rightRoom;
     }
     else
     {
@@ -217,6 +322,8 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster )
 
         v3u roomMinP = v->voxelP + roomOffset;
         v3u roomMaxP = roomMinP + roomSizeVoxels - V3uOne;
+        v->room.voxelP = roomMinP;
+        v->room.sizeVoxels = roomSizeVoxels;
 
         for( u32 i = roomMinP.x; i <= roomMaxP.x; ++i )
             for( u32 j = roomMinP.y; j <= roomMaxP.y; ++j )
@@ -227,6 +334,8 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster )
                         || (k == roomMinP.z || k == roomMaxP.z);
                     cluster->voxelGrid[i][j][k] = atBorder ? 2 : 1;
                 }
+
+        return &v->room;
     }
 }
 

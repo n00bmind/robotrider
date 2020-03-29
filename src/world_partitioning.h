@@ -40,15 +40,28 @@ CollectSectorParams( const v3i& clusterCoords )
 
 struct Room
 {
-    v3i voxelP;
-    v3i sizeVoxels;
+    v3u voxelP;
+    v3u sizeVoxels;
+};
+
+struct Hall
+{
+    v3u startP;
+    v3u endP;
+    // Encoded as 2 bits per axis, first axis is LSB
+    u8 axisOrder;
 };
 
 struct BinaryVolume
 {
-    struct BinaryVolume* leftChild;
-    struct BinaryVolume* rightChild;
-    Room* room;
+    BinaryVolume* leftChild;
+    BinaryVolume* rightChild;
+
+    union
+    {
+        Room room;
+        Hall hall;
+    };
 
     v3u voxelP;
     v3u sizeVoxels;

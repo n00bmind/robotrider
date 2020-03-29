@@ -27,6 +27,7 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec2 inTexCoords;
 layout(location = 2) in uint inColor;
 layout(location = 3) in vec3 inInstanceOffset;
+layout(location = 4) in uint inInstanceColor;
 
 out VertexData
 {
@@ -41,8 +42,7 @@ uniform mat4 mTransform;
 void main()
 {
     gl_Position = mTransform * vec4( inPosition + inInstanceOffset, 1.0 );
-    //_out.color = inColor;
-    _out.color = 0xFFFF00FFu;
+    _out.color = inInstanceColor;
     _out.texCoords = inTexCoords;
 }
 

@@ -904,6 +904,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                 glBindBuffer( GL_ARRAY_BUFFER, gl->instanceBuffer );
                 glBufferData( GL_ARRAY_BUFFER, sizeof(InstanceData) * entry->instanceCount,
                               commands.instanceBuffer.base + entry->instanceBufferOffset, GL_STATIC_DRAW );
+
                 const GLuint offAttribId = 3;
                 glEnableVertexAttribArray( offAttribId );
                 // inInstanceOffset
@@ -911,6 +912,12 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                 // Update per instance
                 glVertexAttribDivisor( offAttribId, 1 );
 
+                const GLuint instColorAttribId = 4;
+                glEnableVertexAttribArray( instColorAttribId );
+                // inInstanceColor
+                glVertexAttribIPointer( instColorAttribId, 1, GL_UNSIGNED_INT, sizeof(InstanceData), (void *)OFFSETOF(InstanceData, color) );
+                // Update per instance
+                glVertexAttribDivisor( instColorAttribId, 1 );
 
                 glBindBuffer( GL_ARRAY_BUFFER, gl->vertexBuffer );
                 glBufferData( GL_ARRAY_BUFFER,
