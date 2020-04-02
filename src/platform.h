@@ -56,9 +56,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #endif //__clang__
 
-//
-// Exports
-//
+
 
 #ifdef _WIN32
 #define LIB_EXPORT extern "C" __declspec(dllexport)
@@ -89,6 +87,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // TODO 
 
 #endif
+
 
 
 //

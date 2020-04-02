@@ -97,7 +97,7 @@ struct LiveEntity
 };
 
 const r32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;
-typedef u8 ClusterVoxelLayer[VoxelsPerClusterAxis][VoxelsPerClusterAxis];
+typedef Grid3D<u8> ClusterVoxelGrid;
 
 struct Cluster
 {
@@ -107,7 +107,7 @@ struct Cluster
 
     // @Remove Just for visualization
     Array<BinaryVolume> volumes;
-    ClusterVoxelLayer* voxelGrid;
+    ClusterVoxelGrid voxelGrid;
 };
 
 inline u32 ClusterHash( const v3i& key, u32 tableSize );

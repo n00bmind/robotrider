@@ -166,64 +166,75 @@ if __name__ == '__main__':
     elif in_args.release:
         config = config_win_release
 
-    if platform.toolset == 'CL':
-        # TODO Do the renaming of pdbs etc. so that reloading can work inside VS (?)
-        
-        # Build game library
-        out_args = [platform.compiler]
-        out_args.extend(platform.common_compiler_flags)
-        out_args.extend(config.compiler_flags)
-        out_args.append(os.path.join(srcpath, 'robotrider.cpp'))
-        out_args.append('-LD')
-        out_args.append('/link')
-        out_args.extend(platform.common_linker_flags)
-        out_args.extend(config.linker_flags)
-        # FIXME Generating a different PDB each time breaks debugging in VS when hot reloading (?)
-        out_args.append('/PDB:robotrider_{}.pdb'.format(random.randint(0, 100000)))
+    with open(os.path.join(binpath, 'config'), 'w') as cfg_file:
+        print(f'-> Config \'{config.name}\'')
+        cfg_file.write(f'Config: {config.name}\n')
+        cfg_file.write(f'Platform: {platform.name}\n\n')
 
-        if in_args.verbose:
-            print('\nBuilding game library...')
-            print_color(out_args, colors.GRAY)
-        # Create a lock file so the platform doesn't try to load the dll too soon
-        lockfilepath = os.path.join(binpath, 'dll.lock')
-        os.close(os.open(lockfilepath, os.O_CREAT))
-        ret = subprocess.call(out_args, cwd=binpath)
-        os.remove(lockfilepath)
+        if platform.toolset == 'CL':
+            # TODO Do the renaming of pdbs etc. so that reloading can work inside VS (?)
+            
+            # Build game library
+            out_args = [platform.compiler]
+            out_args.extend(platform.common_compiler_flags)
+            out_args.extend(config.compiler_flags)
+            out_args.append(os.path.join(srcpath, 'robotrider.cpp'))
+            out_args.append('-LD')
+            out_args.append('/link')
+            out_args.extend(platform.common_linker_flags)
+            out_args.extend(config.linker_flags)
+            # FIXME Generating a different PDB each time breaks debugging in VS when hot reloading (?)
+            out_args.append('/PDB:robotrider_{}.pdb'.format(random.randint(0, 100000)))
 
-        # Build platform executable
-        out_args = [platform.compiler]
-        out_args.extend(platform.common_compiler_flags)
-        out_args.extend(config.compiler_flags)
-        out_args.append(os.path.join(srcpath, 'win32_platform.cpp'))
-        out_args.append('-Felauncher.exe')
-        out_args.append('/link')
-        out_args.extend(platform.common_linker_flags)
-        out_args.extend(config.linker_flags)
-        out_args.append('-subsystem:console,5.2')
-        out_args.extend(platform.libs)
+            if in_args.verbose:
+                print('\nBuilding game library...')
+                print_color(out_args, colors.GRAY)
+            cfg_file.write(f'Game lib args:\n{out_args}\n\n')
 
-        if in_args.verbose:
-            print('\nBuilding platform executable...')
-            print_color(out_args, colors.GRAY)
-        ret |= subprocess.call(out_args, cwd=binpath)
+            # Create a lock file so the platform doesn't try to load the dll too soon
+            lockfilepath = os.path.join(binpath, 'dll.lock')
+            os.close(os.open(lockfilepath, os.O_CREAT))
+            ret = subprocess.call(out_args, cwd=binpath)
+            os.remove(lockfilepath)
 
-        # Build test suite
-        out_args = [platform.compiler]
-        out_args.extend(platform.common_compiler_flags)
-        out_args.extend(config.compiler_flags)
-        out_args.append(os.path.join(srcpath, 'testsuite.cpp'))
-        out_args.append('/link')
-        out_args.extend(platform.common_linker_flags)
-        out_args.extend(config.linker_flags)
-        out_args.append('-subsystem:console,5.2')
-        # out_args.extend(platform.libs)
+            # Build platform executable
+            out_args = [platform.compiler]
+            out_args.extend(platform.common_compiler_flags)
+            out_args.extend(config.compiler_flags)
+            out_args.append(os.path.join(srcpath, 'win32_platform.cpp'))
+            out_args.append('-Felauncher.exe')
+            out_args.append('/link')
+            out_args.extend(platform.common_linker_flags)
+            out_args.extend(config.linker_flags)
+            out_args.append('-subsystem:console,5.2')
+            out_args.extend(platform.libs)
 
-        if in_args.verbose:
-            print('\nBuilding test suite...')
-            print_color(out_args, colors.GRAY)
-        ret |= subprocess.call(out_args, cwd=binpath)
+            if in_args.verbose:
+                print('\nBuilding platform executable...')
+                print_color(out_args, colors.GRAY)
+            cfg_file.write(f'Platform exe args:\n{out_args}\n\n')
 
-    else:
-        sys.exit('Unsupported toolset')
+            ret |= subprocess.call(out_args, cwd=binpath)
+
+            # Build test suite
+            out_args = [platform.compiler]
+            out_args.extend(platform.common_compiler_flags)
+            out_args.extend(config.compiler_flags)
+            out_args.append(os.path.join(srcpath, 'testsuite.cpp'))
+            out_args.append('/link')
+            out_args.extend(platform.common_linker_flags)
+            out_args.extend(config.linker_flags)
+            out_args.append('-subsystem:console,5.2')
+            # out_args.extend(platform.libs)
+
+            if in_args.verbose:
+                print('\nBuilding test suite...')
+                print_color(out_args, colors.GRAY)
+            cfg_file.write(f'Test suite args:\n{out_args}\n\n')
+
+            ret |= subprocess.call(out_args, cwd=binpath)
+
+        else:
+            sys.exit('Unsupported toolset')
 
     sys.exit(ret)

@@ -241,7 +241,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                     u32 k = currentP.z;
 
                     for( u32 i = start; i <= end; ++i)
-                        cluster->voxelGrid[i][j][k] = 3;
+                        cluster->voxelGrid( i, j, k ) = 3;
 
                     currentP.x = endP.x;
                 } break;
@@ -253,7 +253,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                     u32 k = currentP.z;
 
                     for( u32 j = start; j <= end; ++j)
-                        cluster->voxelGrid[i][j][k] = 3;
+                        cluster->voxelGrid( i, j, k ) = 3;
 
                     currentP.y = endP.y;
                 } break;
@@ -265,7 +265,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                     u32 j = currentP.y;
 
                     for( u32 k = start; k <= end; ++k)
-                        cluster->voxelGrid[i][j][k] = 3;
+                        cluster->voxelGrid( i, j, k ) = 3;
 
                     currentP.z = endP.z;
                 } break;
@@ -325,14 +325,14 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster )
         v->room.voxelP = roomMinP;
         v->room.sizeVoxels = roomSizeVoxels;
 
-        for( u32 i = roomMinP.x; i <= roomMaxP.x; ++i )
+        for( u32 k = roomMinP.z; k <= roomMaxP.z; ++k )
             for( u32 j = roomMinP.y; j <= roomMaxP.y; ++j )
-                for( u32 k = roomMinP.z; k <= roomMaxP.z; ++k )
+                for( u32 i = roomMinP.x; i <= roomMaxP.x; ++i )
                 {
                     bool atBorder = (i == roomMinP.x || i == roomMaxP.x)
                         || (j == roomMinP.y || j == roomMaxP.y)
                         || (k == roomMinP.z || k == roomMaxP.z);
-                    cluster->voxelGrid[i][j][k] = atBorder ? 2 : 1;
+                    cluster->voxelGrid( i, j, k ) = atBorder ? 2 : 1;
                 }
 
         return &v->room;
@@ -389,7 +389,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     u32 totalVolumes = volumes.count;
 
     // TODO Make it sparse! (octree)
-    cluster->voxelGrid = (ClusterVoxelLayer*)PUSH_ARRAY( arena, u8, VoxelsPerClusterAxis * VoxelsPerClusterAxis * VoxelsPerClusterAxis );
+    cluster->voxelGrid = ClusterVoxelGrid( arena, V3u( VoxelsPerClusterAxis ) );
 
     // Create a room in each volume
     // TODO Add a certain chance for empty volumes
@@ -888,7 +888,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         for( int j = 0; j <= VoxelsPerClusterAxis; ++j )
             for( int k = 0; k <= VoxelsPerClusterAxis; ++k )
             {
-                if( currentCluster->voxelGrid[i][j][k] != 0 )
+                if( currentCluster->voxelGrid( i, j, k ) != 0 )
                 {
                     v3 voxelP = V3( (r32)i, (r32)j, (r32)k ) + clusterOffsetP + voxelCenterP;
                     RenderBoxAt( voxelP, VoxelSizeMeters, grey, renderCommands );

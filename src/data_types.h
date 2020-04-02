@@ -169,6 +169,7 @@ struct Array
 #define ARRAY(type, count, name) type _##name[count];Array<type> name( _##name, 0, count );
 
 
+// TODO Rename this to Grid2D and try to remove the row/col semantics and just use x/y (also add operator())
 template <typename T>
 struct Array2
 {
@@ -276,6 +277,39 @@ struct Array2
     u32 IndexForRowCol( u32 r, u32 c ) const
     {
         return r * cols + c;
+    }
+};
+
+/////     GRID (wrapper for multi-dimensional arrays)   /////
+
+template <typename T>
+struct Grid3D
+{
+    T* data;
+    v3u dims;
+
+    Grid3D()
+    {
+        data = nullptr;
+        dims = V3uZero;
+    }
+
+    Grid3D( MemoryArena* arena, v3u dims_, MemoryParams params = DefaultMemoryParams() )
+    {
+        dims = dims_;
+        data = PUSH_ARRAY( arena, T, dims.x * dims.y * dims.z, params );
+    }
+
+    INLINE T& operator()( u32 x, u32 y, u32 z )
+    {
+        //ASSERT( x < dims.x && y < dims.y && z < dims.z );
+        return data[ z * dims.y * dims.x + y * dims.x + x ];
+    }
+
+    INLINE T const& operator()( u32 x, u32 y, u32 z ) const
+    {
+        //ASSERT( x < dims.x && y < dims.y && z < dims.z );
+        return data[ z * dims.y * dims.x + y * dims.x + x ];
     }
 };
 

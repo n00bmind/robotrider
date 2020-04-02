@@ -72,6 +72,7 @@ DEBUGGING
 - Add a command line switch & ingame command to load a recorded input block from disk
 - Simple static analysis:
   - Detect usage of 'internal' functions outside of the file where they're defined (in case we wanna ever have non-Unity builds)
+- Have a look at the ImGui plot libraries as a starting point for the profiler(s) UI
 
 TESTING
 - Basic data types

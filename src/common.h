@@ -48,6 +48,13 @@ AssertHandlerFunc* globalAssertHandler = DefaultAssertHandler;
 #define ZERO(dest, size) memset( dest, 0, size )
 
 
+#if _MSC_VER
+#define INLINE __forceinline
+#else
+#define INLINE inline __attribute__((always_inline))
+#endif
+
+
 // NOTE Only use these where storage is important (i.e: structs)
 typedef int8_t i8;
 typedef int16_t i16;
