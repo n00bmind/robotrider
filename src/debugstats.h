@@ -83,8 +83,9 @@ struct DebugState
 
     u32 totalDrawCalls;
     u32 totalVertexCount;
-    u32 totalGeneratedVerticesCount;
     u32 totalPrimitiveCount;
+    u32 totalInstanceCount;
+    u32 totalGeneratedVerticesCount;
     u32 totalEntities;
 };
 

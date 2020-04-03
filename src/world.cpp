@@ -896,7 +896,8 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             }
 #else
     u32 blue = Pack01ToRGBA( 0, 0, 1, 1 );
-    RenderVoxelGrid( currentCluster->voxelGrid, clusterOffsetP, blue, renderCommands );
+    //RenderVoxelGrid( currentCluster->voxelGrid, clusterOffsetP, blue, renderCommands );
+    RenderClusterVoxels( currentCluster->voxelGrid, clusterOffsetP, blue, renderCommands );
 #endif
 
     {

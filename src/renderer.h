@@ -153,6 +153,7 @@ enum class RenderEntryType
     RenderEntryMaterial,
     RenderEntrySwitch,
     RenderEntryVoxelGrid,
+    RenderEntryVoxelChunk,
 };
 
 struct RenderEntry
@@ -215,6 +216,16 @@ struct RenderEntryVoxelGrid
     RenderEntry header;
 
     u32 vertexBufferOffset;
+    u32 instanceBufferOffset;
+    u32 instanceCount;
+};
+
+struct RenderEntryVoxelChunk
+{
+    RenderEntry header;
+
+    u32 vertexBufferOffset;
+    u32 indexBufferOffset;
     u32 instanceBufferOffset;
     u32 instanceCount;
 };

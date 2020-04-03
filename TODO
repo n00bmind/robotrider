@@ -4,8 +4,10 @@
 
 
 NEXT
-- Basic BSP partitioning of Volumes/clusters
-- Room generation and connectivity
+- Generate several cluster and connect neighbouring
+- Decent RNG and determinism
+- Greedy meshing
+
 
 WORLDGEN
 - Space Volumes partitioning using BSP at various scale levels
@@ -52,7 +54,7 @@ ASSETS
   For persistence, we could have a 2-way association between asset ids and Handles. We could simply exchange asset ids for allocator index when going to/coming from disk.
 
 ENGINE
-- Use the concept from https://github.com/antirez/sds to create a new CString class (btw start using class for these 'handled' datatypes), but do it a bit better (and in C+)
+- Use the concept from https://github.com/antirez/sds to create a new CString class (btw start using class for these 'handled' datatypes?), but do it a bit better (and in C+)
   Add a pointer to that and an 'owned' flag to our read-only string so that:
   · Memory ownership is explicit
   · Null-termination and interoperability with C apis is handled better

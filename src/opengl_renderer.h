@@ -146,6 +146,7 @@ PFNGLENDQUERYPROC                       glEndQuery;
 PFNGLGETQUERYOBJECTUIVPROC              glGetQueryObjectuiv;
 PFNGLVERTEXATTRIBDIVISORARBPROC         glVertexAttribDivisor;
 PFNGLDRAWARRAYSINSTANCEDPROC            glDrawArraysInstanced;
+PFNGLDRAWELEMENTSINSTANCEDPROC          glDrawElementsInstanced;
 
 
 #endif /* __OPENGL_RENDERER_H__ */

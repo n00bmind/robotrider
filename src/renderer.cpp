@@ -294,52 +294,35 @@ RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands
 void
 RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
 {
-    v3 p1, p2, p3, p4;
-    v3 vR = V3Right * size * 0.5f;
-    v3 vF = V3Forward * size * 0.5f;
-    v3 vU = V3Up * size * 0.5f;
+    float halfSize = size * 0.5f;
+    v3 p1, p2, p3, p4, p5, p6, p7, p8;
+
+    p1 = p + V3( -1, -1,  1  ) * halfSize;
+    p2 = p + V3(  1, -1,  1  ) * halfSize;
+    p3 = p + V3(  1,  1,  1  ) * halfSize;
+    p4 = p + V3( -1,  1,  1  ) * halfSize;
+    p5 = p + V3( -1, -1, -1  ) * halfSize;
+    p6 = p + V3(  1, -1, -1  ) * halfSize;
+    p7 = p + V3(  1,  1, -1  ) * halfSize;
+    p8 = p + V3( -1,  1, -1  ) * halfSize;
 
     // Up
-    p1 = p - vR + vF + vU;
-    p2 = p - vR - vF + vU;
-    p3 = p + vR - vF + vU;
-    p4 = p + vR + vF + vU;
     RenderQuad( p1, p2, p3, p4, color, renderCommands );
 
     // Down
-    p1 = p - vR - vF - vU;
-    p2 = p - vR + vF - vU;
-    p3 = p + vR + vF - vU;
-    p4 = p + vR - vF - vU;
-    RenderQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p8, p7, p6, p5, color, renderCommands );
 
     // Front
-    p1 = p - vR - vF + vU;
-    p2 = p - vR - vF - vU;
-    p3 = p + vR - vF - vU;
-    p4 = p + vR - vF + vU;
-    RenderQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p8, p4, p3, p7, color, renderCommands );
 
     // Back
-    p1 = p + vR + vF + vU;
-    p2 = p + vR + vF - vU;
-    p3 = p - vR + vF - vU;
-    p4 = p - vR + vF + vU;
-    RenderQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p5, p6, p2, p1, color, renderCommands );
 
     // Left
-    p1 = p - vR + vF + vU;
-    p2 = p - vR + vF - vU;
-    p3 = p - vR - vF - vU;
-    p4 = p - vR - vF + vU;
-    RenderQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p5, p1, p4, p8, color, renderCommands );
 
     // Right
-    p1 = p + vR - vF + vU;
-    p2 = p + vR - vF - vU;
-    p3 = p + vR + vF - vU;
-    p4 = p + vR + vF + vU;
-    RenderQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p7, p3, p2, p6, color, renderCommands );
 }
 
 void
@@ -439,6 +422,7 @@ RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u3
 #undef PUSH_LINE
 
 
+        // Per instance data
         InstanceData data = {};
         u32 instanceCount = 0;
         u8 const* grid = voxelGrid.data;
@@ -467,69 +451,118 @@ RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u3
     // http://jojendersie.de/rendering-huge-amounts-of-voxels/
 }
 
-void RenderClusterVoxels( ClusterVoxelGrid const* voxelGrid, v3 const& clusterOffsetP, RenderCommands* renderCommands )
+void RenderClusterVoxels( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands )
 {
     TIMED_BLOCK;
 
     RenderSetShader( ShaderProgramName::PlainColorVoxel, renderCommands );
 
-    RenderEntryVoxelGrid* entry = PUSH_RENDER_ELEMENT( renderCommands, RenderEntryVoxelGrid );
+    RenderEntryVoxelChunk* entry = PUSH_RENDER_ELEMENT( renderCommands, RenderEntryVoxelChunk );
     if( entry )
     {
+        // Common instance data
+        //aabb box = AABB( V3Zero, VoxelSizeMeters );
+        const v3 p0 = V3( 0, 0, 1 ) * VoxelSizeMeters;
+        const v3 p1 = V3( 1, 0, 1 ) * VoxelSizeMeters;
+        const v3 p2 = V3( 1, 1, 1 ) * VoxelSizeMeters;
+        const v3 p3 = V3( 0, 1, 1 ) * VoxelSizeMeters;
+        const v3 p4 = V3( 0, 0, 0 ) * VoxelSizeMeters;
+        const v3 p5 = V3( 1, 0, 0 ) * VoxelSizeMeters;
+        const v3 p6 = V3( 1, 1, 0 ) * VoxelSizeMeters;
+        const v3 p7 = V3( 0, 1, 0 ) * VoxelSizeMeters;
+
         entry->vertexBufferOffset = renderCommands->vertexBuffer.count;
+        entry->indexBufferOffset = renderCommands->indexBuffer.count;
         entry->instanceBufferOffset = renderCommands->instanceBuffer.size;
 
-        // Common instance data
-        aabb box = AABB( V3Zero, VoxelSizeMeters );
-
-
-#if 0
-        v3 p1, p2, p3, p4;
-        v3 vR = V3Right * size * 0.5f;
-        v3 vF = V3Forward * size * 0.5f;
-        v3 vU = V3Up * size * 0.5f;
+        PushVertex( p0, color, { 0, 0 }, renderCommands );
+        PushVertex( p1, color, { 0, 0 }, renderCommands );
+        PushVertex( p2, color, { 0, 0 }, renderCommands );
+        PushVertex( p3, color, { 0, 0 }, renderCommands );
+        PushVertex( p4, color, { 0, 0 }, renderCommands );
+        PushVertex( p5, color, { 0, 0 }, renderCommands );
+        PushVertex( p6, color, { 0, 0 }, renderCommands );
+        PushVertex( p7, color, { 0, 0 }, renderCommands );
 
         // Up
-        p1 = p - vR + vF + vU;
-        p2 = p - vR - vF + vU;
-        p3 = p + vR - vF + vU;
-        p4 = p + vR + vF + vU;
-        RenderQuad( p1, p2, p3, p4, color, renderCommands );
+        //RenderQuad( p0, p1, p2, p3, color, renderCommands );
+        PushIndex( 0, renderCommands );
+        PushIndex( 1, renderCommands );
+        PushIndex( 2, renderCommands );
+        PushIndex( 2, renderCommands );
+        PushIndex( 3, renderCommands );
+        PushIndex( 0, renderCommands );
 
         // Down
-        p1 = p - vR - vF - vU;
-        p2 = p - vR + vF - vU;
-        p3 = p + vR + vF - vU;
-        p4 = p + vR - vF - vU;
-        RenderQuad( p1, p2, p3, p4, color, renderCommands );
+        //RenderQuad( p7, p6, p5, p4, color, renderCommands );
+        PushIndex( 7, renderCommands );
+        PushIndex( 6, renderCommands );
+        PushIndex( 5, renderCommands );
+        PushIndex( 5, renderCommands );
+        PushIndex( 4, renderCommands );
+        PushIndex( 7, renderCommands );
 
         // Front
-        p1 = p - vR - vF + vU;
-        p2 = p - vR - vF - vU;
-        p3 = p + vR - vF - vU;
-        p4 = p + vR - vF + vU;
-        RenderQuad( p1, p2, p3, p4, color, renderCommands );
+        //RenderQuad( p7, p3, p2, p6, color, renderCommands );
+        PushIndex( 7, renderCommands );
+        PushIndex( 3, renderCommands );
+        PushIndex( 2, renderCommands );
+        PushIndex( 2, renderCommands );
+        PushIndex( 6, renderCommands );
+        PushIndex( 7, renderCommands );
 
         // Back
-        p1 = p + vR + vF + vU;
-        p2 = p + vR + vF - vU;
-        p3 = p - vR + vF - vU;
-        p4 = p - vR + vF + vU;
-        RenderQuad( p1, p2, p3, p4, color, renderCommands );
+        //RenderQuad( p4, p5, p1, p0, color, renderCommands );
+        PushIndex( 4, renderCommands );
+        PushIndex( 5, renderCommands );
+        PushIndex( 1, renderCommands );
+        PushIndex( 1, renderCommands );
+        PushIndex( 0, renderCommands );
+        PushIndex( 4, renderCommands );
 
         // Left
-        p1 = p - vR + vF + vU;
-        p2 = p - vR + vF - vU;
-        p3 = p - vR - vF - vU;
-        p4 = p - vR - vF + vU;
-        RenderQuad( p1, p2, p3, p4, color, renderCommands );
+        //RenderQuad( p4, p0, p3, p7, color, renderCommands );
+        PushIndex( 4, renderCommands );
+        PushIndex( 0, renderCommands );
+        PushIndex( 3, renderCommands );
+        PushIndex( 3, renderCommands );
+        PushIndex( 7, renderCommands );
+        PushIndex( 4, renderCommands );
 
         // Right
-        p1 = p + vR - vF + vU;
-        p2 = p + vR - vF - vU;
-        p3 = p + vR + vF - vU;
-        p4 = p + vR + vF + vU;
-        RenderQuad( p1, p2, p3, p4, color, renderCommands );
-#endif
+        //RenderQuad( p6, p2, p1, p5, color, renderCommands );
+        PushIndex( 6, renderCommands );
+        PushIndex( 2, renderCommands );
+        PushIndex( 1, renderCommands );
+        PushIndex( 1, renderCommands );
+        PushIndex( 5, renderCommands );
+        PushIndex( 6, renderCommands );
+
+        // Per instance data
+        InstanceData data = {};
+        u32 instanceCount = 0;
+        u8 const* grid = voxelGrid.data;
+
+        for( int k = 0; k < VoxelsPerClusterAxis; ++k )
+            for( int j = 0; j < VoxelsPerClusterAxis; ++j )
+                for( int i = 0; i < VoxelsPerClusterAxis; ++i )
+                {
+                    //u8 voxelData = voxelGrid( i, j, k );
+                    u8 voxelData = *grid++;
+                    if( voxelData > 1 )
+                    {
+                        data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k );
+                        data.color = voxelData == 2 ? Pack01ToRGBA( 1, 0, 1, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
+                        PushInstanceData( data, renderCommands );
+
+                        instanceCount++;
+                    }
+                }
+
+        entry->instanceCount = instanceCount;
+
+    // https://0fps.net/2012/06/30/meshing-in-a-minecraft-game/
+    // https://stackoverflow.com/questions/22948068/opengl-rendering-lots-of-cubes
+    // http://jojendersie.de/rendering-huge-amounts-of-voxels/
     }
 }

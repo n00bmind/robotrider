@@ -1814,6 +1814,7 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
     BINDGLPROC( glGetQueryObjectuiv, PFNGLGETQUERYOBJECTUIVPROC );
     BINDGLPROC( glVertexAttribDivisor, PFNGLVERTEXATTRIBDIVISORARBPROC );
     BINDGLPROC( glDrawArraysInstanced, PFNGLDRAWARRAYSINSTANCEDPROC );
+    BINDGLPROC( glDrawElementsInstanced, PFNGLDRAWELEMENTSINSTANCEDPROC );
 #undef BINDGLPROC
 
 
