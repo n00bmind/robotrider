@@ -732,6 +732,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     GameControllerInput *input1 = GetController( input, 1 );
     if( input1->isConnected )
     {
+        // Ready player 1
         Player *player = world->player;
         v3 pPlayer = world->pPlayer;
 
