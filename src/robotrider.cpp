@@ -198,8 +198,8 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     float frameTime = 1000.f / fps;
     char statsText[1024];
     snprintf( statsText, ARRAYCOUNT(statsText),
-              "Frame ms.: %.3f (%.1f FPS)   Live entitites %u   Primitives %u   Vertices %u (+ %u)  DrawCalls %u",
-              frameTime, fps, debugState->totalEntities,
+              "Frame ms.: %.3f (%.1f FPS)   Live entitites %u   Instances %u   Primitives %u   Vertices %u (+ %u)  DrawCalls %u",
+              frameTime, fps, debugState->totalEntities, debugState->totalInstanceCount,
               debugState->totalPrimitiveCount, debugState->totalVertexCount, debugState->totalGeneratedVerticesCount,
               debugState->totalDrawCalls );
 

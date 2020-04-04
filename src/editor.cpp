@@ -357,7 +357,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
-    DrawEditorStateWindow( V2u( width - 300, 100 ), V2u( 250, height - 200 ), *editorState );
+    DrawEditorStateWindow( V2u( width - 280, 50 ), V2u( 250, height - 900 ), *editorState );
 
     DrawEditorStats( width, height, statsText, (i32)elapsedT % 2 == 0 );
 }

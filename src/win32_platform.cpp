@@ -2095,7 +2095,7 @@ main( int argC, char **argV )
             u32 indexBufferMaxCount = vertexBufferMaxCount * 8;
             u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferMaxCount * sizeof(u32), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
-            u32 instanceBufferSize = MEGABYTES( 32 );
+            u32 instanceBufferSize = MEGABYTES( 256 );
             u8 *instanceBuffer = (u8 *)VirtualAlloc( 0, instanceBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
             RenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,

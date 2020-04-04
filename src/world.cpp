@@ -335,6 +335,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster )
                     cluster->voxelGrid( i, j, k ) = atBorder ? 2 : 1;
                 }
 
+        cluster->rooms.Push( v->room );
         return &v->room;
     }
 }
@@ -353,7 +354,6 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     // TODO Calc an upper bound given cluster size and minimum volume size
     const u32 maxSplits = 4096;
     //Array<BinaryVolume> volumes = Array<BinaryVolume>( arena, 0, maxSplits );
-    cluster->volumes = Array<BinaryVolume>( arena, 0, maxSplits );
     Array<BinaryVolume>& volumes = cluster->volumes;
 
     BinaryVolume *rootVolume = volumes.PushEmpty();
@@ -481,9 +481,12 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
 
     if( !cluster )
     {
-        cluster = world->clusterTable.Reserve( clusterP );
+        cluster = world->clusterTable.InsertEmpty( clusterP );
         cluster->populated = false;
         new (&cluster->entityStorage) BucketArray<StoredEntity>( arena, 256 );
+        const u32 maxSplits = 256;
+        cluster->volumes = Array<BinaryVolume>( arena, 0, maxSplits );
+        cluster->rooms = Array<Room>( arena, 0, 32 );
     }
 
     if( !cluster->populated )
@@ -794,7 +797,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
 
     ///// Render
-    RenderClear( { 0.95f, 0.95f, 0.95f, 1.0f }, renderCommands );
+    RenderClear( { 0.99f, 0.95f, 0.9f, 1.0f }, renderCommands );
 
 #if !RELEASE
     //if( !gameMemory->DEBUGglobalEditing )
@@ -880,7 +883,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     }
 
     // Voxel grid
-    v3 clusterOffsetP = -V3One * clusterHalfSize;
+    const v3 clusterHalfDims = V3One * clusterHalfSize;
 #if 0
     v3 voxelCenterP = V3One * VoxelSizeMeters * 0.5f;
     u32 grey = Pack01ToRGBA( 0.5f, 0.5f, 0.5f, 1.f );
@@ -896,16 +899,29 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
                 }
             }
 #else
-    u32 blue = Pack01ToRGBA( 0, 0, 1, 1 );
-    //RenderVoxelGrid( currentCluster->voxelGrid, clusterOffsetP, blue, renderCommands );
-    RenderClusterVoxels( currentCluster->voxelGrid, clusterOffsetP, blue, renderCommands );
+    u32 whiteish = Pack01ToRGBA( 0.95f, 0.95f, 0.95f, 1 );
+
+    for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
+    {
+        for( int j = -SimRegionWidth; j <= SimRegionWidth; ++j )
+        {
+            for( int k = -SimRegionWidth; k <= SimRegionWidth; ++k )
+            {
+                v3i clusterP = world->originClusterP + V3i( i, j, k );
+                Cluster* cluster = world->clusterTable.Find( clusterP );
+                const v3 clusterOffsetP = V3( V3i( i, j, k ) ) * ClusterSizeMeters - clusterHalfDims;
+
+                RenderClusterVoxels( *cluster, clusterOffsetP, whiteish, renderCommands );
+            }
+        }
+    }
 #endif
 
     {
         // Create a chasing camera
         // TODO Use a PID controller
         Player *player = world->player;
-        v3 pCam = player->mesh.mTransform * V3( 0, -15, 7 );
+        v3 pCam = player->mesh.mTransform * V3( 0, -25, 10 );
         v3 pLookAt = player->mesh.mTransform * V3( 0, 1, 0 );
         v3 vUp = GetColumn( player->mesh.mTransform, 2 ).xyz;
         renderCommands->camera = DefaultCamera();

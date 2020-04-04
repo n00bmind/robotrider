@@ -23,7 +23,7 @@ CollectSectorParams( const v3i& clusterCoords )
     // TODO Retrieve the generation params for the cluster according to our future sector hierarchy
     // Just return some test values for now
     SectorParams result = {};
-    result.minVolumeRatio = 0.2f;
+    result.minVolumeRatio = 0.4f;
     result.maxVolumeRatio = 0.5f;
     result.minRoomSizeRatio = 0.15f;
     result.maxRoomSizeRatio = 0.75f;

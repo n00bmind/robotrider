@@ -435,7 +435,7 @@ RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u3
                     u8 voxelData = *grid++;
                     if( voxelData > 1 )
                     {
-                        data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k );
+                        data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k ) * VoxelSizeMeters;
                         data.color = voxelData == 2 ? Pack01ToRGBA( 1, 0, 1, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
                         PushInstanceData( data, renderCommands );
 
@@ -451,7 +451,7 @@ RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u3
     // http://jojendersie.de/rendering-huge-amounts-of-voxels/
 }
 
-void RenderClusterVoxels( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands )
+void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands )
 {
     TIMED_BLOCK;
 
@@ -541,26 +541,50 @@ void RenderClusterVoxels( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOf
         // Per instance data
         InstanceData data = {};
         u32 instanceCount = 0;
-        u8 const* grid = voxelGrid.data;
+#if 0
+        u8 const* grid = cluster.voxelGrid.data;
 
         for( int k = 0; k < VoxelsPerClusterAxis; ++k )
             for( int j = 0; j < VoxelsPerClusterAxis; ++j )
                 for( int i = 0; i < VoxelsPerClusterAxis; ++i )
                 {
-                    //u8 voxelData = voxelGrid( i, j, k );
+                    //u8 voxelData = cluster.voxelGrid( i, j, k );
                     u8 voxelData = *grid++;
                     if( voxelData > 1 )
                     {
-                        data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k );
-                        data.color = voxelData == 2 ? Pack01ToRGBA( 1, 0, 1, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
+                        data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k ) * VoxelSizeMeters;
+                        data.color = voxelData == 2 ? Pack01ToRGBA( 0.99f, 0.9f, 0.7f, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
                         PushInstanceData( data, renderCommands );
 
                         instanceCount++;
                     }
                 }
+#else
+        for( u32 r = 0; r < cluster.rooms.count; ++r )
+        {
+            v3u roomMinP = cluster.rooms[r].voxelP;
+            v3u roomMaxP = roomMinP + cluster.rooms[r].sizeVoxels - V3uOne;
+
+            for( u32 k = roomMinP.z; k <= roomMaxP.z; ++k )
+                for( u32 j = roomMinP.y; j <= roomMaxP.y; ++j )
+                    for( u32 i = roomMinP.x; i <= roomMaxP.x; ++i )
+                    {
+                        bool atBorder = (i == roomMinP.x || i == roomMaxP.x)
+                            || (j == roomMinP.y || j == roomMaxP.y)
+                            || (k == roomMinP.z || k == roomMaxP.z);
+                        if( atBorder )
+                        {
+                            data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k ) * VoxelSizeMeters;
+                            data.color = Pack01ToRGBA( 0.99f, 0.9f, 0.7f, 1 );
+                            PushInstanceData( data, renderCommands );
+
+                            instanceCount++;
+                        }
+                    }
+        }
 
         entry->instanceCount = instanceCount;
-
+#endif
     // https://0fps.net/2012/06/30/meshing-in-a-minecraft-game/
     // https://stackoverflow.com/questions/22948068/opengl-rendering-lots-of-cubes
     // http://jojendersie.de/rendering-huge-amounts-of-voxels/

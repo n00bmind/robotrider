@@ -6,7 +6,7 @@
 NEXT
 - Generate several cluster and connect neighbouring
 - Decent RNG and determinism
-- Greedy meshing
+- Greedy meshing / octree sampling
 
 
 WORLDGEN

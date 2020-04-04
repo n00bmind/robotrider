@@ -530,7 +530,7 @@ struct HashTable
     }
 #endif
 
-    V* Reserve( const K& key )
+    V* InsertEmpty( const K& key )
     {
         u32 idx = IndexFromKey( key );
 
@@ -561,11 +561,11 @@ struct HashTable
         return &slot->value;
     }
 
-    bool Add( const K& key, const V& value )
+    bool Insert( const K& key, const V& value )
     {
         bool result = false;
 
-        V* slotValue = Reserve( key );
+        V* slotValue = InsertEmpty( key );
         if( slotValue )
         {
             *slotValue = value;

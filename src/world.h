@@ -107,6 +107,8 @@ struct Cluster
 
     // @Remove Just for visualization
     Array<BinaryVolume> volumes;
+
+    Array<Room> rooms;
     ClusterVoxelGrid voxelGrid;
 };
 
@@ -115,7 +117,7 @@ inline u32 EntityHash( const u32& key, u32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
-const int SimRegionWidth = 0;
+const int SimRegionWidth = 1;
 
 enum MeshGeneratorType
 {

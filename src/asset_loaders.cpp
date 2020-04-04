@@ -431,7 +431,7 @@ LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory,
                     };
                     vertexIndex[i] = vertices.count;
                     vertices.Add( newVertex );
-                    cachedVertices.Add( key, vertexIndex[i] );
+                    cachedVertices.Insert( key, vertexIndex[i] );
                 }
 
                 i++;
