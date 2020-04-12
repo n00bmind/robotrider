@@ -93,10 +93,20 @@ union v2u
     u32 e[2];
 };
 
+const v2u V2uZero = { 0, 0 };
+const v2u V2uOne = { 1, 1 };
+
 inline v2u
 V2u( u32 x, u32 y )
 {
     v2u result = { x, y };
+    return result;
+}
+
+inline v2u
+V2u( u32 s )
+{
+    v2u result = { s, s };
     return result;
 }
 
@@ -114,6 +124,12 @@ V2i( const v2u& v )
     ASSERT( v.x <= I32MAX && v.y <= I32MAX );
     v2i result = { (i32)v.x, (i32)v.y };
     return result;
+}
+
+inline bool
+operator ==( const v2u& a, const v2u& b )
+{
+    return a.x == b.x && a.y == b.y;
 }
 
 inline v2u
@@ -212,6 +228,13 @@ inline v3i
 V3i( i32 x, i32 y, i32 z )
 {
     v3i result = { x, y, z };
+    return result;
+}
+
+inline v3i
+V3i( v2i v )
+{
+    v3i result = { v.x, v.y, 0 };
     return result;
 }
 

@@ -74,7 +74,7 @@ struct TransientState
 {
 #if 1
     // Mesh resampling test
-    MarchingCacheBuffers cacheBuffers;
+    IsoSurfaceSamplingCache samplingCache;
     Mesh testMesh;
     Mesh* testIsoSurfaceMesh;
     EditorEntity testEditorEntity;

@@ -81,14 +81,14 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     r32 cellsPerAxis = world->marchingAreaSize / world->marchingCubeSize;
     ASSERT( cellsPerAxis == (u32)cellsPerAxis );
 
-    world->cacheBuffers = PUSH_ARRAY( worldArena, MarchingCacheBuffers, globalPlatform.coreThreadsCount );
+    world->samplingCache = PUSH_ARRAY( worldArena, IsoSurfaceSamplingCache, globalPlatform.coreThreadsCount );
     world->meshPools = PUSH_ARRAY( worldArena, MeshPool, globalPlatform.coreThreadsCount );
     sz arenaAvailable = Available( *worldArena );
     sz maxPerThread = arenaAvailable / 2 / globalPlatform.coreThreadsCount;
     for( u32 i = 0; i < globalPlatform.coreThreadsCount; ++i )
     {
-        world->cacheBuffers[i] = InitMarchingCacheBuffers( worldArena, (u32)cellsPerAxis );
-        Init( &world->meshPools[i], worldArena, maxPerThread );
+        world->samplingCache[i] = InitSurfaceSamplingCache( worldArena, V2u( (u32)cellsPerAxis ) );
+        InitMeshPool( &world->meshPools[i], worldArena, maxPerThread );
     }
 
     EndTemporaryMemory( tmpMemory );
@@ -99,7 +99,7 @@ AddEntityToCluster( Cluster* cluster, const v3i& clusterP, const v3& entityRelat
                     const MeshGeneratorData& generatorData )
 {
     StoredEntity* newEntity = cluster->entityStorage.PushEmpty();
-    newEntity->coords = { clusterP, entityRelativeP };
+    newEntity->worldP = { clusterP, entityRelativeP };
     newEntity->dim = entityDim;
     newEntity->generator = { generatorFunc, generatorData };
 }
@@ -285,7 +285,8 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
 }
 
 internal Room*
-CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster )
+CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v3i const& clusterP,
+             IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool )
 {
     if( v->leftChild || v->rightChild )
     {
@@ -293,9 +294,9 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster )
         Room* rightRoom = nullptr;
 
         if( v->leftChild )
-            leftRoom = CreateRooms( v->leftChild, genParams, cluster );
+            leftRoom = CreateRooms( v->leftChild, genParams, cluster, clusterP, samplingCache, meshPool );
         if( v->rightChild )
-            rightRoom = CreateRooms( v->rightChild, genParams, cluster ); 
+            rightRoom = CreateRooms( v->rightChild, genParams, cluster, clusterP, samplingCache, meshPool ); 
 
         if( leftRoom && rightRoom )
             CreateHall( v, *leftRoom, *rightRoom, cluster );
@@ -320,33 +321,118 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster )
             RandomRangeU32( genParams.volumeSafeMarginSize, vSize.z - roomSizeVoxels.z - genParams.volumeSafeMarginSize ),
         };
 
-        v3u roomMinP = v->voxelP + roomOffset;
-        v3u roomMaxP = roomMinP + roomSizeVoxels - V3uOne;
-        v->room.voxelP = roomMinP;
-        v->room.sizeVoxels = roomSizeVoxels;
+        v3u roomIntMinP = v->voxelP + roomOffset;
+        v3u roomIntMaxP = roomIntMinP + roomSizeVoxels - V3uOne;
 
-        for( u32 k = roomMinP.z; k <= roomMaxP.z; ++k )
-            for( u32 j = roomMinP.y; j <= roomMaxP.y; ++j )
-                for( u32 i = roomMinP.x; i <= roomMaxP.x; ++i )
-                {
-                    bool atBorder = (i == roomMinP.x || i == roomMaxP.x)
-                        || (j == roomMinP.y || j == roomMaxP.y)
-                        || (k == roomMinP.z || k == roomMaxP.z);
-                    cluster->voxelGrid( i, j, k ) = atBorder ? 2 : 1;
-                }
+        v->room.voxelP = roomIntMinP;
+        v->room.sizeVoxels = roomSizeVoxels;
+        v->room.worldP = { clusterP, (V3( roomIntMinP ) + V3( roomSizeVoxels ) * 0.5f) * ClusterSizeMeters };
+        v->room.halfSize = V3( roomSizeVoxels ) * 0.5f * ClusterSizeMeters;
 
         cluster->rooms.Push( v->room );
+
+#if 0
+        for( u32 k = roomIntMinP.z; k <= roomIntMaxP.z; ++k )
+            for( u32 j = roomIntMinP.y; j <= roomIntMaxP.y; ++j )
+                for( u32 i = roomIntMinP.x; i <= roomIntMaxP.x; ++i )
+                {
+                    bool atBorder = (i == roomIntMinP.x || i == roomIntMaxP.x)
+                        || (j == roomIntMinP.y || j == roomIntMaxP.y)
+                        || (k == roomIntMinP.z || k == roomIntMaxP.z);
+                    cluster->voxelGrid( i, j, k ) = atBorder ? 2 : 1;
+                }
+#else
+        // TODO Do this in jobs in LoadEntitiesInCluster
+        ClearScratchBuffers( meshPool );
+
+        // TODO Account for sample volume thickness during room volume calculations
+        u32 volumeShellThickness = 3;
+        v3u roomExtP = roomIntMinP - V3u( volumeShellThickness );
+        v3u roomExtSize = roomSizeVoxels + V3u( 2 * volumeShellThickness );
+
+        v2u voxelsPerSliceAxis = roomExtSize.xy;
+        v2u gridEdgesPerSliceAxis = voxelsPerSliceAxis + V2uOne;
+
+        WorldCoords worldP = { clusterP, V3Zero };
+        // Just pass the room data for now
+        void* const roomSamplingData = &v->room;
+
+        // TODO Super sample the volume shell?
+        bool firstSlice = true;
+        for( u32 k = 0; k < roomExtSize.z; ++k )
+        {
+            // TODO Would be interesting to study how we could sample _all rooms in the cluster at once_ slice by slice,
+            // while keeping their meshes separate
+
+            // Pre-sample bottom and top corners of cubes for the first slice, only the top ones for the rest
+            for( u32 n = 0; n < 2; ++n )
+            {
+                if( n == 0 && !firstSlice )
+                    continue;
+
+                worldP.relativeP = -V3( ClusterSizeMeters * 0.5f ) + V3( roomExtP + V3u( 0, 0, k + n ) ) * VoxelSizeMeters;
+
+                r32* sample = n ? samplingCache->topLayerSamples : samplingCache->bottomLayerSamples;
+                // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
+                for( u32 j = 0; j < gridEdgesPerSliceAxis.y; ++j )
+                {
+                    v3 pAtRowStart = worldP.relativeP;
+                    for( u32 i = 0; i < gridEdgesPerSliceAxis.x; ++i )
+                    {
+                        *sample++ = RoomSurfaceFunc( roomSamplingData, worldP );
+                        worldP.relativeP.x += VoxelSizeMeters;
+                    }
+                    worldP.relativeP = pAtRowStart;
+                    worldP.relativeP.y += VoxelSizeMeters;
+                }
+            }
+
+            // Keep a cache of already calculated vertices to eliminate duplication
+            ClearVertexCaches( samplingCache, firstSlice );
+
+            worldP.relativeP = -V3( ClusterSizeMeters * 0.5f ) + V3( roomExtP + V3u( 0, 0, k ) ) * VoxelSizeMeters;
+            for( u32 j = 0; j < voxelsPerSliceAxis.y; ++j )
+            {
+                v3 pAtRowStart = worldP.relativeP;
+                for( u32 i = 0; i < voxelsPerSliceAxis.x; ++i )
+                {
+                    MarchCube( worldP.relativeP, V2i( i, j ), VoxelSizeMeters, samplingCache,
+                               &meshPool->scratchVertices, &meshPool->scratchIndices );
+                    worldP.relativeP.x += VoxelSizeMeters;
+                }
+                worldP.relativeP = pAtRowStart;
+                worldP.relativeP.y += VoxelSizeMeters;
+            }
+
+            SwapTopAndBottomLayers( samplingCache );
+            firstSlice = false;
+        }
+#endif
         return &v->room;
     }
+}
+
+internal v3
+GetClusterOffsetFromOrigin( const v3i& clusterP, const v3i& worldOriginClusterP )
+{
+    v3 result = V3(clusterP - worldOriginClusterP) * ClusterSizeMeters ;
+    return result;
+}
+
+internal bool
+IsInSimRegion( const v3i& clusterP, const v3i& worldOriginClusterP )
+{
+    v3i clusterOffset = clusterP - worldOriginClusterP;
+
+    return clusterOffset.x >= -SimRegionWidth  && clusterOffset.x <= SimRegionWidth  &&
+        clusterOffset.y >= -SimRegionWidth  && clusterOffset.y <= SimRegionWidth  &&
+        clusterOffset.z >= -SimRegionWidth  && clusterOffset.z <= SimRegionWidth ;
 }
 
 internal void
 CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, MemoryArena* arena )
 {
     // Partition cluster space
-    // NOTE This will be transient but we'll keep it for now for debugging
-    //TemporaryMemory tmpMemory = BeginTemporaryMemory( arena );
-
     SectorParams genParams = CollectSectorParams( clusterP );
     const u32 minVolumeSize = (u32)(genParams.minVolumeRatio * (r32)VoxelsPerClusterAxis);
     const u32 maxVolumeSize = (u32)(genParams.maxVolumeRatio * (r32)VoxelsPerClusterAxis);
@@ -362,7 +448,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
 
 
     bool didSplit = true;
-    // NOTE Doesnt seem necessary to insist, which means we can partition the whole thing in one go
+    // Dont retry volumes that didn't split the first time, do the whole thing in one go
     //while( didSplit )
     {
         didSplit = false;
@@ -391,29 +477,10 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     // TODO Make it sparse! (octree)
     cluster->voxelGrid = ClusterVoxelGrid( arena, V3u( VoxelsPerClusterAxis ) );
 
+    v3 clusterGridWorldP = GetClusterOffsetFromOrigin( clusterP, world->originClusterP ) - V3( ClusterSizeMeters * 0.5f );
     // Create a room in each volume
     // TODO Add a certain chance for empty volumes
-    CreateRooms( rootVolume, genParams, cluster );
-
-    // TODO Defer
-    //EndTemporaryMemory( tmpMemory );
-}
-
-internal v3
-GetClusterOffsetFromOrigin( const v3i& clusterP, const v3i& worldOriginClusterP )
-{
-    v3 result = V3(clusterP - worldOriginClusterP) * ClusterSizeMeters ;
-    return result;
-}
-
-internal bool
-IsInSimRegion( const v3i& clusterP, const v3i& worldOriginClusterP )
-{
-    v3i clusterOffset = clusterP - worldOriginClusterP;
-
-    return clusterOffset.x >= -SimRegionWidth  && clusterOffset.x <= SimRegionWidth  &&
-        clusterOffset.y >= -SimRegionWidth  && clusterOffset.y <= SimRegionWidth  &&
-        clusterOffset.z >= -SimRegionWidth  && clusterOffset.z <= SimRegionWidth ;
+    CreateRooms( rootVolume, genParams, cluster, clusterP, world->samplingCache, &world->meshPools[0] );
 }
 
 inline MeshGeneratorJob*
@@ -447,17 +514,18 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 {
     MeshGeneratorJob* job = (MeshGeneratorJob*)userData;
 
-    const v3i& clusterP = job->storedEntity->coords.clusterP;
+    const v3i& clusterP = job->storedEntity->worldP.clusterP;
 
-    // TODO Review how to synchronize this
+    // TODO Use CAS whenever worldOriginClusterP changes
     if( IsInSimRegion( clusterP, *job->worldOriginClusterP ) )
     {
         // TODO Find a much more explicit and general way to associate thread-job data like this
-        MarchingCacheBuffers* cacheBuffers = &job->cacheBuffers[workerThreadIndex];
+        IsoSurfaceSamplingCache* samplingCache = &job->samplingCache[workerThreadIndex];
         MeshPool* meshPool = &job->meshPools[workerThreadIndex];
 
         // Make live entity from stored and put it in the world
-        Mesh* generatedMesh = job->storedEntity->generator.func( job->storedEntity->generator.data, job->storedEntity->coords, cacheBuffers, meshPool );
+        Mesh* generatedMesh = job->storedEntity->generator.func( job->storedEntity->generator.data, job->storedEntity->worldP,
+                                                                 samplingCache, meshPool );
         *job->outputEntity =
         {
             *job->storedEntity,
@@ -496,6 +564,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
     }
 
 
+#if 0
     {
         TIMED_BLOCK;
 
@@ -518,7 +587,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
                 {
                     &storedEntity,
                     &world->originClusterP,
-                    world->cacheBuffers,
+                    world->samplingCache,
                     world->meshPools,
                     outputEntity,
                 };
@@ -541,6 +610,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
             it.Next();
         }
     }
+#endif
 }
 
 internal void
@@ -575,8 +645,8 @@ StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
                 entityRelativeP.z > -clusterHalfSize && entityRelativeP.z < clusterHalfSize )
             {
                 StoredEntity& storedEntity = liveEntity.stored;
-                storedEntity.coords.clusterP = clusterP;
-                storedEntity.coords.relativeP = entityRelativeP;
+                storedEntity.worldP.clusterP = clusterP;
+                storedEntity.worldP.relativeP = entityRelativeP;
 
                 cluster->entityStorage.Add( storedEntity );
 
@@ -695,7 +765,7 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
             {
                 if( entity.mesh )
                 {
-                    v3 clusterWorldOffset = GetClusterOffsetFromOrigin( entity.stored.coords.clusterP, world->originClusterP );
+                    v3 clusterWorldOffset = GetClusterOffsetFromOrigin( entity.stored.worldP.clusterP, world->originClusterP );
                     Translate( entity.mesh->mTransform, clusterWorldOffset );
                 }
 
@@ -707,7 +777,7 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
 }
 
 internal v3
-GetLiveEntityWorldP( const UniversalCoords& coords, const v3i& worldOriginClusterP )
+GetLiveEntityWorldP( const WorldCoords& coords, const v3i& worldOriginClusterP )
 {
     v3 clusterOffset = GetClusterOffsetFromOrigin( coords.clusterP, worldOriginClusterP );
     v3 result = clusterOffset + coords.relativeP;
@@ -832,7 +902,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             LiveEntity& entity = (LiveEntity&)it;
             if( entity.state == EntityState::Active )
             {
-                v3 entityP = GetLiveEntityWorldP( entity.stored.coords, world->originClusterP );
+                v3 entityP = GetLiveEntityWorldP( entity.stored.worldP, world->originClusterP );
                 aabb entityBounds = AABB( entityP, entity.stored.dim );
                 RenderBounds( entityBounds, black, renderCommands );
             }

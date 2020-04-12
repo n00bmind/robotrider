@@ -66,7 +66,7 @@ RenderEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, Render
 internal void
 InitMeshSamplerTest( TransientState* transientState, MemoryArena* editorArena, MemoryArena* transientArena )
 {
-    transientState->cacheBuffers = InitMarchingCacheBuffers( editorArena, 50 );
+    transientState->samplingCache = InitSurfaceSamplingCache( editorArena, V2u( 50 ) );
 
     TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
     transientState->testMesh = LoadOBJ( "bunny.obj", editorArena, tmpMemory, 
@@ -80,14 +80,14 @@ TickMeshSamplerTest( const EditorState& editorState, TransientState* transientSt
 {
     if( !transientState->testIsoSurfaceMesh ) //|| input.gameCodeReloaded )
     {
-        transientState->displayedLayer = (transientState->displayedLayer + 1) % transientState->cacheBuffers.cellsPerAxis;
+        transientState->displayedLayer = (transientState->displayedLayer + 1) % transientState->samplingCache.cellsPerAxis.x;
         transientState->drawingDistance = Distance( GetTranslation( transientState->testMesh.mTransform ), editorState.cachedCameraWorldP );
         transientState->displayedLayer = 172;
 
         if( transientState->testIsoSurfaceMesh )
             ReleaseMesh( &transientState->testIsoSurfaceMesh );
         transientState->testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( transientState->testMesh, transientState->drawingDistance,
-                                                                      transientState->displayedLayer, &transientState->cacheBuffers, meshPoolArray,
+                                                                      transientState->displayedLayer, &transientState->samplingCache, meshPoolArray,
                                                                       frameMemory, renderCommands );
     }
 
@@ -98,7 +98,7 @@ TickMeshSamplerTest( const EditorState& editorState, TransientState* transientSt
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );
 
-	transientState->testEditorEntity = CreateEditorEntityFor(transientState->testIsoSurfaceMesh, transientState->cacheBuffers.cellsPerAxis);
+	transientState->testEditorEntity = CreateEditorEntityFor(transientState->testIsoSurfaceMesh, transientState->samplingCache.cellsPerAxis.x);
 	RenderEditorEntity( transientState->testEditorEntity, transientState->displayedLayer, renderCommands );
 }
 

@@ -24,7 +24,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define __MESHGEN_H__ 
 
 
-struct MarchingCacheBuffers
+// 2D slice of a 3D sampled area, allowing reuse of sampled values and generated vertices
+struct IsoSurfaceSamplingCache
 {
     r32* bottomLayerSamples;
     r32* topLayerSamples;
@@ -33,7 +34,7 @@ struct MarchingCacheBuffers
     u32* middleLayerVertexIndices;
     u32* topLayerVertexIndices;
 
-    u32 cellsPerAxis;
+    v2u cellsPerAxis;
 };
 
 struct MeshPool
@@ -83,9 +84,9 @@ struct InflatedMesh
 
 
 struct MeshGeneratorData;
-struct UniversalCoords;
-#define MESH_GENERATOR_FUNC(name) Mesh* name( const MeshGeneratorData& generatorData, const UniversalCoords& entityCoords, \
-                                              MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool ) 
+struct WorldCoords;
+#define MESH_GENERATOR_FUNC(name) Mesh* name( const MeshGeneratorData& generatorData, const WorldCoords& entityCoords, \
+                                              IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool ) 
 typedef MESH_GENERATOR_FUNC(MeshGeneratorFunc);
 
 struct StoredEntity;
@@ -95,7 +96,7 @@ struct MeshGeneratorJob
 {
     const StoredEntity*     storedEntity;
     const v3i*              worldOriginClusterP;
-    MarchingCacheBuffers*   cacheBuffers;
+    IsoSurfaceSamplingCache*   samplingCache;
     MeshPool*               meshPools;
     LiveEntity*             outputEntity;
 

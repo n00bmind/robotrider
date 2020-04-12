@@ -48,7 +48,7 @@ struct Player
 // before, or retrieved from the stored entities set and re-activated if we're returning to them.
 // Our RNG will be totally deterministic, so any given cluster can (must) be filled in a deterministic way.
 
-struct UniversalCoords
+struct WorldCoords
 {
     // Cluster coordinates wrap around with int32, so our space wraps around itself around every X,Y,Z cartesian coordinate
     // This is a... 3-thorus?? :: https://en.wikipedia.org/wiki/Three-torus_model_of_the_universe
@@ -60,7 +60,7 @@ struct UniversalCoords
 // (for entities that have it)
 struct StoredEntity
 {
-    UniversalCoords coords;
+    WorldCoords worldP;
     // Dimensions of the aligned bounding box
     v3 dim;
 
@@ -96,12 +96,49 @@ struct LiveEntity
     volatile EntityState state;
 };
 
+// NOTE Everything related to maze generation and connectivity is measured in voxel units
+const r32 VoxelSizeMeters = 1.f;
+const i32 VoxelsPerClusterAxis = 256;
+
 const r32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;
 typedef Grid3D<u8> ClusterVoxelGrid;
 
+
+struct Room
+{
+    v3u voxelP;
+    v3u sizeVoxels;
+    // TODO This will be in the stored entity when we turn rooms into that
+    // TODO Make sure everything in the pipeline uses these right up until we send the meshes for rendering
+    WorldCoords worldP;
+    v3 halfSize;
+};
+
+struct Hall
+{
+    v3u startP;
+    v3u endP;
+    // Encoded as 2 bits per axis, first axis is LSB
+    u8 axisOrder;
+};
+
+struct BinaryVolume
+{
+    BinaryVolume* leftChild;
+    BinaryVolume* rightChild;
+
+    union
+    {
+        Room room;
+        Hall hall;
+    };
+
+    v3u voxelP;
+    v3u sizeVoxels;
+};
+
 struct Cluster
 {
-    bool populated;
     // TODO Determine what the bucket size should be so we have just one bucket most of the time
     BucketArray<StoredEntity> entityStorage;
 
@@ -110,6 +147,8 @@ struct Cluster
 
     Array<Room> rooms;
     ClusterVoxelGrid voxelGrid;
+
+    bool populated;
 };
 
 inline u32 ClusterHash( const v3i& key, u32 tableSize );
@@ -147,7 +186,7 @@ struct World
     // (we take the clusters we want to simulate, expand the entities stored there to their live version, and then store them back)
     // (clusters around the player are always kept live)
     // TODO Is the previous sentence true?
-    // TODO Actually do that at least with the entity coords (always used the value calculated from the stored coords)
+    // TODO Actually do that at least with the entity coords (always use the value calculated from the stored coords)
     // instead of the weird en-mass translation!
     // TODO Investigate what a good bucket size is
     BucketArray<LiveEntity> liveEntities;
@@ -163,11 +202,49 @@ struct World
     r32 marchingCubeSize;
 
     // TODO Should this be aligned and/or padded for cache niceness?
-    MarchingCacheBuffers* cacheBuffers;
+    IsoSurfaceSamplingCache* samplingCache;
     MeshPool* meshPools;
 
     MeshGeneratorJob generatorJobs[PLATFORM_MAX_JOBQUEUE_JOBS];
     u32 lastAddedJob;
 };
+
+
+
+/// WORLD PARTITIONING ///
+
+struct SectorParams
+{
+    r32 minVolumeRatio;
+    r32 maxVolumeRatio;
+    r32 minRoomSizeRatio;
+    r32 maxRoomSizeRatio;
+    i32 volumeSafeMarginSize;
+    // Probability of keeping partitioning a volume once all its dimensions are smaller that the max size
+    r32 volumeExtraPartitioningProbability;
+};
+
+SectorParams
+CollectSectorParams( const v3i& clusterCoords )
+{
+    // TODO Retrieve the generation params for the cluster according to our future sector hierarchy
+    // Just return some test values for now
+    SectorParams result = {};
+    result.minVolumeRatio = 0.4f;
+    result.maxVolumeRatio = 0.5f;
+    result.minRoomSizeRatio = 0.15f;
+    result.maxRoomSizeRatio = 0.75f;
+    result.volumeSafeMarginSize = 1;
+    result.volumeExtraPartitioningProbability = 0.5f;
+
+    ASSERT( result.minRoomSizeRatio > 0.f && result.minRoomSizeRatio < 1.f );
+    ASSERT( result.maxRoomSizeRatio > 0.f && result.maxRoomSizeRatio < 1.f );
+    ASSERT( result.volumeExtraPartitioningProbability >= 0.f && result.volumeExtraPartitioningProbability <= 1.f );
+
+    return result;
+}
+
+
+
 
 #endif /* __WORLD_H__ */
