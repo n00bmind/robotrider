@@ -76,18 +76,16 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     world->meshGenerators[GenRoom] = MeshGeneratorRoomFunc;
 #endif
 
-    world->marchingAreaSize = 100;
-    world->marchingCubeSize = 5;
-    r32 cellsPerAxis = world->marchingAreaSize / world->marchingCubeSize;
-    ASSERT( cellsPerAxis == (u32)cellsPerAxis );
-
     world->samplingCache = PUSH_ARRAY( worldArena, IsoSurfaceSamplingCache, globalPlatform.coreThreadsCount );
     world->meshPools = PUSH_ARRAY( worldArena, MeshPool, globalPlatform.coreThreadsCount );
     sz arenaAvailable = Available( *worldArena );
     sz maxPerThread = arenaAvailable / 2 / globalPlatform.coreThreadsCount;
+
+    // NOTE This limits the max room size we can sample
+    const v2u maxVoxelsPerAxis = V2u( 150 );
     for( u32 i = 0; i < globalPlatform.coreThreadsCount; ++i )
     {
-        world->samplingCache[i] = InitSurfaceSamplingCache( worldArena, V2u( (u32)cellsPerAxis ) );
+        world->samplingCache[i] = InitSurfaceSamplingCache( worldArena, maxVoxelsPerAxis );
         InitMeshPool( &world->meshPools[i], worldArena, maxPerThread );
     }
 
@@ -342,9 +340,6 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
                     cluster->voxelGrid( i, j, k ) = atBorder ? 2 : 1;
                 }
 #else
-        // TODO Do this in jobs in LoadEntitiesInCluster
-        ClearScratchBuffers( meshPool );
-
         // FIXME Account for sample volume thickness during room volume calculations
         u32 volumeShellThickness = 3;
         v3u roomExtP = roomIntMinP - V3u( volumeShellThickness );
@@ -357,7 +352,12 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
         // Just pass the room data for now
         void* const roomSamplingData = &v->room;
 
+        ASSERT( samplingCache->cellsPerAxis.x >= voxelsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= voxelsPerSliceAxis.y );
+        // TODO Do this in jobs in LoadEntitiesInCluster
+        ClearScratchBuffers( meshPool );
+
         // TODO Super sample the volume shell?
+        // TODO Skip interior!
         bool firstSlice = true;
         for( u32 k = 0; k < roomExtSize.z; ++k )
         {
@@ -396,7 +396,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
                 v3 pAtRowStart = worldP.relativeP;
                 for( u32 i = 0; i < voxelsPerSliceAxis.x; ++i )
                 {
-                    MarchCube( worldP.relativeP, V2i( i, j ), VoxelSizeMeters, samplingCache,
+                    MarchCube( worldP.relativeP, V2i( i, j ), voxelsPerSliceAxis, VoxelSizeMeters, samplingCache,
                                &meshPool->scratchVertices, &meshPool->scratchIndices );
                     worldP.relativeP.x += VoxelSizeMeters;
                 }
@@ -486,7 +486,9 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     v3 clusterGridWorldP = GetClusterOffsetFromOrigin( clusterP, world->originClusterP ) - V3( ClusterSizeMeters * 0.5f );
     // Create a room in each volume
     // TODO Add a certain chance for empty volumes
+#if 0
     CreateRooms( rootVolume, genParams, cluster, clusterP, world->samplingCache, &world->meshPools[0] );
+#endif
 }
 
 inline MeshGeneratorJob*
@@ -991,7 +993,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             }
         }
     }
-#else
+//#else
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
 
     for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
@@ -1012,6 +1014,15 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         }
     }
 #endif
+    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
+    Room roomData;
+    roomData.worldP = { V3Zero, V3iZero };
+    roomData.halfSize = V3( 5.f );
+    static Mesh* testMesh = nullptr;
+    if( testMesh == nullptr )
+        testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( 20.f ), VoxelSizeMeters, RoomSurfaceFunc, &roomData,
+                                    world->samplingCache, &world->meshPools[0] );
+    RenderMesh( *testMesh, renderCommands );
 
     {
         // Create a chasing camera

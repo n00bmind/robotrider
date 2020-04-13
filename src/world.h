@@ -199,9 +199,6 @@ struct World
     v3i originClusterP;
     v3i lastOriginClusterP;
 
-    r32 marchingAreaSize;
-    r32 marchingCubeSize;
-
     // TODO Should this be aligned and/or padded for cache niceness?
     IsoSurfaceSamplingCache* samplingCache;
     MeshPool* meshPools;

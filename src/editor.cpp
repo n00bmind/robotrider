@@ -352,7 +352,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );
 
-	RenderFloorGrid( ClusterSizeMeters, gameState->world->marchingCubeSize, renderCommands );
+	RenderFloorGrid( ClusterSizeMeters, 10.f, renderCommands );
     DrawAxisGizmos( renderCommands );
 
     u16 width = renderCommands->width;

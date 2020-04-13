@@ -172,13 +172,13 @@ namespace
 }
 
 internal void
-MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, r32 cellSizeMeters, IsoSurfaceSamplingCache* samplingCache,
-           BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
+MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
+           IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
 {
     TIMED_BLOCK;
 
     // Cache layers contain one sample per _edge_
-    v2u layerStepsPerAxis = samplingCache->cellsPerAxis + V2uOne;
+    v2u layerStepsPerAxis = cellsPerAxis + V2uOne;
 
     // Construct case mask from 8 corner samples
     u32 caseIndex = 0;
@@ -282,7 +282,7 @@ MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, r32 cellSizeMeters,
 }
 
 Mesh*
-MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cubeSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
+MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
                IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool )
 {
     ClearScratchBuffers( meshPool );
@@ -290,14 +290,14 @@ MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cubeSize
     {
         TIMED_BLOCK;
 
-        v2u cellsPerSliceAxis = V2u( areaSideMeters.xy / cubeSizeMeters );
-        u32 sliceCount = (u32)(areaSideMeters.z / cubeSizeMeters);
-        ASSERT( samplingCache->cellsPerAxis == cellsPerSliceAxis );
+        v2u cellsPerSliceAxis = V2u( areaSideMeters.xy / cellSizeMeters );
+        u32 sliceCount = (u32)(areaSideMeters.z / cellSizeMeters);
+        ASSERT( samplingCache->cellsPerAxis.x >= cellsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= cellsPerSliceAxis.y );
         v3 halfSideMeters = areaSideMeters / 2;
         v3 cornerOffset = -halfSideMeters;
 
-        v3 vXDelta = V3( cubeSizeMeters, 0, 0 );
-        v3 vYDelta = V3( 0, cubeSizeMeters, 0 );
+        v3 vXDelta = V3( cellSizeMeters, 0, 0 );
+        v3 vYDelta = V3( 0, cellSizeMeters, 0 );
 
         v2u gridLinesPerAxis = cellsPerSliceAxis + V2uOne;
         bool firstSlice = true;
@@ -319,37 +319,36 @@ MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cubeSize
 
                 r32* sampledLayer = n ? topSamples : bottomSamples;
 
-                p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k + n ) * cubeSizeMeters;
+                p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k + n ) * cellSizeMeters;
 
                 r32* sample = sampledLayer;
                 // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
-                for( u32 i = 0; i < gridLinesPerAxis.x; ++i )
+                for( u32 j = 0; j < gridLinesPerAxis.y; ++j )
                 {
                     v3 pAtRowStart = p.relativeP;
-                    for( u32 j = 0; j < gridLinesPerAxis.y; ++j )
+                    for( u32 i = 0; i < gridLinesPerAxis.x; ++i )
                     {
                         *sample++ = sampleFunc( samplingData, p );
-                        p.relativeP += vYDelta;
+                        p.relativeP += vXDelta;
                     }
-                    p.relativeP = pAtRowStart + vXDelta;
+                    p.relativeP = pAtRowStart + vYDelta;
                 }
             }
 
             // Keep a cache of already calculated vertices to eliminate duplication
             ClearVertexCaches( samplingCache, firstSlice );
 
-            p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k ) * cubeSizeMeters;
-            // TODO Should iterate y then x!?
-            for( u32 i = 0; i < cellsPerSliceAxis.x; ++i )
+            p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k ) * cellSizeMeters;
+            for( u32 j = 0; j < cellsPerSliceAxis.y; ++j )
             {
                 v3 pAtRowStart = p.relativeP;
-                for( u32 j = 0; j < cellsPerSliceAxis.y; ++j )
+                for( u32 i = 0; i < cellsPerSliceAxis.x; ++i )
                 {
-                    MarchCube( p.relativeP, V2i( i, j ), cubeSizeMeters, samplingCache,
+                    MarchCube( p.relativeP, V2i( i, j ), cellsPerSliceAxis, cellSizeMeters, samplingCache,
                                &meshPool->scratchVertices, &meshPool->scratchIndices );
-                    p.relativeP += vYDelta;
+                    p.relativeP += vXDelta;
                 }
-                p.relativeP = pAtRowStart + vXDelta;
+                p.relativeP = pAtRowStart + vYDelta;
             }
 
             firstSlice = false;
@@ -384,7 +383,7 @@ ISO_SURFACE_FUNC(SampleMetaballs)
 }
 
 void
-TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, IsoSurfaceSamplingCache* samplingCache,
+TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSurfaceSamplingCache* samplingCache,
                MeshPool* meshPool, RenderCommands *renderCommands )
 {
     persistent ARRAY(Metaball, 10, balls);
@@ -413,7 +412,7 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, IsoSu
     }
     
     // Update mesh by sampling our cubic area centered at origin
-    Mesh* metaMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( areaSideMeters ), cubeSizeMeters,
+    Mesh* metaMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( areaSideMeters ), cellSizeMeters,
                                     SampleMetaballs, &balls,
                                     samplingCache, meshPool );
 
@@ -1022,7 +1021,7 @@ ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displa
                 }
 #endif
 
-                MarchCube( p, V2i( i, j ), step, samplingCache,
+                MarchCube( p, V2i( i, j ), V2u( cellsPerAxis ), step, samplingCache,
                            &meshPool->scratchVertices, &meshPool->scratchIndices );
             }
         }
