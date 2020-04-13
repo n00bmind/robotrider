@@ -99,7 +99,7 @@ AddEntityToCluster( Cluster* cluster, const v3i& clusterP, const v3& entityRelat
                     const MeshGeneratorData& generatorData )
 {
     StoredEntity* newEntity = cluster->entityStorage.PushEmpty();
-    newEntity->worldP = { clusterP, entityRelativeP };
+    newEntity->worldP = { entityRelativeP, clusterP };
     newEntity->dim = entityDim;
     newEntity->generator = { generatorFunc, generatorData };
 }
@@ -321,15 +321,15 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
             RandomRangeU32( genParams.volumeSafeMarginSize, vSize.z - roomSizeVoxels.z - genParams.volumeSafeMarginSize ),
         };
 
+        const v3 clusterHalfSizeMeters = V3( ClusterSizeMeters * 0.5f );
+
         v3u roomIntMinP = v->voxelP + roomOffset;
         v3u roomIntMaxP = roomIntMinP + roomSizeVoxels - V3uOne;
 
         v->room.voxelP = roomIntMinP;
         v->room.sizeVoxels = roomSizeVoxels;
-        v->room.worldP = { clusterP, (V3( roomIntMinP ) + V3( roomSizeVoxels ) * 0.5f) * ClusterSizeMeters };
-        v->room.halfSize = V3( roomSizeVoxels ) * 0.5f * ClusterSizeMeters;
-
-        cluster->rooms.Push( v->room );
+        v->room.worldP = { -clusterHalfSizeMeters + (V3( roomIntMinP ) + V3( roomSizeVoxels ) * 0.5f) * VoxelSizeMeters, clusterP };
+        v->room.halfSize = V3( roomSizeVoxels ) * 0.5f * VoxelSizeMeters;
 
 #if 0
         for( u32 k = roomIntMinP.z; k <= roomIntMaxP.z; ++k )
@@ -345,7 +345,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
         // TODO Do this in jobs in LoadEntitiesInCluster
         ClearScratchBuffers( meshPool );
 
-        // TODO Account for sample volume thickness during room volume calculations
+        // FIXME Account for sample volume thickness during room volume calculations
         u32 volumeShellThickness = 3;
         v3u roomExtP = roomIntMinP - V3u( volumeShellThickness );
         v3u roomExtSize = roomSizeVoxels + V3u( 2 * volumeShellThickness );
@@ -353,7 +353,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
         v2u voxelsPerSliceAxis = roomExtSize.xy;
         v2u gridEdgesPerSliceAxis = voxelsPerSliceAxis + V2uOne;
 
-        WorldCoords worldP = { clusterP, V3Zero };
+        WorldCoords worldP = { V3Zero, clusterP };
         // Just pass the room data for now
         void* const roomSamplingData = &v->room;
 
@@ -370,7 +370,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
                 if( n == 0 && !firstSlice )
                     continue;
 
-                worldP.relativeP = -V3( ClusterSizeMeters * 0.5f ) + V3( roomExtP + V3u( 0, 0, k + n ) ) * VoxelSizeMeters;
+                worldP.relativeP = -clusterHalfSizeMeters + V3( roomExtP + V3u( 0, 0, k + n ) ) * VoxelSizeMeters;
 
                 r32* sample = n ? samplingCache->topLayerSamples : samplingCache->bottomLayerSamples;
                 // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
@@ -390,7 +390,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
             // Keep a cache of already calculated vertices to eliminate duplication
             ClearVertexCaches( samplingCache, firstSlice );
 
-            worldP.relativeP = -V3( ClusterSizeMeters * 0.5f ) + V3( roomExtP + V3u( 0, 0, k ) ) * VoxelSizeMeters;
+            worldP.relativeP = -clusterHalfSizeMeters + V3( roomExtP + V3u( 0, 0, k ) ) * VoxelSizeMeters;
             for( u32 j = 0; j < voxelsPerSliceAxis.y; ++j )
             {
                 v3 pAtRowStart = worldP.relativeP;
@@ -407,7 +407,13 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
             SwapTopAndBottomLayers( samplingCache );
             firstSlice = false;
         }
+
+        // Write output mesh
+        v->room.mesh = AllocateMeshFromScratchBuffers( meshPool );
+
+        cluster->rooms.Push( v->room );
 #endif
+
         return &v->room;
     }
 }
@@ -968,7 +974,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
                     RenderBoxAt( voxelP, VoxelSizeMeters, grey, renderCommands );
                 }
             }
-#else
+//#else
     u32 whiteish = Pack01ToRGBA( 0.95f, 0.95f, 0.95f, 1 );
 
     for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
@@ -982,6 +988,26 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
                 const v3 clusterOffsetP = V3( V3i( i, j, k ) ) * ClusterSizeMeters - clusterHalfDims;
 
                 RenderClusterVoxels( *cluster, clusterOffsetP, whiteish, renderCommands );
+            }
+        }
+    }
+#else
+    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
+
+    for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
+    {
+        for( int j = -SimRegionWidth; j <= SimRegionWidth; ++j )
+        {
+            for( int k = -SimRegionWidth; k <= SimRegionWidth; ++k )
+            {
+                v3i clusterP = world->originClusterP + V3i( i, j, k );
+                Cluster* cluster = world->clusterTable.Find( clusterP );
+
+                for( u32 r = 0; r < cluster->rooms.count; ++r )
+                {
+                    Room& room = cluster->rooms[r];
+                    RenderMesh( *room.mesh, renderCommands );
+                }
             }
         }
     }

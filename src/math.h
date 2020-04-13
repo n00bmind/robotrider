@@ -269,4 +269,5 @@ UnpackRGBA( u32 c, u32* r, u32* g, u32* b, u32* a = nullptr )
     if( r ) *r = c & 0xFF;
 }
 
+
 #endif /* __MATH_H__ */

@@ -1,5 +1,4 @@
-/*
-The MIT License
+/*The MIT License
 
 Copyright (c) 2017 Oscar Peñas Pariente <oscarpp80@gmail.com>
 
@@ -52,8 +51,8 @@ struct WorldCoords
 {
     // Cluster coordinates wrap around with int32, so our space wraps around itself around every X,Y,Z cartesian coordinate
     // This is a... 3-thorus?? :: https://en.wikipedia.org/wiki/Three-torus_model_of_the_universe
-    v3i clusterP;
     v3 relativeP;
+    v3i clusterP;
 };
 
 // Minimal stored version of an entity
@@ -112,6 +111,8 @@ struct Room
     // TODO Make sure everything in the pipeline uses these right up until we send the meshes for rendering
     WorldCoords worldP;
     v3 halfSize;
+
+    Mesh* mesh;
 };
 
 struct Hall
@@ -156,7 +157,7 @@ inline u32 EntityHash( const u32& key, u32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
-const int SimRegionWidth = 1;
+const int SimRegionWidth = 0;
 
 enum MeshGeneratorType
 {

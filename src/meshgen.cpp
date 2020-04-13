@@ -413,7 +413,7 @@ TestMetaballs( float areaSideMeters, float cubeSizeMeters, float elapsedT, IsoSu
     }
     
     // Update mesh by sampling our cubic area centered at origin
-    Mesh* metaMesh = MarchAreaFast( { V3iZero, V3Zero }, V3( areaSideMeters ), cubeSizeMeters,
+    Mesh* metaMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( areaSideMeters ), cubeSizeMeters,
                                     SampleMetaballs, &balls,
                                     samplingCache, meshPool );
 
@@ -1210,7 +1210,7 @@ ISO_SURFACE_FUNC(SampleRoomBody)
 
 MESH_GENERATOR_FUNC(MeshGeneratorRoomFunc)
 {
-    Mesh* result = MarchAreaFast( { V3iZero, V3Zero }, V3( generatorData.areaSideMeters ), generatorData.resolutionMeters, SampleRoomBody,
+    Mesh* result = MarchAreaFast( { V3Zero, V3iZero }, V3( generatorData.areaSideMeters ), generatorData.resolutionMeters, SampleRoomBody,
                                   &generatorData.room, samplingCache, meshPool );
     result->mTransform = M4Translation( entityCoords.relativeP );
 
@@ -1223,9 +1223,12 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
     TIMED_BLOCK;
 
     Room* roomData = (Room*)samplingData;
+    // NOTE We're axis aligned for now, so just translate
+    v3 invWorldP = worldP.relativeP - roomData->worldP.relativeP;
 
-
-    return 0.f;
+    // Inflate the size a little
+    r32 result = SDFBox( invWorldP, roomData->halfSize + V3( VoxelSizeMeters * 0.5f ) );
+    return result;
 }
 
 

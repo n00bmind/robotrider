@@ -1,5 +1,0 @@
-#ifndef __WORLD_PARTITIONING_H__
-#define __WORLD_PARTITIONING_H__ 
-
-
-#endif /* __WORLD_PARTITIONING_H__ */
