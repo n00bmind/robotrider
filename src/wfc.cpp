@@ -1,3 +1,12 @@
+#if NON_UNITY_BUILD
+#include "imgui/imgui.h"
+#include "ui.h"
+#include "renderer.h"
+#include "wfc.h"
+#include "platform.h"
+#include "debugstats.h"
+#endif
+
 namespace WFC
 {
 
@@ -1043,8 +1052,7 @@ TryStartJobFor( const v2u& pOutputChunk, GlobalState* globalState, const ChunkIn
     return result;
 }
 
-GlobalState*
-StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena )
+GlobalState* StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena )
 {
     u32 maxJobCount = 8;
 
@@ -1160,8 +1168,7 @@ GetChunkForAdjacencyIndex( const v3i& pSourceChunk, u32 adjacencyIndex, GlobalSt
     return result;
 }
 
-void
-UpdateWFCAsync( GlobalState* globalState )
+void UpdateWFCAsync( GlobalState* globalState )
 {
     if( globalState->cancellationRequested )
     {
@@ -1456,10 +1463,9 @@ JobsInProgress( const GlobalState* globalState )
     return result;
 }
 
-u32
-DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState* displayState,
-          const v2& pDisplay, const v2& displayDim, const DebugState* debugState, MemoryArena* wfcDisplayArena,
-          const TemporaryMemory& tmpMemory )
+u32 DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState* displayState,
+              const v2& pDisplay, const v2& displayDim, const DebugState* debugState, MemoryArena* wfcDisplayArena,
+              const TemporaryMemory& tmpMemory )
 {
     u32 selectedIndex = U32MAX;
     const Spec& spec = specs[displayState->currentSpecIndex];

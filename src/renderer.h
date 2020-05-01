@@ -24,6 +24,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __RENDERER_H__
 #define __RENDERER_H__ 
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#include "math_types.h"
+#include "data_types.h"
+#endif
+
+
 enum class Renderer
 {
     OpenGL,
@@ -40,7 +47,7 @@ enum class ShaderProgramName
     FlatShading,
 };
 
-enum class RenderSwitch
+enum class RenderSwitchType
 {
     Bla,
 };
@@ -59,14 +66,15 @@ DefaultCamera( r32 fovYDeg = 60 )
     return result;
 }
 
+// TODO Test different layouts and investigate alignment etc here
 struct TexturedVertex
 {
     v3 p;
     u32 color;
-    v2 uv;
     // TODO Should we just ignore these and do it all in the GS based on what shading we want?
     // TODO In any case, create a separate vertex format for all the debug stuff etc. that will never need this
     v3 n;
+    v2 uv;
 };
 
 struct Texture
@@ -88,17 +96,22 @@ struct MeshPool;
 
 struct Mesh
 {
-    TexturedVertex* vertices;
-    u32 vertexCount;
-    u32* indices;
-    u32 indexCount;
+    MeshPool* ownerPool;
 
-    m4 mTransform;
-    aabb bounds;
+    TexturedVertex* vertices;
+    u32* indices;
+    u32 vertexCount;
+    u32 indexCount;
 
     Material* material;
 
-    MeshPool* ownerPool;
+    // NOTE Static geometry doesnt need this at all
+    // NOTE Dynamic geometry will be always transformed relative to the cluster they live in
+    m4 mTransform;
+    aabb bounds;
+
+    // Index into the global cluster offset array to determine final translation in the shader
+    u32 clusterIndex;
 };
 
 inline void
@@ -207,7 +220,7 @@ struct RenderEntrySwitch
 {
     RenderEntry header;
 
-    RenderSwitch renderSwitch;
+    RenderSwitchType renderSwitch;
     bool enable;
 };
 
@@ -320,6 +333,26 @@ ResetRenderCommands( RenderCommands *commands )
     commands->currentTris = nullptr;
     commands->currentLines = nullptr;
 }
+
+
+struct Cluster;
+typedef Grid3D<u8> ClusterVoxelGrid;
+
+void RenderClear( const v4& color, RenderCommands *commands );
+void RenderQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, RenderCommands *commands );
+void RenderLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands );
+void RenderSetShader( ShaderProgramName programName, RenderCommands *commands );
+void RenderSetMaterial( Material* material, RenderCommands* commands );
+void RenderSwitch( RenderSwitchType renderSwitch, bool enable, RenderCommands* commands );
+void RenderMesh( const Mesh& mesh, RenderCommands *commands );
+void RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands );
+void RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands );
+void RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands );
+void RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands );
+void RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands );
+void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands );
+void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands );
+
 
 
 

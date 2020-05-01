@@ -1,6 +1,13 @@
 #ifndef __EDITOR_H__
 #define __EDITOR_H__ 
 
+#if NON_UNITY_BUILD
+#include "renderer.h"
+//#include "robotrider.h"
+//#include "ui.h"
+#endif
+
+
 struct EditorEntity
 {
     Mesh* mesh;

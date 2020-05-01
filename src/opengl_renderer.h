@@ -24,6 +24,28 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __OPENGL_RENDERER_H__
 #define __OPENGL_RENDERER_H__ 
 
+#if NON_UNITY_BUILD
+#ifdef _WIN32
+#include <windows.h>
+#include <gl/gl.h>
+#else
+//
+#endif
+#include "glext.h"
+#include "wglext.h"
+#include "renderer.h"
+#endif
+
+
+#ifdef _WIN32
+#define GL_DEBUG_CALLBACK(name) \
+    void WINAPI name( GLenum source, GLenum type, GLuint id, GLenum severity, \
+                      GLsizei length, const GLchar *message, const void *userParam )
+#else
+#define GL_DEBUG_CALLBACK(name) \
+    void name( GLenum source, GLenum type, GLuint id, GLenum severity, \
+               GLsizei length, const GLchar *message, const void *userParam )
+#endif
 #define ASSERT_GL_STATE ASSERT( glGetError() == GL_NO_ERROR );
 
 struct OpenGLInfo

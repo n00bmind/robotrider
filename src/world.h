@@ -23,6 +23,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __WORLD_H__
 #define __WORLD_H__ 
 
+#if NON_UNITY_BUILD
+#include "renderer.h"
+#include "meshgen.h"
+#include "platform.h"
+#endif
+
 
 struct Player
 {
@@ -157,7 +163,7 @@ inline u32 EntityHash( const u32& key, u32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
-const int SimRegionWidth = 0;
+const int SimRegionWidth = 1;
 
 enum MeshGeneratorType
 {

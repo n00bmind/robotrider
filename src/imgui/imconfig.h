@@ -13,6 +13,11 @@
 
 #pragma once
 
+#if NON_UNITY_BUILD
+#include "math_types.h"
+#include "data_types.h"
+#endif
+
 //---- Define assertion handler. Defaults to calling assert().
 #define IM_ASSERT(_EXPR)  ASSERT(_EXPR)
 

@@ -24,6 +24,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __ROBOTRIDER_H__
 #define __ROBOTRIDER_H__ 
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#include "memory.h"
+#include "world.h"
+#include "editor.h"
+#include "wfc.h"
+#endif
 
 
 enum class ConsoleEntryType

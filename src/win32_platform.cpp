@@ -32,9 +32,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <gl/gl.h>
 #include "glext.h"
 #include "wglext.h"
-#define GL_DEBUG_CALLBACK(name) \
-    void WINAPI name( GLenum source, GLenum type, GLuint id, GLenum severity, \
-                      GLsizei length, const GLchar *message, const void *userParam )
 #include "opengl_renderer.h"
 #include "opengl_renderer.cpp"
 

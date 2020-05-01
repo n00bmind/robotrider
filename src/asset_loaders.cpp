@@ -21,8 +21,15 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-Texture
-LoadTexture( const char* path, bool flipVertically, bool filtered = true, int desiredChannels = 0 )
+#if NON_UNITY_BUILD
+#include "renderer.h"
+#include "platform.h"
+#include "stb/stb_image.h"
+#include "data_types.h"
+#include "wfc.h"
+#endif
+
+Texture LoadTexture( const char* path, bool flipVertically, bool filtered /*= true*/, int desiredChannels /*= 0*/ )
 {
     DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
 
@@ -48,8 +55,7 @@ LoadTexture( const char* path, bool flipVertically, bool filtered = true, int de
     return result;
 }
 
-Array<WFC::Spec>
-LoadWFCVars( const char* path, MemoryArena* arena, const TemporaryMemory& tempMemory )
+Array<WFC::Spec> LoadWFCVars( const char* path, MemoryArena* arena, const TemporaryMemory& tempMemory )
 {
     Array<WFC::Spec> empty;
     BucketArray<WFC::Spec> result( tempMemory.arena, 128, Temporary() );
@@ -252,9 +258,7 @@ VertexHash( const VertexKey& key, u32 tableSize )
     return key.pIdx;
 }
 
-Mesh
-LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory,
-         const m4& appliedTransform = M4Identity )
+Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory, const m4& appliedTransform /*= M4Identity*/ )
 {
     // TODO Centralize asset loading in the platform layer (through a 'bundle' file),
     // so that temporary memory used while loading is reused and not allocated every time
@@ -422,13 +426,12 @@ LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory,
                     if( haveNormals )
                         n = normals[key.nIdx];
 
-                    TexturedVertex newVertex =
-                    {
-                        positions[key.pIdx],
-                        Pack01ToRGBA( 1, 1, 1, 1 ),
-                        uv,
-                        n,
-                    };
+                    TexturedVertex newVertex;
+                    newVertex.p = positions[key.pIdx];
+                    newVertex.color = Pack01ToRGBA( 1, 1, 1, 1 );
+                    newVertex.n = n;
+                    newVertex.uv = uv;
+
                     vertexIndex[i] = vertices.count;
                     vertices.Add( newVertex );
                     cachedVertices.Insert( key, vertexIndex[i] );

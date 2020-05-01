@@ -21,16 +21,18 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#if NON_UNITY_BUILD
+#include "ui.h"
+#include "util.h"
+#include "renderer.h"
+#include "debugstats.h"
+#include "editor.h"
+#endif
+
 // TODO Make sure everything here uses resolution-independant (0 to 1) coordinates
 
-// Some global constants for colors, styling, etc.
-ImVec4 UInormalTextColor( 0.9f, 0.9f, 0.9f, 1.0f );
-ImVec4 UIdarkTextColor( .0f, .0f, .0f, 1.0f );
-ImVec4 UItoolWindowBgColor( 0.f, 0.f, 0.f, 0.6f );
-ImVec4 UIlightOverlayBgColor( 0.5f, 0.5f, 0.5f, 0.05f );
 
-void
-DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
+void DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
 {
     ImVec2 statsPos( 0, 0 );
 
@@ -53,8 +55,7 @@ DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
     ImGui::PopStyleVar();
 }
 
-void
-DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool blinkToggle )
+void DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool blinkToggle )
 {
     ImVec2 statsPos( 0, 0 );
 
@@ -75,9 +76,8 @@ DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool 
     ImGui::PopStyleVar();
 }
 
-inline void
-DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, r32 xLen, const v3& yAxis, r32 yLen, u32 color,
-                                 RenderCommands *renderCommands )
+inline void DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, r32 xLen, const v3& yAxis, r32 yLen, u32 color,
+                                      RenderCommands *renderCommands )
 {
     v3 p1 = origin + xAxis * 0.f  + yAxis * 0.f;
     v3 p2 = origin + xAxis * xLen + yAxis * 0.f;
@@ -86,8 +86,7 @@ DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, r32 xLen, const v3&
     RenderQuad( p1, p2, p3, p4, color, renderCommands );
 }
 
-void
-DrawAxisGizmos( RenderCommands *renderCommands )
+void DrawAxisGizmos( RenderCommands *renderCommands )
 {
     const m4 &currentCamTransform = renderCommands->camera.worldToCamera;
     v3 vCamX = GetCameraBasisX( currentCamTransform );
@@ -127,8 +126,7 @@ DrawAxisGizmos( RenderCommands *renderCommands )
     DrawAlignedQuadWithBasis( origin + V3Y * w,             V3Z, len, -V3Y, w, color, renderCommands );
 }
 
-void
-DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ... )
+void DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ... )
 {
     char textBuffer[1024];
 
@@ -142,8 +140,7 @@ DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ..
     ImGui::Text( textBuffer );
 }
 
-void
-DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tmpMemory )
+void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tmpMemory )
 {
     r32 windowHeight = ImGui::GetWindowHeight();
 
@@ -232,9 +229,7 @@ DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tm
     ImGui::EndChild();
 }
 
-void
-DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight,
-                               const TemporaryMemory& tmpMemory )
+void DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight, const TemporaryMemory& tmpMemory )
 {
     ImGui::SetNextWindowPos( ImVec2( 100.f, windowHeight * 0.25f + 100 ), ImGuiCond_Always );
     ImGui::SetNextWindowSize( ImVec2( 500.f, windowHeight * 0.25f ), ImGuiCond_Always );
@@ -255,8 +250,7 @@ DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u3
     ImGui::PopStyleVar();
 }
 
-void
-DrawEditorStateWindow( const v2u& windowP, const v2u& windowDim, const EditorState& state )
+void DrawEditorStateWindow( const v2u& windowP, const v2u& windowDim, const EditorState& state )
 {
     ImGui::SetNextWindowPos( windowP, ImGuiCond_Always );
     ImGui::SetNextWindowSize( windowDim, ImGuiCond_Always );

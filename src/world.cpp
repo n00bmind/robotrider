@@ -21,6 +21,16 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#include "math_types.h"
+#include "world.h"
+#include "asset_loaders.h"
+#include "meshgen.h"
+#include "game.h"
+#include "robotrider.h"
+#endif
+
 
 inline u32
 ClusterHash( const v3i& clusterP, u32 tableSize )
@@ -76,14 +86,15 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     world->meshGenerators[GenRoom] = MeshGeneratorRoomFunc;
 #endif
 
-    world->samplingCache = PUSH_ARRAY( worldArena, IsoSurfaceSamplingCache, globalPlatform.coreThreadsCount );
-    world->meshPools = PUSH_ARRAY( worldArena, MeshPool, globalPlatform.coreThreadsCount );
+    const u32 coreThreadsCount = 1; //globalPlatform.coreThreadsCount;
+    world->samplingCache = PUSH_ARRAY( worldArena, IsoSurfaceSamplingCache, coreThreadsCount );
+    world->meshPools = PUSH_ARRAY( worldArena, MeshPool, coreThreadsCount );
     sz arenaAvailable = Available( *worldArena );
-    sz maxPerThread = arenaAvailable / 2 / globalPlatform.coreThreadsCount;
+    sz maxPerThread = arenaAvailable / 2 / coreThreadsCount;
 
     // NOTE This limits the max room size we can sample
     const v2u maxVoxelsPerAxis = V2u( 150 );
-    for( u32 i = 0; i < globalPlatform.coreThreadsCount; ++i )
+    for( u32 i = 0; i < coreThreadsCount; ++i )
     {
         world->samplingCache[i] = InitSurfaceSamplingCache( worldArena, maxVoxelsPerAxis );
         InitMeshPool( &world->meshPools[i], worldArena, maxPerThread );
@@ -486,9 +497,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     v3 clusterGridWorldP = GetClusterOffsetFromOrigin( clusterP, world->originClusterP ) - V3( ClusterSizeMeters * 0.5f );
     // Create a room in each volume
     // TODO Add a certain chance for empty volumes
-#if 0
     CreateRooms( rootVolume, genParams, cluster, clusterP, world->samplingCache, &world->meshPools[0] );
-#endif
 }
 
 inline MeshGeneratorJob*
@@ -993,7 +1002,8 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             }
         }
     }
-//#else
+#endif
+#if 1
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
 
     for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
@@ -1013,7 +1023,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             }
         }
     }
-#endif
+#else
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     Room roomData;
     roomData.worldP = { V3Zero, V3iZero };
@@ -1023,6 +1033,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( 20.f ), VoxelSizeMeters, RoomSurfaceFunc, &roomData,
                                     world->samplingCache, &world->meshPools[0] );
     RenderMesh( *testMesh, renderCommands );
+#endif
 
     {
         // Create a chasing camera

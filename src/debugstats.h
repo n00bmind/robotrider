@@ -24,6 +24,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __DEBUGSTATS_H__
 #define __DEBUGSTATS_H__ 
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#include "intrinsics.h"
+#endif
 
 // Minimal counter tied to a specific code location
 struct DebugCycleCounter
@@ -87,6 +91,7 @@ struct DebugState
     u32 totalInstanceCount;
     u32 totalGeneratedVerticesCount;
     u32 totalEntities;
+    u32 totalMeshCount;
 };
 
 

@@ -24,6 +24,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __DATA_TYPES_H__
 #define __DATA_TYPES_H__ 
 
+#if NON_UNITY_BUILD
+#include <ctype.h>
+#include <stdarg.h>
+#include "common.h"
+#include "memory.h"
+#include "math_types.h"
+#endif
+
 // FIXME Get rid of these
 #include <mutex>
 #include <condition_variable>

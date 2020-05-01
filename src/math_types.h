@@ -24,6 +24,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MATH_TYPES_H__
 #define __MATH_TYPES_H__ 
 
+#if NON_UNITY_BUILD
+#include "math.h"
+#endif
+
 /// We start with a quite standard right-handed cartesian coordinate system in which
 ///     +X goes right
 ///     +Y goes up
@@ -41,6 +45,68 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // TODO IMPORTANT Write a nice test suite for this whole file
 
+
+// Vector 2
+
+union v2
+{
+    struct
+    {
+        r32 x, y;
+    };
+    struct
+    {
+        r32 u, v;
+    };
+    struct
+    {
+        r32 min, max;
+    };
+    r32 e[2];
+};
+
+const v2 V2Zero = { 0, 0 };
+
+inline v2
+V2( r32 x, r32 y )
+{
+    v2 result = { x, y };
+    return result;
+}
+
+inline bool
+operator ==( const v2& a, const v2& b )
+{
+    return a.x == b.x && a.y == b.y;
+}
+
+inline v2
+operator -( const v2 &a, const v2 &b )
+{
+    v2 result = { a.x - b.x, a.y - b.y };
+    return result;
+}
+
+inline v2
+operator *( const v2 &v, r32 s )
+{
+    v2 result = { (r32)v.x * s, (r32)v.y * s };
+    return result;
+}
+
+inline v2
+operator /( const v2& v, r32 s )
+{
+    v2 result = { v.x / s, v.y / s };
+    return result;
+}
+
+inline r32
+LengthSq( const v2 &v )
+{
+    r32 result = v.x * v.x + v.y * v.y;
+    return result;
+}
 
 // Vector 2 integer
 
@@ -62,6 +128,13 @@ V2i( i32 x, i32 y )
     return result;
 }
 
+inline v2
+V2( const v2i &v )
+{
+    v2 result = { (r32)v.x, (r32)v.y };
+    return result;
+}
+
 inline bool
 operator ==( const v2i& a, const v2i& b )
 {
@@ -79,6 +152,13 @@ inline v2i
 Hadamard( const v2i& a, const v2i& b )
 {
     v2i result = { a.x * b.x, a.y * b.y };
+    return result;
+}
+
+inline v2i
+Round( const v2 &v )
+{
+    v2i result = { (i32)v.x, (i32)v.y };
     return result;
 }
 
@@ -118,11 +198,33 @@ V2u( const v2i& v )
     return result;
 }
 
+inline v2u
+V2u( const v2& v )
+{
+    ASSERT( v.x >= 0 && v.y >= 0 );
+    v2u result = { (u32)v.x, (u32)v.y };
+    return result;
+}
+
 inline v2i
 V2i( const v2u& v )
 {
     ASSERT( v.x <= I32MAX && v.y <= I32MAX );
     v2i result = { (i32)v.x, (i32)v.y };
+    return result;
+}
+
+inline v2u
+operator +( const v2u& a, const v2u& b )
+{
+    v2u result = { a.x + b.x, a.y + b.y };
+    return result;
+}
+
+inline v2u
+operator *( const v2u &v, r32 s )
+{
+    v2u result = V2u( V2( (r32)v.x * s, (r32)v.y * s ) );
     return result;
 }
 
@@ -139,67 +241,6 @@ Hadamard( const v2u& a, const v2u& b )
     return result;
 }
 
-// Vector 2
-
-union v2
-{
-    struct
-    {
-        r32 x, y;
-    };
-    struct
-    {
-        r32 u, v;
-    };
-    struct
-    {
-        r32 min, max;
-    };
-    r32 e[2];
-};
-
-const v2 V2Zero = { 0, 0 };
-
-inline v2
-V2( r32 x, r32 y )
-{
-    v2 result = { x, y };
-    return result;
-}
-
-inline v2
-V2( const v2i &v )
-{
-    v2 result = { (r32)v.x, (r32)v.y };
-    return result;
-}
-
-inline bool
-operator ==( const v2& a, const v2& b )
-{
-    return a.x == b.x && a.y == b.y;
-}
-
-inline v2
-operator -( const v2 &a, const v2 &b )
-{
-    v2 result = { a.x - b.x, a.y - b.y };
-    return result;
-}
-
-inline r32
-LengthSq( const v2 &v )
-{
-    r32 result = v.x * v.x + v.y * v.y;
-    return result;
-}
-
-inline v2i
-Round( const v2 &v )
-{
-    v2i result = { (i32)v.x, (i32)v.y };
-    return result;
-}
 
 // Vector 3 integer
 

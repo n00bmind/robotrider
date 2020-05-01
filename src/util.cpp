@@ -21,6 +21,12 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#include "data_types.h"
+#include "util.h"
+#endif
+
 
 void
 InsertSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
@@ -267,8 +273,7 @@ RadixSort( Array<r64>* inputOutput, bool ascending, MemoryArena* tmpArena )
     RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::R64, ascending, tmpArena );
 }
 
-void
-RadixSort( Array<KeyIndex64>* inputOutput, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
+void RadixSort( Array<KeyIndex64>* inputOutput, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
 {
     ASSERT( keyType >= RadixKey::U64 );
     RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(KeyIndex64), keyType, ascending, tmpArena );

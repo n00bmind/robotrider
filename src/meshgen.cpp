@@ -1,5 +1,13 @@
-IsoSurfaceSamplingCache
-InitSurfaceSamplingCache( MemoryArena* arena, v2u const& cellsPerAxis )
+#if NON_UNITY_BUILD
+#include "math_types.h"
+#include "math_sdf.h" 
+#include "renderer.h"
+#include "meshgen.h"
+#include "world.h"
+#endif
+
+
+IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2u const& cellsPerAxis )
 {
     IsoSurfaceSamplingCache result;
     result.cellsPerAxis = cellsPerAxis;
@@ -18,8 +26,7 @@ InitSurfaceSamplingCache( MemoryArena* arena, v2u const& cellsPerAxis )
     return result;
 }
 
-internal void
-ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottomLayer )
+void ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottomLayer )
 {
     v2u stepsPerAxis = samplingCache->cellsPerAxis + V2uOne;
     u32 layerCellCount = stepsPerAxis.x * stepsPerAxis.y;
@@ -35,8 +42,7 @@ ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottomLayer
          layerCellCount * 2 * sizeof(u32) );
 }
 
-internal void
-SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache )
+void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache )
 {
     IsoSurfaceSamplingCache copy = *samplingCache;
     samplingCache->bottomLayerSamples = copy.topLayerSamples;
@@ -46,8 +52,7 @@ SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache )
 }
 
 
-void
-InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size )
+void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size )
 {
     new (&pool->scratchVertices) BucketArray<TexturedVertex>( arena, 1024 );
     new (&pool->scratchIndices) BucketArray<u32>( arena, 1024 );
@@ -64,15 +69,13 @@ InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size )
     pool->meshCount = 0;
 }
 
-void
-ClearScratchBuffers( MeshPool* pool )
+void ClearScratchBuffers( MeshPool* pool )
 {
     pool->scratchVertices.Clear();
     pool->scratchIndices.Clear();
 }
 
-Mesh*
-AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
+Mesh* AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
 {
     sz vertexSize = sizeof(TexturedVertex) * vertexCount;
     sz indexSize = sizeof(u32) * indexCount;
@@ -104,8 +107,7 @@ AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
     return result;
 }
 
-Mesh*
-AllocateMeshFromScratchBuffers( MeshPool* pool )
+Mesh* AllocateMeshFromScratchBuffers( MeshPool* pool )
 {
     Mesh* result = AllocateMesh( pool, pool->scratchVertices.count,
                                  pool->scratchIndices.count );
@@ -136,8 +138,7 @@ CopyMeshFromScratchBuffers( Mesh* mesh, MeshPool* pool )
     return mesh;
 }
 
-void
-ReleaseMesh( Mesh** mesh )
+void ReleaseMesh( Mesh** mesh )
 {
     // TODO Move the sentinel in MeshPool to a 'parent' MemoryPool and add a reference to that
     // in the MemoryBlock so we can remove the ownerPool thing!
@@ -147,9 +148,6 @@ ReleaseMesh( Mesh** mesh )
 }
 
 ///// MARCHING CUBES /////
-
-#define ISO_SURFACE_FUNC(name) float name( void const* samplingData, WorldCoords const& worldP )
-typedef ISO_SURFACE_FUNC(IsoSurfaceFunc);
 
 struct VertexCacheIndex
 {
@@ -171,9 +169,8 @@ namespace
     extern int triangleTable[][16];
 }
 
-internal void
-MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
-           IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
+void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
+                         IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
 {
     TIMED_BLOCK;
 
@@ -865,9 +862,8 @@ FilterHits( const Array<Hit>& hits, const v2i& gridCoords, Array<Hit>* result )
     }
 }
 
-Mesh*
-ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displayedLayer, IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool,
-                         const TemporaryMemory& tmpMemory, RenderCommands* renderCommands )
+Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displayedLayer, IsoSurfaceSamplingCache* samplingCache,
+                               MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands )
 {
     // Make bounds same length on all axes
     v3 centerP = Center( sourceMesh.bounds );

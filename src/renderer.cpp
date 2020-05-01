@@ -21,6 +21,12 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#if NON_UNITY_BUILD
+#include <string.h>
+#include "debugstats.h"
+#include "world.h"
+//#include "renderer.h"
+#endif
 
 
 #define PUSH_RENDER_ELEMENT(commands, type) (type *)_PushRenderElement( commands, sizeof(type), RenderEntryType::type )
@@ -52,8 +58,7 @@ _PushRenderElement( RenderCommands *commands, u32 size, RenderEntryType type )
     return result;
 }
 
-void
-RenderClear( const v4& color, RenderCommands *commands )
+void RenderClear( const v4& color, RenderCommands *commands )
 {
     RenderEntryClear *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryClear );
     if( entry )
@@ -124,8 +129,7 @@ PushIndex( u32 value, RenderCommands* commands )
 }
 
 // Push 4 vertices (1st vertex is "top-left" and counter-clockwise from there)
-void
-RenderQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, RenderCommands *commands )
+void RenderQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, RenderCommands *commands )
 {
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
@@ -150,8 +154,7 @@ RenderQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, R
     }
 }
 
-void
-RenderLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )
+void RenderLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )
 {
     RenderEntryLines *entry = GetOrCreateCurrentLines( commands );
     if( entry )
@@ -163,8 +166,7 @@ RenderLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands )
     }
 }
 
-void
-RenderSetShader( ShaderProgramName programName, RenderCommands *commands )
+void RenderSetShader( ShaderProgramName programName, RenderCommands *commands )
 {
     RenderEntryProgramChange *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryProgramChange );
     if( entry )
@@ -173,8 +175,7 @@ RenderSetShader( ShaderProgramName programName, RenderCommands *commands )
     }
 }
 
-void
-RenderSetMaterial( Material* material, RenderCommands* commands )
+void RenderSetMaterial( Material* material, RenderCommands* commands )
 {
     RenderEntryMaterial *entry = PUSH_RENDER_ELEMENT( commands, RenderEntryMaterial );
     if( entry )
@@ -183,8 +184,7 @@ RenderSetMaterial( Material* material, RenderCommands* commands )
     }
 }
 
-void
-RenderSwitch( RenderSwitch renderSwitch, bool enable, RenderCommands* commands )
+void RenderSwitch( RenderSwitchType renderSwitch, bool enable, RenderCommands* commands )
 {
     RenderEntrySwitch *entry = PUSH_RENDER_ELEMENT( commands, RenderEntrySwitch );
     if( entry )
@@ -196,21 +196,20 @@ RenderSwitch( RenderSwitch renderSwitch, bool enable, RenderCommands* commands )
 
 
 
-void
-RenderMesh( const Mesh& mesh, RenderCommands *commands )
+void RenderMesh( const Mesh& mesh, RenderCommands *commands )
 {
     TIMED_BLOCK;
 
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {
-#if 0
+#if 1
         for( u32 i = 0; i < mesh.vertexCount; ++i )
         {
             TexturedVertex& v = mesh.vertices[i];
 
             // Transform to world coordinates so this can all be rendered in big chunks
-            PushVertex( mesh.mTransform * v.p, v.color, v.uv, commands );
+            PushVertex( /*mesh.mTransform **/ v.p, v.color, v.uv, commands );
         }
         int indexOffsetStart = entry->vertexCount;
         entry->vertexCount += mesh.vertexCount;
@@ -265,8 +264,7 @@ RenderMesh( const Mesh& mesh, RenderCommands *commands )
     }
 }
 
-void
-RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
+void RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
 {
     RenderLine( V3( box.min.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.min.z ), color, renderCommands );
     RenderLine( V3( box.min.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ), color, renderCommands );
@@ -284,15 +282,13 @@ RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands )
     RenderLine( V3( box.max.x, box.min.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ), color, renderCommands );
 }
 
-void
-RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
+void RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
 {
     aabb bounds = AABB( p, size );
     RenderBounds( bounds, color, renderCommands );
 }
 
-void
-RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
+void RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
 {
     float halfSize = size * 0.5f;
     v3 p1, p2, p3, p4, p5, p6, p7, p8;
@@ -325,8 +321,7 @@ RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands )
     RenderQuad( p7, p3, p2, p6, color, renderCommands );
 }
 
-void
-RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands )
+void RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands )
 {
     const r32 areaHalf = areaSizeMeters / 2;
 
@@ -347,8 +342,7 @@ RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* rende
     }
 }
 
-void
-RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands )
+void RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands )
 {
     ASSERT( step > 0.f );
 
@@ -384,8 +378,7 @@ inline void PushInstanceData( InstanceData const& data, RenderCommands* renderCo
     renderCommands->instanceBuffer.size += sizeof(InstanceData); 
 }
 
-void
-RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands )
+void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands )
 {
     TIMED_BLOCK;
 

@@ -21,6 +21,14 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#if NON_UNITY_BUILD
+#include "opengl_renderer.h"
+#include "platform.h"
+#include "game.h"
+#include "imgui/imgui.h"
+#endif
+
+
 internal
 OpenGLShaderProgram globalShaderPrograms[] =
 {

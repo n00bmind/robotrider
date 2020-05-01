@@ -30,6 +30,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <x86intrin.h>
 #endif
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#endif
+
 
 // TODO Convert all of these to the most platform-efficient versions
 // for all supported compilers & platforms

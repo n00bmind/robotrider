@@ -1,6 +1,12 @@
 #ifndef __DEFS_H__
 #define __DEFS_H__ 
 
+#if NON_UNITY_BUILD
+#include <stdint.h>
+#include <math.h>
+//#include "data_types.h"
+#endif
+
 //
 // Common definitions
 //

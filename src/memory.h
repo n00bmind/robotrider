@@ -24,6 +24,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MEMORY_H__
 #define __MEMORY_H__ 
 
+#if NON_UNITY_BUILD
+#include <string.h>
+#include "common.h"
+#include "intrinsics.h"
+#endif
+
 
 // TODO ASAP Add a tag per allocation (even the same arena can contain different stuff)
 #define PUSH_STRUCT(arena, type, ...) (type *)_PushSize( arena, sizeof(type), ## __VA_ARGS__ )
@@ -107,7 +113,7 @@ NoClear()
 }
 
 inline MemoryParams
-Align( u32 alignment )
+Aligned( u32 alignment )
 {
     MemoryParams result = DefaultMemoryParams();
     result.alignment = alignment;

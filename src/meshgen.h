@@ -23,6 +23,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MESHGEN_H__
 #define __MESHGEN_H__ 
 
+#if NON_UNITY_BUILD
+#include "data_types.h"
+#include "renderer.h"
+#include "debugstats.h"
+#endif
+
 
 // 2D slice of a 3D sampled area, allowing reuse of sampled values and generated vertices
 struct IsoSurfaceSamplingCache
@@ -160,5 +166,27 @@ struct MeshGeneratorPathData
     MeshGeneratorPathData* nextFork;
 };
 #endif
+
+
+
+IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2u const& cellsPerAxis );
+void ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottomLayer );
+void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache );
+void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size );
+Mesh* AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount );
+Mesh* AllocateMeshFromScratchBuffers( MeshPool* pool );
+void ClearScratchBuffers( MeshPool* pool );
+void ReleaseMesh( Mesh** mesh );
+void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
+                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices );
+Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displayedLayer, IsoSurfaceSamplingCache* samplingCache,
+                               MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands );
+
+
+#define ISO_SURFACE_FUNC(name) float name( void const* samplingData, WorldCoords const& worldP )
+typedef ISO_SURFACE_FUNC(IsoSurfaceFunc);
+
+ISO_SURFACE_FUNC(RoomSurfaceFunc);
+
 
 #endif /* __MESHGEN_H__ */

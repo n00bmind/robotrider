@@ -24,6 +24,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MATH_H__
 #define __MATH_H__ 
 
+#if NON_UNITY_BUILD
+#include <float.h>
+#include <time.h>
+#include <stdlib.h>
+#include "intrinsics.h"
+#endif
+
 #define PI   3.141592653589f
 #define PI64 3.14159265358979323846
 
