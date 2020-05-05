@@ -169,6 +169,9 @@ PFNGLGETQUERYOBJECTUIVPROC              glGetQueryObjectuiv;
 PFNGLVERTEXATTRIBDIVISORARBPROC         glVertexAttribDivisor;
 PFNGLDRAWARRAYSINSTANCEDPROC            glDrawArraysInstanced;
 PFNGLDRAWELEMENTSINSTANCEDPROC          glDrawElementsInstanced;
+PFNGLDRAWELEMENTSBASEVERTEXPROC         glDrawElementsBaseVertex;
+PFNGLUNIFORM3FVPROC                     glUniform3fv;
+PFNGLUNIFORM1UIPROC                     glUniform1ui;
 
 
 #endif /* __OPENGL_RENDERER_H__ */

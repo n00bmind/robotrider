@@ -47,14 +47,21 @@ EntityHash( const u32& entityId, u32 tableSize )
     return entityId;
 }
 
+internal u32
+CalcSimClusterIndex( v3i const& clusterRelativeP )
+{
+    u32 result = (clusterRelativeP.z + SimExteriorHalfSize) * SimRegionSizePerAxis * SimRegionSizePerAxis
+        + (clusterRelativeP.y + SimExteriorHalfSize) * SimRegionSizePerAxis
+        + (clusterRelativeP.x + SimExteriorHalfSize);
+
+    return result;
+}
+
 #define INITIAL_CLUSTER_COORDS V3i( I32MAX, I32MAX, I32MAX )
 
 void
 InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 {
-    // Is this really necessary now?
-    ASSERT( (r32)(u32)(VoxelsPerClusterAxis * VoxelSizeMeters) == ClusterSizeMeters );
-
     RandomSeed();
 
     TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
@@ -98,6 +105,25 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     {
         world->samplingCache[i] = InitSurfaceSamplingCache( worldArena, maxVoxelsPerAxis );
         InitMeshPool( &world->meshPools[i], worldArena, maxPerThread );
+    }
+
+    // Pre-calc offsets to each simulated cluster to pass to shaders
+    world->simClusterOffsets = Array<v3>( worldArena, 0, SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis );
+    world->simClusterOffsets.Resize( SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis );
+
+    for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
+    {
+        r32 zOff = k * ClusterSizeMeters;
+        for( int j = -SimExteriorHalfSize; j <= SimExteriorHalfSize; ++j )
+        {
+            r32 yOff = j * ClusterSizeMeters;
+            for( int i = -SimExteriorHalfSize; i <= SimExteriorHalfSize; ++i )
+            {
+                r32 xOff = i * ClusterSizeMeters;
+                u32 index = CalcSimClusterIndex( { i, j, k } );
+                world->simClusterOffsets[index] = { xOff, yOff, zOff };
+            }
+        }
     }
 
     EndTemporaryMemory( tmpMemory );
@@ -289,13 +315,11 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
             remainingAxes--;
         }
     }
-
-
 }
 
 internal Room*
 CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v3i const& clusterP,
-             IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool )
+             IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool, World* world )
 {
     if( v->leftChild || v->rightChild )
     {
@@ -303,9 +327,9 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
         Room* rightRoom = nullptr;
 
         if( v->leftChild )
-            leftRoom = CreateRooms( v->leftChild, genParams, cluster, clusterP, samplingCache, meshPool );
+            leftRoom = CreateRooms( v->leftChild, genParams, cluster, clusterP, samplingCache, meshPool, world );
         if( v->rightChild )
-            rightRoom = CreateRooms( v->rightChild, genParams, cluster, clusterP, samplingCache, meshPool ); 
+            rightRoom = CreateRooms( v->rightChild, genParams, cluster, clusterP, samplingCache, meshPool, world ); 
 
         if( leftRoom && rightRoom )
             CreateHall( v, *leftRoom, *rightRoom, cluster );
@@ -364,7 +388,8 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
         void* const roomSamplingData = &v->room;
 
         ASSERT( samplingCache->cellsPerAxis.x >= voxelsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= voxelsPerSliceAxis.y );
-        // TODO Do this in jobs in LoadEntitiesInCluster
+
+        // TODO Do all this in jobs in LoadEntitiesInCluster
         ClearScratchBuffers( meshPool );
 
         // TODO Super sample the volume shell?
@@ -421,10 +446,12 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
 
         // Write output mesh
         v->room.mesh = AllocateMeshFromScratchBuffers( meshPool );
-
-        cluster->rooms.Push( v->room );
+        // Set offset index based on cluster
+        v3i clusterRelativeP = clusterP - world->originClusterP;
+        v->room.mesh->simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
 #endif
 
+        cluster->rooms.Push( v->room );
         return &v->room;
     }
 }
@@ -441,9 +468,9 @@ IsInSimRegion( const v3i& clusterP, const v3i& worldOriginClusterP )
 {
     v3i clusterOffset = clusterP - worldOriginClusterP;
 
-    return clusterOffset.x >= -SimRegionWidth  && clusterOffset.x <= SimRegionWidth  &&
-        clusterOffset.y >= -SimRegionWidth  && clusterOffset.y <= SimRegionWidth  &&
-        clusterOffset.z >= -SimRegionWidth  && clusterOffset.z <= SimRegionWidth ;
+    return clusterOffset.x >= -SimExteriorHalfSize && clusterOffset.x <= SimExteriorHalfSize
+        && clusterOffset.y >= -SimExteriorHalfSize && clusterOffset.y <= SimExteriorHalfSize
+        && clusterOffset.z >= -SimExteriorHalfSize && clusterOffset.z <= SimExteriorHalfSize ;
 }
 
 internal void
@@ -497,7 +524,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     v3 clusterGridWorldP = GetClusterOffsetFromOrigin( clusterP, world->originClusterP ) - V3( ClusterSizeMeters * 0.5f );
     // Create a room in each volume
     // TODO Add a certain chance for empty volumes
-    CreateRooms( rootVolume, genParams, cluster, clusterP, world->samplingCache, &world->meshPools[0] );
+    CreateRooms( rootVolume, genParams, cluster, clusterP, world->samplingCache, &world->meshPools[0], world );
 }
 
 inline MeshGeneratorJob*
@@ -725,11 +752,11 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
         if( world->lastOriginClusterP != INITIAL_CLUSTER_COORDS )
             world->pPlayer += vWorldDelta;
 
-        for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
+        for( int i = -SimExteriorHalfSize; i <= SimExteriorHalfSize; ++i )
         {
-            for( int j = -SimRegionWidth; j <= SimRegionWidth; ++j )
+            for( int j = -SimExteriorHalfSize; j <= SimExteriorHalfSize; ++j )
             {
-                for( int k = -SimRegionWidth; k <= SimRegionWidth; ++k )
+                for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
                 {
                     v3i lastClusterP = world->lastOriginClusterP + V3i( i, j, k );
 
@@ -749,11 +776,11 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
             }
         }
 
-        for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
+        for( int i = -SimExteriorHalfSize; i <= SimExteriorHalfSize; ++i )
         {
-            for( int j = -SimRegionWidth; j <= SimRegionWidth; ++j )
+            for( int j = -SimExteriorHalfSize; j <= SimExteriorHalfSize; ++j )
             {
-                for( int k = -SimRegionWidth; k <= SimRegionWidth; ++k )
+                for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
                 {
                     v3i clusterP = world->originClusterP + V3i( i, j, k );
 
@@ -886,6 +913,10 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     ///// Render
     RenderClear( { 0.99f, 0.95f, 0.9f, 1.0f }, renderCommands );
 
+    // Pass world cluster offsets into the commands
+    renderCommands->simClusterOffsets = world->simClusterOffsets.data;
+    renderCommands->simClusterCount = world->simClusterOffsets.count;
+
 #if !RELEASE
     //if( !gameMemory->DEBUGglobalEditing )
 #endif
@@ -988,11 +1019,11 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 //#else
     u32 whiteish = Pack01ToRGBA( 0.95f, 0.95f, 0.95f, 1 );
 
-    for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
+    for( int i = -SimExteriorHalfSize; i <= SimExteriorHalfSize; ++i )
     {
-        for( int j = -SimRegionWidth; j <= SimRegionWidth; ++j )
+        for( int j = -SimExteriorHalfSize; j <= SimExteriorHalfSize; ++j )
         {
-            for( int k = -SimRegionWidth; k <= SimRegionWidth; ++k )
+            for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
             {
                 v3i clusterP = world->originClusterP + V3i( i, j, k );
                 Cluster* cluster = world->clusterTable.Find( clusterP );
@@ -1006,11 +1037,11 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #if 1
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
 
-    for( int i = -SimRegionWidth; i <= SimRegionWidth; ++i )
+    for( int i = -SimExteriorHalfSize; i <= SimExteriorHalfSize; ++i )
     {
-        for( int j = -SimRegionWidth; j <= SimRegionWidth; ++j )
+        for( int j = -SimExteriorHalfSize; j <= SimExteriorHalfSize; ++j )
         {
-            for( int k = -SimRegionWidth; k <= SimRegionWidth; ++k )
+            for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
             {
                 v3i clusterP = world->originClusterP + V3i( i, j, k );
                 Cluster* cluster = world->clusterTable.Find( clusterP );

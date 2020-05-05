@@ -41,9 +41,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 template <typename T>
 struct Array
 {
+    T *data;
+
+//private:
     u32 count;
     u32 maxCount;
-    T *data;
 
     Array()
     {
@@ -52,6 +54,7 @@ struct Array
         maxCount = 0;
     }
 
+    // FIXME Remove count arg
     Array( MemoryArena* arena, u32 count_, u32 maxCount_, MemoryParams params = DefaultMemoryParams() )
     {
         data = PUSH_ARRAY( arena, T, maxCount_, params );
@@ -66,15 +69,21 @@ struct Array
         maxCount = maxCount_;
     }
 
+    void Resize( u32 new_count )
+    {
+        ASSERT( new_count <= maxCount );
+        count = new_count;
+    }
+
     T& operator[]( u32 i )
     {
-        ASSERT( i < maxCount );
+        ASSERT( i < count );
         return data[i];
     }
 
     const T& operator[]( u32 i ) const
     {
-        ASSERT( i < maxCount );
+        ASSERT( i < count );
         return data[i];
     }
 

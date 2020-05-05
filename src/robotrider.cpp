@@ -26,8 +26,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "meshgen.h"
 #include "world.h"
-#include "asset_loaders.h"
 #include "wfc.h"
+#include "asset_loaders.h"
 #include "editor.h"
 #include "robotrider.h"
 #include "util.h"
@@ -37,7 +37,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "imgui/imgui_draw.cpp"
 #include "imgui/imgui.cpp"
 #include "imgui/imgui_widgets.cpp"
-#include "imgui/imgui_demo.cpp"     // TODO Remove!
+#include "imgui/imgui_demo.cpp"
 
 #if !NON_UNITY_BUILD
 #define STB_IMAGE_IMPLEMENTATION
@@ -55,6 +55,7 @@ void  LibFree( void* p );
 #define STBI_NO_STDIO
 #include "stb/stb_image.h"
 
+#include "ui.h"
 #include "util.cpp"
 #include "ui.cpp"
 #include "console.cpp"

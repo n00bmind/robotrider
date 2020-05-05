@@ -38,7 +38,7 @@ OpenGLShaderProgram globalShaderPrograms[] =
         nullptr,
         "plain_color.fs.glsl",
         { "inPosition", "inTexCoords", "inColor" },
-        { "mTransform" },
+        { { "mTransform" }, { "simClusterOffsets" }, { "simClusterIndex" }, },
     },
     {
         ShaderProgramName::PlainColorVoxel,
@@ -46,7 +46,7 @@ OpenGLShaderProgram globalShaderPrograms[] =
         nullptr,
         "plain_color.fs.glsl",
         { "inPosition", "inTexCoords", "inColor", "inInstanceOffset" },
-        { "mTransform" },
+        { { "mTransform" }, { "simClusterOffsets" }, { "simClusterIndex" }, },
     },
     {
         ShaderProgramName::FlatShading,
@@ -54,7 +54,7 @@ OpenGLShaderProgram globalShaderPrograms[] =
         "face_normal.gs.glsl",
         "flat.fs.glsl",
         { "inPosition", "inTexCoords", "inColor" },
-        { "mTransform" },
+        { { "mTransform" }, { "simClusterOffsets" }, { "simClusterIndex" }, },
     },
 };
 
@@ -161,8 +161,10 @@ OpenGLGetInfo( bool modernContext )
 }
 
 internal GLint
-OpenGLCompileShader( GLenum shaderType, const char *shaderSource, GLuint *outShaderId )
+OpenGLCompileShader( GLenum shaderType, const char *shaderSource, GLuint *outShaderId, char const* displayName )
 {
+    LOG( ".Compiling shader '%s'..", displayName );
+
     GLuint shader = glCreateShader( shaderType );
     if( shader == 0 )
         return GL_FALSE;
@@ -260,7 +262,7 @@ DEBUG_GAME_ASSET_LOADED_CALLBACK(OpenGLHotswapShader)
 
         if( strcmp( filename, prg.vsFilename ) == 0 )
         {
-            success = OpenGLCompileShader( GL_VERTEX_SHADER, shaderSource, &newId );
+            success = OpenGLCompileShader( GL_VERTEX_SHADER, shaderSource, &newId, prg.vsFilename );
             if( success )
             {
                 prg.vsId = newId;
@@ -269,7 +271,7 @@ DEBUG_GAME_ASSET_LOADED_CALLBACK(OpenGLHotswapShader)
         }
         else if( prg.gsFilename && strcmp( filename, prg.gsFilename ) == 0 )
         {
-            success = OpenGLCompileShader( GL_GEOMETRY_SHADER, shaderSource, &newId );
+            success = OpenGLCompileShader( GL_GEOMETRY_SHADER, shaderSource, &newId, prg.gsFilename );
             if( success )
             {
                 prg.gsId = newId;
@@ -278,7 +280,7 @@ DEBUG_GAME_ASSET_LOADED_CALLBACK(OpenGLHotswapShader)
         }
         else if( strcmp( filename, prg.fsFilename ) == 0 )
         {
-            success = OpenGLCompileShader( GL_FRAGMENT_SHADER, shaderSource, &newId );
+            success = OpenGLCompileShader( GL_FRAGMENT_SHADER, shaderSource, &newId, prg.fsFilename );
             if( success )
             {
                 prg.fsId = newId;
@@ -361,6 +363,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
+        //LOG( ".Compiling program '%s'..", prg.name );
 
         char filePath[MAX_PATH];
         DEBUGReadFileResult result;
@@ -375,7 +378,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
         ASSERT( result.contents );
         prg.vsSource = (char *)result.contents;
 
-        success = OpenGLCompileShader( GL_VERTEX_SHADER, prg.vsSource, &prg.vsId );
+        success = OpenGLCompileShader( GL_VERTEX_SHADER, prg.vsSource, &prg.vsId, prg.vsFilename );
         globalPlatform.DEBUGFreeFileMemory( result.contents );
         if( !success )
             continue;
@@ -389,7 +392,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
             ASSERT( result.contents );
             prg.gsSource = (char *)result.contents;
 
-            success = OpenGLCompileShader( GL_GEOMETRY_SHADER, prg.gsSource, &prg.gsId );
+            success = OpenGLCompileShader( GL_GEOMETRY_SHADER, prg.gsSource, &prg.gsId, prg.gsFilename );
             globalPlatform.DEBUGFreeFileMemory( result.contents );
             if( !success )
                 continue;
@@ -402,7 +405,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
         ASSERT( result.contents );
         prg.fsSource = (char *)result.contents;
 
-        success = OpenGLCompileShader( GL_FRAGMENT_SHADER, prg.fsSource, &prg.fsId );
+        success = OpenGLCompileShader( GL_FRAGMENT_SHADER, prg.fsSource, &prg.fsId, prg.fsFilename );
         globalPlatform.DEBUGFreeFileMemory( result.contents );
         if( !success )
             continue;
@@ -706,7 +709,7 @@ OpenGLInitImGui( OpenGLState &gl )
 }
 
 internal void
-OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
+OpenGLUseProgram( ShaderProgramName programName, RenderCommands const& commands, OpenGLState* gl )
 {
     if( programName == ShaderProgramName::None )
     {
@@ -751,6 +754,10 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
 
             // mTransform
             glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, gl->currentProjectViewM.e[0] );
+            // simClusterOffsets
+            glUniform3fv( prg.uniforms[1].locationId, commands.simClusterCount, (GLfloat*)commands.simClusterOffsets );
+            // simClusterIndex
+            glUniform1ui( prg.uniforms[2].locationId, 0 );
 
             GLuint pAttribId = 0;
             GLuint uvAttribId = 1;
@@ -879,7 +886,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
             {
                 RenderEntryProgramChange* entry = (RenderEntryProgramChange*)entryHeader;
 
-                OpenGLUseProgram( entry->programName, gl );
+                OpenGLUseProgram( entry->programName, commands, gl );
             } break;
 
             case RenderEntryType::RenderEntryMaterial:
@@ -985,12 +992,48 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                               GL_STATIC_DRAW );
 
                 glDrawElementsInstanced( GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void *)0, entry->instanceCount );
-                //glDrawElements( GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void *)0 );
 
                 totalDrawCalls++;
                 totalVertexCount += 8;
                 totalPrimitiveCount += 12;
                 totalInstanceCount += entry->instanceCount;
+            } break;
+
+            case RenderEntryType::RenderEntryMeshChunk:
+            {
+                RenderEntryMeshChunk* entry = (RenderEntryMeshChunk*)entryHeader;
+
+                glBindBuffer( GL_ARRAY_BUFFER, gl->vertexBuffer );
+                glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, gl->indexBuffer );
+
+                u32 runningVertexCount = 0;
+                u32 runningIndexCount = 0;
+
+                MeshData* mesh_data = (MeshData*)(commands.instanceBuffer.base + entry->instanceBufferOffset);
+                for( u32 i = 0; i < entry->meshCount; ++i )
+                {
+                    GLuint vertexByteCount = mesh_data->vertexCount * sizeof(TexturedVertex);
+                    GLuint indexByteCount = mesh_data->indexCount * sizeof(u32);
+
+                    // simClusterIndex
+                    glUniform1ui( gl->activeProgram->uniforms[2].locationId, mesh_data->simClusterIndex );
+
+                    glBufferData( GL_ARRAY_BUFFER,
+                                  vertexByteCount,
+                                  commands.vertexBuffer.base + entry->vertexBufferOffset + runningVertexCount,
+                                  GL_STATIC_DRAW );
+                    glBufferData( GL_ELEMENT_ARRAY_BUFFER,
+                                  indexByteCount,
+                                  commands.indexBuffer.base + entry->indexBufferOffset + runningIndexCount,
+                                  GL_STATIC_DRAW );
+
+                    //glDrawElementsBaseVertex( GL_TRIANGLES, mesh_data->indexCount, GL_UNSIGNED_INT, (void *)0, mesh_data->indexStartOffset );
+                    glDrawElements( GL_TRIANGLES, mesh_data->indexCount, GL_UNSIGNED_INT, (void *)0 );
+
+                    runningVertexCount += mesh_data->vertexCount;
+                    runningIndexCount += mesh_data->indexCount;
+                    mesh_data++;
+                }
             } break;
 
             default:
@@ -1005,7 +1048,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
     }
 
     // Don't keep active program for next frame
-    OpenGLUseProgram( ShaderProgramName::None, gl );
+    OpenGLUseProgram( ShaderProgramName::None, commands, gl );
 
 #if !RELEASE
     glEndQuery( GL_PRIMITIVES_GENERATED );

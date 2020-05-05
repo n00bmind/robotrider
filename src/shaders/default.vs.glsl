@@ -35,11 +35,14 @@ out VertexData
 
 // TODO Consider using interface block for uniforms in the future too
 uniform mat4 mTransform;
+// FIXME Somehow define the size of this array externally and guard against the actual size of the source data and the OpenGL limits
+uniform vec3[256] simClusterOffsets;
+uniform uint simClusterIndex;
 
 
 void main()
 {
-    gl_Position = mTransform * vec4( inPosition, 1.0 );
+    gl_Position = mTransform * vec4( inPosition + simClusterOffsets[simClusterIndex], 1.0 );
     _out.color = inColor;
     _out.texCoords = inTexCoords;
 }

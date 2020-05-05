@@ -35,10 +35,9 @@ enum class Renderer
 {
     OpenGL,
     Gnmx,
-    // OpenGLES,
-    // Software?
 };
 
+// TODO Turn into a StructEnum
 enum class ShaderProgramName
 {
     None,
@@ -55,14 +54,14 @@ enum class RenderSwitchType
 
 struct Camera
 {
-    r32 fovYDeg;
     m4 worldToCamera;
+    r32 fovYDeg;
 };
 
 inline Camera
 DefaultCamera( r32 fovYDeg = 60 )
 {
-    Camera result = { fovYDeg, M4Identity };
+    Camera result = { M4Identity, fovYDeg };
     return result;
 }
 
@@ -104,14 +103,14 @@ struct Mesh
     u32 indexCount;
 
     Material* material;
+    aabb bounds;
 
     // NOTE Static geometry doesnt need this at all
     // NOTE Dynamic geometry will be always transformed relative to the cluster they live in
     m4 mTransform;
-    aabb bounds;
 
     // Index into the global cluster offset array to determine final translation in the shader
-    u32 clusterIndex;
+    u32 simClusterIndex;
 };
 
 inline void
@@ -156,6 +155,14 @@ struct InstanceData
     u32 color;
 };
 
+struct MeshData
+{
+    u32 vertexCount;
+    u32 indexCount;
+    u32 indexStartOffset;
+    u32 simClusterIndex;
+};
+
 
 enum class RenderEntryType
 {
@@ -167,6 +174,7 @@ enum class RenderEntryType
     RenderEntrySwitch,
     RenderEntryVoxelGrid,
     RenderEntryVoxelChunk,
+    RenderEntryMeshChunk,
 };
 
 struct RenderEntry
@@ -243,6 +251,17 @@ struct RenderEntryVoxelChunk
     u32 instanceCount;
 };
 
+struct RenderEntryMeshChunk
+{
+    RenderEntry header;
+
+    u32 vertexBufferOffset;
+    u32 indexBufferOffset;
+    u32 instanceBufferOffset;
+    u32 meshCount;
+
+    u32 runningVertexCount;
+};
 
 
 struct RenderBuffer
@@ -277,11 +296,6 @@ struct InstanceBuffer
 
 struct RenderCommands
 {
-    u16 width;
-    u16 height;
-
-    Camera camera;
-
     RenderBuffer   renderBuffer;
     VertexBuffer   vertexBuffer;
     IndexBuffer    indexBuffer;
@@ -289,6 +303,15 @@ struct RenderCommands
 
     RenderEntryTexturedTris *currentTris;
     RenderEntryLines *currentLines;
+    RenderEntryMeshChunk* currentMeshChunk;
+
+    Camera camera;
+
+    u16 width;
+    u16 height;
+
+    v3* simClusterOffsets;
+    u32 simClusterCount;
 
     bool isValid;
 };
@@ -316,6 +339,7 @@ InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
 
     result.currentTris = nullptr;
     result.currentLines = nullptr;
+    result.currentMeshChunk = nullptr;
 
     result.isValid = renderBuffer && vertexBuffer && indexBuffer && instanceBuffer;
 
@@ -332,6 +356,7 @@ ResetRenderCommands( RenderCommands *commands )
 
     commands->currentTris = nullptr;
     commands->currentLines = nullptr;
+    commands->currentMeshChunk = nullptr;
 }
 
 
