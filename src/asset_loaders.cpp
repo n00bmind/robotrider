@@ -471,7 +471,7 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
     }
 
     Mesh result;
-    Init( &result );
+    InitMesh( &result );
     result.vertices = packedVertices.data;
     result.vertexCount = packedVertices.count;
     result.indices = indices.data;

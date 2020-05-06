@@ -90,7 +90,7 @@ Mesh* AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
         const sz blockSplitThreshold = 4096;
         result = (Mesh*)UseBlock( block, totalMeshSize, blockSplitThreshold );
 
-        Init( result );
+        InitMesh( result );
         result->vertices = (TexturedVertex*)((u8*)result + sizeof(Mesh));
         result->indices = (u32*)((u8*)result->vertices + vertexSize);
         result->ownerPool = pool;

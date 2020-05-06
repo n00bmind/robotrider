@@ -52,7 +52,8 @@ CalcSimClusterIndex( v3i const& clusterRelativeP )
 {
     u32 result = (clusterRelativeP.z + SimExteriorHalfSize) * SimRegionSizePerAxis * SimRegionSizePerAxis
         + (clusterRelativeP.y + SimExteriorHalfSize) * SimRegionSizePerAxis
-        + (clusterRelativeP.x + SimExteriorHalfSize);
+        + (clusterRelativeP.x + SimExteriorHalfSize)
+        + 1;
 
     return result;
 }
@@ -108,8 +109,11 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     }
 
     // Pre-calc offsets to each simulated cluster to pass to shaders
-    world->simClusterOffsets = Array<v3>( worldArena, 0, SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis );
-    world->simClusterOffsets.Resize( SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis );
+    world->simClusterOffsets = Array<v3>( worldArena, 0, SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis + 1 );
+    world->simClusterOffsets.Resize( SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis + 1 );
+
+    // Use slot 0 for no-offset too, so meshes that don't use this mechanism are not affected
+    world->simClusterOffsets[0] = V3Zero;
 
     for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
     {

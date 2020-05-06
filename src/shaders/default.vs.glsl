@@ -36,6 +36,9 @@ out VertexData
 // TODO Consider using interface block for uniforms in the future too
 uniform mat4 mTransform;
 // FIXME Somehow define the size of this array externally and guard against the actual size of the source data and the OpenGL limits
+// NOTE Consider using Texture Buffer Objects for more complex per-mesh data
+// https://www.khronos.org/opengl/wiki/Buffer_Texture
+// https://gist.github.com/roxlu/5090067
 uniform vec3[256] simClusterOffsets;
 uniform uint simClusterIndex;
 

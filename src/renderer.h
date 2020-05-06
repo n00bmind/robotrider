@@ -114,10 +114,11 @@ struct Mesh
 };
 
 inline void
-Init( Mesh* mesh )
+InitMesh( Mesh* mesh )
 {
     *mesh = {};
     mesh->mTransform = M4Identity;
+    mesh->simClusterIndex = 0;
 }
 
 inline void

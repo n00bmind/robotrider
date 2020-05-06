@@ -1009,6 +1009,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                 u32 runningVertexCount = 0;
                 u32 runningIndexCount = 0;
 
+                // TODO We should be able to send the whole buffer in one go and just change the cluster index uniform on each drawcall
                 MeshData* mesh_data = (MeshData*)(commands.instanceBuffer.base + entry->instanceBufferOffset);
                 for( u32 i = 0; i < entry->meshCount; ++i )
                 {
@@ -1034,6 +1035,9 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                     runningIndexCount += mesh_data->indexCount;
                     mesh_data++;
                 }
+
+                // simClusterIndex
+                glUniform1ui( gl->activeProgram->uniforms[2].locationId, 0 );
             } break;
 
             default:
