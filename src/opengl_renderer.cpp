@@ -29,6 +29,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 
+// TODO Add a list of #defines as a string built on the fly with values from the code to every program
+// (this would include the vertex format(s) that the programs will use, together with uniforms and all input essentially)
+// TODO Unify all stages in a single file per program, using an approach like in https://community.khronos.org/t/vertex-and-fragment-shaders-in-same-file/49949/3
 internal
 OpenGLShaderProgram globalShaderPrograms[] =
 {
@@ -52,6 +55,7 @@ OpenGLShaderProgram globalShaderPrograms[] =
         ShaderProgramName::FlatShading,
         "default.vs.glsl",
         "face_normal.gs.glsl",
+        //nullptr,
         "flat.fs.glsl",
         { "inPosition", "inTexCoords", "inColor" },
         { { "mTransform" }, { "simClusterOffsets" }, { "simClusterIndex" }, },

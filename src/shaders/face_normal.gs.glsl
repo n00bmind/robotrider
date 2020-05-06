@@ -28,23 +28,26 @@ layout(triangle_strip, max_vertices=3) out;
 
 in VertexData
 {
-    flat uint color;
+    vec3 worldP;
     vec2 texCoords;
+    flat uint color;
 } _in[];
 
 out VertexData
 {
-    flat uint color;
+    vec3 worldP;
     vec2 texCoords;
-    flat vec3 faceNormal;
+    flat uint color;
+    vec2 barycentricP;
 } _out;
 
 
 void main()
 {
-    vec3 v1 = (gl_in[1].gl_Position - gl_in[0].gl_Position).xyz;
-    vec3 v2 = (gl_in[2].gl_Position - gl_in[0].gl_Position).xyz;
-    vec3 normal = normalize( cross( v1, v2 ) );
+    //vec3 v1 = (gl_in[1].gl_Position - gl_in[0].gl_Position).xyz;
+    //vec3 v2 = (gl_in[2].gl_Position - gl_in[0].gl_Position).xyz;
+    //vec3 normal = normalize( cross( v1, v2 ) );
+    vec2[3] barycentric = vec2[]( vec2( 1, 0 ), vec2( 0, 1 ), vec2( 0, 0 ) );
 
     // FIXME This creates too many (unaccounted for) vertices!
     // Also, we don't reuse the ones that were already there!
@@ -54,8 +57,9 @@ void main()
     for( int i = 0; i < gl_in.length(); ++i )
     {
         gl_Position = gl_in[i].gl_Position;
+        _out.worldP = _in[i].worldP;
         _out.color = _in[i].color;
-        _out.faceNormal = normal;
+        _out.barycentricP = barycentric[i];
         EmitVertex();
     }
     EndPrimitive();

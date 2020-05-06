@@ -25,8 +25,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 in VertexData
 {
-    flat uint color;
+    vec3 worldP;
     vec2 texCoords;
+    flat uint color;
 } _in;
 
 uniform sampler2D diffuseMap;

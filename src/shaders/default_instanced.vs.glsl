@@ -31,8 +31,9 @@ layout(location = 4) in uint inInstanceColor;
 
 out VertexData
 {
-    flat uint color;
+    vec3 worldP;
     vec2 texCoords;
+    flat uint color;
 } _out;
 
 // TODO Consider using interface block for uniforms in the future too
@@ -47,7 +48,8 @@ uniform uint simClusterIndex;
 
 void main()
 {
-    gl_Position = mTransform * vec4( inPosition + simClusterOffsets[simClusterIndex] + inInstanceOffset, 1.0 );
+    _out.worldP = inPosition + simClusterOffsets[simClusterIndex] + inInstanceOffset;
+    gl_Position = mTransform * vec4( _out.worldP, 1.0 );
     _out.color = inInstanceColor;
     _out.texCoords = inTexCoords;
 }

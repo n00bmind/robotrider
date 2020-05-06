@@ -1039,7 +1039,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     }
 #endif
 #if 1
-    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
+    RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
 
     for( int i = -SimExteriorHalfSize; i <= SimExteriorHalfSize; ++i )
     {

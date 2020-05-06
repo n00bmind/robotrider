@@ -163,7 +163,7 @@ inline u32 EntityHash( const u32& key, u32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
-const int SimExteriorHalfSize = 1;
+const int SimExteriorHalfSize = 0;
 const u32 SimRegionSizePerAxis = 2 * SimExteriorHalfSize + 1;
 
 enum MeshGeneratorType

@@ -23,11 +23,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #version 330 core
 
+#define GS_STAGE 1
+#if GS_STAGE
+#define WIREFRAME 1
+#endif
+
 in VertexData
 {
-    flat uint color;
+    vec3 worldP;
     vec2 texCoords;
-    flat vec3 faceNormal;
+    flat uint color;
+#if GS_STAGE
+    vec2 barycentricP;
+#endif
 } _in;
 
 out vec4 outColor;
@@ -65,25 +73,42 @@ void main()
 {
     vec4 vertexColor = unpack( _in.color );
 
-    // Face normal in eyespace
-    // NOTE This is supposedly faster than using a GS? CHECK!
-    // vec3 nES = normalize( cross( dFdx( pES ), dFdy( pES ) ) );
+#if WIREFRAME
+    vec3 barys;
+    barys.xy = _in.barycentricP;
+    barys.z = 1 - barys.x - barys.y;
+    vec3 deltas = fwidth(barys);
+	vec3 smoothing = deltas * 1;
+	vec3 thickness = deltas * 0.1;
+	barys = smoothstep( thickness, thickness + smoothing, barys );
+    float minBary = min(barys.x, min(barys.y, barys.z));
 
+    vec4 diffuseLight = vec4( vertexColor.xyz * minBary, 1 );
+#else
+    // Face normal using derivatives of world position
+     vec3 faceNormal = normalize( cross( dFdx( _in.worldP ), dFdy( _in.worldP ) ) );
+
+    // Our 'sun' at -Z inf.
+    vec3 lightDirection = vec3( 0.0, 0.0, -1.0 );
     // FIXME This is relative to the view,
-    // make the light always come from a 'sun' at -Z inf. (so a directional light pointing to +Z)
-    vec3 lightDirection = vec3( 0.0, 0.0, 1.0 );
-    float d = dot( lightDirection, _in.faceNormal );
-    vec4 lightColor = vertexColor * d;
-    lightColor.a = vertexColor.a;
+    //float d = dot( lightDirection, _in.faceNormal );
+    float d = dot( lightDirection, faceNormal );
+    vec4 diffuseLight = vertexColor * d;
+    diffuseLight.a = vertexColor.a;
 
-#if 1 // Extremely simple fog
+    vec4 ambientLight = vec4( 0.5, 0.5, 0.5, 1 );
+    diffuseLight += ambientLight;
+#endif
+
+#if 0 // Extremely simple fog
     float dMax = 400;
     float dMin = 10;
     float dist = gl_FragCoord.z / gl_FragCoord.w;
     float tFog = clamp( (dMax - dist) / (dMax - dMin), 0, 1 );
 
-    outColor = mix( vec4( 0.95, 0.95, 0.95, 1 ), lightColor, tFog );
+    outColor = mix( vec4( 0.95, 0.95, 0.95, 1 ), diffuseLight, tFog );
+#else
+    outColor = diffuseLight;
 #endif
 
-    //outColor = lightColor;
 }
