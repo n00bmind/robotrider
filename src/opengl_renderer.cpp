@@ -820,6 +820,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
     u32 totalVertexCount = 0;
     u32 totalPrimitiveCount = 0;
     u32 totalInstanceCount = 0;
+    u32 totalMeshCount = 0;
 
     const RenderBuffer &buffer = commands.renderBuffer;
     for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
@@ -1042,6 +1043,11 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
 
                 // simClusterIndex
                 glUniform1ui( gl->activeProgram->uniforms[2].locationId, 0 );
+
+                totalDrawCalls += entry->meshCount;
+                totalVertexCount += runningVertexCount;
+                totalPrimitiveCount += runningIndexCount / 3;
+                totalMeshCount += entry->meshCount;
             } break;
 
             default:
@@ -1066,6 +1072,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
     debugState->totalVertexCount = totalVertexCount;
     debugState->totalPrimitiveCount = totalPrimitiveCount;
     debugState->totalInstanceCount = totalInstanceCount;
+    debugState->totalMeshCount = totalMeshCount;
 
     // Ask for query object result asynchronously, otherwise we would stall the GPU until results are available
     u32 queryResult = 0;

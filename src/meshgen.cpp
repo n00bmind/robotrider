@@ -148,7 +148,10 @@ void ReleaseMesh( Mesh** mesh )
     *mesh = nullptr;
 }
 
-///// MARCHING CUBES /////
+
+
+
+///// CONTOURING /////
 
 struct VertexCacheIndex
 {
@@ -171,7 +174,8 @@ namespace
 }
 
 void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
-                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
+                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices,
+                const bool interpolate /*= true*/ )
 {
     TIMED_BLOCK;
 
@@ -245,22 +249,26 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
                 v3 pA = cellCornerWorldP + V3( cornerOffsets[indexA] ) * cellSizeMeters;
                 v3 pB = cellCornerWorldP + V3( cornerOffsets[indexB] ) * cellSizeMeters;
 
-#if 0           // Non interpolated version (DMC)
+                v3 vPos = {};
+                if( interpolate )
+                {
+                    // Interpolate along the edge
+                    float sA = cornerSamples[indexA];
+                    float sB = cornerSamples[indexB];
 
-                v3 vPos = (pA + pB) / 2;
-#else
-                // Interpolate along the edge
-                float sA = cornerSamples[indexA];
-                float sB = cornerSamples[indexB];
-
-                // TODO Look into implementing SnapMC to eliminate any degenerate and weird triangles
-                // which also means less tris to render!
-                // http://web.cse.ohio-state.edu/~wenger.4/publications/isomesh.pdf
-                float diff = sA - sB;
-                // In case sampled function is the same, arbitrarily use midpoint
-                float t = AlmostEqual( diff, 0.f ) ? 0.5f : sA / diff;
-                v3 vPos = pA + ((pB - pA) * t);
-#endif
+                    // TODO Look into implementing SnapMC to eliminate any degenerate and weird triangles
+                    // which also means less tris to render!
+                    // http://web.cse.ohio-state.edu/~wenger.4/publications/isomesh.pdf
+                    float diff = sA - sB;
+                    // In case sampled function is the same, arbitrarily use midpoint
+                    float t = AlmostEqual( diff, 0.f ) ? 0.5f : sA / diff;
+                    vPos = pA + ((pB - pA) * t);
+                }
+                else
+                {
+                    // Non interpolated version (Discrete MC)
+                    vPos = (pA + pB) / 2;
+                }
 
                 // Add new vertex to the mesh
                 u32 newVertexIndex = vertices->count;
@@ -280,8 +288,8 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
 }
 
 Mesh*
-MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
-               IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool )
+MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
+               const void* samplingData, IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool, const bool interpolate = true )
 {
     ClearScratchBuffers( meshPool );
 
@@ -359,6 +367,9 @@ MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSize
     return result;
 }
 
+
+
+
 struct Metaball
 {
     v3 pCenter;
@@ -416,6 +427,20 @@ TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSu
 
     RenderMesh( *metaMesh, renderCommands );
 }
+
+ISO_SURFACE_FUNC( TorusSurfaceFunc )
+{
+    // NOTE We're axis aligned for now, so just translate
+    v3 invWorldP = worldP.relativeP - V3Zero;
+
+    r32 result = SDFTorus( invWorldP, ClusterSizeMeters * 0.36f, 35 );
+    return result;
+}
+
+
+
+
+
 
 ///// MESH SIMPLIFICATION /////
 

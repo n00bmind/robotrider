@@ -178,7 +178,8 @@ Mesh* AllocateMeshFromScratchBuffers( MeshPool* pool );
 void ClearScratchBuffers( MeshPool* pool );
 void ReleaseMesh( Mesh** mesh );
 void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
-                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices );
+                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices,
+                const bool interpolate = true );
 Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displayedLayer, IsoSurfaceSamplingCache* samplingCache,
                                MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands );
 

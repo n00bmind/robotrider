@@ -79,8 +79,8 @@ InitMeshSamplerTest( TransientState* transientState, MemoryArena* editorArena, M
     transientState->samplingCache = InitSurfaceSamplingCache( editorArena, V2u( 50 ) );
 
     TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
-    transientState->testMesh = LoadOBJ( "bunny.obj", editorArena, tmpMemory, 
-                                        M4Scale( V3( 10.f, 10.f, 10.f ) ) * M4Translation( V3( 0, 0, 1.f ) ) );
+    transientState->sampledMesh = LoadOBJ( "bunny.obj", editorArena, tmpMemory, 
+                                           M4Scale( V3( 10.f, 10.f, 10.f ) ) * M4Translation( V3( 0, 0, 1.f ) ) );
     EndTemporaryMemory( tmpMemory );
 }
 
@@ -91,18 +91,18 @@ TickMeshSamplerTest( const EditorState& editorState, TransientState* transientSt
     if( !transientState->testIsoSurfaceMesh ) //|| input.gameCodeReloaded )
     {
         transientState->displayedLayer = (transientState->displayedLayer + 1) % transientState->samplingCache.cellsPerAxis.x;
-        transientState->drawingDistance = Distance( GetTranslation( transientState->testMesh.mTransform ), editorState.cachedCameraWorldP );
+        transientState->drawingDistance = Distance( GetTranslation( transientState->sampledMesh.mTransform ), editorState.cachedCameraWorldP );
         transientState->displayedLayer = 172;
 
         if( transientState->testIsoSurfaceMesh )
             ReleaseMesh( &transientState->testIsoSurfaceMesh );
-        transientState->testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( transientState->testMesh, transientState->drawingDistance,
+        transientState->testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( transientState->sampledMesh, transientState->drawingDistance,
                                                                       transientState->displayedLayer, &transientState->samplingCache, meshPoolArray,
                                                                       frameMemory, renderCommands );
     }
 
     RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
-    //PushMesh( transientState->testMesh, renderCommands );
+    //PushMesh( transientState->sampledMesh, renderCommands );
     RenderMesh( *transientState->testIsoSurfaceMesh, renderCommands );
 
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
@@ -188,9 +188,10 @@ MapGameInputToEditorInput( const GameInput& input )
         ? input.keyMouse.mouseRawXDelta : input0.rightStick.avgX;
     result.camPitchDelta = input.keyMouse.mouseRawYDelta
         ? -input.keyMouse.mouseRawYDelta : input0.rightStick.avgY;
+    result.camLookAt = input.keyMouse.mouseButtons[MouseButtonRight].endedDown || input0.rightThumb.endedDown;
+    result.camOrbit = input.keyMouse.keysDown[KeyLeftShift];
     // TODO Progressive zoom
     result.camZDelta = input.keyMouse.mouseRawZDelta;
-    result.camOrbit = input.keyMouse.mouseButtons[MouseButtonRight].endedDown;
 
     return result;
 }
@@ -245,7 +246,19 @@ TickMeshSimplifierTest()
 #endif
 
 internal void
-TickSurfaceContouringTest( RenderCommands* renderCommands )
+InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientState )
+{
+    v2u maxCellsPerAxis = V2u( VoxelsPerClusterAxis );
+
+    if( transientState->testMesh == nullptr )
+    {
+        transientState->samplingCache = InitSurfaceSamplingCache( editorArena, maxCellsPerAxis );
+        InitMeshPool( &transientState->meshPool, editorArena, MEGABYTES( 256 ) );
+    }
+}
+
+internal void
+TickSurfaceContouringTest( const GameInput& input, TransientState* transientState, RenderCommands* renderCommands )
 {
     v2 renderDim = V2( renderCommands->width, renderCommands->height );
     v2 displayDim = { renderDim.x * 0.2f, renderDim.y * 0.5f };
@@ -257,7 +270,28 @@ TickSurfaceContouringTest( RenderCommands* renderCommands )
 
     ImGui::Begin( "window_contour", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove );
 
+    ImGui::Checkbox( "Interpolate", &transientState->MCinterpolate );
+    if( transientState->testMesh == nullptr || input.gameCodeReloaded )
+    {
+        r64 start = globalPlatform.DEBUGCurrentTimeMillis();
+        transientState->testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, TorusSurfaceFunc, nullptr,
+                                                  &transientState->samplingCache, &transientState->meshPool, transientState->MCinterpolate );
+        transientState->elapsedMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
+    }
+
+    ImGui::Dummy( { 0, 20 } );
+    ImGui::Separator();
+    u32 c = (u32)ClusterSizeMeters;
+    ImGui::Text( "%u x %u x %u cells", c, c, c );
+    ImGui::Dummy( { 0, 20 } );
+    ImGui::Text( "Tris: %u", transientState->testMesh->indexCount / 3 );
+    ImGui::Text( "Verts: %u", transientState->testMesh->vertexCount );
+    ImGui::Dummy( { 0, 20 } );
+    ImGui::Text( "Extracted in: %g millis.", transientState->elapsedMillis );
     ImGui::End();
+
+    RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
+    RenderMesh( *transientState->testMesh, renderCommands );
 }
 
 void
@@ -269,6 +303,8 @@ InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState,
 
     InitWFCTest( transientState, editorArena, transientArena );
 #endif
+
+    InitSurfaceContouringTest( editorArena, transientState );
 }
 
 void
@@ -284,9 +320,9 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     EditorInput editorInput = MapGameInputToEditorInput( input );
 
-    //if( editorState->cachedCameraWorldP == V3Zero )
+    if( editorState->cachedCameraWorldP == V3Zero )
     {
-        v3 pCamera = V3( 0, -360, 50 );
+        v3 pCamera = V3( 0, -150, 220 );
         m4 mLookAt = M4CameraLookAt( pCamera, world->pPlayer, V3Up );
 
         editorState->camera = DefaultCamera();
@@ -331,7 +367,17 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
         // Find camera position in the world
         v3 cameraWorldP = -(cameraToWorld * GetTranslation( worldToCamera ));
 
-        if( editorInput.camOrbit )
+        if( editorInput.camLookAt )
+        {
+            // Rotate around camera X axis
+            m4 localXRotation = cameraToWorld * M4XRotation( camPitchDelta );
+            worldToCamera = Transposed( localXRotation );
+
+            // Rotate around world Z axis
+            m4 worldZRotation = M4Translation( cameraWorldP ) * M4ZRotation( camYawDelta ) * M4Translation( -cameraWorldP );
+            worldToCamera *= worldZRotation;
+        }
+        else if( editorInput.camOrbit )
         {
             if( !editorState->wasOrbiting )
             {
@@ -344,23 +390,11 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
             worldToCamera *= M4AxisAngle( GetCameraBasisX( worldToCamera ), -camPitchDelta );
             worldToCamera *= M4ZRotation( camYawDelta );
 
-            // Apply translation (already in camera space)
             camTranslationDelta = Hadamard( camTranslationDelta, { 0, 0, 1 } );
-            Translate( worldToCamera, -camTranslationDelta );
         }
-        else
-        {
-            // Rotate around camera X axis
-            m4 localXRotation = cameraToWorld * M4XRotation( camPitchDelta );
-            worldToCamera = Transposed( localXRotation );
 
-            // Rotate around world Z axis
-            m4 worldZRotation = M4Translation( cameraWorldP ) * M4ZRotation( camYawDelta ) * M4Translation( -cameraWorldP );
-            worldToCamera *= worldZRotation;
-
-            // Apply translation (already in camera space)
-            Translate( worldToCamera, -camTranslationDelta );
-        }
+        // Apply translation (already in camera space)
+        Translate( worldToCamera, -camTranslationDelta );
 
         renderCommands->camera = editorState->camera;
 
@@ -378,7 +412,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
     TickWFCTest( transientState, debugState, frameMemory, renderCommands );
 #endif
 
-    TickSurfaceContouringTest( renderCommands );
+    TickSurfaceContouringTest( input, transientState, renderCommands );
 
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );

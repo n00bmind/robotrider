@@ -25,6 +25,7 @@ struct EditorInput
     r32 camPitchDelta;
     r32 camYawDelta;
     r32 camZDelta;
+    bool camLookAt;
     bool camOrbit;
 };
 

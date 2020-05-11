@@ -28,11 +28,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 inline r32 SDFBox( v3 const& p, v3 const& hdim, r32 r = 0.f )
 {
     const v3 d = Abs( p ) - hdim;
-    r32 result = Length( { Max( d.x, 0.f ), Max( d.y, 0.f) , Max( d.z, 0.f ) } )
+    return Length( { Max( d.x, 0.f ), Max( d.y, 0.f) , Max( d.z, 0.f ) } )
         + Min( Max( d.x, Max( d.y, d.z ) ), 0.f )
         - r;
+}
 
-    return result;
+inline r32 SDFTorus( v3 const& p, r32 r, r32 t )
+{
+    const v2 q = V2( Length( p.xy ) - r, p.z );
+    return Length( q ) - t;
 }
 
 

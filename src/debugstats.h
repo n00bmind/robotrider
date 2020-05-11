@@ -32,17 +32,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // Minimal counter tied to a specific code location
 struct DebugCycleCounter
 {
+    volatile u64 frameHitCount24CycleCount40;
+
     const char* filename;
     const char* function;
     u32 lineNumber;
-
-    volatile u64 frameHitCount24CycleCount40;
 };
 
 struct DebugCounterSnapshot
 {
-    u32 hitCount;
     u64 cycleCount;
+    u32 hitCount;
 };
 
 struct DebugCounterLog
@@ -81,6 +81,7 @@ UnpackAndResetFrameCounter( DebugCycleCounter* c, DebugCounterLog* dest, u32 sna
 struct DebugState
 {
     // NOTE Since we use __COUNTER__ for indexing, we'd need a separate array for platform counters
+    // FIXME Use a constexpr counter instead
     DebugCounterLog counterLogs[1024];
     u32 counterLogsCount;
     u32 counterSnapshotIndex;
@@ -97,6 +98,7 @@ struct DebugState
 
 extern DebugCycleCounter DEBUGglobalCounters[];
 
+// TODO Use rdtsc intrinsic
 struct DebugTimedBlock
 {
     DebugCycleCounter& counter;

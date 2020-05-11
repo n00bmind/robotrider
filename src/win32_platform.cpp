@@ -1131,6 +1131,14 @@ Win32GetSecondsElapsed( LARGE_INTEGER start, LARGE_INTEGER end )
     return result;
 }
 
+DEBUG_PLATFORM_CURRENT_TIME_MILLIS(Win32CurrentTimeMillis)
+{
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter( &counter );
+    r64 result = (r64)counter.QuadPart / globalPerfCounterFrequency * 1000;
+    return result;
+}
+
 
 internal void
 Win32ToggleFullscreen( HWND window )
@@ -1249,9 +1257,10 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 bool wasDown = ((message.lParam & (1 << 30)) != 0);
                 bool isDown =  ((message.lParam & (1 << 31)) == 0);
 
-                UINT scancode = (message.lParam & 0x00ff0000) >> 16;
                 bool extended  = (message.lParam & 0x01000000) != 0;
+                u32 scanCode = ((message.lParam >> 16) & 0x7f) | (extended ? 0x80 : 0);
 
+                // TODO Use scancodes too for all special keys!?
                 // @Test
                 message.wParam = Win32MapLeftRightKeys( message.wParam, message.lParam );
                 u32 vkCode = ToU32Safe( message.wParam );
@@ -1276,12 +1285,14 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 if( isDown != wasDown && !imGuiIO.WantCaptureKeyboard )
                 {
                     // Translate key code into the game's platform agnostic codes
-                    if( message.wParam >= 0 && message.wParam < ARRAYCOUNT(Win32NativeToHID) )
+                    if( scanCode >= 0 && scanCode < ARRAYCOUNT(Win32NativeToHID) )
                     {
                         // @Test Check left/right shift, alt, etc. specifically
-                        u32 hidCode = Win32NativeToHID[message.wParam];
+                        u32 hidCode = Win32NativeToHID[scanCode];
                         if( hidCode < ARRAYCOUNT(input->keyMouse.keysDown) )
                             input->keyMouse.keysDown[hidCode] = isDown;
+
+                        LOG( "Scancode: 0x%x, HIDcode: %u", scanCode, hidCode );
                     }
 
                     // Emulate controller from keys
@@ -1976,6 +1987,7 @@ main( int argC, char **argV )
     globalPlatform.DEBUGListAllAssets = Win32ListAllAssets;
     globalPlatform.DEBUGJoinPaths = Win32JoinPaths;
     globalPlatform.DEBUGGetParentPath = Win32GetParentPath;
+    globalPlatform.DEBUGCurrentTimeMillis = Win32CurrentTimeMillis;
     globalPlatform.AddNewJob = Win32AddNewJob;
     globalPlatform.CompleteAllJobs = Win32CompleteAllJobs;
     globalPlatform.AllocateOrUpdateTexture = Win32AllocateTexture;

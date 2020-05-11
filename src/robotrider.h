@@ -79,10 +79,16 @@ struct GameState
 
 struct TransientState
 {
+    IsoSurfaceSamplingCache samplingCache;
+    MeshPool meshPool;
+    Mesh* testMesh;
+
+    bool MCinterpolate;
+
+    // NOTE All this needs to be here for stuff to compile, but it's not being used
 #if 1
     // Mesh resampling test
-    IsoSurfaceSamplingCache samplingCache;
-    Mesh testMesh;
+    Mesh sampledMesh;
     Mesh* testIsoSurfaceMesh;
     EditorEntity testEditorEntity;
     r32 drawingDistance;
@@ -96,6 +102,8 @@ struct TransientState
     WFC::GlobalState* wfcGlobalState;
     WFC::DisplayState wfcDisplayState;
 #endif
+
+    r64 elapsedMillis;
 };
 
 #endif /* __ROBOTRIDER_H__ */

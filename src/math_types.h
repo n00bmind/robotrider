@@ -102,6 +102,13 @@ operator /( const v2& v, r32 s )
 }
 
 inline r32
+Length( const v2& v )
+{
+    r32 result = Sqrt( v.x * v.x + v.y * v.y );
+    return result;
+}
+
+inline r32
 LengthSq( const v2 &v )
 {
     r32 result = v.x * v.x + v.y * v.y;
@@ -574,14 +581,14 @@ Abs( const v3& v )
 inline r32
 Length( const v3& v )
 {
-    r32 result = Sqrt( Dot( v, v ) );
+    r32 result = Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
     return result;
 }
 
 inline r32
 LengthSq( const v3& v )
 {
-    r32 result = Dot( v, v );
+    r32 result = v.x * v.x + v.y * v.y + v.z * v.z;
     return result;
 }
 

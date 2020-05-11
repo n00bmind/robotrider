@@ -128,6 +128,8 @@ enum GameMouseButtons
 };
 
 #pragma region USB HID Key Codes
+// As specified in https://www.usb.org/sites/default/files/documents/hut1_12v2.pdf Chapter 10
+// NOTE Names are based on a US layout
 enum GameKeyCodes
 {
     KeyNone = 0,
@@ -172,7 +174,7 @@ enum GameKeyCodes
 
     KeyEnter = 40,
     KeyEscape = 41,
-    KeyDelete = 42,
+    KeyBackspace = 42,
     KeyTab = 43,
     KeySpace = 44,
     KeyMinus = 45,
@@ -207,7 +209,7 @@ enum GameKeyCodes
     KeyInsert = 73,
     KeyHome = 74,
     KeyPageUp = 75,
-    KeyDeleteForward = 76,
+    KeyDelete = 76,
     KeyEnd = 77,
     KeyPageDown = 78,
     KeyRight = 79,
@@ -232,6 +234,7 @@ enum GameKeyCodes
     KeyKP9 = 97,
     KeyKP0 = 98,
     KeyKPPoint = 99,
+    KeyNonUSBackslash = 100,
     KeyKPEquals = 103,
 
     KeyHelp = 117,
@@ -244,16 +247,6 @@ enum GameKeyCodes
     KeyRightShift = 229,
     KeyRightAlt = 230,
     KeyRightGUI = 231,
-
-    KeyMediaPlayPause = 0xE8,
-    KeyMediaPrevious = 0xEA,
-    KeyMediaNext = 0xEB,
-    KeyMediaVolumeUp = 0xED,
-    KeyMediaVolumeDown = 0xEE,
-    KeyMediaMute = 0xEF,
-    KeyMediaBack = 0xF1,
-    KeyMediaForward = 0xF2,
-    KeyMediaStop = 0xF3,
 
     KeyUnknown = 0xFF,
     KeyCOUNT
