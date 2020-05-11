@@ -1111,7 +1111,7 @@ struct BucketArray
 
     // Disallow implicit copying
     BucketArray( const BucketArray& ) = delete;
-    BucketArray& operator =( const BucketArray& ) = delete;
+    //BucketArray& operator =( const BucketArray& ) = delete;
 
     T* PushEmpty()
     {
@@ -1122,16 +1122,11 @@ struct BucketArray
         return &last->data[last->count++];
     }
 
-    T* Add( const T& item )
+    T* Push( const T& item )
     {
         T* slot = PushEmpty();
         *slot = item;
         return slot;
-    }
-
-    T* Push( const T& item )
-    {
-        return Add( item );
     }
 
     T Remove( const Idx& index )

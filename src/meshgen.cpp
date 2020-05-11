@@ -54,8 +54,9 @@ void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache )
 
 void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size )
 {
-    new (&pool->scratchVertices) BucketArray<TexturedVertex>( arena, 1024 );
-    new (&pool->scratchIndices) BucketArray<u32>( arena, 1024 );
+    // TODO Measure whether it's faster to just have a really big contiguous array for these
+    pool->scratchVertices = BucketArray<TexturedVertex>( arena, 1024 );
+    pool->scratchIndices = BucketArray<u32>( arena, 1024 );
 
     // Initialize empty sentinel
     pool->memorySentinel.prev = &pool->memorySentinel;
@@ -170,7 +171,7 @@ namespace
 }
 
 void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
-                         IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
+                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices )
 {
     TIMED_BLOCK;
 
@@ -232,7 +233,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
             u32 cachedVertexIndex = vertexCache[vertexCacheOffset];
             if( cachedVertexIndex != U32MAX )
             {
-                indices->Add( cachedVertexIndex );
+                indices->Push( cachedVertexIndex );
             }
             else
 #endif
@@ -263,11 +264,11 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
 
                 // Add new vertex to the mesh
                 u32 newVertexIndex = vertices->count;
-                indices->Add( newVertexIndex );
+                indices->Push( newVertexIndex );
                 TexturedVertex v = {};
                 v.p = vPos;
                 v.color = Pack01ToRGBA( 1, 1, 1, 1 );
-                vertices->Add( v );
+                vertices->Push( v );
 
                 // Cache it too!
                 vertexCache[vertexCacheOffset] = newVertexIndex;
@@ -430,10 +431,10 @@ VertexError( const m4Symmetric& q, r64 x, r64 y, r64 z )
 }
 
 internal r64
-CalculateError( InflatedMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
+CalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
 {
-    InflatedVertex& v1 = mesh->vertices[v1Idx];
-    InflatedVertex& v2 = mesh->vertices[v2Idx];
+    FQSVertex& v1 = mesh->vertices[v1Idx];
+    FQSVertex& v2 = mesh->vertices[v2Idx];
 
     // Compute interpolated vertex
     m4Symmetric q = v1.q + v2.q;
@@ -473,7 +474,7 @@ CalculateError( InflatedMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
 }
 
 internal void
-UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, const TemporaryMemory& tmpMemory )
+UpdateMesh( FQSMesh* mesh, Array<FQSVertexRef>* refs, u32 iteration, const TemporaryMemory& tmpMemory )
 {
     if( iteration > 0 )
     {
@@ -501,7 +502,7 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, c
 
         for( u32 i = 0; i < mesh->triangles.count; ++i )
         {
-            InflatedTriangle& tri = mesh->triangles[i];
+            FQSTriangle& tri = mesh->triangles[i];
             v3 n;
             v3 p[3] =
             {
@@ -521,7 +522,7 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, c
 
         for( u32 i = 0; i < mesh->triangles.count; ++i )
         {
-            InflatedTriangle& tri = mesh->triangles[i];
+            FQSTriangle& tri = mesh->triangles[i];
             v3 p;
 
             for( int j = 0; j < 3; ++j )
@@ -539,7 +540,7 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, c
     }
     for( u32 i = 0; i < mesh->triangles.count; ++i )
     {
-        InflatedTriangle& tri = mesh->triangles[i];
+        FQSTriangle& tri = mesh->triangles[i];
         for( int j = 0; j < 3; ++j )
             mesh->vertices[tri.v[j]].refCount++;
     }
@@ -547,7 +548,7 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, c
     u32 refStart = 0;
     for( u32 i = 0; i < mesh->vertices.count; ++i )
     {
-        InflatedVertex& v = mesh->vertices[i];
+        FQSVertex& v = mesh->vertices[i];
         v.refStart = refStart;
         refStart += v.refCount;
         v.refCount = 0;
@@ -556,11 +557,11 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, c
     refs->count = mesh->triangles.count * 3;
     for( u32 i = 0; i < mesh->triangles.count; ++i )
     {
-        InflatedTriangle& tri = mesh->triangles[i];
+        FQSTriangle& tri = mesh->triangles[i];
         for( int j = 0; j < 3; ++j )
         {
-            InflatedVertex& v = mesh->vertices[tri.v[j]];
-            InflatedVertexRef& r = (*refs)[v.refStart + v.refCount];
+            FQSVertex& v = mesh->vertices[tri.v[j]];
+            FQSVertexRef& r = (*refs)[v.refStart + v.refCount];
 
             r.tId = i;
             r.tVertex = j;
@@ -582,12 +583,12 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, c
             vCount.count = 0;
             vIds.count = 0;
 
-            InflatedVertex& v = mesh->vertices[i];
+            FQSVertex& v = mesh->vertices[i];
 
             for( u32 j = 0; j < v.refCount; ++j )
             {
                 u32 tId = (*refs)[v.refStart + j].tId;
-                InflatedTriangle& tri = mesh->triangles[tId];
+                FQSTriangle& tri = mesh->triangles[tId];
 
                 for( int k = 0; k < 3; ++k )
                 {
@@ -620,12 +621,12 @@ UpdateMesh( InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32 iteration, c
 }
 
 internal bool
-Flipped( const InflatedMesh& mesh, const Array<InflatedVertexRef>& refs,
-         const v3& p, u32 i0, u32 i1, const InflatedVertex& v0, const InflatedVertex& v1, Array<bool>* deleted )
+Flipped( const FQSMesh& mesh, const Array<FQSVertexRef>& refs,
+         const v3& p, u32 i0, u32 i1, const FQSVertex& v0, const FQSVertex& v1, Array<bool>* deleted )
 {
     for( u32 k = 0; k < v0.refCount; ++k )
     {
-        const InflatedTriangle& tri = mesh.triangles[refs[v0.refStart + k].tId];
+        const FQSTriangle& tri = mesh.triangles[refs[v0.refStart + k].tId];
         if( tri.deleted )
             continue;
 
@@ -656,14 +657,14 @@ Flipped( const InflatedMesh& mesh, const Array<InflatedVertexRef>& refs,
 
 // Update triangle connections and edge error after an edge is collapsed
 internal void
-UpdateTriangles( u32 i0, const InflatedVertex& v, const Array<bool>& deleted,
-                 InflatedMesh* mesh, Array<InflatedVertexRef>* refs, u32* deleteTriangleCount )
+UpdateTriangles( u32 i0, const FQSVertex& v, const Array<bool>& deleted,
+                 FQSMesh* mesh, Array<FQSVertexRef>* refs, u32* deleteTriangleCount )
 {
     v3 p;
     for( u32 k = 0; k < v.refCount; ++k )
     {
-        InflatedVertexRef& ref = (*refs)[v.refStart + k];
-        InflatedTriangle& tri = mesh->triangles[ref.tId];
+        FQSVertexRef& ref = (*refs)[v.refStart + k];
+        FQSTriangle& tri = mesh->triangles[ref.tId];
 
         if( tri.deleted )
             continue;
@@ -685,7 +686,7 @@ UpdateTriangles( u32 i0, const InflatedVertex& v, const Array<bool>& deleted,
 }
 
 internal void
-CompactMesh( InflatedMesh* mesh )
+CompactMesh( FQSMesh* mesh )
 {
     u32 dst = 0;
 
@@ -694,12 +695,11 @@ CompactMesh( InflatedMesh* mesh )
 
     for( u32 i = 0; i < mesh->triangles.count; ++i )
     {
-        InflatedTriangle& tri = mesh->triangles[i];
+        FQSTriangle& tri = mesh->triangles[i];
         if( !tri.deleted )
         {
             mesh->triangles[dst++] = tri;
             for( int j = 0; j < 3; ++j )
-                // TODO This looks wrong!?
                 mesh->vertices[tri.v[j]].refCount = 1;
         }
     }
@@ -708,7 +708,7 @@ CompactMesh( InflatedMesh* mesh )
 
     for( u32 i = 0; i < mesh->vertices.count; ++i )
     {
-        InflatedVertex& v = mesh->vertices[i];
+        FQSVertex& v = mesh->vertices[i];
         if( v.refCount )
         {
             v.refStart = dst;
@@ -719,7 +719,7 @@ CompactMesh( InflatedMesh* mesh )
 
     for( u32 i = 0; i < mesh->triangles.count; ++i )
     {
-        InflatedTriangle& tri = mesh->triangles[i];
+        FQSTriangle& tri = mesh->triangles[i];
         for( int j = 0; j < 3; ++j )
             tri.v[j] = mesh->vertices[tri.v[j]].refStart;
     }
@@ -727,10 +727,10 @@ CompactMesh( InflatedMesh* mesh )
 }
 
 // Taken from https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification
-void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, const TemporaryMemory& tmpMemory,
+void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemory& tmpMemory,
                           r32 agressiveness = 7 )
 {
-    Array<InflatedVertexRef> refs( tmpMemory.arena, 0, 500000 );
+    Array<FQSVertexRef> refs( tmpMemory.arena, 0, 500000 );
 
     u32 triangleCount = mesh->triangles.count;
     u32 deletedTriangleCount = 0;
@@ -759,7 +759,7 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, const Temporar
 
         for( u32 i = 0; i < mesh->triangles.count; ++i )
         {
-            InflatedTriangle& tri = mesh->triangles[i];
+            FQSTriangle& tri = mesh->triangles[i];
             if( tri.error[3] > threshold || tri.deleted || tri.dirty )
                 continue;
 
@@ -770,8 +770,8 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, const Temporar
                     Array<bool> deleted0( tmpMemory.arena, 0, 1000 );
                     Array<bool> deleted1( tmpMemory.arena, 0, 1000 );
 
-                    u32 i0 = tri.v[j];          InflatedVertex& v0 = mesh->vertices[i0];
-                    u32 i1 = tri.v[(j+1)%3];    InflatedVertex& v1 = mesh->vertices[i1];
+                    u32 i0 = tri.v[j];          FQSVertex& v0 = mesh->vertices[i0];
+                    u32 i1 = tri.v[(j+1)%3];    FQSVertex& v1 = mesh->vertices[i1];
 
                     if( v0.border != v1.border )
                         continue;
@@ -801,7 +801,7 @@ void FastQuadricSimplify( InflatedMesh* mesh, u32 targetTriCount, const Temporar
                     {
                         // Save ram (sic) !?
                         if( refCount )
-                            memcpy( &refs[v0.refStart], &refs[refStart], refCount * sizeof(InflatedVertexRef) );
+                            memcpy( &refs[v0.refStart], &refs[refStart], refCount * sizeof(FQSVertexRef) );
                     }
                     else
                         v0.refStart = refStart;
@@ -1282,6 +1282,7 @@ namespace
 
     // List of edge indices for every triangle & for every possible case
     // Up to 15 indices per case, -1 indicates end of sequence
+    // TODO Could be packed into a single 64 bit number for speed (4 bits per index, 15+1 indices per case)
     int triangleTable[][16] =
     {
         {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},

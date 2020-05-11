@@ -144,7 +144,7 @@ Array<WFC::Spec> LoadWFCVars( const char* path, MemoryArena* arena, const Tempor
         else
         {
             if( !currentSpec )
-                currentSpec = result.Add( WFC::DefaultSpec() );
+                currentSpec = result.Push( WFC::DefaultSpec() );
 
             if( var.IsEqual( "name", false ) )
             {
@@ -433,7 +433,7 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
                     newVertex.uv = uv;
 
                     vertexIndex[i] = vertices.count;
-                    vertices.Add( newVertex );
+                    vertices.Push( newVertex );
                     cachedVertices.Insert( key, vertexIndex[i] );
                 }
 

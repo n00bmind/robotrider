@@ -146,10 +146,10 @@ TickWFCTest( TransientState* transientState, DebugState* debugState, const Tempo
     {
         v2 renderDim = V2( renderCommands->width, renderCommands->height );
         v2 displayDim = renderDim * 0.9f;
-        v2 pDisplay = (renderDim - displayDim) / 2.f;
+        v2 displayP = (renderDim - displayDim) / 2.f;
 
         u32 selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, transientState->wfcGlobalState,
-                                               &transientState->wfcDisplayState, pDisplay, displayDim, debugState,
+                                               &transientState->wfcDisplayState, displayP, displayDim, debugState,
                                                &transientState->wfcDisplayArena, frameMemory );
 
         if( selectedSpecIndex != U32MAX )
@@ -205,7 +205,7 @@ TickMeshSimplifierTest()
     {
         if( ((i32)input.frameCounter - 180) % 300 == 0 )
         {
-            InflatedMesh gen;
+            FQSMesh gen;
             {
                 genVertices.count = testVertices.count;
                 for( u32 i = 0; i < genVertices.count; ++i )
@@ -244,6 +244,22 @@ TickMeshSimplifierTest()
 }
 #endif
 
+internal void
+TickSurfaceContouringTest( RenderCommands* renderCommands )
+{
+    v2 renderDim = V2( renderCommands->width, renderCommands->height );
+    v2 displayDim = { renderDim.x * 0.2f, renderDim.y * 0.5f };
+    v2 displayP = { 100, 100 };
+
+    ImGui::SetNextWindowPos( displayP, ImGuiCond_Always );
+    ImGui::SetNextWindowSize( displayDim, ImGuiCond_Always );
+    ImGui::SetNextWindowSizeConstraints( ImVec2( -1, -1 ), ImVec2( -1, -1 ) );
+
+    ImGui::Begin( "window_contour", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove );
+
+    ImGui::End();
+}
+
 void
 InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState, TransientState* transientState,
             MemoryArena* editorArena, MemoryArena* transientArena )
@@ -268,9 +284,9 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     EditorInput editorInput = MapGameInputToEditorInput( input );
 
-    if( editorState->cachedCameraWorldP == V3Zero )
+    //if( editorState->cachedCameraWorldP == V3Zero )
     {
-        v3 pCamera = V3( 0, -150, 150 );
+        v3 pCamera = V3( 0, -360, 50 );
         m4 mLookAt = M4CameraLookAt( pCamera, world->pPlayer, V3Up );
 
         editorState->camera = DefaultCamera();
@@ -353,16 +369,21 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
     }
 
 #if 0
+    // Resampling meshes using marching cubes
     TickMeshSamplerTest( *editorState, transientState, &world->meshPools[0], frameMemory, elapsedT, renderCommands );
+    // Mesh simplification
     TickMeshSimplifierTest();
 
+    // Wave function collapse algorithm
     TickWFCTest( transientState, debugState, frameMemory, renderCommands );
 #endif
+
+    TickSurfaceContouringTest( renderCommands );
 
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );
 
-	RenderFloorGrid( ClusterSizeMeters, 10.f, renderCommands );
+	//RenderFloorGrid( ClusterSizeMeters, 10.f, renderCommands );
     DrawAxisGizmos( renderCommands );
 
     u16 width = renderCommands->width;

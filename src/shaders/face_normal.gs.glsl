@@ -38,14 +38,15 @@ out VertexData
     vec3 worldP;
     vec2 texCoords;
     flat uint color;
+    //flat vec3 faceNormal;
     vec2 barycentricP;
 } _out;
 
 
 void main()
 {
-    //vec3 v1 = (gl_in[1].gl_Position - gl_in[0].gl_Position).xyz;
-    //vec3 v2 = (gl_in[2].gl_Position - gl_in[0].gl_Position).xyz;
+    //vec3 v1 = (_in[1].worldP - _in[0].worldP).xyz;
+    //vec3 v2 = (_in[2].worldP - _in[0].worldP).xyz;
     //vec3 normal = normalize( cross( v1, v2 ) );
     vec2[3] barycentric = vec2[]( vec2( 1, 0 ), vec2( 0, 1 ), vec2( 0, 0 ) );
 
@@ -59,6 +60,7 @@ void main()
         gl_Position = gl_in[i].gl_Position;
         _out.worldP = _in[i].worldP;
         _out.color = _in[i].color;
+        //_out.faceNormal = normal;
         _out.barycentricP = barycentric[i];
         EmitVertex();
     }

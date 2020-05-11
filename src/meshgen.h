@@ -54,7 +54,7 @@ struct MeshPool
 
 
 
-struct InflatedVertex
+struct FQSVertex
 {
     v3 p;
     u32 refStart;
@@ -63,7 +63,7 @@ struct InflatedVertex
     bool border;
 };
 
-struct InflatedTriangle
+struct FQSTriangle
 {
     u32 v[3];
     r64 error[4];
@@ -73,16 +73,16 @@ struct InflatedTriangle
 };
 
 // Back-references from vertices to the triangles they belong to
-struct InflatedVertexRef
+struct FQSVertexRef
 {
     u32 tId;        // Triangle index
     u32 tVertex;    // Vertex index (in triangle, so 0,1,2)
 };
 
-struct InflatedMesh
+struct FQSMesh
 {
-    Array<InflatedVertex> vertices;
-    Array<InflatedTriangle> triangles;
+    Array<FQSVertex> vertices;
+    Array<FQSTriangle> triangles;
 };
 
 

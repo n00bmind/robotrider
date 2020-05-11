@@ -696,7 +696,7 @@ StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
                 storedEntity.worldP.clusterP = clusterP;
                 storedEntity.worldP.relativeP = entityRelativeP;
 
-                cluster->entityStorage.Add( storedEntity );
+                cluster->entityStorage.Push( storedEntity );
 
                 ReleaseMesh( &liveEntity.mesh );
                 world->liveEntities.Remove( it );
@@ -909,7 +909,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     }
 
 
-    UpdateWorldGeneration( input, world, &gameState->worldArena );
+    //UpdateWorldGeneration( input, world, &gameState->worldArena );
 
 
 
@@ -922,7 +922,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     renderCommands->simClusterCount = world->simClusterOffsets.count;
 
 #if !RELEASE
-    //if( !gameMemory->DEBUGglobalEditing )
+    if( !gameMemory->DEBUGglobalEditing )
 #endif
     {
         RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
@@ -966,109 +966,65 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #endif
     }
 
+    // Render current cluster limits
+    RenderSetMaterial( nullptr, renderCommands );
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
+    u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
+    RenderBoundsAt( V3Zero, ClusterSizeMeters, red, renderCommands );
+    //RenderBoxAt( V3Zero, ClusterSizeMeters, red, renderCommands );
 
-//     if( !gameMemory->DEBUGglobalEditing )
+    if( !gameMemory->DEBUGglobalEditing )
     {
         RenderSetMaterial( world->player->mesh.material, renderCommands );
         RenderMesh( world->player->mesh, renderCommands );
-    }
+        RenderSetMaterial( nullptr, renderCommands );
 
-    // Render current cluster limits
-    RenderSetMaterial( nullptr, renderCommands );
-    u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
-    RenderBoundsAt( V3Zero, ClusterSizeMeters , red, renderCommands );
-    //RenderBoxAt( V3Zero, ClusterSizeMeters , red, renderCommands );
-
-    Cluster* currentCluster = world->clusterTable.Find( world->originClusterP );
-    r32 clusterHalfSize = ClusterSizeMeters * 0.5f;
-    u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );
-
-    // Render partitioned volumes
-    {
-        // Volume bounds are in voxel units
-        for( u32 i = 0; i < currentCluster->volumes.count; ++i )
-        {
-            BinaryVolume& v = currentCluster->volumes[i];
-            if( v.leftChild == nullptr && v.rightChild == nullptr )
-            {
-                v3 minBounds = V3( v.voxelP );
-                v3 maxBounds = V3( v.voxelP + v.sizeVoxels );
-                aabb worldBounds =
-                {
-                    { minBounds * VoxelSizeMeters - V3( clusterHalfSize ) },
-                    { maxBounds * VoxelSizeMeters - V3( clusterHalfSize ) },
-                };
-                RenderBounds( worldBounds, halfRed, renderCommands );
-            }
-        }
-    }
-
-    // Voxel grid
-    const v3 clusterHalfDims = V3One * clusterHalfSize;
-#if 0
-    v3 voxelCenterP = V3One * VoxelSizeMeters * 0.5f;
-    u32 grey = Pack01ToRGBA( 0.5f, 0.5f, 0.5f, 1.f );
-
-    for( int i = 0; i <= VoxelsPerClusterAxis; ++i )
-        for( int j = 0; j <= VoxelsPerClusterAxis; ++j )
-            for( int k = 0; k <= VoxelsPerClusterAxis; ++k )
-            {
-                if( currentCluster->voxelGrid( i, j, k ) != 0 )
-                {
-                    v3 voxelP = V3( (r32)i, (r32)j, (r32)k ) + clusterOffsetP + voxelCenterP;
-                    RenderBoxAt( voxelP, VoxelSizeMeters, grey, renderCommands );
-                }
-            }
-//#else
-    u32 whiteish = Pack01ToRGBA( 0.95f, 0.95f, 0.95f, 1 );
-
-    for( int i = -SimExteriorHalfSize; i <= SimExteriorHalfSize; ++i )
-    {
-        for( int j = -SimExteriorHalfSize; j <= SimExteriorHalfSize; ++j )
-        {
-            for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
-            {
-                v3i clusterP = world->originClusterP + V3i( i, j, k );
-                Cluster* cluster = world->clusterTable.Find( clusterP );
-                const v3 clusterOffsetP = V3( V3i( i, j, k ) ) * ClusterSizeMeters - clusterHalfDims;
-
-                RenderClusterVoxels( *cluster, clusterOffsetP, whiteish, renderCommands );
-            }
-        }
-    }
-#endif
 #if 1
-    RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
+        Cluster* currentCluster = world->clusterTable.Find( world->originClusterP );
+        r32 clusterHalfSize = ClusterSizeMeters * 0.5f;
+        u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );
 
-    for( int i = -SimExteriorHalfSize; i <= SimExteriorHalfSize; ++i )
-    {
-        for( int j = -SimExteriorHalfSize; j <= SimExteriorHalfSize; ++j )
+        // Render partitioned volumes
         {
-            for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
+            // Volume bounds are in voxel units
+            for( u32 i = 0; i < currentCluster->volumes.count; ++i )
             {
-                v3i clusterP = world->originClusterP + V3i( i, j, k );
-                Cluster* cluster = world->clusterTable.Find( clusterP );
-
-                for( u32 r = 0; r < cluster->rooms.count; ++r )
+                BinaryVolume& v = currentCluster->volumes[i];
+                if( v.leftChild == nullptr && v.rightChild == nullptr )
                 {
-                    Room& room = cluster->rooms[r];
-                    RenderMesh( *room.mesh, renderCommands );
+                    v3 minBounds = V3( v.voxelP );
+                    v3 maxBounds = V3( v.voxelP + v.sizeVoxels );
+                    aabb worldBounds =
+                    {
+                        { minBounds * VoxelSizeMeters - V3( clusterHalfSize ) },
+                        { maxBounds * VoxelSizeMeters - V3( clusterHalfSize ) },
+                    };
+                    RenderBounds( worldBounds, halfRed, renderCommands );
                 }
             }
         }
-    }
-#else
-    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
-    Room roomData;
-    roomData.worldP = { V3Zero, V3iZero };
-    roomData.halfSize = V3( 5.f );
-    static Mesh* testMesh = nullptr;
-    if( testMesh == nullptr )
-        testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( 20.f ), VoxelSizeMeters, RoomSurfaceFunc, &roomData,
-                                    world->samplingCache, &world->meshPools[0] );
-    RenderMesh( *testMesh, renderCommands );
+
+        RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
+
+        for( int i = -SimExteriorHalfSize; i <= SimExteriorHalfSize; ++i )
+        {
+            for( int j = -SimExteriorHalfSize; j <= SimExteriorHalfSize; ++j )
+            {
+                for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
+                {
+                    v3i clusterP = world->originClusterP + V3i( i, j, k );
+                    Cluster* cluster = world->clusterTable.Find( clusterP );
+
+                    for( u32 r = 0; r < cluster->rooms.count; ++r )
+                    {
+                        Room& room = cluster->rooms[r];
+                        RenderMesh( *room.mesh, renderCommands );
+                    }
+                }
+            }
+        }
 #endif
+    }
 
     {
         // Create a chasing camera

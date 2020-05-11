@@ -77,6 +77,7 @@ void main()
     vec3 barys;
     barys.xy = _in.barycentricP;
     barys.z = 1 - barys.x - barys.y;
+
     vec3 deltas = fwidth(barys);
 	vec3 smoothing = deltas * 1;
 	vec3 thickness = deltas * 0.1;

@@ -4,9 +4,12 @@
 
 
 NEXT
-- Generate several cluster and connect neighbouring
+- Modify the room generation algorithm so it uses the clusters as the voxels in the algorithm, generating rooms for a chunk of clusters at a time (superclusters)
+- Sample the isosurface for every cluster in the exterior of each room/hall created, with a different resolution depending on distance
+- Create a little 'mesh LOD' system that keeps a cache of dynamic mesh LODs that are resampled when necessary according to distance
+- Generate several of these 'superclusters' and connect neighbouring
+- Switch to dual contouring with octree sampling for more efficient detail where needed
 - Decent RNG and determinism
-- Greedy meshing / octree sampling
 
 
 WORLDGEN
@@ -25,7 +28,6 @@ GRAPHICS
 - Frustum culling
 - Decent chasing camera
 - Start working on surfaces & lighting
-- Aspect ratio independece using black bars as needed (also, allow the game to vary output resolution at will)
 - Edge detection shader
   From reddit: "If you have a deferred renderer and it can write triangle IDs to a texture, then you can render a wireframe
   by just doing a simple edge detect on the triangle ID texture. Google for "edge detection" and/or "Sobel filter" for details.

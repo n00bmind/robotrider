@@ -34,6 +34,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PI   3.141592653589f
 #define PI64 3.14159265358979323846
 
+// NOTE Absolute epsilon comparison will be necessary when comparing against zero
 inline bool
 AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
 {

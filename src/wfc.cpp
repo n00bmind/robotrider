@@ -1464,7 +1464,7 @@ JobsInProgress( const GlobalState* globalState )
 }
 
 u32 DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState* displayState,
-              const v2& pDisplay, const v2& displayDim, const DebugState* debugState, MemoryArena* wfcDisplayArena,
+              const v2& displayP, const v2& displayDim, const DebugState* debugState, MemoryArena* wfcDisplayArena,
               const TemporaryMemory& tmpMemory )
 {
     u32 selectedIndex = U32MAX;
@@ -1473,7 +1473,7 @@ u32 DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
     const r32 outputScale = 4.f;
     const r32 patternScale = outputScale * 2;
 
-    ImGui::SetNextWindowPos( pDisplay, ImGuiCond_Always );
+    ImGui::SetNextWindowPos( displayP, ImGuiCond_Always );
     ImGui::SetNextWindowSize( displayDim, ImGuiCond_Always );
     ImGui::SetNextWindowSizeConstraints( ImVec2( -1, -1 ), ImVec2( -1, -1 ) );
     ImGui::Begin( "window_WFC", NULL,
