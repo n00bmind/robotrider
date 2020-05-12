@@ -39,6 +39,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "math.h"
 #include "math_types.h"
 #include "math_sdf.h"
+#include "macro_madness.h"
 #include "data_types.h"
 #include "platform.h"
 #include "debugstats.h"

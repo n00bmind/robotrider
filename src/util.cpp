@@ -214,7 +214,7 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
 
                 u32 outIdx = ++(digitCounts[digitIdx]);
                 u8* outIt = out + outIdx * stride;
-                COPY( inIt, outIt, stride );
+                PCOPY( inIt, outIt, stride );
             }
         }
 
@@ -227,7 +227,7 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
     }
 
     if( in != inOut )
-        COPY( in, inOut, count * stride );
+        PCOPY( in, inOut, count * stride );
 }
 
 void
@@ -380,7 +380,7 @@ void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, Mem
 #undef MASK1
 #undef MASK2
 
-    COPY( out, inOut, count * sizeof(u32) );
+    PCOPY( out, inOut, count * sizeof(u32) );
 }
 
 void

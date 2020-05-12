@@ -36,6 +36,71 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <mutex>
 #include <condition_variable>
 
+
+/////     STRUCT ENUM    /////
+
+/* Usage:
+
+struct V
+{
+    char const* sVal;
+    int iVal;
+};
+
+std::ostream& operator <<(std::ostream &o, const V& v)
+{
+    return o << "sVal: " << v.sVal << "\tiVal: " << v.iVal << std::endl;
+}
+
+STRUCT_ENUM( MemoryTag, V,
+    None, V({"a", 100}),
+    Animation, V({"b", 200}),
+    Landscape, V({"c", 300}),
+    Audio, V({"d", 400}),
+    Network, V({"e", 500}),
+    Scripting, V({"f", 600}),
+)
+
+int main()
+{
+    MemoryTag const& t = MemoryTag::Values::Audio();
+
+    for( int i = 0; i < MemoryTag::Values::count(); ++i )
+        std::cout << MemoryTag::Values::index(i).value;
+}
+
+*/
+
+#define ENUM_MEMBER(x, y) x() { return { #x, y }; }
+#define ENUM_ENTRY(x, y) x(),
+
+#define STRUCT_ENUM(enumName, valueType, ...)                           \
+struct enumName                                                         \
+{                                                                       \
+    char const* name;                                                   \
+    valueType value;                                                    \
+    struct Values;                                                      \
+};                                                                      \
+struct enumName::Values                                                 \
+{                                                                       \
+    EVAL(MAP(static constexpr const enumName ENUM_MEMBER, __VA_ARGS__)) \
+    static constexpr const enumName index( int i )                      \
+    {                                                                   \
+        static constexpr enumName all[] = {                             \
+            EVAL(MAP(ENUM_ENTRY, __VA_ARGS__))                          \
+        };                                                              \
+        return all[i];                                                  \
+    }                                                                   \
+    static constexpr int count()                                        \
+    {                                                                   \
+        static constexpr enumName all[] = {                             \
+            EVAL(MAP(ENUM_ENTRY, __VA_ARGS__))                          \
+        };                                                              \
+        return ARRAYCOUNT(all);                                         \
+    }                                                                   \
+};
+
+
 /////     DYNAMIC ARRAY    /////
 
 template <typename T>
@@ -110,7 +175,7 @@ struct Array
         ASSERT( count < maxCount );
         T* result = data + count++;
         if( clear )
-            ZERO( result, sizeof(T) );
+            PZERO( result, sizeof(T) );
 
         return result;
     }
@@ -134,7 +199,7 @@ struct Array
     Array<T> Copy( MemoryArena* arena ) const
     {
         Array<T> result = Array<T>( arena, count );
-        COPY( data, result.data, count * sizeof(T) );
+        PCOPY( data, result.data, count * sizeof(T) );
         result.count = count;
         return result;
     }
@@ -142,19 +207,19 @@ struct Array
     void CopyTo( Array<T>* out ) const
     {
         ASSERT( out->maxCount >= count );
-        COPY( data, out->data, count * sizeof(T) );
+        PCOPY( data, out->data, count * sizeof(T) );
         out->count = count;
     }
 
     void CopyTo( T* buffer ) const
     {
-        COPY( data, buffer, count * sizeof(T) );
+        PCOPY( data, buffer, count * sizeof(T) );
     }
 
     void CopyFrom( const T* buffer, u32 count_ )
     {
         count = count_;
-        COPY( buffer, data, count * sizeof(T) );
+        PCOPY( buffer, data, count * sizeof(T) );
     }
 
     bool Contains( const T& item ) const
@@ -272,7 +337,7 @@ struct Array2
     {
         ASSERT( rows == out->rows );
         ASSERT( cols == out->cols );
-        COPY( data, out->data, rows * cols * sizeof(T) );
+        PCOPY( data, out->data, rows * cols * sizeof(T) );
     }
 
     u32 Count() const
@@ -362,7 +427,7 @@ struct RingBuffer
             buffer.count++;
 
         if( clear )
-            ZERO( result, sizeof(T) );
+            PZERO( result, sizeof(T) );
 
         return result;
     }
@@ -573,7 +638,7 @@ struct HashTable
         slot->occupied = true;
         slot->key = key;
         slot->nextInHash = nullptr;
-        ZERO( &slot->value, sizeof(V) );
+        PZERO( &slot->value, sizeof(V) );
 
         return &slot->value;
     }
@@ -700,13 +765,13 @@ struct String
         target->size = size;
         target->maxSize = size;
         target->data = PUSH_ARRAY( arena, char, size );
-        COPY( data, (char*)target->data, size * sizeof(char) );
+        PCOPY( data, (char*)target->data, size * sizeof(char) );
     }
 
     const char* CString( MemoryArena* arena, MemoryParams params = DefaultMemoryParams() ) const
     {
         char* result = PUSH_ARRAY( arena, char, size + 1, params );
-        COPY( data, result, size * sizeof(char) );
+        PCOPY( data, result, size * sizeof(char) );
 
         return result;
     }
@@ -1167,7 +1232,7 @@ struct BucketArray
         const Bucket* bucket = &first;
         while( bucket )
         {
-            COPY( bucket->data, buffer, bucket->count * sizeof(T) );
+            PCOPY( bucket->data, buffer, bucket->count * sizeof(T) );
             buffer += bucket->count;
             bucket = bucket->next;
         }

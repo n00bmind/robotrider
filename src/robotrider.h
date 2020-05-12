@@ -77,13 +77,27 @@ struct GameState
     GameConsole gameConsole;
 };
 
+union ContouringSettings
+{
+    // Marching Cubes
+    struct
+    {
+        //ContouringSettingsHeader header = { ContouringSettingsHeader::Type::MCSettings, sizeof(MCSettings) };
+        bool interpolate;
+    };
+};
+
+STRUCT_ENUM( ContouringTechnique, ContouringSettings,
+    MarchingCubes, {},
+)
+
 struct TransientState
 {
     IsoSurfaceSamplingCache samplingCache;
     MeshPool meshPool;
     Mesh* testMesh;
 
-    bool MCinterpolate;
+    ContouringSettings settings;
 
     // NOTE All this needs to be here for stuff to compile, but it's not being used
 #if 1

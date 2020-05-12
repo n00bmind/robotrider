@@ -70,7 +70,7 @@ internal Array<T> CopyArray( const Array<T>& source )
 {
     Array<T> result = source;
     result.data = new T[source.maxCount];
-    COPY( source.data, result.data, source.count * sizeof(T) );
+    PCOPY( source.data, result.data, source.count * sizeof(T) );
     return result;
 }
 
@@ -237,7 +237,7 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
     {
         // Few uniques
         result.duplicated = NewArray<i32>( N );
-        ZERO( result.duplicated.data, N * sizeof(i32) );
+        PZERO( result.duplicated.data, N * sizeof(i32) );
 
         u32 duplicateCount = (u32)(N * RandomRangeR32( 0.5f, 0.75f ));
         u32 nextSwitch = RandomRangeU32( (u32)(duplicateCount * 0.1f), duplicateCount );
@@ -264,7 +264,7 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
         // All items equal
         result.allEqual = NewArray<i32>( N );
         i32 value = RandomI32();
-        SET( result.allEqual.data, value, N * sizeof(i32) );
+        PSET( result.allEqual.data, value, N * sizeof(i32) );
     }
 
     {

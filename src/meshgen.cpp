@@ -33,12 +33,12 @@ void ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottom
 
     if( clearBottomLayer )
     {
-        SET( samplingCache->bottomLayerVertexIndices, U32MAX,
+        PSET( samplingCache->bottomLayerVertexIndices, U32MAX,
              layerCellCount * 2 * sizeof(u32) );
     }
-    SET( samplingCache->middleLayerVertexIndices, U32MAX,
+    PSET( samplingCache->middleLayerVertexIndices, U32MAX,
          layerCellCount * sizeof(u32) );
-    SET( samplingCache->topLayerVertexIndices, U32MAX, 
+    PSET( samplingCache->topLayerVertexIndices, U32MAX, 
          layerCellCount * 2 * sizeof(u32) );
 }
 
@@ -351,7 +351,7 @@ MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSize
                 for( u32 i = 0; i < cellsPerSliceAxis.x; ++i )
                 {
                     MarchCube( p.relativeP, V2i( i, j ), cellsPerSliceAxis, cellSizeMeters, samplingCache,
-                               &meshPool->scratchVertices, &meshPool->scratchIndices );
+                               &meshPool->scratchVertices, &meshPool->scratchIndices, interpolate );
                     p.relativeP += vXDelta;
                 }
                 p.relativeP = pAtRowStart + vYDelta;

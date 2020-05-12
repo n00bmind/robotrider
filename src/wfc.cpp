@@ -125,7 +125,7 @@ AddPatternWithData( u8* data, const u32 N, Input* input, MemoryArena* arena )
         if (input->patternsHash.count <= MaxAdjacencyCount)
         {
             u8* patternData = PUSH_ARRAY( arena, u8, N * N );
-            COPY(data, patternData, N * N);
+            PCOPY(data, patternData, N * N);
             input->patternsHash.Insert({ patternData, N }, 1 );
         }
         else
@@ -155,19 +155,19 @@ BuildPatternsFromSource( const u32 N, const v2u& inputDim, Input* input, MemoryA
             AddPatternWithData( reflectedPatternData, N, input, arena );
             RotatePattern( patternData, N, rotatedPatternData );
             AddPatternWithData( rotatedPatternData, N, input, arena );
-            COPY( rotatedPatternData, patternData, N * N );
+            PCOPY( rotatedPatternData, patternData, N * N );
 
             ReflectPattern( patternData, N, reflectedPatternData );
             AddPatternWithData( reflectedPatternData, N, input, arena );
             RotatePattern( patternData, N, rotatedPatternData );
             AddPatternWithData( rotatedPatternData, N, input, arena );
-            COPY( rotatedPatternData, patternData, N * N );
+            PCOPY( rotatedPatternData, patternData, N * N );
 
             ReflectPattern( patternData, N, reflectedPatternData );
             AddPatternWithData( reflectedPatternData, N, input, arena );
             RotatePattern( patternData, N, rotatedPatternData );
             AddPatternWithData( rotatedPatternData, N, input, arena );
-            COPY( rotatedPatternData, patternData, N * N );
+            PCOPY( rotatedPatternData, patternData, N * N );
 
             ReflectPattern( patternData, N, reflectedPatternData );
             AddPatternWithData( reflectedPatternData, N, input, arena );

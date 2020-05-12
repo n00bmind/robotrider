@@ -1287,12 +1287,9 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     // Translate key code into the game's platform agnostic codes
                     if( scanCode >= 0 && scanCode < ARRAYCOUNT(Win32NativeToHID) )
                     {
-                        // @Test Check left/right shift, alt, etc. specifically
                         u32 hidCode = Win32NativeToHID[scanCode];
                         if( hidCode < ARRAYCOUNT(input->keyMouse.keysDown) )
                             input->keyMouse.keysDown[hidCode] = isDown;
-
-                        LOG( "Scancode: 0x%x, HIDcode: %u", scanCode, hidCode );
                     }
 
                     // Emulate controller from keys

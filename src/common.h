@@ -4,7 +4,6 @@
 #if NON_UNITY_BUILD
 #include <stdint.h>
 #include <math.h>
-//#include "data_types.h"
 #endif
 
 //
@@ -49,9 +48,11 @@ AssertHandlerFunc* globalAssertHandler = DefaultAssertHandler;
 #define MEGABYTES(value) (KILOBYTES(value)*1024)
 #define GIGABYTES(value) (MEGABYTES((u64)value)*1024)
 
-#define COPY(source, dest, size) memcpy( dest, source, size )
-#define SET(dest, value, size) memset( dest, value, size )
-#define ZERO(dest, size) memset( dest, 0, size )
+#define COPY(source, dest) memcpy( &dest, &source, sizeof(dest) )
+#define EQUAL(source, dest) (memcmp( &source, &dest, sizeof(source) ) == 0)
+#define PCOPY(source, dest, size) memcpy( dest, source, size )
+#define PSET(dest, value, size) memset( dest, value, size )
+#define PZERO(dest, size) memset( dest, 0, size )
 
 
 #if _MSC_VER

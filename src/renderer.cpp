@@ -39,7 +39,7 @@ _PushRenderElement( RenderCommands *commands, u32 size, RenderEntryType type )
     if( buffer.size + size < buffer.maxSize )
     {
         result = (RenderEntry *)(buffer.base + buffer.size);
-        ZERO( result, size );
+        PZERO( result, size );
         result->type = type;
         result->size = size;
         buffer.size += size;
@@ -139,7 +139,7 @@ PushVertices( TexturedVertex const* vertexBase, u32 vertexCount, RenderCommands*
 {
     ASSERT( commands->vertexBuffer.count + vertexCount <= commands->vertexBuffer.maxCount );
 
-    COPY( vertexBase, commands->vertexBuffer.base + commands->vertexBuffer.count, vertexCount * sizeof(TexturedVertex) );
+    PCOPY( vertexBase, commands->vertexBuffer.base + commands->vertexBuffer.count, vertexCount * sizeof(TexturedVertex) );
     commands->vertexBuffer.count += vertexCount;
 }
 
@@ -161,7 +161,7 @@ PushIndices( u32 const* indexBase, u32 indexCount, RenderCommands* commands )
 {
     ASSERT( commands->indexBuffer.count + indexCount <= commands->indexBuffer.maxCount );
 
-    COPY( indexBase, commands->indexBuffer.base + commands->indexBuffer.count, indexCount * sizeof(u32) );
+    PCOPY( indexBase, commands->indexBuffer.base + commands->indexBuffer.count, indexCount * sizeof(u32) );
     commands->indexBuffer.count += indexCount;
 }
 

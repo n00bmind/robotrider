@@ -80,7 +80,7 @@ ClearArena( MemoryArena* arena, bool clearToZero = true )
     arena->tempCount = 0;
 
     if( clearToZero )
-        ZERO( arena->base, arena->size );
+        PZERO( arena->base, arena->size );
 }
 
 inline sz
@@ -148,7 +148,7 @@ _PushSize( MemoryArena *arena, sz size, MemoryParams params = DefaultMemoryParam
     arena->used += size + waste;
 
     if( params.flags & MemoryFlags_ClearToZero )
-        ZERO( result, size );
+        PZERO( result, size );
 
     return result;
 }

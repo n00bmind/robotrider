@@ -254,6 +254,8 @@ InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientSt
     {
         transientState->samplingCache = InitSurfaceSamplingCache( editorArena, maxCellsPerAxis );
         InitMeshPool( &transientState->meshPool, editorArena, MEGABYTES( 256 ) );
+
+        transientState->settings.interpolate = true;
     }
 }
 
@@ -269,15 +271,20 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
     ImGui::SetNextWindowSizeConstraints( ImVec2( -1, -1 ), ImVec2( -1, -1 ) );
 
     ImGui::Begin( "window_contour", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove );
+    
+    ContouringSettings settings = transientState->settings;
 
-    ImGui::Checkbox( "Interpolate", &transientState->MCinterpolate );
-    if( transientState->testMesh == nullptr || input.gameCodeReloaded )
+    ImGui::Checkbox( "Interpolate", &settings.interpolate );
+
+    if( transientState->testMesh == nullptr || input.gameCodeReloaded || !EQUAL( settings, transientState->settings ) )
     {
         r64 start = globalPlatform.DEBUGCurrentTimeMillis();
         transientState->testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, TorusSurfaceFunc, nullptr,
-                                                  &transientState->samplingCache, &transientState->meshPool, transientState->MCinterpolate );
+                                                  &transientState->samplingCache, &transientState->meshPool, settings.interpolate );
         transientState->elapsedMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
     }
+
+    COPY( transientState->settings, settings );
 
     ImGui::Dummy( { 0, 20 } );
     ImGui::Separator();
