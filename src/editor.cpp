@@ -255,7 +255,7 @@ InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientSt
         transientState->samplingCache = InitSurfaceSamplingCache( editorArena, maxCellsPerAxis );
         InitMeshPool( &transientState->meshPool, editorArena, MEGABYTES( 256 ) );
 
-        transientState->settings.interpolate = true;
+        transientState->settings[ContouringTechnique::MarchingCubes().index].interpolate = true;
     }
 }
 
@@ -271,12 +271,22 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
     ImGui::SetNextWindowSizeConstraints( ImVec2( -1, -1 ), ImVec2( -1, -1 ) );
 
     ImGui::Begin( "window_contour", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove );
+
+    ImGui::Combo( "Algorithm", &transientState->currentTechniqueIndex, ContouringTechnique::Values::names,
+                  ContouringTechnique::Values::count );
     
-    ContouringSettings settings = transientState->settings;
+    ContouringSettings& currentSettings = transientState->settings[transientState->currentTechniqueIndex];
+    ContouringSettings settings = currentSettings;
 
-    ImGui::Checkbox( "Interpolate", &settings.interpolate );
+    switch( transientState->currentTechniqueIndex )
+    {
+        case ContouringTechnique::MarchingCubes().index:
+        {
+            ImGui::Checkbox( "Interpolate", &settings.interpolate );
+        } break;
+    }
 
-    if( transientState->testMesh == nullptr || input.gameCodeReloaded || !EQUAL( settings, transientState->settings ) )
+    if( transientState->testMesh == nullptr || input.gameCodeReloaded || !EQUAL( settings, currentSettings ) )
     {
         r64 start = globalPlatform.DEBUGCurrentTimeMillis();
         transientState->testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, TorusSurfaceFunc, nullptr,
@@ -284,7 +294,7 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         transientState->elapsedMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
     }
 
-    COPY( transientState->settings, settings );
+    COPY( settings, currentSettings );
 
     ImGui::Dummy( { 0, 20 } );
     ImGui::Separator();

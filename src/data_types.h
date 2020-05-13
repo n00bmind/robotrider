@@ -47,58 +47,76 @@ struct V
     int iVal;
 };
 
-std::ostream& operator <<(std::ostream &o, const V& v)
-{
-    return o << "sVal: " << v.sVal << "\tiVal: " << v.iVal << std::endl;
-}
+#define VALUES(x) \
+    x(None, {"a", 100}) \
+    x(Animation, {"b", 200}) \
+    x(Landscape, {"c", 300}) \
+    x(Audio, {"d", 400}) \
+    x(Network, {"e", 500}) \
+    x(Scripting, {"f", 600}) \
 
-STRUCT_ENUM( MemoryTag, V,
-    None, V({"a", 100}),
-    Animation, V({"b", 200}),
-    Landscape, V({"c", 300}),
-    Audio, V({"d", 400}),
-    Network, V({"e", 500}),
-    Scripting, V({"f", 600}),
-)
+STRUCT_ENUM_WITH_VALUES(MemoryTag, V, VALUES)
+#undef VALUES
 
 int main()
 {
-    MemoryTag const& t = MemoryTag::Values::Audio();
+    MemoryTag const& t = MemoryTag::Audio();
+    V const& value = MemoryTag::Landscape().value;
 
-    for( int i = 0; i < MemoryTag::Values::count(); ++i )
-        std::cout << MemoryTag::Values::index(i).value;
+    for( int i = 0; i < MemoryTag::Values::count; ++i )
+    {
+        MemoryTag const& t = MemoryTag::Values::items[i];
+        std::cout << "sVal: " << t.value.sVal << "\tiVal: " << t.value.iVal << std::endl;
+    }
 }
 
 */
 
-#define ENUM_MEMBER(x, y) x() { return { #x, y }; }
-#define ENUM_ENTRY(x, y) x(),
+#define _ENUM_BUILDER(x) static constexpr EnumName x() \
+    { static EnumName _inst = { #x, (u32)Enum::x, ValueType() }; return _inst; }
+#define _ENUM_BUILDER_WITH_NAMES(x, n) static constexpr EnumName x() \
+    { static EnumName _inst = { n, (u32)Enum::x, ValueType() }; return _inst; }
+#define _ENUM_BUILDER_WITH_VALUES(x, v) static constexpr EnumName x() \
+    { static EnumName _inst = { #x, (u32)Enum::x, v }; return _inst; }
+#define _ENUM_ENTRY(x, ...) x,
+#define _ENUM_NAME(x, ...) x().name,
+#define _ENUM_ITEM(x, ...) x(),
 
-#define STRUCT_ENUM(enumName, valueType, ...)                           \
-struct enumName                                                         \
-{                                                                       \
-    char const* name;                                                   \
-    valueType value;                                                    \
-    struct Values;                                                      \
-};                                                                      \
-struct enumName::Values                                                 \
-{                                                                       \
-    EVAL(MAP(static constexpr const enumName ENUM_MEMBER, __VA_ARGS__)) \
-    static constexpr const enumName index( int i )                      \
-    {                                                                   \
-        static constexpr enumName all[] = {                             \
-            EVAL(MAP(ENUM_ENTRY, __VA_ARGS__))                          \
-        };                                                              \
-        return all[i];                                                  \
-    }                                                                   \
-    static constexpr int count()                                        \
-    {                                                                   \
-        static constexpr enumName all[] = {                             \
-            EVAL(MAP(ENUM_ENTRY, __VA_ARGS__))                          \
-        };                                                              \
-        return ARRAYCOUNT(all);                                         \
-    }                                                                   \
-};
+#define _CREATE_ENUM(enumName, valueType, xValueList, xBuilder) \
+struct enumName                                                \
+{                                                              \
+    char const* name;                                          \
+    u32 index;                                                 \
+    valueType value;                                           \
+                                                               \
+    using EnumName = enumName;                                 \
+    using ValueType = valueType;                               \
+    xValueList(xBuilder)                                       \
+                                                               \
+    struct Values;                                             \
+                                                               \
+private:                                                       \
+    enum class Enum : u32                                      \
+    {                                                          \
+        xValueList(_ENUM_ENTRY)                                \
+    };                                                         \
+};                                                             \
+struct enumName::Values                                        \
+{                                                              \
+    static constexpr char const* const names[] =               \
+    {                                                          \
+        xValueList(_ENUM_NAME)                                 \
+    };                                                         \
+    static constexpr const enumName items[] = {                \
+        xValueList(_ENUM_ITEM)                                 \
+    };                                                         \
+    static constexpr const int count = ARRAYCOUNT(items);      \
+};                                                             \
+
+#define STRUCT_ENUM(enumName, valueType, xValueList)                _CREATE_ENUM(enumName, valueType, xValueList, _ENUM_BUILDER)
+#define STRUCT_ENUM_WITH_NAMES(enumName, valueType, xValueList)     _CREATE_ENUM(enumName, valueType, xValueList, _ENUM_BUILDER_WITH_NAMES)
+#define STRUCT_ENUM_WITH_VALUES(enumName, valueType, xValueList)    _CREATE_ENUM(enumName, valueType, xValueList, _ENUM_BUILDER_WITH_VALUES)
+
 
 
 /////     DYNAMIC ARRAY    /////

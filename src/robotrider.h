@@ -77,19 +77,21 @@ struct GameState
     GameConsole gameConsole;
 };
 
+#define VALUES(x) \
+    x(MarchingCubes) \
+    x(DualContouring) \
+
+STRUCT_ENUM(ContouringTechnique, u32, VALUES)
+#undef VALUES
+
 union ContouringSettings
 {
     // Marching Cubes
     struct
     {
-        //ContouringSettingsHeader header = { ContouringSettingsHeader::Type::MCSettings, sizeof(MCSettings) };
         bool interpolate;
     };
 };
-
-STRUCT_ENUM( ContouringTechnique, ContouringSettings,
-    MarchingCubes, {},
-)
 
 struct TransientState
 {
@@ -97,7 +99,8 @@ struct TransientState
     MeshPool meshPool;
     Mesh* testMesh;
 
-    ContouringSettings settings;
+    ContouringSettings settings[ContouringTechnique::Values::count];
+    int currentTechniqueIndex;
 
     // NOTE All this needs to be here for stuff to compile, but it's not being used
 #if 1
