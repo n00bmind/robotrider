@@ -40,6 +40,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // TODO Examine disassemblies for all compilers and compare!
 
 inline u32
+ToU32Safe( i32 value )
+{
+    ASSERT( value >= 0 );
+    u32 result = (u32)value;
+    return result;
+}
+
+inline u32
 ToU32Safe( u64 value )
 {
     ASSERT( value <= U32MAX );
@@ -198,6 +206,12 @@ Clamp0( r32 value )
     return Max( 0.f, value );
 }
 
+inline r32
+Clamp01( r32 value )
+{
+    return Min( Max( 0.f, value ), 1.f );
+}
+
 inline i32
 Square( i32 value )
 {
@@ -240,6 +254,12 @@ Swap( i32* a, i32* b )
     i32 tmp = *a;
     *a = *b;
     *b = tmp;
+}
+
+inline bool
+Sign( r32 value )
+{
+    return (*(int*)&value) & 0x80000000;
 }
 
 inline bool
@@ -287,6 +307,7 @@ NextPowerOf2( u32 value )
     return result;
 }
 
+// TODO Rewrite this stuff enforcing sizes with templates
 inline u32
 AtomicCompareExchange( volatile u32* value, u32 newValue, u32 expectedValue )
 {

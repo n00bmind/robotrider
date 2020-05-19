@@ -78,11 +78,17 @@ struct GameState
 };
 
 #define VALUES(x) \
-    x(MarchingCubes) \
     x(DualContouring) \
+    x(MarchingCubes) \
 
 STRUCT_ENUM(ContouringTechnique, u32, VALUES)
 #undef VALUES
+
+struct DCSettings
+{
+    bool approximateEdgeIntersection = true;
+    bool approximateCellPoints = true;
+};
 
 union ContouringSettings
 {
@@ -91,6 +97,8 @@ union ContouringSettings
     {
         bool interpolate;
     };
+    // Dual Contour
+    DCSettings dc;
 };
 
 struct TransientState

@@ -1,3 +1,26 @@
+/*
+The MIT License
+
+Copyright (c) 2017 Oscar Peñas Pariente <oscarpp80@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 #if NON_UNITY_BUILD
 #include "math_types.h"
 #include "math_sdf.h" 
@@ -256,9 +279,6 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
                     float sA = cornerSamples[indexA];
                     float sB = cornerSamples[indexB];
 
-                    // TODO Look into implementing SnapMC to eliminate any degenerate and weird triangles
-                    // which also means less tris to render!
-                    // http://web.cse.ohio-state.edu/~wenger.4/publications/isomesh.pdf
                     float diff = sA - sB;
                     // In case sampled function is the same, arbitrarily use midpoint
                     float t = AlmostEqual( diff, 0.f ) ? 0.5f : sA / diff;
@@ -296,6 +316,7 @@ MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSize
     {
         TIMED_BLOCK;
 
+        // TODO Should do ceil
         v2u cellsPerSliceAxis = V2u( areaSideMeters.xy / cellSizeMeters );
         u32 sliceCount = (u32)(areaSideMeters.z / cellSizeMeters);
         ASSERT( samplingCache->cellsPerAxis.x >= cellsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= cellsPerSliceAxis.y );
@@ -369,6 +390,365 @@ MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSize
 
 
 
+// TODO Clean up asserts
+Mesh*
+DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
+        MeshPool* meshPool, MemoryArena* tempArena, DCSettings const& settings )
+{
+    struct CellData
+    {
+        // NOTE If we clamped the final SDF field, say -1 to 1, we could probably get away with much smaller fixed-point numbers
+        // 0, 1, 2 correspond to the edges aligned to X, Y, Z in each cell
+        v3 edgeCrossingsP[3];
+        v3 edgeCrossingsN[3];
+        // v3 n; // NOTE Unused for now
+        // Only one sample per cell (the 'max' corner of the aabb)
+        r32 sampledValue;
+        u32 vertexIndex;
+    };
+
+    // Relative to 'max' aabb point, also used to locate neighbour cells
+    static const v3i dcCornerOffsets[8] =
+    {
+        V3i( -1, -1, -1 ),    // Bottom layer
+        V3i(  0, -1, -1 ),
+        V3i( -1,  0, -1 ),
+        V3i(  0,  0, -1 ),
+        V3i( -1, -1,  0 ),    // Top layer
+        V3i(  0, -1,  0 ),
+        V3i( -1,  0,  0 ),
+        V3i(  0,  0,  0 ),
+    };
+
+    struct EdgeLocator
+    {
+        u32 cornerA;
+        u32 cornerB;
+        u32 neighbourIndex;
+        u32 storeIndex;
+    };
+
+    static const EdgeLocator dcEdgeLocators[12] =
+    {
+        { 0, 1, 1, 0 },     // X - bottom layer
+        { 1, 3, 3, 1 },     // Y
+        { 3, 2, 3, 0 },     // X
+        { 2, 0, 2, 1 },     // Y
+        { 4, 5, 5, 0 },     // X - top layer
+        { 5, 7, 7, 1 },     // Y
+        { 7, 6, 7, 0 },     // X
+        { 6, 4, 6, 1 },     // Y
+        { 0, 4, 4, 2 },     // Z - middle
+        { 1, 5, 5, 2 },     // Z
+        { 3, 7, 7, 2 },     // Z
+        { 2, 6, 6, 2 },     // Z
+    };
+
+    ClearScratchBuffers( meshPool );
+
+    // One extra layer of cells in X,Y,Z to store the needed info
+    v3u cellsPerAxis = V3uCeil( areaSideMeters / cellSizeMeters ) + V3uOne;
+
+    Grid3D<CellData> cellData = Grid3D<CellData>( tempArena, cellsPerAxis, Temporary() );
+    PZERO( cellData.data, cellsPerAxis.x * cellsPerAxis.y * cellsPerAxis.z * sizeof(CellData) );
+
+    v3 halfSideMeters = areaSideMeters / 2;
+    v3 minGridP = worldP.relativeP - halfSideMeters;
+    WorldCoords p = worldP;
+
+    aabb bounds = AABB( worldP.relativeP, halfSideMeters );
+
+    const r32 delta = 0.01f;
+    const r32 deltaInv = 1.f / (2.f * delta);
+
+    for( u32 k = 0; k < cellsPerAxis.z; ++k )
+    {
+        for( u32 j = 0; j < cellsPerAxis.y; ++j )
+        {
+            for( u32 i = 0; i < cellsPerAxis.x; ++i )
+            {
+                p.relativeP = minGridP + V3( i, j, k ) * cellSizeMeters;
+
+                u32 caseMask = 0;
+                r32 cornerSamples[8] = {};
+
+                // Build our bitmask using the samples from every corner
+                for( int s = 0; s < 8; ++s )
+                {
+                    cornerSamples[s] = R32MAX;
+
+                    // Skip if we're gonna move backwards in an axis but we're already at the border
+                    if( i == 0 && (s & 0x1) == 0 )
+                        continue;
+                    if( j == 0 && (s & 0x2) == 0 )
+                        continue;
+                    if( k == 0 && (s & 0x4) == 0 )
+                        continue;
+
+                    r32 sample = R32NAN;
+                    if( s == 7 )
+                    {
+                        // Sample our own
+                        // (we sample an extra layer of cells ahead of the actual contoured area)
+                        sample = sampleFunc( samplingData, p );
+                        cellData( i, j, k ).sampledValue = sample;
+                    }
+                    else
+                    {
+                        v3u cellOffset = V3u( V3i( i, j, k ) + dcCornerOffsets[s] );
+                        sample = cellData( cellOffset ).sampledValue;
+                    }
+
+                    if( Sign( sample ) )
+                        caseMask |= 1 << s;
+                    cornerSamples[s] = sample;
+                }
+
+                // Early out if entirely inside or outside
+                if( caseMask == 0 || caseMask == 0xFF )
+                    continue;
+
+                v2u edges[12];
+                v3 edgePoints[12];
+                v3 edgeNormals[12];
+                u32 pointCount = 0;
+
+                // TODO As explained in http://www.inf.ufrgs.br/~comba/papers/thesis/diss-leonardo.pdf (4.2.2 & figure 4.4)
+                // we only need to process 3 edges per cell
+                // Find edge intersections or get them from neighbours
+                for( int e = 0; e < 12; ++e )
+                {
+                    EdgeLocator const& locator = dcEdgeLocators[e];
+
+                    u32 indexA = locator.cornerA;
+                    u32 indexB = locator.cornerB;
+                    r32 sA = cornerSamples[ indexA ];
+                    r32 sB = cornerSamples[ indexB ];
+
+                    if( Sign( sA ) != Sign( sB ) )
+                    {
+                        if( indexB == 7 || indexA == 7 )
+                        {
+                            // It's one of the edges stored in this cell, so find the intersection & normal
+                            v3 pA = p.relativeP + V3( dcCornerOffsets[indexA] ) * cellSizeMeters;
+                            v3 pB = p.relativeP + V3( dcCornerOffsets[indexB] ) * cellSizeMeters;
+                            v3 edgeP = {};
+
+                            if( settings.approximateEdgeIntersection )
+                            {
+                                // Just interpolate along the edge
+                                r32 t = sA / (sA - sB);
+                                Clamp01( t );
+                                edgeP = Lerp( pA, pB, t );
+                            }
+                            else
+                            {
+                                // TODO Do a binary search along the edge
+                                NOT_IMPLEMENTED;
+                            }
+                            cellData( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
+                            edgePoints[pointCount] = edgeP;
+
+                            ASSERT( edgePoints[pointCount] != V3Zero );
+                            ASSERT( Contains( bounds, edgePoints[pointCount] ) );
+
+                            if( pointCount )
+                                ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
+
+                            ASSERT( (p.relativeP.x - 1 <= edgeP.x && edgeP.x <= p.relativeP.x && edgeP.y == p.relativeP.y && edgeP.z == p.relativeP.z)
+                                || (p.relativeP.y - 1 <= edgeP.y && edgeP.y <= p.relativeP.y && edgeP.x == p.relativeP.x && edgeP.z == p.relativeP.z)
+                                || (p.relativeP.z - 1 <= edgeP.z && edgeP.z <= p.relativeP.z && edgeP.x == p.relativeP.x && edgeP.y == p.relativeP.y) );
+
+                            // Find normal vector by sampling near the intersection point we found
+                            // TODO Mathematically this probably requires sampling on both sides of the point per axis,
+                            // but we're doing it this way to save 3 samples per cell
+                            // Gauge whether there's any noticeable difference in the result
+                            p.relativeP = edgeP + V3( delta, 0, 0 );
+                            r32 xDeltaSample = sampleFunc( samplingData, p );
+                            p.relativeP = edgeP + V3( 0, delta, 0 );
+                            r32 yDeltaSample = sampleFunc( samplingData, p );
+                            p.relativeP = edgeP + V3( 0, 0, delta );
+                            r32 zDeltaSample = sampleFunc( samplingData, p );
+
+                            v3 normal = (V3( xDeltaSample, yDeltaSample, zDeltaSample ) - edgeP) * deltaInv;
+                            cellData( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
+                            edgeNormals[pointCount] = normal;
+                        }
+                        else
+                        {
+                            // This has already been calculated and stored in a neighbour cell so go get it
+                            int neighbourIndex = locator.neighbourIndex;
+                            ASSERT( neighbourIndex != 7 );
+
+                            v3u neighbourCoords = V3u( V3i( i, j, k ) + dcCornerOffsets[neighbourIndex] );
+                            edgePoints[pointCount] = cellData( neighbourCoords ).edgeCrossingsP[locator.storeIndex];
+                            edgeNormals[pointCount] = cellData( neighbourCoords ).edgeCrossingsN[locator.storeIndex];
+
+                            ASSERT( edgePoints[pointCount] != V3Zero );
+                            ASSERT( Contains( bounds, edgePoints[pointCount] ) );
+
+                            if( pointCount )
+                                ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
+                        }
+
+                        edges[pointCount] = { indexA, indexB };
+                        pointCount++;
+                    }
+                }
+
+                ASSERT( pointCount );
+
+                v3 cellVertex = V3Undefined;
+                if( settings.approximateCellPoints )
+                {
+                    // As stated in the follow-up paper "The Secret Sauce",
+                    // "the solution space will not be far from the intersection points on the edges"
+                    // This is also called the "mass point"
+                    v3 massPoint = V3Zero;
+                    for( u32 pIndex = 0; pIndex < pointCount; ++pIndex )
+                    {
+                        massPoint += edgePoints[pIndex];
+                    }
+                    massPoint /= (r32)pointCount;
+
+                    cellVertex = massPoint;
+
+                    // TODO When merging cells in the octree, we still need to do a part of the QEF computation, as stated in "The Secret Sauce":
+                    // "In addition to the data already stored for the mass point, we also store the dimension of the mass point"
+                }
+                else
+                {
+                    // TODO Build and solve the QEF
+                    // If outside of the cell, initially just use the 'masspoint' (average) as in http://ngildea.blogspot.com/2014/11/implementing-dual-contouring.html
+                    // (the final normal is also the average of the input normals)
+
+
+                    // AFTER that, do the solve with constrains as explained in https://www.mattkeeter.com/projects/qef/
+                    // (also check https://github.com/nickgildea/qef and https://github.com/BorisTheBrave/mc-dc/blob/a165b326849d8814fb03c963ad33a9faf6cc6dea/qef.py#L146)
+                    // and see whether it makes any difference at all
+
+                    // There are also SIMD and compute shader implementations in https://github.com/nickgildea/qef
+                }
+
+                //ASSERT( LengthSq( cellVertex ) < 105.f * 105.f );
+                //ASSERT( Length( cellVertex ) > 80.f );
+
+                u32 vertexIndex = meshPool->scratchVertices.count;
+                TexturedVertex v = {};
+                v.p = cellVertex;
+                v.color = Pack01ToRGBA( 1, 1, 1, 1 );
+                meshPool->scratchVertices.Push( v );
+
+                cellData( i, j, k ).vertexIndex = vertexIndex;
+#if 0
+                v3 avgNormal = V3Zero;
+                for( u32 p = 0; p < pointCount; ++p )
+                    avgNormal += edgeNormals[p];
+                avgNormal /= pointCount;
+                cellData( i, j, k ).n = avgNormal;
+#endif
+
+
+                // Now we look 'backwards' and create at most 3 quads corresponding to the edges that include the 'min' corner instead,
+                // as we know those vertices will be ready by now
+                static const u32 edgesProducingPolys[3][2] =
+                {
+                    { 0, 1 },
+                    { 0, 2 },
+                    { 0, 4 },
+                };
+
+                for( u32 e = 0; e < 3; ++e )
+                {
+                    r32 sA = cornerSamples[ edgesProducingPolys[e][0] ];
+                    r32 sB = cornerSamples[ edgesProducingPolys[e][1] ];
+
+                    if( Sign( sA ) != Sign( sB ) )
+                    {
+                        switch( e )
+                        {
+                        case 0:     // Normal aligned to +/- X
+                        {
+                            if( sA < sB )
+                            {
+                                meshPool->scratchIndices.Push( vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
+
+                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j-1, k-1 ).vertexIndex ); 
+                            }
+                            else
+                            {
+                                meshPool->scratchIndices.Push( vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
+
+                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j-1, k-1 ).vertexIndex ); 
+                            }
+                        } break;
+                        case 1:     // Normal aligned to +/- Y
+                        {
+                            if( sA < sB )
+                            {
+                                meshPool->scratchIndices.Push( vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
+
+                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i-1, j, k-1 ).vertexIndex );
+                            }
+                            else
+                            {
+                                meshPool->scratchIndices.Push( vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
+
+                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i-1, j, k-1 ).vertexIndex );
+                            }
+                        } break;
+                        case 2:     // Normal aligned to +/- Z
+                        {
+                            if( sA < sB )
+                            {
+                                meshPool->scratchIndices.Push( vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
+
+                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i-1, j-1, k).vertexIndex );
+                            }
+                            else
+                            {
+                                meshPool->scratchIndices.Push( vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
+
+                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
+                                meshPool->scratchIndices.Push( cellData( i-1, j-1, k).vertexIndex );
+                            }
+                        } break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Write output mesh
+    Mesh* result = AllocateMeshFromScratchBuffers( meshPool );
+    return result;
+}
+
+
 
 struct Metaball
 {
@@ -433,7 +813,8 @@ ISO_SURFACE_FUNC( TorusSurfaceFunc )
     // NOTE We're axis aligned for now, so just translate
     v3 invWorldP = worldP.relativeP - V3Zero;
 
-    r32 result = SDFTorus( invWorldP, ClusterSizeMeters * 0.36f, 35 );
+    //r32 result = SDFTorus( invWorldP, 70, 30 );
+    r32 result = SDFBox( invWorldP, { 10, 10, 10 } );
     return result;
 }
 
@@ -1274,15 +1655,15 @@ namespace
     // (each entry is an index to the previous table)
     u32 edgeVertexOffsets[12][2] =
     {
-        { 0, 1 },
+        { 0, 1 },           // Bottom (horizontal)
         { 1, 2 },
         { 3, 2 },
         { 0, 3 },
-        { 4, 5 },
+        { 4, 5 },           // Top (horizontal)
         { 5, 6 },
         { 7, 6 },
         { 4, 7 },
-        { 0, 4 },
+        { 0, 4 },           // Middle (vertical)
         { 1, 5 },
         { 2, 6 },
         { 3, 7 }

@@ -39,5 +39,10 @@ inline r32 SDFTorus( v3 const& p, r32 r, r32 t )
     return Length( q ) - t;
 }
 
+inline r32 SDFSphere( v3 const& p, r32 r )
+{
+    return Length( p ) - r;
+}
+
 
 #endif /* __MATH_SDF_H__ */

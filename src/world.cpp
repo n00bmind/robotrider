@@ -78,9 +78,9 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     playerMaterial->diffuseMap = textureResult.handle;
     world->player->mesh.material = playerMaterial;
 
-    new (&world->clusterTable) HashTable<v3i, Cluster, ClusterHash>( worldArena, 256*1024 );
-    new (&world->liveEntities) BucketArray<LiveEntity>( worldArena, 256 );
-    new (&world->entityRefs) HashTable<u32, StoredEntity *, EntityHash>( worldArena, 1024 );
+    world->clusterTable = HashTable<v3i, Cluster, ClusterHash>( worldArena, 256*1024 );
+    world->liveEntities = BucketArray<LiveEntity>( worldArena, 256 );
+    world->entityRefs = HashTable<u32, StoredEntity *, EntityHash>( worldArena, 1024 );
 
     world->originClusterP = V3iZero;
     world->lastOriginClusterP = INITIAL_CLUSTER_COORDS;
@@ -599,7 +599,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
     {
         cluster = world->clusterTable.InsertEmpty( clusterP );
         cluster->populated = false;
-        new (&cluster->entityStorage) BucketArray<StoredEntity>( arena, 256 );
+        cluster->entityStorage = BucketArray<StoredEntity>( arena, 256 );
         const u32 maxSplits = 256;
         cluster->volumes = Array<BinaryVolume>( arena, 0, maxSplits );
         cluster->rooms = Array<Room>( arena, 0, 32 );
@@ -1030,8 +1030,8 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         // Create a chasing camera
         // TODO Use a PID controller
         Player *player = world->player;
-        v3 pCam = player->mesh.mTransform * V3( 0, -25, 10 );
-        v3 pLookAt = player->mesh.mTransform * V3( 0, 1, 0 );
+        v3 pCam = player->mesh.mTransform * V3( 0.f, -25.f, 10.f );
+        v3 pLookAt = player->mesh.mTransform * V3( 0.f, 1.f, 0.f );
         v3 vUp = GetColumn( player->mesh.mTransform, 2 ).xyz;
         renderCommands->camera = DefaultCamera();
         renderCommands->camera.worldToCamera = M4CameraLookAt( pCam, pLookAt, vUp );

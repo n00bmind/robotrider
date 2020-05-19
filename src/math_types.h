@@ -350,6 +350,13 @@ V3u( u32 s )
     return result;
 }
 
+inline v3u
+V3u( v3i const& v )
+{
+    v3u result = { ToU32Safe( v.x ), ToU32Safe( v.y ), ToU32Safe( v.z ) };
+    return result;
+}
+
 inline bool
 operator ==( const v3u &a, const v3u &b )
 {
@@ -446,6 +453,13 @@ V3( r32 x, r32 y, r32 z )
 }
 
 inline v3
+V3( u32 x, u32 y, u32 z )
+{
+    v3 result = { (r32)x, (r32)y, (r32)z };
+    return result;
+}
+
+inline v3
 V3( const v2 &v, r32 z )
 {
     v3 result = { v.x, v.y, z };
@@ -466,10 +480,23 @@ V3( const v3u& v )
     return result;
 }
 
+inline v3u
+V3uCeil( v3 const& v )
+{
+    v3u result = { Ceil( v.x ), Ceil( v.y ), Ceil( v.z ) };
+    return result;
+}
+
 inline bool
 operator ==( const v3 &a, const v3 &b )
 {
     return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+inline bool
+operator !=( const v3 &a, const v3 &b )
+{
+    return a.x != b.x || a.y != b.y || a.z != b.z;
 }
 
 inline bool
@@ -516,14 +543,6 @@ operator *( const v3 &v, r32 s )
     return result;
 }
 
-inline void
-operator *=( v3& v, r32 s )
-{
-    v.x *= s;
-    v.y *= s;
-    v.z *= s;
-}
-
 inline v3
 operator *( const v3i &v, r32 s )
 {
@@ -538,11 +557,27 @@ operator *( r32 s, const v3 &v )
     return result;
 }
 
+inline void
+operator *=( v3& v, r32 s )
+{
+    v.x *= s;
+    v.y *= s;
+    v.z *= s;
+}
+
 inline v3
 operator /( const v3& v, r32 s )
 {
     v3 result = { v.x / s, v.y / s, v.z / s };
     return result;
+}
+
+inline void
+operator /=( v3& v, r32 s )
+{
+    v.x /= s;
+    v.y /= s;
+    v.z /= s;
 }
 
 inline r32
@@ -638,6 +673,12 @@ Normalized( const v3 &v )
         result = v * invL;
     }
     return result;
+}
+
+inline v3
+Lerp( v3 const& a, v3 const& b, r32 t )
+{
+    return a + (b - a) * t;
 }
 
 // Vector 4
@@ -1665,6 +1706,14 @@ Center( const aabb& b )
 {
     v3 result = b.min + (b.max - b.min) * 0.5f;
     return result;
+}
+
+inline bool
+Contains( aabb const& b, v3 const& p )
+{
+    return (b.min.x < p.x && p.x < b.max.x)
+        && (b.min.y < p.y && p.y < b.max.y)
+        && (b.min.z < p.z && p.z < b.max.z);
 }
 
 // Ray

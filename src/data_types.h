@@ -32,12 +32,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "math_types.h"
 #endif
 
-// FIXME Get rid of these
+// FIXME Get rid of these!
 #include <mutex>
 #include <condition_variable>
 
 
 /////     STRUCT ENUM    /////
+// TODO Combine with the ideas in https://blog.paranoidcoding.com/2010/11/18/discriminated-unions-in-c.html to create a similar
+// TAGGED_UNION for discriminated unions
 
 /* Usage:
 
@@ -402,14 +404,26 @@ struct Grid3D
 
     INLINE T& operator()( u32 x, u32 y, u32 z )
     {
-        //ASSERT( x < dims.x && y < dims.y && z < dims.z );
+        ASSERT( x < dims.x && y < dims.y && z < dims.z );
         return data[ z * dims.y * dims.x + y * dims.x + x ];
     }
 
     INLINE T const& operator()( u32 x, u32 y, u32 z ) const
     {
-        //ASSERT( x < dims.x && y < dims.y && z < dims.z );
+        ASSERT( x < dims.x && y < dims.y && z < dims.z );
         return data[ z * dims.y * dims.x + y * dims.x + x ];
+    }
+
+    INLINE T& operator()( v3u const& v )
+    {
+        ASSERT( v.x < dims.x && v.y < dims.y && v.z < dims.z );
+        return data[ v.z * dims.y * dims.x + v.y * dims.x + v.x ];
+    }
+
+    INLINE T const& operator()( v3u const& v ) const
+    {
+        ASSERT( v.x < dims.x && v.y < dims.y && v.z < dims.z );
+        return data[ v.z * dims.y * dims.x + v.y * dims.x + v.x ];
     }
 };
 
@@ -578,7 +592,7 @@ struct HashTable
 
     // Disallow implicit copying
     HashTable( const HashTable& ) = delete;
-    HashTable& operator =( const HashTable& ) = delete;
+    //HashTable& operator =( const HashTable& ) = delete;
 
     void Clear()
     {

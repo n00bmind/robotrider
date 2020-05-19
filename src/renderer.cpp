@@ -327,14 +327,14 @@ void RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* commands )
     float halfSize = size * 0.5f;
     v3 p1, p2, p3, p4, p5, p6, p7, p8;
 
-    p1 = p + V3( -1, -1,  1  ) * halfSize;
-    p2 = p + V3(  1, -1,  1  ) * halfSize;
-    p3 = p + V3(  1,  1,  1  ) * halfSize;
-    p4 = p + V3( -1,  1,  1  ) * halfSize;
-    p5 = p + V3( -1, -1, -1  ) * halfSize;
-    p6 = p + V3(  1, -1, -1  ) * halfSize;
-    p7 = p + V3(  1,  1, -1  ) * halfSize;
-    p8 = p + V3( -1,  1, -1  ) * halfSize;
+    p1 = p + V3( -1.f, -1.f,  1.f  ) * halfSize;
+    p2 = p + V3(  1.f, -1.f,  1.f  ) * halfSize;
+    p3 = p + V3(  1.f,  1.f,  1.f  ) * halfSize;
+    p4 = p + V3( -1.f,  1.f,  1.f  ) * halfSize;
+    p5 = p + V3( -1.f, -1.f, -1.f  ) * halfSize;
+    p6 = p + V3(  1.f, -1.f, -1.f  ) * halfSize;
+    p7 = p + V3(  1.f,  1.f, -1.f  ) * halfSize;
+    p8 = p + V3( -1.f,  1.f, -1.f  ) * halfSize;
 
     // Up
     RenderQuad( p1, p2, p3, p4, color, commands );
@@ -479,14 +479,14 @@ void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 
     {
         // Common instance data
         //aabb box = AABB( V3Zero, VoxelSizeMeters );
-        const v3 p0 = V3( 0, 0, 1 ) * VoxelSizeMeters;
-        const v3 p1 = V3( 1, 0, 1 ) * VoxelSizeMeters;
-        const v3 p2 = V3( 1, 1, 1 ) * VoxelSizeMeters;
-        const v3 p3 = V3( 0, 1, 1 ) * VoxelSizeMeters;
-        const v3 p4 = V3( 0, 0, 0 ) * VoxelSizeMeters;
-        const v3 p5 = V3( 1, 0, 0 ) * VoxelSizeMeters;
-        const v3 p6 = V3( 1, 1, 0 ) * VoxelSizeMeters;
-        const v3 p7 = V3( 0, 1, 0 ) * VoxelSizeMeters;
+        const v3 p0 = V3( 0.f, 0.f, 1.f ) * VoxelSizeMeters;
+        const v3 p1 = V3( 1.f, 0.f, 1.f ) * VoxelSizeMeters;
+        const v3 p2 = V3( 1.f, 1.f, 1.f ) * VoxelSizeMeters;
+        const v3 p3 = V3( 0.f, 1.f, 1.f ) * VoxelSizeMeters;
+        const v3 p4 = V3( 0.f, 0.f, 0.f ) * VoxelSizeMeters;
+        const v3 p5 = V3( 1.f, 0.f, 0.f ) * VoxelSizeMeters;
+        const v3 p6 = V3( 1.f, 1.f, 0.f ) * VoxelSizeMeters;
+        const v3 p7 = V3( 0.f, 1.f, 0.f ) * VoxelSizeMeters;
 
         entry->vertexBufferOffset = commands->vertexBuffer.count;
         entry->indexBufferOffset = commands->indexBuffer.count;

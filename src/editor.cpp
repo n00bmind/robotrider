@@ -260,7 +260,7 @@ InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientSt
 }
 
 internal void
-TickSurfaceContouringTest( const GameInput& input, TransientState* transientState, RenderCommands* renderCommands )
+TickSurfaceContouringTest( const GameInput& input, TransientState* transientState, RenderCommands* renderCommands, MemoryArena* tempArena )
 {
     v2 renderDim = V2( renderCommands->width, renderCommands->height );
     v2 displayDim = { renderDim.x * 0.2f, renderDim.y * 0.5f };
@@ -272,8 +272,8 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
 
     ImGui::Begin( "window_contour", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove );
 
-    ImGui::Combo( "Algorithm", &transientState->currentTechniqueIndex, ContouringTechnique::Values::names,
-                  ContouringTechnique::Values::count );
+    bool techniqueChanged = ImGui::Combo( "Algorithm", &transientState->currentTechniqueIndex, ContouringTechnique::Values::names,
+                                          ContouringTechnique::Values::count );
     
     ContouringSettings& currentSettings = transientState->settings[transientState->currentTechniqueIndex];
     ContouringSettings settings = currentSettings;
@@ -286,11 +286,24 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         } break;
     }
 
-    if( transientState->testMesh == nullptr || input.gameCodeReloaded || !EQUAL( settings, currentSettings ) )
+    if( transientState->testMesh == nullptr || input.gameCodeReloaded || techniqueChanged || !EQUAL( settings, currentSettings ) )
     {
         r64 start = globalPlatform.DEBUGCurrentTimeMillis();
-        transientState->testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, TorusSurfaceFunc, nullptr,
-                                                  &transientState->samplingCache, &transientState->meshPool, settings.interpolate );
+        switch( transientState->currentTechniqueIndex )
+        {
+            case ContouringTechnique::MarchingCubes().index:
+            {
+                transientState->testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, TorusSurfaceFunc, nullptr,
+                                                          &transientState->samplingCache, &transientState->meshPool, settings.interpolate );
+               
+            } break;
+            case ContouringTechnique::DualContouring().index:
+            {
+                transientState->testMesh = DCArea( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, TorusSurfaceFunc, nullptr,
+                                                   &transientState->meshPool, tempArena, DCSettings() );
+
+            } break;
+        }
         transientState->elapsedMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
     }
 
@@ -339,7 +352,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     if( editorState->cachedCameraWorldP == V3Zero )
     {
-        v3 pCamera = V3( 0, -150, 220 );
+        v3 pCamera = V3( 0.f, -150.f, 220.f );
         m4 mLookAt = M4CameraLookAt( pCamera, world->pPlayer, V3Up );
 
         editorState->camera = DefaultCamera();
@@ -429,7 +442,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
     TickWFCTest( transientState, debugState, frameMemory, renderCommands );
 #endif
 
-    TickSurfaceContouringTest( input, transientState, renderCommands );
+    TickSurfaceContouringTest( input, transientState, renderCommands, frameMemory.arena );
 
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );

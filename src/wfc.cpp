@@ -141,7 +141,7 @@ BuildPatternsFromSource( const u32 N, const v2u& inputDim, Input* input, MemoryA
     u8* reflectedPatternData = PUSH_ARRAY( arena, u8, N * N );
 
     // NOTE Totally arbitrary number for the entry count
-    new (&input->patternsHash) HashTable<Pattern, u32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
+    input->patternsHash = HashTable<Pattern, u32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
 
     // NOTE We assume 'periodicInput' to be true
     for( u32 j = 0; j < (u32)inputDim.y; ++j )
