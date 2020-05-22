@@ -45,6 +45,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // TODO IMPORTANT Write a nice test suite for this whole file
 
+inline bool AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
+inline bool GreaterOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
+inline bool LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
+inline bool AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon = 0 );
+inline r32 Radians( r32 degrees );
 
 // Vector 2
 
@@ -651,6 +656,7 @@ DistanceSq( const v3& a, const v3& b )
     return result;
 }
 
+// TODO Review current usage and maybe write both a version that checks and another that doesnt
 inline void
 Normalize( v3& v )
 {

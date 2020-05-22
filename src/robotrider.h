@@ -86,8 +86,8 @@ STRUCT_ENUM(ContouringTechnique, u32, VALUES)
 
 struct DCSettings
 {
-    bool approximateEdgeIntersection = true;
-    bool approximateCellPoints = true;
+    bool approximateEdgeIntersection;
+    bool approximateCellPoints;
 };
 
 union ContouringSettings

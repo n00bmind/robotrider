@@ -256,6 +256,7 @@ InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientSt
         InitMeshPool( &transientState->meshPool, editorArena, MEGABYTES( 256 ) );
 
         transientState->settings[ContouringTechnique::MarchingCubes().index].interpolate = true;
+        transientState->settings[ContouringTechnique::DualContouring().index].dc.approximateEdgeIntersection = true;
     }
 }
 
@@ -284,6 +285,10 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         {
             ImGui::Checkbox( "Interpolate", &settings.interpolate );
         } break;
+        case ContouringTechnique::DualContouring().index:
+        {
+            ImGui::Checkbox( "Approximate cell points", &settings.dc.approximateCellPoints );
+        } break;
     }
 
     if( transientState->testMesh == nullptr || input.gameCodeReloaded || techniqueChanged || !EQUAL( settings, currentSettings ) )
@@ -300,7 +305,7 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
             case ContouringTechnique::DualContouring().index:
             {
                 transientState->testMesh = DCArea( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, TorusSurfaceFunc, nullptr,
-                                                   &transientState->meshPool, tempArena, DCSettings() );
+                                                   &transientState->meshPool, tempArena, settings.dc );
 
             } break;
         }

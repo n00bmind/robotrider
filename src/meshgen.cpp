@@ -456,7 +456,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
     v3 minGridP = worldP.relativeP - halfSideMeters;
     WorldCoords p = worldP;
 
-    aabb bounds = AABB( worldP.relativeP, halfSideMeters );
+    aabb bounds = AABB( worldP.relativeP, areaSideMeters );
 
     const r32 delta = 0.01f;
     const r32 deltaInv = 1.f / (2.f * delta);
@@ -570,6 +570,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                             p.relativeP = edgeP + V3( 0, 0, delta );
                             r32 zDeltaSample = sampleFunc( samplingData, p );
 
+                            // TODO Normalize?
                             v3 normal = (V3( xDeltaSample, yDeltaSample, zDeltaSample ) - edgeP) * deltaInv;
                             cellData( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
                             edgeNormals[pointCount] = normal;
@@ -599,18 +600,13 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                 ASSERT( pointCount );
 
                 v3 cellVertex = V3Undefined;
+                v3 massPoint = V3Zero;
+                for( u32 pIndex = 0; pIndex < pointCount; ++pIndex )
+                    massPoint += edgePoints[pIndex];
+                massPoint /= (r32)pointCount;
+
                 if( settings.approximateCellPoints )
                 {
-                    // As stated in the follow-up paper "The Secret Sauce",
-                    // "the solution space will not be far from the intersection points on the edges"
-                    // This is also called the "mass point"
-                    v3 massPoint = V3Zero;
-                    for( u32 pIndex = 0; pIndex < pointCount; ++pIndex )
-                    {
-                        massPoint += edgePoints[pIndex];
-                    }
-                    massPoint /= (r32)pointCount;
-
                     cellVertex = massPoint;
 
                     // TODO When merging cells in the octree, we still need to do a part of the QEF computation, as stated in "The Secret Sauce":
@@ -618,7 +614,13 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                 }
                 else
                 {
-                    // TODO Build and solve the QEF
+                    cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 0.0001f, 0.0001f );
+                    //ASSERT( Contains( bounds, cellVertex ) );
+
+
+
+
+
                     // If outside of the cell, initially just use the 'masspoint' (average) as in http://ngildea.blogspot.com/2014/11/implementing-dual-contouring.html
                     // (the final normal is also the average of the input normals)
 
@@ -813,8 +815,16 @@ ISO_SURFACE_FUNC( TorusSurfaceFunc )
     // NOTE We're axis aligned for now, so just translate
     v3 invWorldP = worldP.relativeP - V3Zero;
 
-    //r32 result = SDFTorus( invWorldP, 70, 30 );
-    r32 result = SDFBox( invWorldP, { 10, 10, 10 } );
+    r32 result = SDFTorus( invWorldP, 70, 30 );
+    return result;
+}
+
+ISO_SURFACE_FUNC( BoxSurfaceFunc )
+{
+    // NOTE We're axis aligned for now, so just translate
+    v3 invWorldP = worldP.relativeP - V3Zero;
+
+    r32 result = SDFBox( invWorldP, { 70, 70, 70 } );
     return result;
 }
 

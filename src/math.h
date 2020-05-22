@@ -36,7 +36,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // NOTE Absolute epsilon comparison will be necessary when comparing against zero
 inline bool
-AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
+AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon /*= 0*/ )
 {
     bool result = false;
 
@@ -53,19 +53,19 @@ AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
 }
 
 inline bool
-GreaterOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
+GreaterOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon /*= 0*/ )
 {
     return a > b || AlmostEqual( a, b, absoluteEpsilon );
 }
 
 inline bool
-LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
+LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon /*= 0*/ )
 {
     return a < b || AlmostEqual( a, b, absoluteEpsilon );
 }
 
 inline bool
-AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon = 0 )
+AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon /*= 0*/ )
 {
     bool result = false;
 
@@ -277,5 +277,79 @@ UnpackRGBA( u32 c, u32* r, u32* g, u32* b, u32* a = nullptr )
     if( r ) *r = c & 0xFF;
 }
 
+v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int count, float stdDevP, float stdDevN )
+{
+	float A00 = 0.f;
+	float A01 = 0.f;
+	float A02 = 0.f;
+	float A11 = 0.f;
+	float A12 = 0.f;
+	float A22 = 0.f;
+
+	float b0 = 0.f;
+	float b1 = 0.f;
+	float b2 = 0.f;
+
+	float c = 0.f;
+
+
+	for( int i = 0; i < count; ++i )
+	{
+		v3 const& p = points[i];
+		v3 const& n = normals[i];
+
+		const float pn = p.x * n.x + p.y * n.y + p.z * n.z;
+		const float pp = p.x * p.x + p.y * p.y + p.z * p.z;
+		const float nn = n.x * n.x + n.y * n.y + n.z * n.z;
+
+		const float sp2 = stdDevP * stdDevP;
+		const float sn2 = stdDevN * stdDevN;
+
+		const float nx = n.x;
+		const float ny = n.y;
+		const float nz = n.z;
+
+		const float nxny = nx * ny;
+		const float nxnz = nx * nz;
+		const float nynz = ny * nz;
+
+
+		const v3 A0 = { nx * nx + sn2, nxny, nxnz };
+		const v3 A1 = { nxny, ny * ny + sn2, nynz };
+		const v3 A2 = { nxnz, nynz, nz * nz + sn2 };
+		A00 += A0.x;
+		A01 += A0.y;
+		A02 += A0.z;
+		A11 += A1.y;
+		A12 += A1.z;
+		A22 += A2.z;
+
+		v3 const b = n * pn + p * sn2;
+		b0 += b.x;
+		b1 += b.y;
+		b2 += b.z;
+
+		c += pn * pn + sn2 * pp + sp2 * nn + 3 * sp2 * sn2;
+	}
+
+	// Solving Ax = r with some common subexpressions precomputed
+	float A00A12 = A00 * A12;
+	float A01A22 = A01 * A22;
+	float A11A22 = A11 * A22;
+	float A02A12 = A02 * A12;
+	float A02A11 = A02 * A11;
+
+	float A01A12_A02A11 = A01 * A12 - A02A11;
+	float A01A02_A00A12 = A01 * A02 - A00A12;
+	float A02A12_A01A22 = A02A12 - A01A22;
+
+	float denom = 1.f / (A00 * A11A22 + 2.f * A01 * A02A12 - A00A12 * A12 - A01A22 * A01 - A02A11 * A02);
+	float nom0 = b0 * (A11A22 - A12 * A12) + b1 * A02A12_A01A22 + b2 * A01A12_A02A11;
+	float nom1 = b0 * A02A12_A01A22 + b1 * (A00 * A22 - A02 * A02) + b2 * A01A02_A00A12;
+	float nom2 = b0 * A01A12_A02A11 + b1 * A01A02_A00A12 + b2 * (A00 * A11 - A01 * A01);
+
+	v3 result = { nom0 * denom, nom1 * denom, nom2 * denom };
+	return result;
+}
 
 #endif /* __MATH_H__ */
