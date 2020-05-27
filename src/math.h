@@ -224,7 +224,9 @@ Log2( u32 value )
     return result;
 }
 
-// TODO Substitute with Meow Hash?
+// TODO Replace with MurmurHash3 128 (just truncate for 32/64 bit hashes) (https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp)
+// (improve it with http://zimbry.blogspot.com/2011/09/better-bit-mixing-improving-on.html)
+// TODO Add Meow Hash for hashing large blocks
 inline u32
 Fletcher32( const void* buffer, sz len )
 {
@@ -275,80 +277,6 @@ UnpackRGBA( u32 c, u32* r, u32* g, u32* b, u32* a = nullptr )
     if( b ) *b = (c >> 16) & 0xFF;
     if( g ) *g = (c >>  8) & 0xFF;
     if( r ) *r = c & 0xFF;
-}
-
-// TODO SIMD
-v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int count, float stdDevP, float stdDevN )
-{
-	float A00 = 0.f;
-	float A01 = 0.f;
-	float A02 = 0.f;
-	float A11 = 0.f;
-	float A12 = 0.f;
-	float A22 = 0.f;
-
-	float b0 = 0.f;
-	float b1 = 0.f;
-	float b2 = 0.f;
-
-	float c = 0.f;
-
-
-	for( int i = 0; i < count; ++i )
-	{
-		v3 const& p = points[i];
-		v3 const& n = normals[i];
-
-		const float nx = n.x;
-		const float ny = n.y;
-		const float nz = n.z;
-		const float nxny = nx * ny;
-		const float nxnz = nx * nz;
-		const float nynz = ny * nz;
-        const float sn2 = stdDevN * stdDevN;
-
-		const v3 A0 = { nx * nx + sn2, nxny, nxnz };
-		const v3 A1 = { nxny, ny * ny + sn2, nynz };
-		const v3 A2 = { nxnz, nynz, nz * nz + sn2 };
-		A00 += A0.x;
-		A01 += A0.y;
-		A02 += A0.z;
-		A11 += A1.y;
-		A12 += A1.z;
-		A22 += A2.z;
-
-		const float pn = p.x * n.x + p.y * n.y + p.z * n.z;
-		v3 const b = n * pn + p * sn2;
-		b0 += b.x;
-		b1 += b.y;
-		b2 += b.z;
-
-		const float sp2 = stdDevP * stdDevP;
-		const float pp = p.x * p.x + p.y * p.y + p.z * p.z;
-		const float nn = n.x * n.x + n.y * n.y + n.z * n.z;
-		c += pn * pn + sn2 * pp + sp2 * nn + 3 * sp2 * sn2;
-	}
-
-	// Solving Ax = r with some common subexpressions precomputed
-	float A00A12 = A00 * A12;
-	float A01A22 = A01 * A22;
-	float A11A22 = A11 * A22;
-	float A02A12 = A02 * A12;
-	float A02A11 = A02 * A11;
-
-	float A01A12_A02A11 = A01 * A12 - A02A11;
-	float A01A02_A00A12 = A01 * A02 - A00A12;
-	float A02A12_A01A22 = A02A12 - A01A22;
-
-	float denom = A00 * A11A22 + 2.f * A01 * A02A12 - A00A12 * A12 - A01A22 * A01 - A02A11 * A02;
-	ASSERT( denom != 0.f );
-    denom = 1.f / denom;
-	float nom0 = b0 * (A11A22 - A12 * A12) + b1 * A02A12_A01A22 + b2 * A01A12_A02A11;
-	float nom1 = b0 * A02A12_A01A22 + b1 * (A00 * A22 - A02 * A02) + b2 * A01A02_A00A12;
-	float nom2 = b0 * A01A12_A02A11 + b1 * A01A02_A00A12 + b2 * (A00 * A11 - A01 * A01);
-
-	v3 result = { nom0 * denom, nom1 * denom, nom2 * denom };
-	return result;
 }
 
 #endif /* __MATH_H__ */

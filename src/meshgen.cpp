@@ -173,6 +173,385 @@ void ReleaseMesh( Mesh** mesh )
 
 
 
+///// QUADRATIC ERROR FUNCTIONS /////
+
+union Mat4x4
+{
+    float	m[4][4];
+    __m128	row[4];
+};
+
+static INLINE __m128 vec4_abs(const __m128& x)
+{
+	static const __m128 mask = _mm_set1_ps(-0.f);
+	return _mm_andnot_ps(mask, x);
+}
+
+static INLINE float vec4_dot(const __m128& a, const __m128& b)
+{
+	// apparently _mm_dp_ps isn't well implemented in hardware so this "basic" version is faster
+	__m128 mul = _mm_mul_ps(a, b);
+	__m128 s0  = _mm_shuffle_ps(mul, mul, _MM_SHUFFLE(2, 3, 0, 1));
+	__m128 add = _mm_add_ps(mul, s0);
+	__m128 s1  = _mm_shuffle_ps(add, add, _MM_SHUFFLE(0, 1, 2, 3));
+	__m128 res = _mm_add_ps(add, s1);
+	return _mm_cvtss_f32(res);
+}
+
+static INLINE __m128 vec4_mul_m4x4(const __m128& a, const Mat4x4& B)
+{
+	__m128 result = _mm_mul_ps(_mm_shuffle_ps(a, a, 0x00), B.row[0]);
+	result = _mm_add_ps(result, _mm_mul_ps(_mm_shuffle_ps(a, a, 0x55), B.row[1]));
+	result = _mm_add_ps(result, _mm_mul_ps(_mm_shuffle_ps(a, a, 0xaa), B.row[2]));
+	result = _mm_add_ps(result, _mm_mul_ps(_mm_shuffle_ps(a, a, 0xff), B.row[3]));
+	return result;
+}
+
+static void givens_coeffs_sym(__m128& c_result, __m128& s_result, const Mat4x4& vtav, const int a, const int b)
+{
+	__m128 simd_pp = _mm_set_ps( 0.f, vtav.row[a].m128_f32[a], vtav.row[a].m128_f32[a], vtav.row[a].m128_f32[a] );
+	__m128 simd_pq = _mm_set_ps( 0.f, vtav.row[a].m128_f32[b], vtav.row[a].m128_f32[b], vtav.row[a].m128_f32[b] );
+	__m128 simd_qq = _mm_set_ps( 0.f, vtav.row[b].m128_f32[b], vtav.row[b].m128_f32[b], vtav.row[b].m128_f32[b] );
+
+	static const __m128 zeros = _mm_set1_ps(0.f);
+	static const __m128 ones  = _mm_set1_ps(1.f);
+	static const __m128 twos  = _mm_set1_ps(2.f);
+
+	// tau = (a_qq - a_pp) / (2.f * a_pq);
+	__m128 pq2 = _mm_mul_ps(simd_pq, twos);
+	__m128 qq_sub_pp = _mm_sub_ps(simd_qq, simd_pp);
+	__m128 tau = _mm_div_ps(qq_sub_pp, pq2);
+
+	// stt = sqrt(1.f + tau * tau);
+	__m128 tau_sq = _mm_mul_ps(tau, tau);
+	__m128 tau_sq_1 = _mm_add_ps(tau_sq, ones);
+	__m128 stt = _mm_sqrt_ps(tau_sq_1);
+	
+	// tan = 1.f / ((tau >= 0.f) ? (tau + stt) : (tau - stt));
+	__m128 tan_gt = _mm_add_ps(tau, stt);
+	__m128 tan_lt = _mm_sub_ps(tau, stt);
+	__m128 tan_cmp = _mm_cmpge_ps(tau, zeros);
+	__m128 tan_cmp_gt = _mm_and_ps(tan_cmp, tan_gt);
+	__m128 tan_cmp_lt = _mm_andnot_ps(tan_cmp, tan_lt);
+	__m128 tan_inv = _mm_or_ps(tan_cmp_gt, tan_cmp_lt);
+	__m128 tan = _mm_div_ps(ones, tan_inv);
+
+	// c = rsqrt(1.f + tan * tan);
+	__m128 tan_sq = _mm_mul_ps(tan, tan);
+	__m128 tan_sq_1 = _mm_add_ps(ones, tan_sq);
+	__m128 c = _mm_rsqrt_ps(tan_sq_1);
+
+	// s = tan * c;
+	__m128 s = _mm_mul_ps(tan, c);
+
+	// if pq == 0.0: c = 1.f, s = 0.f
+	__m128 pq_cmp = _mm_cmpeq_ps(simd_pq, zeros);
+
+	__m128 c_true = _mm_and_ps(pq_cmp, ones);
+	__m128 c_false = _mm_andnot_ps(pq_cmp, c);
+	c_result = _mm_or_ps(c_true, c_false);
+
+	__m128 s_true = _mm_and_ps(pq_cmp, zeros);
+	__m128 s_false = _mm_andnot_ps(pq_cmp, s);
+	s_result = _mm_or_ps(s_true, s_false);
+}
+
+static void rotateq_xy(Mat4x4& vtav, const __m128& c, const __m128& s, const int a, const int b)
+{
+	__m128 u = _mm_set_ps( 0.f, vtav.row[a].m128_f32[a], vtav.row[a].m128_f32[a], vtav.row[a].m128_f32[a] );
+	__m128 v = _mm_set_ps( 0.f, vtav.row[b].m128_f32[b], vtav.row[b].m128_f32[b], vtav.row[b].m128_f32[b] );
+	__m128 A = _mm_set_ps( 0.f, vtav.row[a].m128_f32[b], vtav.row[a].m128_f32[b], vtav.row[a].m128_f32[b] );
+
+	static const __m128 twos = _mm_set1_ps(2.f);
+
+	__m128 cc = _mm_mul_ps(c, c);
+	__m128 ss = _mm_mul_ps(s, s);
+	
+	// mx = 2.0 * c * s * A;
+	__m128 c2 = _mm_mul_ps(twos, c);
+	__m128 c2s = _mm_mul_ps(c2, s);
+	__m128 mx = _mm_mul_ps(c2s, A);
+
+	// x = cc * u - mx + ss * v;
+	__m128 x0 = _mm_mul_ps(cc, u);
+	__m128 x1 = _mm_sub_ps(x0, mx);
+	__m128 x2 = _mm_mul_ps(ss, v);
+	__m128 x  = _mm_add_ps(x1, x2);
+
+	// y = ss * u + mx + cc * v;
+	__m128 y0 = _mm_mul_ps(ss, u);
+	__m128 y1 = _mm_add_ps(y0, mx);
+	__m128 y2 = _mm_mul_ps(cc, v);
+	__m128 y  = _mm_add_ps(y1, y2);
+
+	vtav.row[a].m128_f32[a] = x.m128_f32[0];
+	vtav.row[b].m128_f32[b] = y.m128_f32[0];
+}
+
+static void rotate_xy(Mat4x4& vtav, Mat4x4& v, float c, float s, const int a, const int b) 
+{
+    __m128 simd_u = _mm_set_ps( vtav.row[0].m128_f32[3-b], v.row[2].m128_f32[a], v.row[1].m128_f32[a], v.row[0].m128_f32[a] );
+	__m128 simd_v = _mm_set_ps( vtav.row[1-a].m128_f32[2], v.row[2].m128_f32[b], v.row[1].m128_f32[b], v.row[0].m128_f32[b] );
+
+	__m128 simd_c = _mm_load1_ps(&c);
+	__m128 simd_s = _mm_load1_ps(&s);
+
+	__m128 x0 = _mm_mul_ps(simd_c, simd_u);
+	__m128 x1 = _mm_mul_ps(simd_s, simd_v);
+	__m128 x = _mm_sub_ps(x0, x1);
+
+	__m128 y0 = _mm_mul_ps(simd_s, simd_u);
+	__m128 y1 = _mm_mul_ps(simd_c, simd_v);
+	__m128 y = _mm_add_ps(y0, y1);
+
+	v.row[0].m128_f32[a] = x.m128_f32[0];
+	v.row[1].m128_f32[a] = x.m128_f32[1];
+	v.row[2].m128_f32[a] = x.m128_f32[2];
+	vtav.row[0].m128_f32[3-b] = x.m128_f32[3];
+
+	v.row[0].m128_f32[b] = y.m128_f32[0];
+	v.row[1].m128_f32[b] = y.m128_f32[1];
+	v.row[2].m128_f32[b] = y.m128_f32[2];
+	vtav.row[1-a].m128_f32[2] = y.m128_f32[3];
+
+	vtav.row[a].m128_f32[b] = 0.f;
+}
+
+
+constexpr const int SVDNumSweeps = 5;
+constexpr const float PseudoInverseThreshold = 0.001f;
+
+// 'Classic' quadric error minimizer using SVD decomposition
+// Taken from https://github.com/nickgildea/qef (just inlined most of it)
+__m128 QEFMinimizePlanesClassic( const __m128* positions, const __m128* normals, const int count, float* error = nullptr )
+{
+	Mat4x4 ATA = {};
+	__m128 ATb = _mm_set1_ps( 0.f );
+	__m128 pointaccum = _mm_set1_ps( 0.f );
+
+	for( int i = 0; i < count; i++ )
+	{
+		const __m128& p = positions[i];
+		const __m128& n = normals[i];
+
+		__m128 nX = _mm_mul_ps( _mm_shuffle_ps( n, n, _MM_SHUFFLE( 0, 0, 0, 0 ) ), n );
+		__m128 nY = _mm_mul_ps( _mm_shuffle_ps( n, n, _MM_SHUFFLE( 1, 1, 1, 1 ) ), n );
+		__m128 nZ = _mm_mul_ps( _mm_shuffle_ps( n, n, _MM_SHUFFLE( 2, 2, 2, 2 ) ), n );
+
+		ATA.row[0] = _mm_add_ps( ATA.row[0], nX );
+		ATA.row[1] = _mm_add_ps( ATA.row[1], nY );
+		ATA.row[2] = _mm_add_ps( ATA.row[2], nZ );
+
+		const float d = vec4_dot( p, n );
+		__m128 x = _mm_set_ps( 0.f, d, d, d );
+		x = _mm_mul_ps( x, n );
+		ATb = _mm_add_ps( ATb, x );
+
+		pointaccum = _mm_add_ps( pointaccum, p );
+	}
+
+	__declspec(align(16)) float x[4];
+	_mm_store_ps( x, ATb );
+	_mm_set_ps( 0.f, x[2], x[1], x[0] );
+
+	const __m128 masspoint = _mm_div_ps( pointaccum, _mm_set1_ps( (float)count ) );
+
+	__m128 p = _mm_mul_ps( _mm_shuffle_ps( masspoint, masspoint, 0x00 ), ATA.row[0] );
+	p = _mm_add_ps( p, _mm_mul_ps( _mm_shuffle_ps( masspoint, masspoint, 0x55 ), ATA.row[1] ) );
+	p = _mm_add_ps( p, _mm_mul_ps( _mm_shuffle_ps( masspoint, masspoint, 0xaa ), ATA.row[2] ) );
+	p = _mm_add_ps( p, _mm_mul_ps( _mm_shuffle_ps( masspoint, masspoint, 0xff ), ATA.row[3] ) );
+	p = _mm_sub_ps( ATb, p );
+
+	Mat4x4 V;
+	V.row[0] = _mm_set_ps( 0.f, 0.f, 0.f, 1.f );
+	V.row[1] = _mm_set_ps( 0.f, 0.f, 1.f, 0.f );
+	V.row[2] = _mm_set_ps( 0.f, 1.f, 0.f, 0.f );
+	V.row[3] = _mm_set_ps( 0.f, 0.f, 0.f, 0.f );
+
+	Mat4x4 ATAcopy = ATA;
+	for( int i = 0; i < SVDNumSweeps; ++i )
+	{
+		__m128 c, s;
+
+		if( ATA.row[0].m128_f32[1] != 0.f )
+		{
+			givens_coeffs_sym( c, s, ATA, 0, 1 );
+			rotateq_xy( ATA, c, s, 0, 1 );
+			rotate_xy( ATA, V, c.m128_f32[1], s.m128_f32[1], 0, 1 );
+			ATA.row[0].m128_f32[1] = 0.f;
+		}
+
+		if( ATA.row[0].m128_f32[2] != 0.f )
+		{
+			givens_coeffs_sym( c, s, ATA, 0, 2 );
+			rotateq_xy( ATA, c, s, 0, 2 );
+			rotate_xy( ATA, V, c.m128_f32[1], s.m128_f32[1], 0, 2 );
+			ATA.row[0].m128_f32[2] = 0.f;
+		}
+
+		if( ATA.row[1].m128_f32[2] != 0.f )
+		{
+			givens_coeffs_sym( c, s, ATA, 1, 2 );
+			rotateq_xy( ATA, c, s, 1, 2 );
+			rotate_xy( ATA, V, c.m128_f32[2], s.m128_f32[2], 1, 2 );
+			ATA.row[1].m128_f32[2] = 0.f;
+		}
+	}
+
+	__m128 sigma = _mm_set_ps( 0.f, ATA.row[2].m128_f32[2], ATA.row[1].m128_f32[1], ATA.row[0].m128_f32[0] );
+
+	// A = UEV^T; U = A / (E*V^T)
+	static const __m128 ones = _mm_set1_ps( 1.f );
+	static const __m128 tol = _mm_set1_ps( PseudoInverseThreshold );
+
+	__m128 abs_x = vec4_abs( sigma );
+	__m128 one_over_x = _mm_div_ps( ones, sigma );
+	__m128 abs_one_over_x = vec4_abs( one_over_x );
+	__m128 min_abs = _mm_min_ps( abs_x, abs_one_over_x );
+	__m128 cmp = _mm_cmpge_ps( min_abs, tol );
+	__m128 invdet = _mm_and_ps( cmp, one_over_x );
+
+	Mat4x4 m;
+	m.row[0] = _mm_mul_ps( V.row[0], invdet );
+	m.row[1] = _mm_mul_ps( V.row[1], invdet );
+	m.row[2] = _mm_mul_ps( V.row[2], invdet );
+
+	Mat4x4 Vinv = {};
+	Vinv.row[0].m128_f32[0] = vec4_dot( m.row[0], V.row[0] );
+	Vinv.row[0].m128_f32[1] = vec4_dot( m.row[1], V.row[0] );
+	Vinv.row[0].m128_f32[2] = vec4_dot( m.row[2], V.row[0] );
+
+	Vinv.row[1].m128_f32[0] = vec4_dot( m.row[0], V.row[1] );
+	Vinv.row[1].m128_f32[1] = vec4_dot( m.row[1], V.row[1] );
+	Vinv.row[1].m128_f32[2] = vec4_dot( m.row[2], V.row[1] );
+
+	Vinv.row[2].m128_f32[0] = vec4_dot( m.row[0], V.row[2] );
+	Vinv.row[2].m128_f32[1] = vec4_dot( m.row[1], V.row[2] );
+	Vinv.row[2].m128_f32[2] = vec4_dot( m.row[2], V.row[2] );
+
+	__m128 result = vec4_mul_m4x4( p, Vinv );
+
+	if( error )
+	{
+		__m128 tmp = vec4_mul_m4x4( result, ATAcopy );
+		tmp = _mm_sub_ps( ATb, tmp );
+
+		*error = vec4_dot( tmp, tmp );
+	}
+
+	result = _mm_add_ps( result, masspoint );
+	return result;
+}
+
+
+constexpr const int QEFMaxInputCount = 12;
+
+v3 QEFMinimizePlanesClassic( v3 const* positions, v3 const* normals, int count, float* error = nullptr )
+{
+	ASSERT( count >= 2 || count <= QEFMaxInputCount );
+
+	__m128 p[QEFMaxInputCount];
+	__m128 n[QEFMaxInputCount];
+	for( int i = 0; i < count; i++ )
+	{
+		v3 const& pos = positions[i];
+		v3 const& nrm = normals[i];
+		p[i] = _mm_set_ps( 1.f, pos.z, pos.y, pos.x );
+		n[i] = _mm_set_ps( 0.f, nrm.z, nrm.y, nrm.x );
+	}
+
+	__m128 solved = QEFMinimizePlanesClassic( p, n, count, error );
+
+	v3 result =
+	{
+		solved.m128_f32[0],
+		solved.m128_f32[1],
+		solved.m128_f32[2],
+	};
+	return result;
+}
+
+
+
+// New probabilistic quadric error minimizer
+// Adapted from https://www.graphics.rwth-aachen.de/publication/03308/
+// (inlined everything, replaced with plain types, got 100% speed increase!)
+// TODO Estimate error
+// TODO SIMD
+v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int count, float stdDevP, float stdDevN )
+{
+	float A00 = 0.f;
+	float A01 = 0.f;
+	float A02 = 0.f;
+	float A11 = 0.f;
+	float A12 = 0.f;
+	float A22 = 0.f;
+
+	float b0 = 0.f;
+	float b1 = 0.f;
+	float b2 = 0.f;
+
+	float c = 0.f;
+
+	for( int i = 0; i < count; ++i )
+	{
+		v3 const& p = points[i];
+		v3 const& n = normals[i];
+
+		const float pn = p.x * n.x + p.y * n.y + p.z * n.z;
+
+		const float nx = n.x;
+		const float ny = n.y;
+		const float nz = n.z;
+		const float nxny = nx * ny;
+		const float nxnz = nx * nz;
+		const float nynz = ny * nz;
+		const float sn2 = stdDevN * stdDevN;
+
+		const v3 A0 = { nx * nx + sn2, nxny, nxnz };
+		const v3 A1 = { nxny, ny * ny + sn2, nynz };
+		const v3 A2 = { nxnz, nynz, nz * nz + sn2 };
+		A00 += A0.x;
+		A01 += A0.y;
+		A02 += A0.z;
+		A11 += A1.y;
+		A12 += A1.z;
+		A22 += A2.z;
+
+		v3 const b = n * pn + p * sn2;
+		b0 += b.x;
+		b1 += b.y;
+		b2 += b.z;
+
+		const float sp2 = stdDevP * stdDevP;
+		const float pp = p.x * p.x + p.y * p.y + p.z * p.z;
+		const float nn = n.x * n.x + n.y * n.y + n.z * n.z;
+		c += pn * pn + sn2 * pp + sp2 * nn + 3 * sp2 * sn2;
+	}
+
+	// Solving Ax = r with some common subexpressions precomputed
+	float A00A12 = A00 * A12;
+	float A01A22 = A01 * A22;
+	float A11A22 = A11 * A22;
+	float A02A12 = A02 * A12;
+	float A02A11 = A02 * A11;
+
+	float A01A12_A02A11 = A01 * A12 - A02A11;
+	float A01A02_A00A12 = A01 * A02 - A00A12;
+	float A02A12_A01A22 = A02A12 - A01A22;
+
+	float denom = A00 * A11A22 + 2.f * A01 * A02A12 - A00A12 * A12 - A01A22 * A01 - A02A11 * A02;
+    ASSERT( denom != 0.f );
+	denom = 1.f / denom;
+	float nom0 = b0 * (A11A22 - A12 * A12) + b1 * A02A12_A01A22 + b2 * A01A12_A02A11;
+	float nom1 = b0 * A02A12_A01A22 + b1 * (A00 * A22 - A02 * A02) + b2 * A01A02_A00A12;
+	float nom2 = b0 * A01A12_A02A11 + b1 * A01A02_A00A12 + b2 * (A00 * A11 - A01 * A01);
+
+	v3 result = { nom0 * denom, nom1 * denom, nom2 * denom };
+	return result;
+}
+
+
 
 ///// CONTOURING /////
 
@@ -614,8 +993,12 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                 }
                 else
                 {
+#if 0
                     cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 0.1f, 0.1f );
-                    //ASSERT( Contains( bounds, cellVertex ) );
+#else
+                    cellVertex = QEFMinimizePlanesClassic( edgePoints, edgeNormals, pointCount );
+#endif
+                    ASSERT( Contains( bounds, cellVertex ) );
 
 
 
