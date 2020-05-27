@@ -277,6 +277,7 @@ UnpackRGBA( u32 c, u32* r, u32* g, u32* b, u32* a = nullptr )
     if( r ) *r = c & 0xFF;
 }
 
+// TODO SIMD
 v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int count, float stdDevP, float stdDevN )
 {
 	float A00 = 0.f;
@@ -298,21 +299,13 @@ v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int coun
 		v3 const& p = points[i];
 		v3 const& n = normals[i];
 
-		const float pn = p.x * n.x + p.y * n.y + p.z * n.z;
-		const float pp = p.x * p.x + p.y * p.y + p.z * p.z;
-		const float nn = n.x * n.x + n.y * n.y + n.z * n.z;
-
-		const float sp2 = stdDevP * stdDevP;
-		const float sn2 = stdDevN * stdDevN;
-
 		const float nx = n.x;
 		const float ny = n.y;
 		const float nz = n.z;
-
 		const float nxny = nx * ny;
 		const float nxnz = nx * nz;
 		const float nynz = ny * nz;
-
+        const float sn2 = stdDevN * stdDevN;
 
 		const v3 A0 = { nx * nx + sn2, nxny, nxnz };
 		const v3 A1 = { nxny, ny * ny + sn2, nynz };
@@ -324,11 +317,15 @@ v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int coun
 		A12 += A1.z;
 		A22 += A2.z;
 
+		const float pn = p.x * n.x + p.y * n.y + p.z * n.z;
 		v3 const b = n * pn + p * sn2;
 		b0 += b.x;
 		b1 += b.y;
 		b2 += b.z;
 
+		const float sp2 = stdDevP * stdDevP;
+		const float pp = p.x * p.x + p.y * p.y + p.z * p.z;
+		const float nn = n.x * n.x + n.y * n.y + n.z * n.z;
 		c += pn * pn + sn2 * pp + sp2 * nn + 3 * sp2 * sn2;
 	}
 
@@ -343,7 +340,9 @@ v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int coun
 	float A01A02_A00A12 = A01 * A02 - A00A12;
 	float A02A12_A01A22 = A02A12 - A01A22;
 
-	float denom = 1.f / (A00 * A11A22 + 2.f * A01 * A02A12 - A00A12 * A12 - A01A22 * A01 - A02A11 * A02);
+	float denom = A00 * A11A22 + 2.f * A01 * A02A12 - A00A12 * A12 - A01A22 * A01 - A02A11 * A02;
+	ASSERT( denom != 0.f );
+    denom = 1.f / denom;
 	float nom0 = b0 * (A11A22 - A12 * A12) + b1 * A02A12_A01A22 + b2 * A01A12_A02A11;
 	float nom1 = b0 * A02A12_A01A22 + b1 * (A00 * A22 - A02 * A02) + b2 * A01A02_A00A12;
 	float nom2 = b0 * A01A12_A02A11 + b1 * A01A02_A00A12 + b2 * (A00 * A11 - A01 * A01);

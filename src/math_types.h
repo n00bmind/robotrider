@@ -635,7 +635,7 @@ LengthSq( const v3& v )
 inline bool
 IsUnit( const v3& v, r32* outLengthSq = nullptr )
 {
-    r32 lengthSq = LengthSq( v );
+    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
     if( outLengthSq )
         *outLengthSq = lengthSq;
 
@@ -656,12 +656,12 @@ DistanceSq( const v3& a, const v3& b )
     return result;
 }
 
-// TODO Review current usage and maybe write both a version that checks and another that doesnt
 inline void
 Normalize( v3& v )
 {
-    r32 lengthSq;
-    if( !IsUnit( v, &lengthSq ) )
+    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+
+    if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
     {
         r32 invL = 1.0f / Sqrt( lengthSq );
         v *= invL;
@@ -671,9 +671,10 @@ Normalize( v3& v )
 inline v3
 Normalized( const v3 &v )
 {
-    r32 lengthSq;
     v3 result = v;
-    if( !IsUnit( v, &lengthSq ) )
+
+    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
     {
         r32 invL = 1.0f / Sqrt( lengthSq );
         result = v * invL;

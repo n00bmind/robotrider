@@ -570,8 +570,8 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                             p.relativeP = edgeP + V3( 0, 0, delta );
                             r32 zDeltaSample = sampleFunc( samplingData, p );
 
-                            // TODO Normalize?
                             v3 normal = (V3( xDeltaSample, yDeltaSample, zDeltaSample ) - edgeP) * deltaInv;
+                            Normalize( normal );
                             cellData( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
                             edgeNormals[pointCount] = normal;
                         }
@@ -614,7 +614,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                 }
                 else
                 {
-                    cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 0.0001f, 0.0001f );
+                    cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 0.1f, 0.1f );
                     //ASSERT( Contains( bounds, cellVertex ) );
 
 
