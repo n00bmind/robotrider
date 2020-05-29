@@ -30,14 +30,14 @@ in VertexData
 {
     vec3 worldP;
     vec2 texCoords;
-    flat uint color;
+    smooth vec4 color;
 } _in[];
 
 out VertexData
 {
     vec3 worldP;
     vec2 texCoords;
-    flat uint color;
+    smooth vec4 color;
     //flat vec3 faceNormal;
     vec2 barycentricP;
 } _out;

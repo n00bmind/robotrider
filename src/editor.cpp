@@ -283,11 +283,17 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
     {
         case ContouringTechnique::MarchingCubes().index:
         {
-            ImGui::Checkbox( "Interpolate", &settings.interpolate );
+            ImGui::Checkbox( "Interpolate edge points", &settings.interpolate );
         } break;
         case ContouringTechnique::DualContouring().index:
         {
-            ImGui::Checkbox( "Approximate cell points", &settings.dc.approximateCellPoints );
+            ImGui::RadioButton( "Interpolate", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::Interpolate );
+            ImGui::RadioButton( "QEFClassic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFClassic );
+            ImGui::RadioButton( "QEFProbabilistic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilistic );
+            ImGui::RadioButton( "QEFProbabilisticDouble", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilisticDouble );
+
+            ImGui::Dummy( { 0, 20 } );
+            ImGui::Checkbox( "Clamp cell points", &settings.dc.clampCellPoints );
         } break;
     }
 

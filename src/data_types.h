@@ -425,6 +425,18 @@ struct Grid3D
         ASSERT( v.x < dims.x && v.y < dims.y && v.z < dims.z );
         return data[ v.z * dims.y * dims.x + v.y * dims.x + v.x ];
     }
+
+    INLINE T& operator()( v3i const& v )
+    {
+        ASSERT( (u32)v.x < dims.x && (u32)v.y < dims.y && (u32)v.z < dims.z );
+        return data[ v.z * dims.y * dims.x + v.y * dims.x + v.x ];
+    }
+
+    INLINE T const& operator()( v3i const& v ) const
+    {
+        ASSERT( (u32)v.x < dims.x && (u32)v.y < dims.y && (u32)v.z < dims.z );
+        return data[ v.z * dims.y * dims.x + v.y * dims.x + v.x ];
+    }
 };
 
 

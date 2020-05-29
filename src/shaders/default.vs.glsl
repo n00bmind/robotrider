@@ -31,7 +31,7 @@ out VertexData
 {
     vec3 worldP;
     vec2 texCoords;
-    flat uint color;
+    smooth vec4 color;
 } _out;
 
 // TODO Consider using interface block for uniforms in the future too
@@ -44,11 +44,42 @@ uniform vec3[256] simClusterOffsets;
 uniform uint simClusterIndex;
 
 
+// TODO Move these to an include when we support that
+//
+// TODO Test
+// vec4 to rgba8 uint
+uint pack( vec4 value )
+{
+    // Ensure values are in [0..1] and make NaNs become zeros
+    value = min( max( value, 0.0f ), 1.0f );
+    
+    // Each component gets 8 bit
+    value = value * 255 + 0.5f;
+    value = floor( value );
+    
+    // Pack into one 32 bit uint
+    return( uint(value.x) |
+           (uint(value.y)<< 8) |
+           (uint(value.z)<<16) |
+           (uint(value.w)<<24) );
+}
+
+// rgba8 uint to vec4
+vec4 unpack( uint value )
+{
+    return vec4(float(value & 0xFFu) / 255,
+                float((value >>  8) & 0xFFu) / 255,
+                float((value >> 16) & 0xFFu) / 255,
+                float((value >> 24) & 0xFFu) / 255);
+}
+
+
 void main()
 {
     _out.worldP = inPosition + simClusterOffsets[simClusterIndex];
     gl_Position = mTransform * vec4( _out.worldP, 1.0 );
+
     _out.texCoords = inTexCoords;
-    _out.color = inColor;
+    _out.color = unpack( inColor );
 }
 

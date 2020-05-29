@@ -318,7 +318,7 @@ void RenderBounds( const aabb& box, u32 color, RenderCommands* commands )
 
 void RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* commands )
 {
-    aabb bounds = AABB( p, size );
+    aabb bounds = AABBCenterDim( p, size );
     RenderBounds( bounds, color, commands );
 }
 
@@ -415,7 +415,7 @@ void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffset
         entry->instanceBufferOffset = commands->instanceBuffer.size;
 
         // Common instance data
-        aabb box = AABB( V3Zero, VoxelSizeMeters );
+        aabb box = AABBCenterDim( V3Zero, VoxelSizeMeters );
 
         // TODO Only send the lines actually visible from the current lookAt vector of the camera (as a strip if possible!)
 #define PUSH_LINE( p1, p2 )                                \

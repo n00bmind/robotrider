@@ -84,10 +84,19 @@ struct GameState
 STRUCT_ENUM(ContouringTechnique, u32, VALUES)
 #undef VALUES
 
+enum class DCComputeMethod
+{
+    Interpolate,
+    QEFClassic,
+    QEFProbabilistic,
+    QEFProbabilisticDouble,
+};
+
 struct DCSettings
 {
+    DCComputeMethod cellPointsComputationMethod;
     bool approximateEdgeIntersection;
-    bool approximateCellPoints;
+    bool clampCellPoints;
 };
 
 union ContouringSettings

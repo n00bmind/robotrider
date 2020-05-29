@@ -1679,7 +1679,25 @@ struct aabb
 };
 
 inline aabb
-AABB( const v3& p, r32 size )
+AABB( v3 const& min, v3 const& max )
+{
+    aabb result = { min, max };
+    return result;
+}
+
+inline aabb
+AABB( const v3& min, r32 size )
+{
+    aabb result =
+    {
+        min,
+        { min.x + size, min.y + size, min.z + size, }
+    };
+    return result;
+}
+
+inline aabb
+AABBCenterDim( const v3& p, r32 size )
 {
     r32 halfSize = size * 0.5f;
     aabb result =
@@ -1691,7 +1709,7 @@ AABB( const v3& p, r32 size )
 }
 
 inline aabb
-AABB( const v3& p, const v3& dim )
+AABBCenterDim( const v3& p, const v3& dim )
 {
     v3 halfDim = dim * 0.5f;
     aabb result =
@@ -1703,7 +1721,7 @@ AABB( const v3& p, const v3& dim )
 }
 
 inline v3
-Extents( aabb const& b )
+Dim( aabb const& b )
 {
     return b.max - b.min;
 }
@@ -1721,6 +1739,14 @@ Contains( aabb const& b, v3 const& p )
     return (b.min.x < p.x && p.x < b.max.x)
         && (b.min.y < p.y && p.y < b.max.y)
         && (b.min.z < p.z && p.z < b.max.z);
+}
+
+inline void
+Clamp( v3* v, aabb const& b )
+{
+    Clamp( &v->x, b.min.x, b.max.x );
+    Clamp( &v->y, b.min.y, b.max.y );
+    Clamp( &v->z, b.min.z, b.max.z );
 }
 
 // Ray

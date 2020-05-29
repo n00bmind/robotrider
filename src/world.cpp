@@ -955,7 +955,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             if( entity.state == EntityState::Active )
             {
                 v3 entityP = GetLiveEntityWorldP( entity.stored.worldP, world->originClusterP );
-                aabb entityBounds = AABB( entityP, entity.stored.dim );
+                aabb entityBounds = AABBCenterDim( entityP, entity.stored.dim );
                 RenderBounds( entityBounds, black, renderCommands );
             }
 

@@ -32,7 +32,7 @@ in VertexData
 {
     vec3 worldP;
     vec2 texCoords;
-    flat uint color;
+    smooth vec4 color;
 #if GS_STAGE
     vec2 barycentricP;
 #endif
@@ -41,38 +41,8 @@ in VertexData
 out vec4 outColor;
 
 
-// TODO Move this to an include when we support that
-// TODO Test
-// vec4 to rgba8 uint
-uint pack( vec4 value )
-{
-    // Ensure values are in [0..1] and make NaNs become zeros
-    value = min( max( value, 0.0f ), 1.0f );
-    
-    // Each component gets 8 bit
-    value = value * 255 + 0.5f;
-    value = floor( value );
-    
-    // Pack into one 32 bit uint
-    return( uint(value.x) |
-           (uint(value.y)<< 8) |
-           (uint(value.z)<<16) |
-           (uint(value.w)<<24) );
-}
-
-// rgba8 uint to vec4
-vec4 unpack( uint value )
-{
-    return vec4(float(value & 0xFFu) / 255,
-                float((value >>  8) & 0xFFu) / 255,
-                float((value >> 16) & 0xFFu) / 255,
-                float((value >> 24) & 0xFFu) / 255);
-}
-
 void main()
 {
-    vec4 vertexColor = unpack( _in.color );
-
 #if WIREFRAME
     vec3 barys;
     barys.xy = _in.barycentricP;
@@ -80,22 +50,22 @@ void main()
 
     vec3 deltas = fwidth(barys);
 	vec3 smoothing = deltas * 1;
-	vec3 thickness = deltas * 0.1;
+	vec3 thickness = deltas * 0.0000001;
 	barys = smoothstep( thickness, thickness + smoothing, barys );
     float minBary = min(barys.x, min(barys.y, barys.z));
 
-    vec4 diffuseLight = vec4( vertexColor.xyz * minBary, 1 );
+    vec4 diffuseLight = vec4( _in.color.xyz * minBary, 1 );
 #else
     // Face normal using derivatives of world position
-     vec3 faceNormal = normalize( cross( dFdx( _in.worldP ), dFdy( _in.worldP ) ) );
+    vec3 faceNormal = normalize( cross( dFdx( _in.worldP ), dFdy( _in.worldP ) ) );
 
     // Our 'sun' at -Z inf.
     vec3 lightDirection = vec3( 0.0, 0.0, -1.0 );
     // FIXME This is relative to the view,
     //float d = dot( lightDirection, _in.faceNormal );
     float d = dot( lightDirection, faceNormal );
-    vec4 diffuseLight = vertexColor * d;
-    diffuseLight.a = vertexColor.a;
+    vec4 diffuseLight = _in.color * d;
+    diffuseLight.a = _in.color.a;
 
     vec4 ambientLight = vec4( 0.5, 0.5, 0.5, 1 );
     diffuseLight += ambientLight;

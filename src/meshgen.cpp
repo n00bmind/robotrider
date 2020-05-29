@@ -551,6 +551,87 @@ v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int coun
 	return result;
 }
 
+// TODO Estimate error
+// TODO SIMD
+v3 QEFMinimizePlanesProbabilistic64( v3 const* points, v3 const* normals, int count, float stdDevP, float stdDevN )
+{
+	double A00 = 0.0;
+	double A01 = 0.0;
+	double A02 = 0.0;
+	double A11 = 0.0;
+	double A12 = 0.0;
+	double A22 = 0.0;
+
+	double b0 = 0.0;
+	double b1 = 0.0;
+	double b2 = 0.0;
+
+	double c = 0.0;
+
+	for( int i = 0; i < count; ++i )
+	{
+		v3 const& p = points[i];
+		v3 const& n = normals[i];
+
+		const double px = p.x;
+		const double py = p.y;
+		const double pz = p.z;
+		const double nx = n.x;
+		const double ny = n.y;
+		const double nz = n.z;
+		const double pn = px * nx + py * ny + pz * nz;
+
+		const double nxny = nx * ny;
+		const double nxnz = nx * nz;
+		const double nynz = ny * nz;
+		const double sn2 = stdDevN * stdDevN;
+
+		const double pA00 = nx * nx + sn2;
+		const double pA11 = ny * ny + sn2;
+		const double pA22 = nz * nz + sn2;
+		A00 += pA00;
+		A01 += nxny;
+		A02 += nxnz;
+		A11 += pA11;
+		A12 += nynz;
+		A22 += pA22;
+
+		const double pb0 = nx * pn + px * sn2;
+		const double pb1 = ny * pn + py * sn2;
+		const double pb2 = nz * pn + pz * sn2;
+		b0 += pb0;
+		b1 += pb1;
+		b2 += pb2;
+
+#if 0
+		const double sp2 = stdDevP * stdDevP;
+		const double pp = px * px + py * py + pz * pz;
+		const double nn = nx * nx + ny * ny + nz * nz;
+		c += pn * pn + sn2 * pp + sp2 * nn + 3 * sp2 * sn2;
+#endif
+	}
+
+	// Solving Ax = r with some common subexpressions precomputed
+	double A00A12 = A00 * A12;
+	double A01A22 = A01 * A22;
+	double A11A22 = A11 * A22;
+	double A02A12 = A02 * A12;
+	double A02A11 = A02 * A11;
+
+	double A01A12_A02A11 = A01 * A12 - A02A11;
+	double A01A02_A00A12 = A01 * A02 - A00A12;
+	double A02A12_A01A22 = A02A12 - A01A22;
+
+	double denom = A00 * A11A22 + 2.0 * A01 * A02A12 - A00A12 * A12 - A01A22 * A01 - A02A11 * A02;
+	ASSERT( denom != 0.0 );
+	denom = 1.0 / denom;
+	double nom0 = b0 * (A11A22 - A12 * A12) + b1 * A02A12_A01A22 + b2 * A01A12_A02A11;
+	double nom1 = b0 * A02A12_A01A22 + b1 * (A00 * A22 - A02 * A02) + b2 * A01A02_A00A12;
+	double nom2 = b0 * A01A12_A02A11 + b1 * A01A02_A00A12 + b2 * (A00 * A11 - A01 * A01);
+
+	v3 result = { (float)(nom0 * denom), (float)(nom1 * denom), (float)(nom2 * denom) };
+	return result;
+}
 
 
 ///// CONTOURING /////
@@ -825,7 +906,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
 
     ClearScratchBuffers( meshPool );
 
-    // One extra layer of cells in X,Y,Z to store the needed info
+    // One extra layer of cells in X,Y,Z (around the min grid corner) to store the edges and samples at the border
     v3u cellsPerAxis = V3uCeil( areaSideMeters / cellSizeMeters ) + V3uOne;
 
     Grid3D<CellData> cellData = Grid3D<CellData>( tempArena, cellsPerAxis, Temporary() );
@@ -834,8 +915,6 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
     v3 halfSideMeters = areaSideMeters / 2;
     v3 minGridP = worldP.relativeP - halfSideMeters;
     WorldCoords p = worldP;
-
-    aabb bounds = AABB( worldP.relativeP, areaSideMeters );
 
     const r32 delta = 0.01f;
     const r32 deltaInv = 1.f / (2.f * delta);
@@ -847,34 +926,34 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
             for( u32 i = 0; i < cellsPerAxis.x; ++i )
             {
                 p.relativeP = minGridP + V3( i, j, k ) * cellSizeMeters;
+                r32 boundsTolerance = 0.5f;
+                aabb cellBounds = AABB( p.relativeP - V3( cellSizeMeters + boundsTolerance ),
+                                        p.relativeP + V3( boundsTolerance ) );
 
                 u32 caseMask = 0;
                 r32 cornerSamples[8] = {};
 
                 // Build our bitmask using the samples from every corner
+                // (each cell only samples its 'max' corner)
                 for( int s = 0; s < 8; ++s )
                 {
                     cornerSamples[s] = R32MAX;
-
-                    // Skip if we're gonna move backwards in an axis but we're already at the border
-                    if( i == 0 && (s & 0x1) == 0 )
-                        continue;
-                    if( j == 0 && (s & 0x2) == 0 )
-                        continue;
-                    if( k == 0 && (s & 0x4) == 0 )
-                        continue;
+                    v3i cornerOffset = dcCornerOffsets[s];
 
                     r32 sample = R32NAN;
                     if( s == 7 )
                     {
                         // Sample our own
-                        // (we sample an extra layer of cells ahead of the actual contoured area)
+                        // Cell at { 0, 0, 0 } (border) gets the sample at world position minGridP + { 0, 0, 0 }
                         sample = sampleFunc( samplingData, p );
                         cellData( i, j, k ).sampledValue = sample;
                     }
                     else
                     {
-                        v3u cellOffset = V3u( V3i( i, j, k ) + dcCornerOffsets[s] );
+                        v3i cellOffset = V3i( i, j, k ) + dcCornerOffsets[s];
+                        if( cellOffset.x < 0 || cellOffset.y < 0 || cellOffset.z < 0 )
+                            continue;
+
                         sample = cellData( cellOffset ).sampledValue;
                     }
 
@@ -923,13 +1002,11 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                             else
                             {
                                 // TODO Do a binary search along the edge
+                                // We might need this if we ever do highly non-linear surfaces
                                 NOT_IMPLEMENTED;
                             }
                             cellData( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
                             edgePoints[pointCount] = edgeP;
-
-                            ASSERT( edgePoints[pointCount] != V3Zero );
-                            ASSERT( Contains( bounds, edgePoints[pointCount] ) );
 
                             if( pointCount )
                                 ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
@@ -964,9 +1041,6 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                             edgePoints[pointCount] = cellData( neighbourCoords ).edgeCrossingsP[locator.storeIndex];
                             edgeNormals[pointCount] = cellData( neighbourCoords ).edgeCrossingsN[locator.storeIndex];
 
-                            ASSERT( edgePoints[pointCount] != V3Zero );
-                            ASSERT( Contains( bounds, edgePoints[pointCount] ) );
-
                             if( pointCount )
                                 ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
                         }
@@ -978,50 +1052,84 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
 
                 ASSERT( pointCount );
 
+                bool clamped = false;
                 v3 cellVertex = V3Undefined;
-                v3 massPoint = V3Zero;
-                for( u32 pIndex = 0; pIndex < pointCount; ++pIndex )
-                    massPoint += edgePoints[pIndex];
-                massPoint /= (r32)pointCount;
-
-                if( settings.approximateCellPoints )
+                switch( settings.cellPointsComputationMethod )
                 {
-                    cellVertex = massPoint;
+                    case DCComputeMethod::Interpolate:
+                    {
+                        v3 massPoint = V3Zero;
+                        for( u32 pIndex = 0; pIndex < pointCount; ++pIndex )
+                            massPoint += edgePoints[pIndex];
+                        massPoint /= (r32)pointCount;
 
-                    // TODO When merging cells in the octree, we still need to do a part of the QEF computation, as stated in "The Secret Sauce":
-                    // "In addition to the data already stored for the mass point, we also store the dimension of the mass point"
+                        cellVertex = massPoint;
+
+                        // TODO When merging cells in the octree, we still need to do a part of the QEF computation, as stated in "The Secret Sauce":
+                        // "In addition to the data already stored for the mass point, we also store the dimension of the mass point"
+                    } break;
+                    case DCComputeMethod::QEFClassic:
+                    {
+                        cellVertex = QEFMinimizePlanesClassic( edgePoints, edgeNormals, pointCount );
+                    } break;
+                    case DCComputeMethod::QEFProbabilistic:
+                    {
+                        cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 0.1f, 0.1f );
+                    } break;
+                    case DCComputeMethod::QEFProbabilisticDouble:
+                    {
+                        cellVertex = QEFMinimizePlanesProbabilistic64( edgePoints, edgeNormals, pointCount, 0.1f, 0.1f );
+                    } break;
+                    default:
+                    NOT_IMPLEMENTED;
+                }
+
+                if( settings.clampCellPoints )
+                {
+                    // TODO Ideally we should do the solve with constrains as explained in https://www.mattkeeter.com/projects/qef/
+                    // (also check https://github.com/BorisTheBrave/mc-dc/blob/a165b326849d8814fb03c963ad33a9faf6cc6dea/qef.py#L146)
+                    //Clamp( &cellVertex, cellBounds );
+
+                    if( cellVertex.x < cellBounds.min.x )
+                    {
+                        cellVertex.x = cellBounds.min.x;
+                        clamped = true;
+                    }
+                    if( cellVertex.x > cellBounds.max.x )
+                    {
+                        cellVertex.x = cellBounds.max.x;
+                        clamped = true;
+                    }
+                    if( cellVertex.y < cellBounds.min.y )
+                    {
+                        cellVertex.y = cellBounds.min.y;
+                        clamped = true;
+                    }
+                    if( cellVertex.y > cellBounds.max.y )
+                    {
+                        cellVertex.y = cellBounds.max.y;
+                        clamped = true;
+                    }
+                    if( cellVertex.z < cellBounds.min.z )
+                    {
+                        cellVertex.z = cellBounds.min.z;
+                        clamped = true;
+                    }
+                    if( cellVertex.z > cellBounds.max.z )
+                    {
+                        cellVertex.z = cellBounds.max.z;
+                        clamped = true;
+                    }
                 }
                 else
                 {
-#if 0
-                    cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 0.1f, 0.1f );
-#else
-                    cellVertex = QEFMinimizePlanesClassic( edgePoints, edgeNormals, pointCount );
-#endif
-                    ASSERT( Contains( bounds, cellVertex ) );
-
-
-
-
-
-                    // If outside of the cell, initially just use the 'masspoint' (average) as in http://ngildea.blogspot.com/2014/11/implementing-dual-contouring.html
-                    // (the final normal is also the average of the input normals)
-
-
-                    // AFTER that, do the solve with constrains as explained in https://www.mattkeeter.com/projects/qef/
-                    // (also check https://github.com/nickgildea/qef and https://github.com/BorisTheBrave/mc-dc/blob/a165b326849d8814fb03c963ad33a9faf6cc6dea/qef.py#L146)
-                    // and see whether it makes any difference at all
-
-                    // There are also SIMD and compute shader implementations in https://github.com/nickgildea/qef
+                    //ASSERT( Contains( cellBounds, cellVertex ) );
                 }
-
-                //ASSERT( LengthSq( cellVertex ) < 105.f * 105.f );
-                //ASSERT( Length( cellVertex ) > 80.f );
 
                 u32 vertexIndex = meshPool->scratchVertices.count;
                 TexturedVertex v = {};
                 v.p = cellVertex;
-                v.color = Pack01ToRGBA( 1, 1, 1, 1 );
+                v.color = clamped ? Pack01ToRGBA( 1, 0, 0, 1 ) : Pack01ToRGBA( 1, 1, 1, 1 );
                 meshPool->scratchVertices.Push( v );
 
                 cellData( i, j, k ).vertexIndex = vertexIndex;
@@ -1666,10 +1774,10 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
 {
     // Make bounds same length on all axes
     v3 centerP = Center( sourceMesh.bounds );
-    v3 extents = Extents( sourceMesh.bounds );
-    r32 cubeSide = Max( extents.x, Max( extents.y, extents.z ) );
+    v3 dim = Dim( sourceMesh.bounds );
+    r32 cubeSide = Max( dim.x, Max( dim.y, dim.z ) );
 
-    aabb box = AABB( centerP, cubeSide );
+    aabb box = AABBCenterDim( centerP, cubeSide );
     v3 const &gridOriginP = box.min;
 
     ASSERT( samplingCache->cellsPerAxis.x == samplingCache->cellsPerAxis.y );

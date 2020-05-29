@@ -226,7 +226,7 @@ Log2( u32 value )
 
 // TODO Replace with MurmurHash3 128 (just truncate for 32/64 bit hashes) (https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp)
 // (improve it with http://zimbry.blogspot.com/2011/09/better-bit-mixing-improving-on.html)
-// TODO Add Meow Hash for hashing large blocks
+// TODO Add Meow Hash for hashing large blocks (also get the code and study it a little, there's gems in the open there!)
 inline u32
 Fletcher32( const void* buffer, sz len )
 {

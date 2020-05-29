@@ -44,5 +44,13 @@ inline r32 SDFSphere( v3 const& p, r32 r )
     return Length( p ) - r;
 }
 
+// http://paulbourke.net/geometry/decocube/
+// http://xahlee.info/surface/decocube/decocube.html
+// http://paulbourke.net/geometry/cube/
+// https://www.teraplot.com/isosurface-plots
+// https://en.wikipedia.org/wiki/Implicit_surface
+// http://www-sop.inria.fr/galaad/surface/
+// https://www.youtube.com/watch?v=kIfVICKtA1g
+
 
 #endif /* __MATH_SDF_H__ */
