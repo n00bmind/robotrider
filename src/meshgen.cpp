@@ -972,8 +972,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                 v3 edgeNormals[12];
                 u32 pointCount = 0;
 
-                // TODO As explained in http://www.inf.ufrgs.br/~comba/papers/thesis/diss-leonardo.pdf (4.2.2 & figure 4.4)
-                // we only need to process 3 edges per cell
+                // We only need to process 3 edges per cell (those containing the corner associated with each cell)
                 // Find edge intersections or get them from neighbours
                 for( int e = 0; e < 12; ++e )
                 {
@@ -1012,22 +1011,23 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                             if( pointCount )
                                 ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
 
-                            ASSERT( (p.relativeP.x - 1 <= edgeP.x && edgeP.x <= p.relativeP.x && edgeP.y == p.relativeP.y && edgeP.z == p.relativeP.z)
-                                || (p.relativeP.y - 1 <= edgeP.y && edgeP.y <= p.relativeP.y && edgeP.x == p.relativeP.x && edgeP.z == p.relativeP.z)
-                                || (p.relativeP.z - 1 <= edgeP.z && edgeP.z <= p.relativeP.z && edgeP.x == p.relativeP.x && edgeP.y == p.relativeP.y) );
-
                             // Find normal vector by sampling near the intersection point we found
-                            // TODO Mathematically this probably requires sampling on both sides of the point per axis,
-                            // but we're doing it this way to save 3 samples per cell
-                            // Gauge whether there's any noticeable difference in the result
-                            p.relativeP = edgeP + V3( delta, 0, 0 );
-                            r32 xDeltaSample = sampleFunc( samplingData, p );
-                            p.relativeP = edgeP + V3( 0, delta, 0 );
-                            r32 yDeltaSample = sampleFunc( samplingData, p );
-                            p.relativeP = edgeP + V3( 0, 0, delta );
-                            r32 zDeltaSample = sampleFunc( samplingData, p );
+                            p.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };
+                            r32 xPSample = sampleFunc( samplingData, p );
+                            p.relativeP = { edgeP.x - delta, edgeP.y, edgeP.z };
+                            r32 xNSample = sampleFunc( samplingData, p );
 
-                            v3 normal = (V3( xDeltaSample, yDeltaSample, zDeltaSample ) - edgeP) * deltaInv;
+                            p.relativeP = { edgeP.x, edgeP.y + delta, edgeP.z };
+                            r32 yPSample = sampleFunc( samplingData, p );
+                            p.relativeP = { edgeP.x, edgeP.y - delta, edgeP.z };
+                            r32 yNSample = sampleFunc( samplingData, p );
+
+                            p.relativeP = { edgeP.x, edgeP.y, edgeP.z + delta };
+                            r32 zPSample = sampleFunc( samplingData, p );
+                            p.relativeP = { edgeP.x, edgeP.y, edgeP.z - delta };
+                            r32 zNSample = sampleFunc( samplingData, p );
+
+                            v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
                             Normalize( normal );
                             cellData( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
                             edgeNormals[pointCount] = normal;
@@ -1089,8 +1089,8 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                 {
                     // TODO Ideally we should do the solve with constrains as explained in https://www.mattkeeter.com/projects/qef/
                     // (also check https://github.com/BorisTheBrave/mc-dc/blob/a165b326849d8814fb03c963ad33a9faf6cc6dea/qef.py#L146)
-                    //Clamp( &cellVertex, cellBounds );
 
+                    //Clamp( &cellVertex, cellBounds );
                     if( cellVertex.x < cellBounds.min.x )
                     {
                         cellVertex.x = cellBounds.min.x;
@@ -1321,9 +1321,9 @@ ISO_SURFACE_FUNC( BoxSurfaceFunc )
 }
 
 #define SURFACE_LIST(x) \
+    x(MechanicalPart)   \
     x(Box)              \
     x(Torus)            \
-    x(MechanicalPart)   \
     x(HollowCube)       \
     x(Devil)            \
     x(QuarticCylinder)  \
