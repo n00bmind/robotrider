@@ -273,6 +273,9 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
 
     ImGui::Begin( "window_contour", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove );
 
+    bool surfaceChanged = ImGui::Combo( "Surface", &transientState->currentSurfaceIndex, SimpleSurface::Values::names,
+                                        SimpleSurface::Values::count );
+
     bool techniqueChanged = ImGui::Combo( "Algorithm", &transientState->currentTechniqueIndex, ContouringTechnique::Values::names,
                                           ContouringTechnique::Values::count );
     
@@ -287,7 +290,7 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         } break;
         case ContouringTechnique::DualContouring().index:
         {
-            ImGui::RadioButton( "Interpolate", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::Interpolate );
+            ImGui::RadioButton( "Average", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::Average );
             ImGui::RadioButton( "QEFClassic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFClassic );
             ImGui::RadioButton( "QEFProbabilistic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilistic );
             ImGui::RadioButton( "QEFProbabilisticDouble", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilisticDouble );
@@ -297,21 +300,23 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         } break;
     }
 
-    if( transientState->testMesh == nullptr || input.gameCodeReloaded || techniqueChanged || !EQUAL( settings, currentSettings ) )
+    if( transientState->testMesh == nullptr || input.gameCodeReloaded || surfaceChanged || techniqueChanged || !EQUAL( settings, currentSettings ) )
     {
         r64 start = globalPlatform.DEBUGCurrentTimeMillis();
         switch( transientState->currentTechniqueIndex )
         {
             case ContouringTechnique::MarchingCubes().index:
             {
-                transientState->testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, TorusSurfaceFunc, nullptr,
-                                                          &transientState->samplingCache, &transientState->meshPool, settings.interpolate );
+                transientState->testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc,
+                                                          &transientState->currentSurfaceIndex, &transientState->samplingCache,
+                                                          &transientState->meshPool, settings.interpolate );
                
             } break;
             case ContouringTechnique::DualContouring().index:
             {
-                transientState->testMesh = DCArea( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, TorusSurfaceFunc, nullptr,
-                                                   &transientState->meshPool, tempArena, settings.dc );
+                transientState->testMesh = DCArea( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc,
+                                                   &transientState->currentSurfaceIndex, &transientState->meshPool, tempArena,
+                                                   settings.dc );
 
             } break;
         }

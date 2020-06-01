@@ -93,4 +93,90 @@ typedef size_t sz;
 #define R64INF (r64)INFINITY
 
 
+
+/////     STRUCT ENUM    /////
+// TODO Combine with the ideas in https://blog.paranoidcoding.com/2010/11/18/discriminated-unions-in-c.html to create a similar
+// TAGGED_UNION for discriminated unions
+
+/* Usage:
+
+struct V
+{
+    char const* sVal;
+    int iVal;
+};
+
+#define VALUES(x) \
+    x(None, {"a", 100}) \
+    x(Animation, {"b", 200}) \
+    x(Landscape, {"c", 300}) \
+    x(Audio, {"d", 400}) \
+    x(Network, {"e", 500}) \
+    x(Scripting, {"f", 600}) \
+
+STRUCT_ENUM_WITH_VALUES(MemoryTag, V, VALUES)
+#undef VALUES
+
+int main()
+{
+    MemoryTag const& t = MemoryTag::Audio();
+    V const& value = MemoryTag::Landscape().value;
+
+    for( int i = 0; i < MemoryTag::Values::count; ++i )
+    {
+        MemoryTag const& t = MemoryTag::Values::items[i];
+        std::cout << "sVal: " << t.value.sVal << "\tiVal: " << t.value.iVal << std::endl;
+    }
+}
+
+*/
+
+#define _ENUM_BUILDER(x) static constexpr EnumName x() \
+    { static EnumName _inst = { #x, (u32)Enum::x, ValueType() }; return _inst; }
+#define _ENUM_BUILDER_WITH_NAMES(x, n) static constexpr EnumName x() \
+    { static EnumName _inst = { n, (u32)Enum::x, ValueType() }; return _inst; }
+#define _ENUM_BUILDER_WITH_VALUES(x, v) static constexpr EnumName x() \
+    { static EnumName _inst = { #x, (u32)Enum::x, v }; return _inst; }
+#define _ENUM_ENTRY(x, ...) x,
+#define _ENUM_NAME(x, ...) x().name,
+#define _ENUM_ITEM(x, ...) x(),
+
+#define _CREATE_ENUM(enumName, valueType, xValueList, xBuilder) \
+struct enumName                                                \
+{                                                              \
+    char const* name;                                          \
+    u32 index;                                                 \
+    valueType value;                                           \
+                                                               \
+    using EnumName = enumName;                                 \
+    using ValueType = valueType;                               \
+    xValueList(xBuilder)                                       \
+                                                               \
+    struct Values;                                             \
+                                                               \
+private:                                                       \
+    enum class Enum : u32                                      \
+    {                                                          \
+        xValueList(_ENUM_ENTRY)                                \
+    };                                                         \
+};                                                             \
+struct enumName::Values                                        \
+{                                                              \
+    static constexpr char const* const names[] =               \
+    {                                                          \
+        xValueList(_ENUM_NAME)                                 \
+    };                                                         \
+    static constexpr const enumName items[] = {                \
+        xValueList(_ENUM_ITEM)                                 \
+    };                                                         \
+    static constexpr const int count = ARRAYCOUNT(items);      \
+};                                                             \
+
+#define STRUCT_ENUM(enumName, xValueList)                           _CREATE_ENUM(enumName, u32, xValueList, _ENUM_BUILDER)
+#define STRUCT_ENUM_WITH_TYPE(enumName, valueType, xValueList)      _CREATE_ENUM(enumName, valueType, xValueList, _ENUM_BUILDER)
+#define STRUCT_ENUM_WITH_NAMES(enumName, valueType, xValueList)     _CREATE_ENUM(enumName, valueType, xValueList, _ENUM_BUILDER_WITH_NAMES)
+#define STRUCT_ENUM_WITH_VALUES(enumName, valueType, xValueList)    _CREATE_ENUM(enumName, valueType, xValueList, _ENUM_BUILDER_WITH_VALUES)
+
+
+
 #endif /* __DEFS_H__ */

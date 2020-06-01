@@ -81,12 +81,12 @@ struct GameState
     x(DualContouring) \
     x(MarchingCubes) \
 
-STRUCT_ENUM(ContouringTechnique, u32, VALUES)
+STRUCT_ENUM(ContouringTechnique, VALUES)
 #undef VALUES
 
 enum class DCComputeMethod
 {
-    Interpolate,
+    Average,
     QEFClassic,
     QEFProbabilistic,
     QEFProbabilisticDouble,
@@ -117,6 +117,7 @@ struct TransientState
     Mesh* testMesh;
 
     ContouringSettings settings[ContouringTechnique::Values::count];
+    int currentSurfaceIndex;
     int currentTechniqueIndex;
 
     // NOTE All this needs to be here for stuff to compile, but it's not being used

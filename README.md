@@ -33,6 +33,7 @@ Marching cubes :: http://paulbourke.net/geometry/polygonise/ <br/> & http://alph
 Fast quadric mesh simplification :: https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification <br/>
 Resampling meshes using MC :: http://vcg.isti.cnr.it/publications/papers/mi_smi01.pdf <br/>
 Wave Function Collapse :: https://github.com/mxgmn/WaveFunctionCollapse & https://adamsmith.as/papers/wfc_is_constraint_solving_in_the_wild.pdf <br/>
+Dual Contouring :: https://www.cse.wustl.edu/~taoju/research/dualContour.pdf & https://people.eecs.berkeley.edu/~jrs/meshpapers/SchaeferWarren2.pdf <br/> https://www.boristhebrave.com/2018/04/15/dual-contouring-tutorial/ <br/>
 
 
 

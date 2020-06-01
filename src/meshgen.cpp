@@ -945,7 +945,8 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                     {
                         // Sample our own
                         // Cell at { 0, 0, 0 } (border) gets the sample at world position minGridP + { 0, 0, 0 }
-                        sample = sampleFunc( samplingData, p );
+                        // Account for -0
+                        sample = sampleFunc( samplingData, p ) + 0.f;
                         cellData( i, j, k ).sampledValue = sample;
                     }
                     else
@@ -1056,7 +1057,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                 v3 cellVertex = V3Undefined;
                 switch( settings.cellPointsComputationMethod )
                 {
-                    case DCComputeMethod::Interpolate:
+                    case DCComputeMethod::Average:
                     {
                         v3 massPoint = V3Zero;
                         for( u32 pIndex = 0; pIndex < pointCount; ++pIndex )
@@ -1316,6 +1317,73 @@ ISO_SURFACE_FUNC( BoxSurfaceFunc )
     v3 invWorldP = worldP.relativeP - V3Zero;
 
     r32 result = SDFBox( invWorldP, { 70, 70, 70 } );
+    return result;
+}
+
+#define SURFACE_LIST(x) \
+    x(Box)              \
+    x(Torus)            \
+    x(MechanicalPart)   \
+    x(HollowCube)       \
+    x(Devil)            \
+    x(QuarticCylinder)  \
+    x(TangleCube)       \
+    x(TrefoilKnot)      \
+    x(Genus2)           \
+
+STRUCT_ENUM(SimpleSurface, SURFACE_LIST);
+#undef SURFACE_LIST
+
+ISO_SURFACE_FUNC( SimpleSurfaceFunc )
+{
+    int surfaceIndex = *(int*)samplingData;
+
+    // NOTE We're axis aligned for now, so just translate
+    //v3 invWorldP = worldP.relativeP - V3Zero;
+    v3 const& invWorldP = worldP.relativeP;
+
+    r32 result = R32INF;
+    switch( surfaceIndex )
+    {
+        case SimpleSurface::Box().index:
+            result = SDFBox( invWorldP, { 70, 70, 70 } );
+            break;
+        case SimpleSurface::Torus().index:
+            result = SDFTorus( invWorldP, 70, 30 );
+            break;
+        case SimpleSurface::HollowCube().index:
+            result = SDFHollowCube( invWorldP );
+            break;
+        case SimpleSurface::Devil().index:
+            result = SDFDevil( invWorldP );
+            break;
+        case SimpleSurface::QuarticCylinder().index:
+            result = SDFQuarticCylinder( invWorldP );
+            break;
+        case SimpleSurface::TangleCube().index:
+            result = SDFTangleCube( invWorldP );
+            break;
+        case SimpleSurface::TrefoilKnot().index:
+            result = SDFTrefoilKnot( invWorldP );
+            break;
+        case SimpleSurface::Genus2().index:
+            result = SDFGenus2( invWorldP );
+            break;
+
+        case SimpleSurface::MechanicalPart().index:
+        {
+            r32 b = SDFBox( invWorldP, { 50, 50, 50 } );
+            r32 c = SDFCylinder( invWorldP, 40 );
+            result = SDFUnion( b, c );
+
+            v3 yRotP = { invWorldP.z, invWorldP.y, invWorldP.x };
+            r32 c1 = SDFCylinder( yRotP, 30 );
+            result = SDFSubstraction( result, c1 );
+            v3 zRotP = { -invWorldP.y, invWorldP.x, invWorldP.z };
+            r32 c2 = SDFCylinder( zRotP, 30 );
+            result = SDFSubstraction( result, c2 );
+        } break;
+    }
     return result;
 }
 

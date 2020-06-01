@@ -121,6 +121,12 @@ ACos( r32 angleRads )
 }
 
 inline r32
+Sqr( r32 value )
+{
+    return value * value;
+}
+
+inline r32
 Sqrt( r32 value )
 {
     r32 result = sqrtf( value );
