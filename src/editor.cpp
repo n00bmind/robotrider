@@ -256,7 +256,7 @@ InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientSt
         InitMeshPool( &transientState->meshPool, editorArena, MEGABYTES( 256 ) );
 
         transientState->settings[ContouringTechnique::MarchingCubes().index].interpolate = true;
-        transientState->settings[ContouringTechnique::DualContouring().index].dc.approximateEdgeIntersection = true;
+        transientState->settings[ContouringTechnique::DualContouring().index].dc.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
     }
 }
 
@@ -294,9 +294,11 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
             ImGui::RadioButton( "QEFClassic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFClassic );
             ImGui::RadioButton( "QEFProbabilistic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilistic );
             ImGui::RadioButton( "QEFProbabilisticDouble", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilisticDouble );
+            ImGui::RadioButton( "QEFProbabilisticDoubleRef", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilisticRef );
 
             ImGui::Dummy( { 0, 20 } );
             ImGui::Checkbox( "Clamp cell points", &settings.dc.clampCellPoints );
+            ImGui::Checkbox( "Approximate edge intersections", &settings.dc.approximateEdgeIntersection );
         } break;
     }
 

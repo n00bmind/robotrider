@@ -1493,7 +1493,7 @@ struct ResourcePool
         _locatorIndexMask = NextPowerOf2( maxResourceCount ) - 1;
     }
 
-    ResourceHandle Add( const T& item )
+    ResourceHandle<T> Add( const T& item )
     {
         // Generate fingerprint
         u32 fingerprint = Fletcher32( &item, sizeof(T) );
@@ -1509,7 +1509,7 @@ struct ResourcePool
     }
 
     // NOTE Returned pointer should never be stored or passed around!
-    T* GetTransientPointer( ResourceHandle handle )
+    T* GetTransientPointer( ResourceHandle<T> handle )
     {
         u32 index = handle.locator & _locatorIndexMask;
         ASSERT( index < pool.count );

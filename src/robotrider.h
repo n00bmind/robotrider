@@ -84,21 +84,6 @@ struct GameState
 STRUCT_ENUM(ContouringTechnique, VALUES)
 #undef VALUES
 
-enum class DCComputeMethod
-{
-    Average,
-    QEFClassic,
-    QEFProbabilistic,
-    QEFProbabilisticDouble,
-};
-
-struct DCSettings
-{
-    DCComputeMethod cellPointsComputationMethod;
-    bool approximateEdgeIntersection;
-    bool clampCellPoints;
-};
-
 union ContouringSettings
 {
     // Marching Cubes

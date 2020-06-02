@@ -167,6 +167,23 @@ struct MeshGeneratorPathData
 };
 #endif
 
+enum class DCComputeMethod
+{
+    Average,
+    QEFClassic,
+    QEFProbabilistic,
+    QEFProbabilisticDouble,
+    // TODO Remove
+    QEFProbabilisticRef,
+};
+
+struct DCSettings
+{
+    DCComputeMethod cellPointsComputationMethod;
+    bool approximateEdgeIntersection;
+    bool clampCellPoints;
+};
+
 
 
 IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2u const& cellsPerAxis );

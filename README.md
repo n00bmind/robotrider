@@ -34,6 +34,7 @@ Fast quadric mesh simplification :: https://github.com/sp4cerat/Fast-Quadric-Mes
 Resampling meshes using MC :: http://vcg.isti.cnr.it/publications/papers/mi_smi01.pdf <br/>
 Wave Function Collapse :: https://github.com/mxgmn/WaveFunctionCollapse & https://adamsmith.as/papers/wfc_is_constraint_solving_in_the_wild.pdf <br/>
 Dual Contouring :: https://www.cse.wustl.edu/~taoju/research/dualContour.pdf & https://people.eecs.berkeley.edu/~jrs/meshpapers/SchaeferWarren2.pdf <br/> https://www.boristhebrave.com/2018/04/15/dual-contouring-tutorial/ <br/>
+QEF Minimization :: https://graphics.rwth-aachen.de/media/papers/308/probabilistic-quadrics.pdf & https://github.com/nickgildea/qef
 
 
 

@@ -634,6 +634,10 @@ v3 QEFMinimizePlanesProbabilistic64( v3 const* points, v3 const* normals, int co
 }
 
 
+#include "minimal-math.hh"
+#include "probabilistic-quadrics.hh"
+
+
 ///// CONTOURING /////
 
 struct VertexCacheIndex
@@ -925,10 +929,11 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
         {
             for( u32 i = 0; i < cellsPerAxis.x; ++i )
             {
-                p.relativeP = minGridP + V3( i, j, k ) * cellSizeMeters;
+                v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
+
                 r32 boundsTolerance = 0.5f;
-                aabb cellBounds = AABB( p.relativeP - V3( cellSizeMeters + boundsTolerance ),
-                                        p.relativeP + V3( boundsTolerance ) );
+                aabb cellBounds = AABB( cellP - V3( cellSizeMeters + boundsTolerance ),
+                                        cellP + V3( boundsTolerance ) );
 
                 u32 caseMask = 0;
                 r32 cornerSamples[8] = {};
@@ -946,6 +951,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                         // Sample our own
                         // Cell at { 0, 0, 0 } (border) gets the sample at world position minGridP + { 0, 0, 0 }
                         // Account for -0
+                        p.relativeP = cellP;
                         sample = sampleFunc( samplingData, p ) + 0.f;
                         cellData( i, j, k ).sampledValue = sample;
                     }
@@ -970,7 +976,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                 v2u edges[12];
                 v3 edgePoints[12];
                 v3 edgeNormals[12];
-                u32 pointCount = 0;
+                int pointCount = 0;
 
                 // We only need to process 3 edges per cell (those containing the corner associated with each cell)
                 // Find edge intersections or get them from neighbours
@@ -988,26 +994,57 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                         if( indexB == 7 || indexA == 7 )
                         {
                             // It's one of the edges stored in this cell, so find the intersection & normal
-                            v3 pA = p.relativeP + V3( dcCornerOffsets[indexA] ) * cellSizeMeters;
-                            v3 pB = p.relativeP + V3( dcCornerOffsets[indexB] ) * cellSizeMeters;
+                            v3 pA = cellP + V3( dcCornerOffsets[indexA] ) * cellSizeMeters;
+                            v3 pB = cellP + V3( dcCornerOffsets[indexB] ) * cellSizeMeters;
                             v3 edgeP = {};
 
-                            if( settings.approximateEdgeIntersection )
-                            {
-                                // Just interpolate along the edge
-                                r32 t = sA / (sA - sB);
-                                Clamp01( t );
-                                edgeP = Lerp( pA, pB, t );
-                            }
+                            static const r32 epsilon = 0.01f;
+                            if( sB == R32MAX || AlmostEqual( sA, 0.f, epsilon ) )
+                                edgeP = pA;
+                            else if( sA == R32MAX || AlmostEqual( sB, 0.f, epsilon ) )
+                                edgeP = pB;
                             else
                             {
-                                // TODO Do a binary search along the edge
-                                // We might need this if we ever do highly non-linear surfaces
-                                NOT_IMPLEMENTED;
+                                if( settings.approximateEdgeIntersection )
+                                {
+                                    // Just interpolate along the edge
+                                    r32 t = sA / (sA - sB);
+                                    Clamp01( t );
+                                    edgeP = Lerp( pA, pB, t );
+                                }
+                                else
+                                {
+                                    // Do a binary search along the edge
+                                    static const int maxSearchSteps = 100;
+                                    int searchSteps = maxSearchSteps;
+                                    r32 edgeSample = 0.f;
+
+                                    while( --searchSteps )
+                                    {
+                                        //p.relativeP = pA + (pB - pA) * 0.5f;
+                                        p.relativeP = (pA + pB) * 0.5f;
+                                        edgeSample = sampleFunc( samplingData, p );
+
+                                        if( AlmostEqual( edgeSample, 0.f, epsilon ) )
+                                        {
+                                            edgeP = p.relativeP;
+                                            break;
+                                        }
+                                        else
+                                        {
+                                            if( Sign( edgeSample ) == Sign( sA ) )
+                                                pA = p.relativeP;
+                                            else
+                                                pB = p.relativeP;
+                                        }
+                                    }
+                                    ASSERT( searchSteps > 0 );
+                                }
                             }
                             cellData( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
                             edgePoints[pointCount] = edgeP;
 
+                            ASSERT( edgeP != V3Zero );
                             if( pointCount )
                                 ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
 
@@ -1060,7 +1097,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                     case DCComputeMethod::Average:
                     {
                         v3 massPoint = V3Zero;
-                        for( u32 pIndex = 0; pIndex < pointCount; ++pIndex )
+                        for( int pIndex = 0; pIndex < pointCount; ++pIndex )
                             massPoint += edgePoints[pIndex];
                         massPoint /= (r32)pointCount;
 
@@ -1079,7 +1116,22 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                     } break;
                     case DCComputeMethod::QEFProbabilisticDouble:
                     {
-                        cellVertex = QEFMinimizePlanesProbabilistic64( edgePoints, edgeNormals, pointCount, 0.1f, 0.1f );
+                        cellVertex = QEFMinimizePlanesProbabilistic64( edgePoints, edgeNormals, pointCount, 1.f, 0.00001f );
+                    } break;
+                    case DCComputeMethod::QEFProbabilisticRef:
+                    {
+                        using namespace pq;
+                        using quadric3 = quadric<minimal_math<double>>;
+
+                        quadric3 q;
+                        quadric3::pos3 sol;
+
+                        for( int pIndex = 0; pIndex < pointCount; ++pIndex )
+                            q += quadric3::probabilistic_plane_quadric( quadric3::math::make_pos( edgePoints[pIndex].x, edgePoints[pIndex].y, edgePoints[pIndex].z ),
+                                                                        quadric3::math::make_vec( edgeNormals[pIndex].x, edgeNormals[pIndex].y, edgeNormals[pIndex].z ),
+                                                                        1.f, 0.1f );
+                        sol = q.minimizer();
+                        cellVertex = { (r32)sol.x, (r32)sol.y, (r32)sol.z };
                     } break;
                     default:
                     NOT_IMPLEMENTED;

@@ -43,6 +43,11 @@ out vec4 outColor;
 
 void main()
 {
+    // Our 'sun' at -Z inf.
+    //vec3 sunLightDirection = vec3( 0.0, 0.0, -1.0 );
+    vec3 sunLightDirection = vec3( 0.0, 0.0, 1.0 );
+
+    float wireMul = 1;
 #if WIREFRAME
     vec3 barys;
     barys.xy = _in.barycentricP;
@@ -52,24 +57,21 @@ void main()
 	vec3 smoothing = deltas * 1;
 	vec3 thickness = deltas * 0.0000001;
 	barys = smoothstep( thickness, thickness + smoothing, barys );
-    float minBary = min(barys.x, min(barys.y, barys.z));
+    wireMul = min(barys.x, min(barys.y, barys.z));
+    wireMul = clamp( wireMul, 0.2, 1 );
 
-    vec4 diffuseLight = vec4( _in.color.xyz * minBary, 1 );
-#else
+    //vec4 diffuseLight = vec4( _in.color.xyz * wireMul, 1 );
+#endif
+
     // Face normal using derivatives of world position
     vec3 faceNormal = normalize( cross( dFdx( _in.worldP ), dFdy( _in.worldP ) ) );
 
-    // Our 'sun' at -Z inf.
-    vec3 lightDirection = vec3( 0.0, 0.0, -1.0 );
-    // FIXME This is relative to the view,
-    //float d = dot( lightDirection, _in.faceNormal );
-    float d = dot( lightDirection, faceNormal );
+    float d = clamp( dot( sunLightDirection, faceNormal ), 0, 1 );
     vec4 diffuseLight = _in.color * d;
     diffuseLight.a = _in.color.a;
 
-    vec4 ambientLight = vec4( 0.5, 0.5, 0.5, 1 );
+    vec4 ambientLight = vec4( 0.7, 0.7, 0.7, 1 );
     diffuseLight += ambientLight;
-#endif
 
 #if 0 // Extremely simple fog
     float dMax = 400;
@@ -79,7 +81,7 @@ void main()
 
     outColor = mix( vec4( 0.95, 0.95, 0.95, 1 ), diffuseLight, tFog );
 #else
-    outColor = diffuseLight;
+    outColor = vec4( diffuseLight.xyz * wireMul, 1 );
 #endif
-
 }
+
