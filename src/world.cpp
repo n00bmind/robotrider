@@ -419,7 +419,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
                     v3 pAtRowStart = worldP.relativeP;
                     for( u32 i = 0; i < gridEdgesPerSliceAxis.x; ++i )
                     {
-                        *sample++ = RoomSurfaceFunc( roomSamplingData, worldP );
+                        *sample++ = RoomSurfaceFunc( worldP, roomSamplingData );
                         worldP.relativeP.x += VoxelSizeMeters;
                     }
                     worldP.relativeP = pAtRowStart;
@@ -927,6 +927,8 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     {
         RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
 
+        // TODO Now that we have cluster offsets in uniforms, we should start thinking about caching all meshes in each cluster
+        // into their own VBO and not re-send all geometry each frame
         auto it = world->liveEntities.First();
         while( it )
         {

@@ -8,7 +8,6 @@ NEXT
 - Sample the isosurface for every cluster in the exterior of each room/hall created, with a different resolution depending on distance
 - Create a little 'mesh LOD' system that keeps a cache of dynamic mesh LODs that are resampled when necessary according to distance
 - Generate several of these 'superclusters' and connect neighbouring
-- Switch to dual contouring with octree sampling for more efficient detail where needed
 - Decent RNG and determinism
 
 
@@ -81,4 +80,7 @@ TESTING
 - Basic data types
 - Math library
 - All multithreaded code! (queues, etc.)
+
+MISC
+- Switch all indices in all loops and all data types operators to signed integers, as they're faster (Chandler dixit)
 

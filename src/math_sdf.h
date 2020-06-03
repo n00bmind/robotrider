@@ -92,9 +92,9 @@ inline r32 SDFDevil( v3 const& p )
 
 inline r32 SDFQuarticCylinder( v3 const& p )
 {
-    r32 a = 10.f;
-    r32 b = 10.f;
-    r32 c = 200000.f;
+    r32 a = 0.1f;
+    r32 b = 0.5f;
+    r32 c = 2000.f;
 
     r32 x2 = p.x * p.x;
     r32 y2 = p.y * p.y;
@@ -106,7 +106,7 @@ inline r32 SDFQuarticCylinder( v3 const& p )
 inline r32 SDFTangleCube( v3 const& p )
 {
     r32 a = 5000.f;
-    r32 b = 12000000.f;
+    r32 b = 12499999.f;
 
     r32 x2 = p.x * p.x;
     r32 y2 = p.y * p.y;
@@ -155,5 +155,26 @@ inline r32 SDFTrefoilKnot( v3 const& p )
                           - 8.f * a2 * (3.f * x2 * y - y3) * z - 4.f * (x2 + y2) * a2 * z2);
 }
 
+// FIXME Not working. The (obviously wrong) formula was taken from the end of the video at https://grassovsky.wordpress.com/2014/09/09/cubical-marching-squares-implementation/
+// (https://www.youtube.com/watch?v=nDprZqR4Q9I)
+inline r32 SDFLinkedTorii( v3 const& p, r32 r, r32 t, r32 d )
+{
+    r32 x0 = p.x - d;
+    r32 x02 = x0 * x0;
+    r32 x1 = p.x + d;
+    r32 x12 = x1 * x1;
+    r32 y2 = p.y * p.y;
+    r32 z2 = p.z * p.z;
+    r32 t2 = t * t;
+    r32 r2 = r * r;
+
+    //return Sqr( Sqr( x02 + y2 + z2 + r2 - t2 ) - 4.f * r2 * (z2 + x02) );
+    return ( Sqr( x02 + y2 + z2 + r2 - t2 ) - 4.f * r2 * (z2 + x02) );
+}
+
+inline r32 SDFCone( v3 const& p, r32 a, r32 b )
+{
+    return (p.x * p.x + p.y * p.y) / a - Sqr( p.z - b );
+}
 
 #endif /* __MATH_SDF_H__ */

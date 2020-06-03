@@ -255,8 +255,10 @@ InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientSt
         transientState->samplingCache = InitSurfaceSamplingCache( editorArena, maxCellsPerAxis );
         InitMeshPool( &transientState->meshPool, editorArena, MEGABYTES( 256 ) );
 
-        transientState->settings[ContouringTechnique::MarchingCubes().index].interpolate = true;
-        transientState->settings[ContouringTechnique::DualContouring().index].dc.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
+        transientState->settings.mcInterpolate = true;
+        transientState->settings.dc.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
+        transientState->settings.dc.sigmaN = 0.1f;
+        transientState->settings.dc.sigmaNDouble = 0.1f;
     }
 }
 
@@ -267,34 +269,60 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
     v2 displayDim = { renderDim.x * 0.2f, renderDim.y * 0.5f };
     v2 displayP = { 100, 100 };
 
+    SamplingData samplingData = {};
+
+    //ImGui::ShowDemoWindow();
+
+    ContouringSettings& currentSettings = transientState->settings;
+    ContouringSettings settings = currentSettings;
+
     ImGui::SetNextWindowPos( displayP, ImGuiCond_Always );
     ImGui::SetNextWindowSize( displayDim, ImGuiCond_Always );
     ImGui::SetNextWindowSizeConstraints( ImVec2( -1, -1 ), ImVec2( -1, -1 ) );
 
     ImGui::Begin( "window_contour", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove );
 
-    bool surfaceChanged = ImGui::Combo( "Surface", &transientState->currentSurfaceIndex, SimpleSurface::Values::names,
-                                        SimpleSurface::Values::count );
+    ImGui::Combo( "Surface", &settings.currentSurfaceIndex, SimpleSurface::Values::names, SimpleSurface::Values::count );
+    samplingData.surfaceType = settings.currentSurfaceIndex;
 
-    bool techniqueChanged = ImGui::Combo( "Algorithm", &transientState->currentTechniqueIndex, ContouringTechnique::Values::names,
-                                          ContouringTechnique::Values::count );
+    static const r32 minus180 = -180.f;
+    static const r32 plus180 = 180.f;
+    ImGui::DragFloat( "X Rotation", &settings.surfaceRotDegrees.x, 0.1f, minus180, plus180, "%.1f deg." );
+    ImGui::DragFloat( "Y Rotation", &settings.surfaceRotDegrees.y, 0.1f, minus180, plus180, "%.1f deg." );
+    ImGui::DragFloat( "Z Rotation", &settings.surfaceRotDegrees.z, 0.1f, minus180, plus180, "%.1f deg." );
+    m4 invRotation = M4ZRotation( -Radians( settings.surfaceRotDegrees.z ) )
+        * M4YRotation( -Radians( settings.surfaceRotDegrees.y ) )
+        * M4XRotation( -Radians( settings.surfaceRotDegrees.x ) );
+    samplingData.invWorldTransform = invRotation;
+
+    ImGui::Dummy( { 0, 20 } );
+    ImGui::Combo( "Algorithm", &settings.currentTechniqueIndex, ContouringTechnique::Values::names,
+                  ContouringTechnique::Values::count );
     
-    ContouringSettings& currentSettings = transientState->settings[transientState->currentTechniqueIndex];
-    ContouringSettings settings = currentSettings;
-
-    switch( transientState->currentTechniqueIndex )
+    switch( settings.currentTechniqueIndex )
     {
         case ContouringTechnique::MarchingCubes().index:
         {
-            ImGui::Checkbox( "Interpolate edge points", &settings.interpolate );
+            ImGui::Checkbox( "Interpolate edge points", &settings.mcInterpolate );
         } break;
         case ContouringTechnique::DualContouring().index:
         {
+            static const r32 sigmaMin = 0.001f;
+            static const r32 sigmaMinDouble = 0.00001f;
+            static const r32 sigmaMax = 100.f;
+
             ImGui::RadioButton( "Average", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::Average );
             ImGui::RadioButton( "QEFClassic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFClassic );
             ImGui::RadioButton( "QEFProbabilistic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilistic );
+            ImGui::SameLine( 250 );
+            ImGui::PushItemWidth( -100 );
+            ImGui::SliderFloat( "Sigma N##sigma_n", &settings.dc.sigmaN, sigmaMin, sigmaMax, "%.3f", 10.f );
+            ImGui::PopItemWidth();
             ImGui::RadioButton( "QEFProbabilisticDouble", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilisticDouble );
-            ImGui::RadioButton( "QEFProbabilisticDoubleRef", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilisticRef );
+            ImGui::SameLine( 250 );
+            ImGui::PushItemWidth( -100 );
+            ImGui::SliderFloat( "Sigma N##sigma_n_double", &settings.dc.sigmaNDouble, sigmaMinDouble, sigmaMax, "%.5f", 10.f );
+            ImGui::PopItemWidth();
 
             ImGui::Dummy( { 0, 20 } );
             ImGui::Checkbox( "Clamp cell points", &settings.dc.clampCellPoints );
@@ -302,30 +330,36 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         } break;
     }
 
-    if( transientState->testMesh == nullptr || input.gameCodeReloaded || surfaceChanged || techniqueChanged || !EQUAL( settings, currentSettings ) )
+    // Rebuild after a while if settings change
+    if( !EQUAL( settings, currentSettings ) )
+    {
+        COPY( settings, currentSettings );
+        transientState->rebuildTimeSeconds = input.totalElapsedSeconds + 0.5f;
+    }
+
+    if( transientState->testMesh == nullptr || input.gameCodeReloaded
+        || (transientState->rebuildTimeSeconds && input.totalElapsedSeconds > transientState->rebuildTimeSeconds) )
     {
         r64 start = globalPlatform.DEBUGCurrentTimeMillis();
-        switch( transientState->currentTechniqueIndex )
+        switch( settings.currentTechniqueIndex )
         {
             case ContouringTechnique::MarchingCubes().index:
             {
-                transientState->testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc,
-                                                          &transientState->currentSurfaceIndex, &transientState->samplingCache,
-                                                          &transientState->meshPool, settings.interpolate );
+                transientState->testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters,
+                                                          SimpleSurfaceFunc, &samplingData, &transientState->samplingCache,
+                                                          &transientState->meshPool, settings.mcInterpolate );
                
             } break;
             case ContouringTechnique::DualContouring().index:
             {
                 transientState->testMesh = DCArea( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc,
-                                                   &transientState->currentSurfaceIndex, &transientState->meshPool, tempArena,
-                                                   settings.dc );
+                                                   &samplingData, &transientState->meshPool, tempArena, settings.dc );
 
             } break;
         }
         transientState->elapsedMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
+        transientState->rebuildTimeSeconds = 0.f;
     }
-
-    COPY( settings, currentSettings );
 
     ImGui::Dummy( { 0, 20 } );
     ImGui::Separator();

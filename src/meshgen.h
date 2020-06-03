@@ -173,13 +173,13 @@ enum class DCComputeMethod
     QEFClassic,
     QEFProbabilistic,
     QEFProbabilisticDouble,
-    // TODO Remove
-    QEFProbabilisticRef,
 };
 
 struct DCSettings
 {
     DCComputeMethod cellPointsComputationMethod;
+    r32 sigmaN;
+    r32 sigmaNDouble;
     bool approximateEdgeIntersection;
     bool clampCellPoints;
 };
@@ -201,7 +201,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
                                MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands );
 
 
-#define ISO_SURFACE_FUNC(name) float name( void const* samplingData, WorldCoords const& worldP )
+#define ISO_SURFACE_FUNC(name) float name( WorldCoords const& worldP, void const* samplingData )
 typedef ISO_SURFACE_FUNC(IsoSurfaceFunc);
 
 ISO_SURFACE_FUNC(RoomSurfaceFunc);

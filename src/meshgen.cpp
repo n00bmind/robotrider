@@ -634,9 +634,6 @@ v3 QEFMinimizePlanesProbabilistic64( v3 const* points, v3 const* normals, int co
 }
 
 
-#include "minimal-math.hh"
-#include "probabilistic-quadrics.hh"
-
 
 ///// CONTOURING /////
 
@@ -819,7 +816,7 @@ MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSize
                     v3 pAtRowStart = p.relativeP;
                     for( u32 i = 0; i < gridLinesPerAxis.x; ++i )
                     {
-                        *sample++ = sampleFunc( samplingData, p );
+                        *sample++ = sampleFunc( p, samplingData );
                         p.relativeP += vXDelta;
                     }
                     p.relativeP = pAtRowStart + vYDelta;
@@ -952,7 +949,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                         // Cell at { 0, 0, 0 } (border) gets the sample at world position minGridP + { 0, 0, 0 }
                         // Account for -0
                         p.relativeP = cellP;
-                        sample = sampleFunc( samplingData, p ) + 0.f;
+                        sample = sampleFunc( p, samplingData ) + 0.f;
                         cellData( i, j, k ).sampledValue = sample;
                     }
                     else
@@ -996,7 +993,7 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                             // It's one of the edges stored in this cell, so find the intersection & normal
                             v3 pA = cellP + V3( dcCornerOffsets[indexA] ) * cellSizeMeters;
                             v3 pB = cellP + V3( dcCornerOffsets[indexB] ) * cellSizeMeters;
-                            v3 edgeP = {};
+                            v3 edgeP = V3Undefined;
 
                             static const r32 epsilon = 0.01f;
                             if( sB == R32MAX || AlmostEqual( sA, 0.f, epsilon ) )
@@ -1018,24 +1015,32 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                                     static const int maxSearchSteps = 100;
                                     int searchSteps = maxSearchSteps;
                                     r32 edgeSample = 0.f;
+                                    v3 lastP = V3Undefined;
 
                                     while( --searchSteps )
                                     {
-                                        //p.relativeP = pA + (pB - pA) * 0.5f;
                                         p.relativeP = (pA + pB) * 0.5f;
-                                        edgeSample = sampleFunc( samplingData, p );
+                                        if( p.relativeP == lastP )
+                                        {
+                                            // Float precision is limited
+                                            edgeP = lastP;
+                                            break;
+                                        }
+                                        lastP = p.relativeP;
+                                            
+                                        edgeSample = sampleFunc( p, samplingData );
 
                                         if( AlmostEqual( edgeSample, 0.f, epsilon ) )
                                         {
-                                            edgeP = p.relativeP;
+                                            edgeP = lastP;
                                             break;
                                         }
                                         else
                                         {
                                             if( Sign( edgeSample ) == Sign( sA ) )
-                                                pA = p.relativeP;
+                                                pA = lastP;
                                             else
-                                                pB = p.relativeP;
+                                                pB = lastP;
                                         }
                                     }
                                     ASSERT( searchSteps > 0 );
@@ -1044,25 +1049,25 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                             cellData( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
                             edgePoints[pointCount] = edgeP;
 
-                            ASSERT( edgeP != V3Zero );
+                            ASSERT( edgeP != V3Undefined );
                             if( pointCount )
                                 ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
 
                             // Find normal vector by sampling near the intersection point we found
                             p.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };
-                            r32 xPSample = sampleFunc( samplingData, p );
+                            r32 xPSample = sampleFunc( p, samplingData );
                             p.relativeP = { edgeP.x - delta, edgeP.y, edgeP.z };
-                            r32 xNSample = sampleFunc( samplingData, p );
+                            r32 xNSample = sampleFunc( p, samplingData );
 
                             p.relativeP = { edgeP.x, edgeP.y + delta, edgeP.z };
-                            r32 yPSample = sampleFunc( samplingData, p );
+                            r32 yPSample = sampleFunc( p, samplingData );
                             p.relativeP = { edgeP.x, edgeP.y - delta, edgeP.z };
-                            r32 yNSample = sampleFunc( samplingData, p );
+                            r32 yNSample = sampleFunc( p, samplingData );
 
                             p.relativeP = { edgeP.x, edgeP.y, edgeP.z + delta };
-                            r32 zPSample = sampleFunc( samplingData, p );
+                            r32 zPSample = sampleFunc( p, samplingData );
                             p.relativeP = { edgeP.x, edgeP.y, edgeP.z - delta };
-                            r32 zNSample = sampleFunc( samplingData, p );
+                            r32 zNSample = sampleFunc( p, samplingData );
 
                             v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
                             Normalize( normal );
@@ -1112,29 +1117,15 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
                     } break;
                     case DCComputeMethod::QEFProbabilistic:
                     {
-                        cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 0.1f, 0.1f );
+                        cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 1.f, settings.sigmaN );
                     } break;
                     case DCComputeMethod::QEFProbabilisticDouble:
                     {
-                        cellVertex = QEFMinimizePlanesProbabilistic64( edgePoints, edgeNormals, pointCount, 1.f, 0.00001f );
+                        cellVertex = QEFMinimizePlanesProbabilistic64( edgePoints, edgeNormals, pointCount, 1.f, settings.sigmaNDouble );
                     } break;
-                    case DCComputeMethod::QEFProbabilisticRef:
-                    {
-                        using namespace pq;
-                        using quadric3 = quadric<minimal_math<double>>;
 
-                        quadric3 q;
-                        quadric3::pos3 sol;
-
-                        for( int pIndex = 0; pIndex < pointCount; ++pIndex )
-                            q += quadric3::probabilistic_plane_quadric( quadric3::math::make_pos( edgePoints[pIndex].x, edgePoints[pIndex].y, edgePoints[pIndex].z ),
-                                                                        quadric3::math::make_vec( edgeNormals[pIndex].x, edgeNormals[pIndex].y, edgeNormals[pIndex].z ),
-                                                                        1.f, 0.1f );
-                        sol = q.minimizer();
-                        cellVertex = { (r32)sol.x, (r32)sol.y, (r32)sol.z };
-                    } break;
                     default:
-                    NOT_IMPLEMENTED;
+                        NOT_IMPLEMENTED;
                 }
 
                 if( settings.clampCellPoints )
@@ -1374,7 +1365,6 @@ ISO_SURFACE_FUNC( BoxSurfaceFunc )
 
 #define SURFACE_LIST(x) \
     x(MechanicalPart)   \
-    x(Box)              \
     x(Torus)            \
     x(HollowCube)       \
     x(Devil)            \
@@ -1382,27 +1372,40 @@ ISO_SURFACE_FUNC( BoxSurfaceFunc )
     x(TangleCube)       \
     x(TrefoilKnot)      \
     x(Genus2)           \
+    //x(Cone)            \
+    //x(LinkedTorii)      \
 
 STRUCT_ENUM(SimpleSurface, SURFACE_LIST);
 #undef SURFACE_LIST
 
+
+struct SamplingData
+{
+    m4 invWorldTransform;
+    u32 surfaceType;
+};
+
+
 ISO_SURFACE_FUNC( SimpleSurfaceFunc )
 {
-    int surfaceIndex = *(int*)samplingData;
+    SamplingData* data = (SamplingData*)samplingData;
+    int surfaceIndex = data->surfaceType;
 
-    // NOTE We're axis aligned for now, so just translate
-    //v3 invWorldP = worldP.relativeP - V3Zero;
-    v3 const& invWorldP = worldP.relativeP;
+    // NOTE Don't care about translation
+    v3 const& invWorldP = Transform( data->invWorldTransform, worldP.relativeP );
 
     r32 result = R32INF;
     switch( surfaceIndex )
     {
-        case SimpleSurface::Box().index:
-            result = SDFBox( invWorldP, { 70, 70, 70 } );
-            break;
         case SimpleSurface::Torus().index:
             result = SDFTorus( invWorldP, 70, 30 );
             break;
+        //case SimpleSurface::Cone().index:
+            //result = SDFCone( invWorldP, 0.5, 100 );
+            //break;
+        //case SimpleSurface::LinkedTorii().index:
+            //result = SDFLinkedTorii( invWorldP, 45, 20, 25 );
+            //break;
         case SimpleSurface::HollowCube().index:
             result = SDFHollowCube( invWorldP );
             break;

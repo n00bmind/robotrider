@@ -84,15 +84,19 @@ struct GameState
 STRUCT_ENUM(ContouringTechnique, VALUES)
 #undef VALUES
 
-union ContouringSettings
+struct ContouringSettings
 {
     // Marching Cubes
     struct
     {
-        bool interpolate;
+        bool mcInterpolate;
     };
     // Dual Contour
     DCSettings dc;
+
+    v3 surfaceRotDegrees;
+    int currentSurfaceIndex;
+    int currentTechniqueIndex;
 };
 
 struct TransientState
@@ -101,9 +105,8 @@ struct TransientState
     MeshPool meshPool;
     Mesh* testMesh;
 
-    ContouringSettings settings[ContouringTechnique::Values::count];
-    int currentSurfaceIndex;
-    int currentTechniqueIndex;
+    ContouringSettings settings;
+    r32 rebuildTimeSeconds;
 
     // NOTE All this needs to be here for stuff to compile, but it's not being used
 #if 1
