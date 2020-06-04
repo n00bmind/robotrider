@@ -288,11 +288,11 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
     {
         u32 indexStartOffset = entry->runningVertexCount;
 
-        PushVertices( mesh.vertices, mesh.vertexCount, commands );
-        entry->runningVertexCount += mesh.vertexCount;
-        PushIndices( mesh.indices, mesh.indexCount, commands );
+        PushVertices( mesh.vertices.data, mesh.vertices.count, commands );
+        entry->runningVertexCount += mesh.vertices.count;
+        PushIndices( mesh.indices.data, mesh.indices.count, commands );
 
-        PushMeshData( mesh.vertexCount, mesh.indexCount, indexStartOffset, mesh.simClusterIndex, commands );
+        PushMeshData( mesh.vertices.count, mesh.indices.count, indexStartOffset, mesh.simClusterIndex, commands );
         entry->meshCount++;
     }
 #endif

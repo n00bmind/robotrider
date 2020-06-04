@@ -149,11 +149,11 @@ void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemor
     ImGui::Columns( 4, nullptr, true );
 
     Array<DebugCounterLog> counterLogs = Array<DebugCounterLog>( (DebugCounterLog*)debugState->counterLogs,
-                                                                 debugState->counterLogsCount,
                                                                  (u32)ARRAYCOUNT(debugState->counterLogs) );
+    counterLogs.count = debugState->counterLogsCount;
 
     u32 snapshotIndex = debugState->counterSnapshotIndex;
-    Array<KeyIndex64> counterFrameKeys = Array<KeyIndex64>( tmpMemory.arena, 0, counterLogs.count, Temporary() );
+    Array<KeyIndex64> counterFrameKeys = Array<KeyIndex64>( tmpMemory.arena, counterLogs.count, Temporary() );
     BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, snapshots[snapshotIndex].cycleCount),
                             &counterFrameKeys );
     // TODO Use RadixSort11 if this gets big
@@ -200,7 +200,7 @@ void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemor
     contentWidth = ImGui::GetWindowWidth();
     ImGui::Columns( 3, nullptr, true );
 
-    Array<KeyIndex64> counterTotalKeys = Array<KeyIndex64>( tmpMemory.arena, 0, counterLogs.count, Temporary() );
+    Array<KeyIndex64> counterTotalKeys = Array<KeyIndex64>( tmpMemory.arena, counterLogs.count, Temporary() );
     BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, totalCycleCount), &counterTotalKeys );
     RadixSort( &counterTotalKeys, RadixKey::U64, false, tmpMemory.arena );
 

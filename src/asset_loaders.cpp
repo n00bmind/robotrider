@@ -300,11 +300,11 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
         }
     }
 
-    Array<u32> indices( arena, 0, indexCount );
+    Array<u32> indices( arena, indexCount );
 
-    Array<v3> positions( tmpMemory.arena, 0, vertexCount, Temporary() );
-    Array<v2> uvs( tmpMemory.arena, 0, uvCount, Temporary() );
-    Array<v3> normals( tmpMemory.arena, 0, normalCount, Temporary() );
+    Array<v3> positions( tmpMemory.arena, vertexCount, Temporary() );
+    Array<v2> uvs( tmpMemory.arena, uvCount, Temporary() );
+    Array<v3> normals( tmpMemory.arena, normalCount, Temporary() );
 
     // Map vertex pos+uv+normal to final vertex index
     // Initially every vertex would map to exactly one entry in the table, but due to
@@ -459,9 +459,8 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
 
     globalPlatform.DEBUGFreeFileMemory( read.contents );
 
-    Array<TexturedVertex> packedVertices( arena, 0, vertices.count );
-    vertices.CopyTo( packedVertices.data );
-    packedVertices.count = vertices.count;
+    Array<TexturedVertex> packedVertices( arena, vertices.count );
+    vertices.CopyTo( packedVertices );
 
     // Pre apply transform
     if( !AlmostEqual( appliedTransform, M4Identity ) )
@@ -472,10 +471,8 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
 
     Mesh result;
     InitMesh( &result );
-    result.vertices = packedVertices.data;
-    result.vertexCount = packedVertices.count;
-    result.indices = indices.data;
-    result.indexCount = indices.count;
+    result.vertices = Array<TexturedVertex>( packedVertices.data, packedVertices.count );
+    result.indices = Array<u32>( indices.data, indices.count );
     CalcBounds( &result );
 
     return result;

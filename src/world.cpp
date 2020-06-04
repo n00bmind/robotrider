@@ -109,7 +109,7 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     }
 
     // Pre-calc offsets to each simulated cluster to pass to shaders
-    world->simClusterOffsets = Array<v3>( worldArena, 0, SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis + 1 );
+    world->simClusterOffsets = Array<v3>( worldArena, SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis + 1 );
     world->simClusterOffsets.Resize( SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis + 1 );
 
     // Use slot 0 for no-offset too, so meshes that don't use this mechanism are not affected
@@ -601,8 +601,8 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
         cluster->populated = false;
         cluster->entityStorage = BucketArray<StoredEntity>( arena, 256 );
         const u32 maxSplits = 256;
-        cluster->volumes = Array<BinaryVolume>( arena, 0, maxSplits );
-        cluster->rooms = Array<Room>( arena, 0, 32 );
+        cluster->volumes = Array<BinaryVolume>( arena, maxSplits );
+        cluster->rooms = Array<Room>( arena, 32 );
     }
 
     if( !cluster->populated )

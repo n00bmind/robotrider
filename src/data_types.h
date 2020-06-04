@@ -48,34 +48,40 @@ struct Array
 
 //private:
     u32 count;
-    u32 maxCount;
+    u32 capacity;
 
     Array()
     {
         data = nullptr;
         count = 0;
-        maxCount = 0;
+        capacity = 0;
     }
 
-    // FIXME Remove count arg
-    Array( MemoryArena* arena, u32 count_, u32 maxCount_, MemoryParams params = DefaultMemoryParams() )
+    // NOTE All newly allocated arrays start empty
+    Array( MemoryArena* arena, u32 capacity_, MemoryParams params = DefaultMemoryParams() )
     {
-        data = PUSH_ARRAY( arena, T, maxCount_, params );
-        count = count_;
-        maxCount = maxCount_;
+        data = PUSH_ARRAY( arena, T, capacity_, params );
+        count = 0;
+        capacity = capacity_;
     }
 
-    Array( T* data_, u32 count_, u32 maxCount_ )
+    // NOTE All arrays initialized from a buffer start with count equal to the full capacity
+    Array( T* buffer, u32 bufferCount )
     {
-        data = data_;
-        count = count_;
-        maxCount = maxCount_;
+        data = buffer;
+        count = bufferCount;
+        capacity = bufferCount;
     }
 
     void Resize( u32 new_count )
     {
-        ASSERT( new_count <= maxCount );
+        ASSERT( new_count <= capacity );
         count = new_count;
+    }
+
+    void ResizeToCapacity()
+    {
+        count = capacity;
     }
 
     T& operator[]( u32 i )
@@ -110,7 +116,7 @@ struct Array
 
     T* PushEmpty( bool clear = true )
     {
-        ASSERT( count < maxCount );
+        ASSERT( count < capacity );
         T* result = data + count++;
         if( clear )
             PZERO( result, sizeof(T) );
@@ -144,7 +150,7 @@ struct Array
 
     void CopyTo( Array<T>* out ) const
     {
-        ASSERT( out->maxCount >= count );
+        ASSERT( out->capacity >= count );
         PCOPY( data, out->data, count * sizeof(T) );
         out->count = count;
     }
@@ -182,11 +188,11 @@ struct Array
 
     u32 Available() const
     {
-        return maxCount - count;
+        return capacity - count;
     }
 };
 
-#define ARRAY(type, count, name) type _##name[count];Array<type> name( _##name, 0, count );
+#define ARRAY(type, count, name) type _##name[count];Array<type> name( _##name, count );
 
 
 // TODO Rename this to Grid2D and try to remove the row/col semantics and just use x/y (also add operator())
@@ -367,8 +373,8 @@ struct RingBuffer
     u32 headIndex;
 
 
-    RingBuffer( MemoryArena* arena, u32 maxCount_, MemoryParams params = DefaultMemoryParams() )
-        : buffer( arena, 0, maxCount_, params )
+    RingBuffer( MemoryArena* arena, u32 capacity_, MemoryParams params = DefaultMemoryParams() )
+        : buffer( arena, capacity_, params )
     {
         headIndex = 0;
     }
@@ -380,12 +386,12 @@ struct RingBuffer
 
     T* PushEmpty( bool clear = true )
     {
-        ASSERT( headIndex < buffer.maxCount );
+        ASSERT( headIndex < buffer.capacity );
 
         T* result = buffer.data + headIndex++;
-        if( headIndex == buffer.maxCount )
+        if( headIndex == buffer.capacity )
             headIndex = 0;
-        if( buffer.count < buffer.maxCount )
+        if( buffer.count < buffer.capacity )
             buffer.count++;
 
         if( clear )
@@ -417,8 +423,8 @@ struct RingStack
     u32 topIndex;
 
 
-    RingStack( MemoryArena* arena, u32 maxCount_, MemoryParams params = DefaultMemoryParams() )
-        : buffer( arena, 0, maxCount_, params )
+    RingStack( MemoryArena* arena, u32 capacity_, MemoryParams params = DefaultMemoryParams() )
+        : buffer( arena, 0, capacity_, params )
     {
         topIndex = 0;
     }
@@ -433,7 +439,7 @@ struct RingStack
         T* result = nullptr;
         if( buffer.count )
         {
-            u32 top = topIndex ? topIndex - 1 : buffer.maxCount - 1;
+            u32 top = topIndex ? topIndex - 1 : buffer.capacity - 1;
             result = buffer.data + top;
         }
         return result;
@@ -443,19 +449,19 @@ struct RingStack
     const T& At( u32 fromTop ) const
     {
         ASSERT( fromTop < buffer.count );
-        u32 index = (topIndex - fromTop - 1) % buffer.maxCount;
+        u32 index = (topIndex - fromTop - 1) % buffer.capacity;
 
         return buffer[index];
     }
 
     T* PushEmpty( bool clear = true )
     {
-        ASSERT( topIndex < buffer.maxCount );
+        ASSERT( topIndex < buffer.capacity );
 
         T* result = buffer.data + topIndex++;
-        if( topIndex == buffer.maxCount )
+        if( topIndex == buffer.capacity )
             topIndex = 0;
-        if( buffer.count < buffer.maxCount )
+        if( buffer.count < buffer.capacity )
             buffer.count++;
 
         if( clear )
@@ -475,7 +481,7 @@ struct RingStack
     {
         if( buffer.count )
         {
-            topIndex = topIndex ? --topIndex : buffer.maxCount - 1;
+            topIndex = topIndex ? --topIndex : buffer.capacity - 1;
             --buffer.count;
         }
         else
@@ -621,7 +627,7 @@ struct HashTable
 
     Array<K> Keys( MemoryArena* arena_, MemoryParams params = DefaultMemoryParams() ) const
     {
-        Array<K> result( arena_, 0, count, params );
+        Array<K> result( arena_, count, params );
         for( u32 i = 0; i < tableSize; ++i )
         {
             if( table[i].occupied )
@@ -643,7 +649,7 @@ struct HashTable
 
     Array<V> Values( MemoryArena* arena_, MemoryParams params = DefaultMemoryParams() ) const
     {
-        Array<V> result( arena_, 0, count, params );
+        Array<V> result( arena_, count, params );
         for( u32 i = 0; i < tableSize; ++i )
         {
             if( table[i].occupied )
@@ -1189,8 +1195,25 @@ struct BucketArray
         return result;
     }
 
-    void CopyTo( T* buffer ) const
+    void CopyTo( T* buffer, u32 bufferCount ) const
     {
+        ASSERT( count <= bufferCount );
+
+        const Bucket* bucket = &first;
+        while( bucket )
+        {
+            PCOPY( bucket->data, buffer, bucket->count * sizeof(T) );
+            buffer += bucket->count;
+            bucket = bucket->next;
+        }
+    }
+
+    void CopyTo( Array<T>& array ) const
+    {
+        ASSERT( count <= array.capacity );
+        array.Resize( count );
+
+        T* buffer = array.data;
         const Bucket* bucket = &first;
         while( bucket )
         {
@@ -1202,9 +1225,9 @@ struct BucketArray
 
     Array<T> ToArray( MemoryArena* arena_ ) const
     {
-        Array<T> result( arena_, count, count );
-        CopyTo( result.data );
-        result.count = count;
+        Array<T> result( arena_, count );
+        result.ResizeToCapacity();
+        CopyTo( result );
 
         return result;
     }
@@ -1543,7 +1566,7 @@ void TestDataTypes()
     v3 aLotOfVecs[10];
 
     //dynArray.data = aLotOfVecs;
-    //dynArray.maxCount = ARRAYCOUNT(aLotOfVecs);
+    //dynArray.capacity = ARRAYCOUNT(aLotOfVecs);
 #endif
 }
 

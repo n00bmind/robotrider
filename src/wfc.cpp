@@ -229,13 +229,13 @@ BuildPatternsIndex( const u32 N, Input* input, MemoryArena* arena )
 
     for( u32 d = 0; d < ARRAYCOUNT(input->patternsIndex); ++d )
     {
-        Array<IndexEntry> entries( arena, 0, patternCount );
+        Array<IndexEntry> entries( arena, patternCount );
 
         for( u32 p = 0; p < patternCount; ++p )
         {
             u8* pData = input->patterns[p].data;
 
-            Array<bool> matches( arena, 0, patternCount );
+            Array<bool> matches( arena, patternCount );
 
             for( u32 q = 0; q < patternCount; ++q )
             {
@@ -254,11 +254,16 @@ AllocSnapshot( Snapshot* result, u32 waveLength, u32 patternCount, MemoryArena* 
     u32 patternGroupCount = Ceil( (r32)patternCount / 64.f );
     result->wave = Array2<u64>( arena, waveLength, patternGroupCount );
     result->adjacencyCounters = Array2<u64>( arena, waveLength, patternCount );
-    result->compatiblesCount = Array<u32>( arena, waveLength, waveLength );
-    result->sumFrequencies = Array<r64>( arena, waveLength, waveLength );
-    result->sumWeights = Array<r64>( arena, waveLength, waveLength );
-    result->entropies = Array<r64>( arena, waveLength, waveLength );
-    result->distribution = Array<r32>( arena, patternCount, patternCount );
+    result->compatiblesCount = Array<u32>( arena, waveLength );
+    result->compatiblesCount.ResizeToCapacity();
+    result->sumFrequencies = Array<r64>( arena, waveLength );
+    result->sumFrequencies.ResizeToCapacity();
+    result->sumWeights = Array<r64>( arena, waveLength );
+    result->sumWeights.ResizeToCapacity();
+    result->entropies = Array<r64>( arena, waveLength );
+    result->entropies.ResizeToCapacity();
+    result->distribution = Array<r32>( arena, patternCount );
+    result->distribution.ResizeToCapacity();
 }
 
 internal void
@@ -593,8 +598,9 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
     const u32 waveLength = waveDim.x * waveDim.y;
     const u32 patternCount = input.patterns.count;
     const u32 propagationStackSize = waveLength * 5;                            // Increase as needed
-    state->propagationStack = Array<BannedTuple>( arena, 0, propagationStackSize );
-    state->distributionTemp = Array<r32>( arena, patternCount, patternCount );
+    state->propagationStack = Array<BannedTuple>( arena, propagationStackSize );
+    state->distributionTemp = Array<r32>( arena, patternCount );
+    state->distributionTemp.ResizeToCapacity();
     state->backtrackedCellIndices = RingBuffer<u32>( arena, BacktrackedCellsCacheCount );
 
     // Now we want to calculate the max number of snapshots that will fit in our arena,
@@ -616,7 +622,7 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
     // @Incomplete Calc total arena waste here and do something about it!
 
     // We need to allocate the stack before any snapshot, so that rewinding snapshots will work properly
-    state->snapshotStack = Array<Snapshot>( arena, 0, maxSnapshotCount );
+    state->snapshotStack = Array<Snapshot>( arena, maxSnapshotCount );
 
     // Create initial snapshot
     Snapshot snapshot0;
@@ -736,7 +742,7 @@ NeedSnapshot( State* state, u32 totalObservationCount )
     u32 value = state->observationCount;
     
     r32 x = (r32)state->snapshotStack.count;
-    r32 SC = (r32)state->snapshotStack.maxCount;
+    r32 SC = (r32)state->snapshotStack.capacity;
 
     // Using a n-th degree parabola, calc the observations count corresponding to the next snapshot
     r32 n = ObservationCountParabolaDegree;
@@ -1058,8 +1064,10 @@ GlobalState* StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryAren
 
     GlobalState* result = PUSH_STRUCT( wfcArena, GlobalState );
     result->spec = spec;
-    result->jobs = Array<Job>( wfcArena, maxJobCount, maxJobCount );
-    result->jobMemoryChunks = Array<JobMemory>( wfcArena, maxJobCount, maxJobCount );
+    result->jobs = Array<Job>( wfcArena, maxJobCount );
+    result->jobs.ResizeToCapacity();
+    result->jobMemoryChunks = Array<JobMemory>( wfcArena, maxJobCount );
+    result->jobMemoryChunks.ResizeToCapacity();
     result->outputChunks = Array2<ChunkInfo>( wfcArena, spec.outputChunkCount.y, spec.outputChunkCount.x );
     result->globalWFCArena = wfcArena;
 
@@ -1074,7 +1082,8 @@ GlobalState* StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryAren
 
         input.frequencies = input.patternsHash.Values( wfcArena );
         ASSERT( input.frequencies.count == patternCount );
-        input.weights = Array<r64>( wfcArena, patternCount, patternCount );
+        input.weights = Array<r64>( wfcArena, patternCount );
+        input.weights.ResizeToCapacity();
         // Calc initial entropy, counters, etc.
         input.sumFrequencies = 0;                                                     // sumOfWeights
         input.sumWeights = 0;                                                         // sumOfWeightLogWeights
@@ -1095,7 +1104,8 @@ GlobalState* StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryAren
     {
         ChunkInfo& info = result->outputChunks[i];
         info = {};
-        info.collapsedWave = Array<u32>( wfcArena, waveLength, waveLength );
+        info.collapsedWave = Array<u32>( wfcArena, waveLength );
+        info.collapsedWave.ResizeToCapacity();
         info.outputSamples = Array2<u8>( wfcArena, spec.outputChunkDim.y, spec.outputChunkDim.x );
         info.pChunk = result->outputChunks.XYForIndex( i );
     }
@@ -1558,7 +1568,7 @@ u32 DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
 
                 if( state->snapshotStack )
                 {
-                    ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.count, state->snapshotStack.maxCount );
+                    ImGui::Text( "Snapshot stack: %d / %d", state->snapshotStack.count, state->snapshotStack.capacity );
                     ImGui::Text( "Backtracked cells cache: %d", state->backtrackedCellIndices.Count() );
                     ImGui::Text( "Total contradictions: %d", state->contradictionCount );
                     ImGui::Spacing();
@@ -1617,7 +1627,10 @@ u32 DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
         case TestPage::Patterns:
         {
             if( !displayState->patternTextures )
-                displayState->patternTextures = Array<Texture>( wfcDisplayArena, patternsCount, patternsCount );
+            {
+                displayState->patternTextures = Array<Texture>( wfcDisplayArena, patternsCount );
+                displayState->patternTextures.ResizeToCapacity();
+            }
 
             bool firstRow = true;
             ImGui::Columns( patternsCountSqrt, nullptr, false );
@@ -1648,7 +1661,10 @@ u32 DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
         case TestPage::Index:
         {
             if( !displayState->patternTextures )
-                displayState->patternTextures = Array<Texture>( wfcDisplayArena, patternsCount, patternsCount );
+            {
+                displayState->patternTextures = Array<Texture>( wfcDisplayArena, patternsCount );
+                displayState->patternTextures.ResizeToCapacity();
+            }
 
             ImGui::BeginChild( "child_index_entries", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
             for( u32 i = 0; i < patternsCount; ++i )

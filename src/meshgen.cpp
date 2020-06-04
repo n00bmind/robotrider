@@ -114,9 +114,12 @@ Mesh* AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
         const sz blockSplitThreshold = 4096;
         result = (Mesh*)UseBlock( block, totalMeshSize, blockSplitThreshold );
 
+        u8* vertexData = (u8*)result + sizeof(Mesh);
+        u8* indexData = vertexData + vertexSize;
+
         InitMesh( result );
-        result->vertices = (TexturedVertex*)((u8*)result + sizeof(Mesh));
-        result->indices = (u32*)((u8*)result->vertices + vertexSize);
+        result->vertices = Array<TexturedVertex>( (TexturedVertex*)vertexData, vertexCount );
+        result->indices = Array<u32>( (u32*)indexData, indexCount );
         result->ownerPool = pool;
 
         pool->meshCount++;
@@ -137,29 +140,9 @@ Mesh* AllocateMeshFromScratchBuffers( MeshPool* pool )
                                  pool->scratchIndices.count );
 
     pool->scratchVertices.CopyTo( result->vertices );
-    result->vertexCount = pool->scratchVertices.count;
-
     pool->scratchIndices.CopyTo( result->indices );
-    result->indexCount = pool->scratchIndices.count;
 
     return result;
-}
-
-Mesh*
-CopyMeshFromScratchBuffers( Mesh* mesh, MeshPool* pool )
-{
-    if( mesh->vertexCount != pool->scratchVertices.count ||
-        mesh->indexCount != pool->scratchIndices.count )
-    {
-        mesh = AllocateMeshFromScratchBuffers( pool );
-    }
-    else
-    {
-        pool->scratchVertices.CopyTo( mesh->vertices );
-        pool->scratchIndices.CopyTo( mesh->indices );
-    }
-
-    return mesh;
 }
 
 void ReleaseMesh( Mesh** mesh )
@@ -769,8 +752,8 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
 }
 
 Mesh*
-MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
-               const void* samplingData, IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool, const bool interpolate = true )
+MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
+                 const void* samplingData, IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool, const bool interpolate = true )
 {
     ClearScratchBuffers( meshPool );
 
@@ -778,10 +761,10 @@ MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSize
         TIMED_BLOCK;
 
         // TODO Should do ceil
-        v2u cellsPerSliceAxis = V2u( areaSideMeters.xy / cellSizeMeters );
-        u32 sliceCount = (u32)(areaSideMeters.z / cellSizeMeters);
+        v2u cellsPerSliceAxis = V2u( volumeSideMeters.xy / cellSizeMeters );
+        u32 sliceCount = (u32)(volumeSideMeters.z / cellSizeMeters);
         ASSERT( samplingCache->cellsPerAxis.x >= cellsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= cellsPerSliceAxis.y );
-        v3 halfSideMeters = areaSideMeters / 2;
+        v3 halfSideMeters = volumeSideMeters / 2;
         v3 cornerOffset = -halfSideMeters;
 
         v3 vXDelta = V3( cellSizeMeters, 0, 0 );
@@ -853,8 +836,8 @@ MarchAreaFast( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSize
 
 // TODO Clean up asserts
 Mesh*
-DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
-        MeshPool* meshPool, MemoryArena* tempArena, DCSettings const& settings )
+DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
+          MeshPool* meshPool, MemoryArena* tempArena, DCSettings const& settings )
 {
     struct CellData
     {
@@ -908,12 +891,12 @@ DCArea( WorldCoords const& worldP, v3 const& areaSideMeters, r32 cellSizeMeters,
     ClearScratchBuffers( meshPool );
 
     // One extra layer of cells in X,Y,Z (around the min grid corner) to store the edges and samples at the border
-    v3u cellsPerAxis = V3uCeil( areaSideMeters / cellSizeMeters ) + V3uOne;
+    v3u cellsPerAxis = V3uCeil( volumeSideMeters / cellSizeMeters ) + V3uOne;
 
     Grid3D<CellData> cellData = Grid3D<CellData>( tempArena, cellsPerAxis, Temporary() );
     PZERO( cellData.data, cellsPerAxis.x * cellsPerAxis.y * cellsPerAxis.z * sizeof(CellData) );
 
-    v3 halfSideMeters = areaSideMeters / 2;
+    v3 halfSideMeters = volumeSideMeters / 2;
     v3 minGridP = worldP.relativeP - halfSideMeters;
     WorldCoords p = worldP;
 
@@ -1298,7 +1281,7 @@ ISO_SURFACE_FUNC(SampleMetaballs)
     const Array<Metaball>& balls = *(const Array<Metaball>*)samplingData;
 
     r32 minValue = R32MAX;
-    for( u32 i = 0; i < balls.maxCount; ++i )
+    for( u32 i = 0; i < balls.capacity; ++i )
     {
         r32 value = DistanceSq( balls[i].pCenter, worldP.relativeP ) - balls[i].radiusMeters;
         if( value < minValue )
@@ -1316,7 +1299,7 @@ TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSu
 
     if( balls[0].radiusMeters == 0 )
     {
-        for( u32 i = 0; i < balls.maxCount; ++i )
+        for( u32 i = 0; i < balls.count; ++i )
         {
             //r32 x = RandomRange( -halfSideMeters, halfSideMeters );
             //r32 y = RandomRange( -halfSideMeters, halfSideMeters );
@@ -1338,9 +1321,9 @@ TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSu
     }
     
     // Update mesh by sampling our cubic area centered at origin
-    Mesh* metaMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( areaSideMeters ), cellSizeMeters,
-                                    SampleMetaballs, &balls,
-                                    samplingCache, meshPool );
+    Mesh* metaMesh = MarchVolumeFast( { V3Zero, V3iZero }, V3( areaSideMeters ), cellSizeMeters,
+                                      SampleMetaballs, &balls,
+                                      samplingCache, meshPool );
 
     RenderMesh( *metaMesh, renderCommands );
 }
@@ -1602,8 +1585,8 @@ UpdateMesh( FQSMesh* mesh, Array<FQSVertexRef>* refs, u32 iteration, const Tempo
     // Identify boundary vertices
     if( iteration == 0 )
     {
-        Array<u32> vCount( tmpMemory.arena, 0, 1000 );
-        Array<u32> vIds( tmpMemory.arena, 0, 1000 );
+        Array<u32> vCount( tmpMemory.arena, 1000 );
+        Array<u32> vIds( tmpMemory.arena, 1000 );
 
         for( u32 i = 0; i < mesh->vertices.count; ++i )
             mesh->vertices[i].border = false;
@@ -1760,7 +1743,7 @@ CompactMesh( FQSMesh* mesh )
 void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemory& tmpMemory,
                           r32 agressiveness = 7 )
 {
-    Array<FQSVertexRef> refs( tmpMemory.arena, 0, 500000 );
+    Array<FQSVertexRef> refs( tmpMemory.arena, 500000 );
 
     u32 triangleCount = mesh->triangles.count;
     u32 deletedTriangleCount = 0;
@@ -1797,8 +1780,8 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             {
                 if( tri.error[j] < threshold )
                 {
-                    Array<bool> deleted0( tmpMemory.arena, 0, 1000 );
-                    Array<bool> deleted1( tmpMemory.arena, 0, 1000 );
+                    Array<bool> deleted0( tmpMemory.arena, 1000 );
+                    Array<bool> deleted1( tmpMemory.arena, 1000 );
 
                     u32 i0 = tri.v[j];          FQSVertex& v0 = mesh->vertices[i0];
                     u32 i1 = tri.v[(j+1)%3];    FQSVertex& v1 = mesh->vertices[i1];
@@ -1912,21 +1895,21 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
     // For example, for X rays, the Y|Z coords are the hash, for Y rays, the X|Z coords, etc.
     // NOTE This can be heavily compressed if needed by using a more compact hash, since most entries will be empty anyway
     u32 rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
-    Array<Hit> gridHits( tmpMemory.arena, 0, 100000 );
+    Array<Hit> gridHits( tmpMemory.arena, 100000 );
 
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );
 
     // Get all triangles and find their bounds
-    u32 triangleCount = sourceMesh.indexCount / 3;
-    ASSERT( triangleCount * 3 == sourceMesh.indexCount );
+    u32 triangleCount = sourceMesh.indices.count / 3;
+    ASSERT( triangleCount * 3 == sourceMesh.indices.count );
 
     u32 vertIndex = 0;
     for( u32 i = 0; i < triangleCount; ++i )
     {
-        TexturedVertex& v0 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
-        TexturedVertex& v1 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
-        TexturedVertex& v2 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
+        TexturedVertex const& v0 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
+        TexturedVertex const& v1 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
+        TexturedVertex const& v2 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
         tri t = { v0.p, v1.p, v2.p };
 
         aabb triBounds =
@@ -2235,8 +2218,8 @@ ISO_SURFACE_FUNC(SampleRoomBody)
 
 MESH_GENERATOR_FUNC(MeshGeneratorRoomFunc)
 {
-    Mesh* result = MarchAreaFast( { V3Zero, V3iZero }, V3( generatorData.areaSideMeters ), generatorData.resolutionMeters, SampleRoomBody,
-                                  &generatorData.room, samplingCache, meshPool );
+    Mesh* result = MarchVolumeFast( { V3Zero, V3iZero }, V3( generatorData.areaSideMeters ), generatorData.resolutionMeters, SampleRoomBody,
+                                    &generatorData.room, samplingCache, meshPool );
     result->mTransform = M4Translation( entityCoords.relativeP );
 
     return result;

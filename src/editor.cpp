@@ -263,7 +263,8 @@ InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientSt
 }
 
 internal void
-TickSurfaceContouringTest( const GameInput& input, TransientState* transientState, RenderCommands* renderCommands, MemoryArena* tempArena )
+TickSurfaceContouringTest( const GameInput& input, TransientState* transientState, RenderCommands* renderCommands,
+                           MemoryArena* tempArena )
 {
     v2 renderDim = V2( renderCommands->width, renderCommands->height );
     v2 displayDim = { renderDim.x * 0.2f, renderDim.y * 0.5f };
@@ -345,19 +346,51 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         {
             case ContouringTechnique::MarchingCubes().index:
             {
-                transientState->testMesh = MarchAreaFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters,
-                                                          SimpleSurfaceFunc, &samplingData, &transientState->samplingCache,
-                                                          &transientState->meshPool, settings.mcInterpolate );
+                transientState->testMesh = MarchVolumeFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters,
+                                                            SimpleSurfaceFunc, &samplingData, &transientState->samplingCache,
+                                                            &transientState->meshPool, settings.mcInterpolate );
                
             } break;
             case ContouringTechnique::DualContouring().index:
             {
-                transientState->testMesh = DCArea( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc,
-                                                   &samplingData, &transientState->meshPool, tempArena, settings.dc );
+                transientState->testMesh = DCVolume( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc,
+                                                     &samplingData, &transientState->meshPool, tempArena, settings.dc );
 
             } break;
         }
         transientState->elapsedMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
+
+#if 0
+        // Simplify mesh
+        FQSMesh fqsMesh;
+        fqsMesh.vertices = Array<FQSVertex>( tempArena, transientState->testMesh->vertices.count );
+        fqsMesh.vertices.Resize( fqsMesh.vertices.capacity );
+        for( int i = 0; i < fqsMesh.vertices.count; ++i )
+            fqsMesh.vertices[i].p = transientState->testMesh.vertices[i].p;
+        fqsMesh.triangles = Array<FQSTriangle>( tempArena, transientState->testMesh->indices.count / 3 );
+        fqsMesh.triangles.Resize( fqsMesh.triangles.capacity );
+        for( int i = 0; i < fqsMesh.triangles.count; ++i )
+        {
+            fqsMesh.triangles[i].v[0] = transientState->testMesh.indices[ i*3 ];
+            fqsMesh.triangles[i].v[1] = transientState->testMesh.indices[ i*3 + 1 ];
+            fqsMesh.triangles[i].v[2] = transientState->testMesh.indices[ i*3 + 2 ];
+        }
+
+        FastQuadricSimplify( &fqsMesh, 10000 );
+
+        transientState->testMesh.vertices.Resize( fqsMesh.vertices.count );
+        for( int i = 0; i < fqsMesh.vertices.count; ++i )
+            transientState->testMesh.vertices[i].p = fqsMesh.vertices[i].p;
+        transientState->testMesh.indices.Resize( fqsMesh.triangles.count * 3 );
+        for( int i = 0; i < fqsMesh.triangles.count; ++i )
+        {
+            transientState->testMesh.indices[ i*3 + 0 ] = fqsMesh.triangles[i].v[0];
+            transientState->testMesh.indices[ i*3 + 1 ] = fqsMesh.triangles[i].v[1];
+            transientState->testMesh.indices[ i*3 + 2 ] = fqsMesh.triangles[i].v[2];
+        }
+#endif
+
+
         transientState->rebuildTimeSeconds = 0.f;
     }
 
@@ -366,8 +399,8 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
     u32 c = (u32)ClusterSizeMeters;
     ImGui::Text( "%u x %u x %u cells", c, c, c );
     ImGui::Dummy( { 0, 20 } );
-    ImGui::Text( "Tris: %u", transientState->testMesh->indexCount / 3 );
-    ImGui::Text( "Verts: %u", transientState->testMesh->vertexCount );
+    ImGui::Text( "Tris: %u", transientState->testMesh->indices.count / 3 );
+    ImGui::Text( "Verts: %u", transientState->testMesh->vertices.count );
     ImGui::Dummy( { 0, 20 } );
     ImGui::Text( "Extracted in: %g millis.", transientState->elapsedMillis );
     ImGui::End();

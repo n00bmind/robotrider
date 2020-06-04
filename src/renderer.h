@@ -97,10 +97,8 @@ struct Mesh
 {
     MeshPool* ownerPool;
 
-    TexturedVertex* vertices;
-    u32* indices;
-    u32 vertexCount;
-    u32 indexCount;
+    Array<TexturedVertex> vertices;
+    Array<u32> indices;
 
     Material* material;
     aabb bounds;
@@ -126,7 +124,7 @@ CalcBounds( Mesh* mesh )
 {
     aabb result = { V3Inf, -V3Inf };
 
-    for( u32 i = 0; i < mesh->vertexCount; ++i )
+    for( u32 i = 0; i < mesh->vertices.count; ++i )
     {
         v3& p = mesh->vertices[i].p;
 
