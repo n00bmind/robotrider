@@ -460,7 +460,7 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
     globalPlatform.DEBUGFreeFileMemory( read.contents );
 
     Array<TexturedVertex> packedVertices( arena, vertices.count );
-    vertices.CopyTo( packedVertices );
+    vertices.CopyTo( &packedVertices );
 
     // Pre apply transform
     if( !AlmostEqual( appliedTransform, M4Identity ) )

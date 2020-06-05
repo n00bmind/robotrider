@@ -87,9 +87,9 @@ config_win_release = Config(
 )
 
 
-default_platform = platform_win
 # default_config = config_win_debug
 default_config = config_win_develop
+default_platform = platform_win
 
 
 class colors:

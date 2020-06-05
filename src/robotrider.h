@@ -106,7 +106,9 @@ struct TransientState
     Mesh* testMesh;
 
     ContouringSettings settings;
-    r32 rebuildTimeSeconds;
+    r64 contourTimeMillis;
+    r64 simplifyTimeMillis;
+    r32 nextRebuildTimeSeconds;
 
     // NOTE All this needs to be here for stuff to compile, but it's not being used
 #if 1
@@ -126,7 +128,6 @@ struct TransientState
     WFC::DisplayState wfcDisplayState;
 #endif
 
-    r64 elapsedMillis;
 };
 
 #endif /* __ROBOTRIDER_H__ */

@@ -133,6 +133,7 @@ _PushSize( MemoryArena *arena, sz size, MemoryParams params = DefaultMemoryParam
 {
     ASSERT( arena->used + size <= arena->size );
     if( !(params.flags & MemoryFlags_TemporaryMemory) )
+        // Need to pass temp memory flag if the arena has an ongoing temp memory block
         ASSERT( arena->tempCount == 0 );
 
     void* free = arena->base + arena->used;

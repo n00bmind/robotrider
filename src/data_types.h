@@ -1208,12 +1208,12 @@ struct BucketArray
         }
     }
 
-    void CopyTo( Array<T>& array ) const
+    void CopyTo( Array<T>* array ) const
     {
-        ASSERT( count <= array.capacity );
-        array.Resize( count );
+        ASSERT( count <= array->capacity );
+        array->Resize( count );
 
-        T* buffer = array.data;
+        T* buffer = array->data;
         const Bucket* bucket = &first;
         while( bucket )
         {
@@ -1227,7 +1227,7 @@ struct BucketArray
     {
         Array<T> result( arena_, count );
         result.ResizeToCapacity();
-        CopyTo( result );
+        CopyTo( &result );
 
         return result;
     }

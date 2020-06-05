@@ -335,11 +335,11 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
     if( !EQUAL( settings, currentSettings ) )
     {
         COPY( settings, currentSettings );
-        transientState->rebuildTimeSeconds = input.totalElapsedSeconds + 0.5f;
+        transientState->nextRebuildTimeSeconds = input.totalElapsedSeconds + 0.5f;
     }
 
     if( transientState->testMesh == nullptr || input.gameCodeReloaded
-        || (transientState->rebuildTimeSeconds && input.totalElapsedSeconds > transientState->rebuildTimeSeconds) )
+        || (transientState->nextRebuildTimeSeconds && input.totalElapsedSeconds > transientState->nextRebuildTimeSeconds) )
     {
         r64 start = globalPlatform.DEBUGCurrentTimeMillis();
         switch( settings.currentTechniqueIndex )
@@ -358,40 +358,46 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
 
             } break;
         }
-        transientState->elapsedMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
+        transientState->contourTimeMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
 
-#if 0
+#if 1
+        start = globalPlatform.DEBUGCurrentTimeMillis();
+
         // Simplify mesh
         FQSMesh fqsMesh;
-        fqsMesh.vertices = Array<FQSVertex>( tempArena, transientState->testMesh->vertices.count );
+        fqsMesh.vertices = Array<FQSVertex>( tempArena, transientState->testMesh->vertices.count, Temporary() );
         fqsMesh.vertices.Resize( fqsMesh.vertices.capacity );
-        for( int i = 0; i < fqsMesh.vertices.count; ++i )
-            fqsMesh.vertices[i].p = transientState->testMesh.vertices[i].p;
-        fqsMesh.triangles = Array<FQSTriangle>( tempArena, transientState->testMesh->indices.count / 3 );
+        for( u32 i = 0; i < fqsMesh.vertices.count; ++i )
+            fqsMesh.vertices[i].p = transientState->testMesh->vertices[i].p;
+        fqsMesh.triangles = Array<FQSTriangle>( tempArena, transientState->testMesh->indices.count / 3, Temporary() );
         fqsMesh.triangles.Resize( fqsMesh.triangles.capacity );
-        for( int i = 0; i < fqsMesh.triangles.count; ++i )
+        for( u32 i = 0; i < fqsMesh.triangles.count; ++i )
         {
-            fqsMesh.triangles[i].v[0] = transientState->testMesh.indices[ i*3 ];
-            fqsMesh.triangles[i].v[1] = transientState->testMesh.indices[ i*3 + 1 ];
-            fqsMesh.triangles[i].v[2] = transientState->testMesh.indices[ i*3 + 2 ];
+            fqsMesh.triangles[i].v[0] = transientState->testMesh->indices[ i*3 ];
+            fqsMesh.triangles[i].v[1] = transientState->testMesh->indices[ i*3 + 1 ];
+            fqsMesh.triangles[i].v[2] = transientState->testMesh->indices[ i*3 + 2 ];
         }
 
-        FastQuadricSimplify( &fqsMesh, 10000 );
+        TemporaryMemory tempMemory = BeginTemporaryMemory( tempArena );
+        FastQuadricSimplify( &fqsMesh, 10000, tempMemory );
+        EndTemporaryMemory( tempMemory );
 
-        transientState->testMesh.vertices.Resize( fqsMesh.vertices.count );
-        for( int i = 0; i < fqsMesh.vertices.count; ++i )
-            transientState->testMesh.vertices[i].p = fqsMesh.vertices[i].p;
-        transientState->testMesh.indices.Resize( fqsMesh.triangles.count * 3 );
-        for( int i = 0; i < fqsMesh.triangles.count; ++i )
+        transientState->testMesh->vertices.Resize( fqsMesh.vertices.count );
+        for( u32 i = 0; i < fqsMesh.vertices.count; ++i )
+            transientState->testMesh->vertices[i].p = fqsMesh.vertices[i].p;
+        transientState->testMesh->indices.Resize( fqsMesh.triangles.count * 3 );
+        for( u32 i = 0; i < fqsMesh.triangles.count; ++i )
         {
-            transientState->testMesh.indices[ i*3 + 0 ] = fqsMesh.triangles[i].v[0];
-            transientState->testMesh.indices[ i*3 + 1 ] = fqsMesh.triangles[i].v[1];
-            transientState->testMesh.indices[ i*3 + 2 ] = fqsMesh.triangles[i].v[2];
+            transientState->testMesh->indices[ i*3 + 0 ] = fqsMesh.triangles[i].v[0];
+            transientState->testMesh->indices[ i*3 + 1 ] = fqsMesh.triangles[i].v[1];
+            transientState->testMesh->indices[ i*3 + 2 ] = fqsMesh.triangles[i].v[2];
         }
+
+        transientState->simplifyTimeMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
 #endif
 
 
-        transientState->rebuildTimeSeconds = 0.f;
+        transientState->nextRebuildTimeSeconds = 0.f;
     }
 
     ImGui::Dummy( { 0, 20 } );
@@ -402,7 +408,8 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
     ImGui::Text( "Tris: %u", transientState->testMesh->indices.count / 3 );
     ImGui::Text( "Verts: %u", transientState->testMesh->vertices.count );
     ImGui::Dummy( { 0, 20 } );
-    ImGui::Text( "Extracted in: %g millis.", transientState->elapsedMillis );
+    ImGui::Text( "Extracted in: %g millis.", transientState->contourTimeMillis );
+    ImGui::Text( "Simplified in: %g millis.", transientState->simplifyTimeMillis );
     ImGui::End();
 
     RenderSetShader( ShaderProgramName::FlatShading, renderCommands );

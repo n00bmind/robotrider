@@ -139,8 +139,8 @@ Mesh* AllocateMeshFromScratchBuffers( MeshPool* pool )
     Mesh* result = AllocateMesh( pool, pool->scratchVertices.count,
                                  pool->scratchIndices.count );
 
-    pool->scratchVertices.CopyTo( result->vertices );
-    pool->scratchIndices.CopyTo( result->indices );
+    pool->scratchVertices.CopyTo( &result->vertices );
+    pool->scratchIndices.CopyTo( &result->indices );
 
     return result;
 }
@@ -1433,7 +1433,7 @@ ISO_SURFACE_FUNC( SimpleSurfaceFunc )
 ///// MESH SIMPLIFICATION /////
 
 internal inline r64
-VertexError( const m4Symmetric& q, r64 x, r64 y, r64 z )
+FQSVertexError( const m4Symmetric& q, r64 x, r64 y, r64 z )
 {
     // Error between vertex and quadric
     r64 result = q.e[0]*x*x + 2*q.e[1]*x*y + 2*q.e[2]*x*z + 2*q.e[3]*x
@@ -1444,7 +1444,7 @@ VertexError( const m4Symmetric& q, r64 x, r64 y, r64 z )
 }
 
 internal r64
-CalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
+FQSCalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
 {
     FQSVertex& v1 = mesh->vertices[v1Idx];
     FQSVertex& v2 = mesh->vertices[v2Idx];
@@ -1462,7 +1462,7 @@ CalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
         result->x = (r32)(-1 / det * Determinant3x3( q, 1, 2, 3, 4, 5, 6, 5, 7, 8 ));
         result->y = (r32)( 1 / det * Determinant3x3( q, 0, 2, 3, 1, 5, 6, 2, 7, 8 ));
         result->z = (r32)(-1 / det * Determinant3x3( q, 0, 1, 3, 1, 4, 6, 2, 5, 8 ));
-        error = VertexError( q, result->x, result->y, result->z );
+        error = FQSVertexError( q, result->x, result->y, result->z );
     }
     else
     {
@@ -1470,9 +1470,9 @@ CalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
         v3 p1 = v1.p;
         v3 p2 = v2.p;
         v3 p3 = (p1 + p2) / 2;
-        r64 error1 = VertexError( q, p1.x, p1.y, p1.z );
-        r64 error2 = VertexError( q, p2.x, p2.y, p2.z );
-        r64 error3 = VertexError( q, p3.x, p3.y, p3.z );
+        r64 error1 = FQSVertexError( q, p1.x, p1.y, p1.z );
+        r64 error2 = FQSVertexError( q, p2.x, p2.y, p2.z );
+        r64 error3 = FQSVertexError( q, p3.x, p3.y, p3.z );
         error = Min( error1, Min( error2, error3 ) );
 
         if( error1 == error )
@@ -1486,156 +1486,9 @@ CalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
     return error;
 }
 
-internal void
-UpdateMesh( FQSMesh* mesh, Array<FQSVertexRef>* refs, u32 iteration, const TemporaryMemory& tmpMemory )
-{
-    if( iteration > 0 )
-    {
-        // Compact tri array
-        u32 dst = 0;
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
-        {
-            if( !mesh->triangles[i].deleted )
-            {
-                // FIXME Optimize this since probably the first N tris won't be deleted
-                // and this copies them into themselves
-                // Also, is this really necessary at all?
-                mesh->triangles[dst++] = mesh->triangles[i];
-            }
-        }
-        mesh->triangles.count = dst;
-    }
-
-    // Init quadrics plane & edge errors
-    // Required at the first iteration. Not required later, but could improve the result for closed meshes
-    if( iteration == 0 )
-    {
-        for( u32 i = 0; i < mesh->vertices.count; ++i )
-            mesh->vertices[i].q = M4SymmetricZero;
-
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
-        {
-            FQSTriangle& tri = mesh->triangles[i];
-            v3 n;
-            v3 p[3] =
-            {
-                mesh->vertices[tri.v[0]].p,
-                mesh->vertices[tri.v[1]].p,
-                mesh->vertices[tri.v[2]].p
-            };
-
-            n = Normalized( Cross( p[1] - p[0], p[2] - p[0] ) );
-            tri.n = n;
-
-            for( int j = 0; j < 3; ++j )
-            {
-                mesh->vertices[tri.v[j]].q += M4Symmetric( n.x, n.y, n.z, -Dot( n, p[0] ) );
-            }
-        }
-
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
-        {
-            FQSTriangle& tri = mesh->triangles[i];
-            v3 p;
-
-            for( int j = 0; j < 3; ++j )
-                tri.error[j] = CalculateError( mesh, tri.v[j], tri.v[(j+1)%3], &p );
-
-            tri.error[3] = Min( tri.error[0], Min( tri.error[1], tri.error[2] ) );
-        }
-    }
-
-    // Rebuild refs list
-    for( u32 i = 0; i < mesh->vertices.count; ++i )
-    {
-        mesh->vertices[i].refStart = 0;
-        mesh->vertices[i].refCount = 0;
-    }
-    for( u32 i = 0; i < mesh->triangles.count; ++i )
-    {
-        FQSTriangle& tri = mesh->triangles[i];
-        for( int j = 0; j < 3; ++j )
-            mesh->vertices[tri.v[j]].refCount++;
-    }
-
-    u32 refStart = 0;
-    for( u32 i = 0; i < mesh->vertices.count; ++i )
-    {
-        FQSVertex& v = mesh->vertices[i];
-        v.refStart = refStart;
-        refStart += v.refCount;
-        v.refCount = 0;
-    }
-
-    refs->count = mesh->triangles.count * 3;
-    for( u32 i = 0; i < mesh->triangles.count; ++i )
-    {
-        FQSTriangle& tri = mesh->triangles[i];
-        for( int j = 0; j < 3; ++j )
-        {
-            FQSVertex& v = mesh->vertices[tri.v[j]];
-            FQSVertexRef& r = (*refs)[v.refStart + v.refCount];
-
-            r.tId = i;
-            r.tVertex = j;
-            v.refCount++;
-        }
-    }
-
-    // Identify boundary vertices
-    if( iteration == 0 )
-    {
-        Array<u32> vCount( tmpMemory.arena, 1000 );
-        Array<u32> vIds( tmpMemory.arena, 1000 );
-
-        for( u32 i = 0; i < mesh->vertices.count; ++i )
-            mesh->vertices[i].border = false;
-        
-        for( u32 i = 0; i < mesh->vertices.count; ++i )
-        {
-            vCount.count = 0;
-            vIds.count = 0;
-
-            FQSVertex& v = mesh->vertices[i];
-
-            for( u32 j = 0; j < v.refCount; ++j )
-            {
-                u32 tId = (*refs)[v.refStart + j].tId;
-                FQSTriangle& tri = mesh->triangles[tId];
-
-                for( int k = 0; k < 3; ++k )
-                {
-                    u32 ofs = 0;
-                    u32 id = tri.v[k];
-                    while( ofs < vCount.count )
-                    {
-                        if( vIds[ofs] == id )
-                            break;
-                        ofs++;
-                    }
-
-                    if( ofs == vCount.count )
-                    {
-                        vCount.Push( 1 );
-                        vIds.Push( id );
-                    }
-                    else
-                        vCount[ofs]++;
-                }
-            }
-
-            for( u32 j = 0; j < vCount.count; ++j )
-            {
-                if( vCount[j] == 1 )
-                    mesh->vertices[vIds[j]].border = true;
-            }
-        }
-    }
-}
-
 internal bool
-Flipped( const FQSMesh& mesh, const Array<FQSVertexRef>& refs,
-         const v3& p, u32 i0, u32 i1, const FQSVertex& v0, const FQSVertex& v1, Array<bool>* deleted )
+FQSFlipped( const FQSMesh& mesh, const Array<FQSVertexRef>& refs,
+            const v3& p, u32 i0, u32 i1, const FQSVertex& v0, const FQSVertex& v1, Array<bool>* deleted )
 {
     for( u32 k = 0; k < v0.refCount; ++k )
     {
@@ -1670,8 +1523,8 @@ Flipped( const FQSMesh& mesh, const Array<FQSVertexRef>& refs,
 
 // Update triangle connections and edge error after an edge is collapsed
 internal void
-UpdateTriangles( u32 i0, const FQSVertex& v, const Array<bool>& deleted,
-                 FQSMesh* mesh, Array<FQSVertexRef>* refs, u32* deleteTriangleCount )
+FQSUpdateTriangles( u32 i0, const FQSVertex& v, const Array<bool>& deleted,
+                    FQSMesh* mesh, Array<FQSVertexRef>* refs, u32* deleteTriangleCount )
 {
     v3 p;
     for( u32 k = 0; k < v.refCount; ++k )
@@ -1690,67 +1543,27 @@ UpdateTriangles( u32 i0, const FQSVertex& v, const Array<bool>& deleted,
 
         tri.v[ref.tVertex] = i0;
         tri.dirty = true;
-        tri.error[0] = CalculateError( mesh, tri.v[0], tri.v[1], &p );
-        tri.error[1] = CalculateError( mesh, tri.v[1], tri.v[2], &p );
-        tri.error[2] = CalculateError( mesh, tri.v[2], tri.v[0], &p );
+        tri.error[0] = FQSCalculateError( mesh, tri.v[0], tri.v[1], &p );
+        tri.error[1] = FQSCalculateError( mesh, tri.v[1], tri.v[2], &p );
+        tri.error[2] = FQSCalculateError( mesh, tri.v[2], tri.v[0], &p );
         tri.error[3] = Min( tri.error[0], Min( tri.error[1], tri.error[2] ) );
         refs->Push( ref );
     }
 }
 
-internal void
-CompactMesh( FQSMesh* mesh )
-{
-    u32 dst = 0;
-
-    for( u32 i = 0; i < mesh->vertices.count; ++i )
-        mesh->vertices[i].refCount = 0;
-
-    for( u32 i = 0; i < mesh->triangles.count; ++i )
-    {
-        FQSTriangle& tri = mesh->triangles[i];
-        if( !tri.deleted )
-        {
-            mesh->triangles[dst++] = tri;
-            for( int j = 0; j < 3; ++j )
-                mesh->vertices[tri.v[j]].refCount = 1;
-        }
-    }
-    mesh->triangles.count = dst;
-    dst = 0;
-
-    for( u32 i = 0; i < mesh->vertices.count; ++i )
-    {
-        FQSVertex& v = mesh->vertices[i];
-        if( v.refCount )
-        {
-            v.refStart = dst;
-            mesh->vertices[dst].p = v.p;
-            dst++;
-        }
-    }
-
-    for( u32 i = 0; i < mesh->triangles.count; ++i )
-    {
-        FQSTriangle& tri = mesh->triangles[i];
-        for( int j = 0; j < 3; ++j )
-            tri.v[j] = mesh->vertices[tri.v[j]].refStart;
-    }
-    mesh->vertices.count = dst;
-}
-
 // Taken from https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification
+// Simplification by edge contraction based on quadric error metrics
 void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemory& tmpMemory,
                           r32 agressiveness = 7 )
 {
-    Array<FQSVertexRef> refs( tmpMemory.arena, 500000 );
-
     u32 triangleCount = mesh->triangles.count;
     u32 deletedTriangleCount = 0;
 
     for( u32 i = 0; i < triangleCount; ++i )
         mesh->triangles[i].deleted = false;
 
+    // Need extra space for FQSUpdateTriangles below
+    Array<FQSVertexRef> refs( tmpMemory.arena, triangleCount * 3 * 3, Temporary() );
     for( int iteration = 0; iteration < 100; ++iteration )
     {
         if( triangleCount - deletedTriangleCount <= targetTriCount )
@@ -1758,7 +1571,148 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
 
         // Update mesh every few cycles (including first time through)
         if( iteration % 5 == 0 )
-            UpdateMesh( mesh, &refs, iteration, tmpMemory );
+        {
+            // Init quadrics plane & edge errors
+            // Required at the first iteration. Not required later, but could improve the result for closed meshes
+            if( iteration == 0 )
+            {
+                for( u32 i = 0; i < mesh->vertices.count; ++i )
+                    mesh->vertices[i].q = M4SymmetricZero;
+
+                for( u32 i = 0; i < mesh->triangles.count; ++i )
+                {
+                    FQSTriangle& tri = mesh->triangles[i];
+                    v3 p[3] =
+                    {
+                        mesh->vertices[tri.v[0]].p,
+                        mesh->vertices[tri.v[1]].p,
+                        mesh->vertices[tri.v[2]].p
+                    };
+
+                    v3 n = Normalized( Cross( p[1] - p[0], p[2] - p[0] ) );
+                    tri.n = n;
+
+                    for( int j = 0; j < 3; ++j )
+                    {
+                        mesh->vertices[tri.v[j]].q += M4Symmetric( n.x, n.y, n.z, -Dot( n, p[0] ) );
+                    }
+                }
+
+                for( u32 i = 0; i < mesh->triangles.count; ++i )
+                {
+                    FQSTriangle& tri = mesh->triangles[i];
+                    v3 p;
+
+                    for( int j = 0; j < 3; ++j )
+                        tri.error[j] = FQSCalculateError( mesh, tri.v[j], tri.v[(j+1)%3], &p );
+
+                    tri.error[3] = Min( tri.error[0], Min( tri.error[1], tri.error[2] ) );
+                }
+            }
+            else
+            {
+                // Compact tri array
+                u32 dst = 0;
+                for( u32 i = 0; i < mesh->triangles.count; ++i )
+                {
+                    if( !mesh->triangles[i].deleted )
+                    {
+                        // FIXME Optimize this since probably the first N tris won't be deleted
+                        // and this copies them into themselves
+                        // Also, is this really necessary at all?
+                        mesh->triangles[dst++] = mesh->triangles[i];
+                    }
+                }
+                mesh->triangles.count = dst;
+            }
+
+            // Rebuild refs list
+            for( u32 i = 0; i < mesh->vertices.count; ++i )
+            {
+                mesh->vertices[i].refStart = 0;
+                mesh->vertices[i].refCount = 0;
+            }
+            for( u32 i = 0; i < mesh->triangles.count; ++i )
+            {
+                FQSTriangle& tri = mesh->triangles[i];
+                for( int j = 0; j < 3; ++j )
+                    mesh->vertices[tri.v[j]].refCount++;
+            }
+
+            u32 refStart = 0;
+            for( u32 i = 0; i < mesh->vertices.count; ++i )
+            {
+                FQSVertex& v = mesh->vertices[i];
+                v.refStart = refStart;
+                refStart += v.refCount;
+                v.refCount = 0;
+            }
+
+            refs.Resize( mesh->triangles.count * 3 );
+            for( u32 i = 0; i < mesh->triangles.count; ++i )
+            {
+                FQSTriangle& tri = mesh->triangles[i];
+                for( int j = 0; j < 3; ++j )
+                {
+                    FQSVertex& v = mesh->vertices[tri.v[j]];
+                    FQSVertexRef& r = refs[v.refStart + v.refCount];
+
+                    r.tId = i;
+                    r.tVertex = j;
+                    v.refCount++;
+                }
+            }
+
+            // Identify boundary vertices
+            if( iteration == 0 )
+            {
+                Array<u32> vCount( tmpMemory.arena, 1000, Temporary() );
+                Array<u32> vIds( tmpMemory.arena, 1000, Temporary() );
+
+                for( u32 i = 0; i < mesh->vertices.count; ++i )
+                    mesh->vertices[i].border = false;
+                
+                for( u32 i = 0; i < mesh->vertices.count; ++i )
+                {
+                    vCount.count = 0;
+                    vIds.count = 0;
+
+                    FQSVertex& v = mesh->vertices[i];
+
+                    for( u32 j = 0; j < v.refCount; ++j )
+                    {
+                        u32 tId = refs[v.refStart + j].tId;
+                        FQSTriangle& tri = mesh->triangles[tId];
+
+                        for( int k = 0; k < 3; ++k )
+                        {
+                            u32 ofs = 0;
+                            u32 id = tri.v[k];
+                            while( ofs < vCount.count )
+                            {
+                                if( vIds[ofs] == id )
+                                    break;
+                                ofs++;
+                            }
+
+                            if( ofs == vCount.count )
+                            {
+                                vCount.Push( 1 );
+                                vIds.Push( id );
+                            }
+                            else
+                                vCount[ofs]++;
+                        }
+                    }
+
+                    for( u32 j = 0; j < vCount.count; ++j )
+                    {
+                        if( vCount[j] == 1 )
+                            mesh->vertices[vIds[j]].border = true;
+                    }
+                }
+            }
+        }
 
         for( u32 i = 0; i < mesh->triangles.count; ++i )
             mesh->triangles[i].dirty = false;
@@ -1780,8 +1734,8 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             {
                 if( tri.error[j] < threshold )
                 {
-                    Array<bool> deleted0( tmpMemory.arena, 1000 );
-                    Array<bool> deleted1( tmpMemory.arena, 1000 );
+                    Array<bool> deleted0( tmpMemory.arena, 1000, Temporary() );
+                    Array<bool> deleted1( tmpMemory.arena, 1000, Temporary() );
 
                     u32 i0 = tri.v[j];          FQSVertex& v0 = mesh->vertices[i0];
                     u32 i1 = tri.v[(j+1)%3];    FQSVertex& v1 = mesh->vertices[i1];
@@ -1791,23 +1745,23 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
 
                     // Compute vertex to collapse to
                     v3 p;
-                    CalculateError( mesh, i0, i1, &p );
+                    FQSCalculateError( mesh, i0, i1, &p );
 
                     deleted0.count = v0.refCount;
 					deleted1.count = v1.refCount;
 
 					// Don't remove if flipped
-					if( Flipped( *mesh, refs, p, i0, i1, v0, v1, &deleted0 ) )
+					if( FQSFlipped( *mesh, refs, p, i0, i1, v0, v1, &deleted0 ) )
 					    continue;
-					if( Flipped( *mesh, refs, p, i1, i0, v1, v0, &deleted1 ) )
+					if( FQSFlipped( *mesh, refs, p, i1, i0, v1, v0, &deleted1 ) )
 					    continue;
 
                     v0.p = p;
                     v0.q = v1.q + v0.q;
 
                     u32 refStart = refs.count;
-                    UpdateTriangles( i0, v0, deleted0, mesh, &refs, &deletedTriangleCount );
-                    UpdateTriangles( i0, v1, deleted1, mesh, &refs, &deletedTriangleCount );
+                    FQSUpdateTriangles( i0, v0, deleted0, mesh, &refs, &deletedTriangleCount );
+                    FQSUpdateTriangles( i0, v1, deleted1, mesh, &refs, &deletedTriangleCount );
                     u32 refCount = refs.count - refStart;
 
                     if( refCount <= v0.refCount )
@@ -1829,7 +1783,44 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
         }
     }
 
-    CompactMesh( mesh );
+    // Compact mesh
+    {
+        for( u32 i = 0; i < mesh->vertices.count; ++i )
+            mesh->vertices[i].refCount = 0;
+
+        u32 dst = 0;
+        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        {
+            FQSTriangle& tri = mesh->triangles[i];
+            if( !tri.deleted )
+            {
+                mesh->triangles[dst++] = tri;
+                for( int j = 0; j < 3; ++j )
+                    mesh->vertices[tri.v[j]].refCount = 1;
+            }
+        }
+        mesh->triangles.count = dst;
+        dst = 0;
+
+        for( u32 i = 0; i < mesh->vertices.count; ++i )
+        {
+            FQSVertex& v = mesh->vertices[i];
+            if( v.refCount )
+            {
+                v.refStart = dst;
+                mesh->vertices[dst].p = v.p;
+                dst++;
+            }
+        }
+
+        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        {
+            FQSTriangle& tri = mesh->triangles[i];
+            for( int j = 0; j < 3; ++j )
+                tri.v[j] = mesh->vertices[tri.v[j]].refStart;
+        }
+        mesh->vertices.count = dst;
+    }
 }
 
 ///// CONVERSION TO 'SAMPLED' MESHES /////
@@ -1895,7 +1886,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
     // For example, for X rays, the Y|Z coords are the hash, for Y rays, the X|Z coords, etc.
     // NOTE This can be heavily compressed if needed by using a more compact hash, since most entries will be empty anyway
     u32 rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
-    Array<Hit> gridHits( tmpMemory.arena, 100000 );
+    Array<Hit> gridHits( tmpMemory.arena, 100000, Temporary() );
 
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );
