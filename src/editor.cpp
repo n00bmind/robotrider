@@ -360,30 +360,17 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         }
         transientState->contourTimeMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
 
-#if 1
         start = globalPlatform.DEBUGCurrentTimeMillis();
 
         // Simplify mesh
-        FQSMesh fqsMesh;
-        fqsMesh.vertices = Array<FQSVertex>( tempArena, transientState->testMesh->vertices.count, Temporary() );
-        fqsMesh.vertices.Resize( fqsMesh.vertices.capacity );
-        for( u32 i = 0; i < fqsMesh.vertices.count; ++i )
-            fqsMesh.vertices[i].p = transientState->testMesh->vertices[i].p;
-        fqsMesh.triangles = Array<FQSTriangle>( tempArena, transientState->testMesh->indices.count / 3, Temporary() );
-        fqsMesh.triangles.Resize( fqsMesh.triangles.capacity );
-        for( u32 i = 0; i < fqsMesh.triangles.count; ++i )
-        {
-            fqsMesh.triangles[i].v[0] = transientState->testMesh->indices[ i*3 ];
-            fqsMesh.triangles[i].v[1] = transientState->testMesh->indices[ i*3 + 1 ];
-            fqsMesh.triangles[i].v[2] = transientState->testMesh->indices[ i*3 + 2 ];
-        }
-
         TemporaryMemory tempMemory = BeginTemporaryMemory( tempArena );
+
+        FQSMesh fqsMesh = CreateFQSMesh( transientState->testMesh->vertices, transientState->testMesh->indices, tempMemory );
         FastQuadricSimplify( &fqsMesh, 10000, tempMemory );
-        EndTemporaryMemory( tempMemory );
 
         transientState->testMesh->vertices.Resize( fqsMesh.vertices.count );
         for( u32 i = 0; i < fqsMesh.vertices.count; ++i )
+            // FIXME Vertex attributes
             transientState->testMesh->vertices[i].p = fqsMesh.vertices[i].p;
         transientState->testMesh->indices.Resize( fqsMesh.triangles.count * 3 );
         for( u32 i = 0; i < fqsMesh.triangles.count; ++i )
@@ -392,9 +379,9 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
             transientState->testMesh->indices[ i*3 + 1 ] = fqsMesh.triangles[i].v[1];
             transientState->testMesh->indices[ i*3 + 2 ] = fqsMesh.triangles[i].v[2];
         }
+        EndTemporaryMemory( tempMemory );
 
         transientState->simplifyTimeMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
-#endif
 
 
         transientState->nextRebuildTimeSeconds = 0.f;

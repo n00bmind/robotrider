@@ -87,8 +87,8 @@ config_win_release = Config(
 )
 
 
-# default_config = config_win_debug
-default_config = config_win_develop
+default_config = config_win_debug
+# default_config = config_win_develop
 default_platform = platform_win
 
 
@@ -134,6 +134,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     config_group = parser.add_mutually_exclusive_group()
     config_group.add_argument('-d', '--debug', help='Create Debug build', action='store_true')
+    config_group.add_argument('--dev', help='Create Develop build', action='store_true')
     config_group.add_argument('-r', '--release', help='Create Release build', action='store_true')
     parser.add_argument('-v', '--verbose', help='Increase verbosity', action='store_true')
     in_args = parser.parse_args()
@@ -163,6 +164,8 @@ if __name__ == '__main__':
     config = default_config
     if in_args.debug:
         config = config_win_debug
+    elif in_args.dev:
+        config = config_win_develop
     elif in_args.release:
         config = config_win_release
 

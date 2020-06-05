@@ -2116,6 +2116,7 @@ main( int argC, char **argV )
             {
                 LPVOID baseAddress = 0;
 
+                // TODO Make simple growable arenas for these, that _reserve_ say 8Gb each, but only commit in sizeable blocks as needed
                 // Allocate game memory pools
                 u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
 #if !RELEASE
