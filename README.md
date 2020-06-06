@@ -28,12 +28,23 @@ This is a (very work in progress) game & game engine where I get to experiment w
 ## References
 A list of papers, articles, sites, etc. that have been useful during development:
 
-Marching cubes :: http://paulbourke.net/geometry/polygonise/ <br/> & http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng <br/>
-Fast quadric mesh simplification :: https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification <br/>
-Resampling meshes using MC :: http://vcg.isti.cnr.it/publications/papers/mi_smi01.pdf <br/>
-Wave Function Collapse :: https://github.com/mxgmn/WaveFunctionCollapse & https://adamsmith.as/papers/wfc_is_constraint_solving_in_the_wild.pdf <br/>
-Dual Contouring :: https://www.cse.wustl.edu/~taoju/research/dualContour.pdf & https://people.eecs.berkeley.edu/~jrs/meshpapers/SchaeferWarren2.pdf <br/> https://www.boristhebrave.com/2018/04/15/dual-contouring-tutorial/ <br/>
-QEF Minimization :: https://graphics.rwth-aachen.de/media/papers/308/probabilistic-quadrics.pdf & https://github.com/nickgildea/qef
+Marching cubes <br/>
+http://paulbourke.net/geometry/polygonise/ <br/>
+http://alphanew.net/index.php?section=articles&site=marchoptim&lang=eng <br/>
+Fast quadric mesh simplification <br/>
+https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification <br/>
+Resampling meshes using MC <br/>
+http://vcg.isti.cnr.it/publications/papers/mi_smi01.pdf <br/>
+Wave Function Collapse <br/>
+https://github.com/mxgmn/WaveFunctionCollapse <br/>
+https://adamsmith.as/papers/wfc_is_constraint_solving_in_the_wild.pdf <br/>
+Dual Contouring <br/>
+https://www.cse.wustl.edu/~taoju/research/dualContour.pdf <br/>
+https://people.eecs.berkeley.edu/~jrs/meshpapers/SchaeferWarren2.pdf <br/>
+https://www.boristhebrave.com/2018/04/15/dual-contouring-tutorial/ <br/>
+QEF Minimization <br/>
+https://graphics.rwth-aachen.de/media/papers/308/probabilistic-quadrics.pdf <br/>
+https://github.com/nickgildea/qef <br/>
 
 
 
