@@ -24,12 +24,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MATH_TYPES_H__
 #define __MATH_TYPES_H__ 
 
-/// We use a quite standard right-handed cartesian coordinate system in which
+#if NON_UNITY_BUILD
+#include "math.h"
+#endif
+
+/// We start with a quite standard right-handed cartesian coordinate system in which
 ///     +X goes right
 ///     +Y goes up
 ///     +Z goes towards the viewer
 ///
-/// However, the robotrider 'world' uses a slight variation of this system in which
+/// However, the robotrider world uses a slight variation of this system in which
 /// your dude starts up sliding along over the XY plane, and so, in this scenario,
 /// Y is 'forward' and Z is 'up'.
 ///
@@ -41,6 +45,80 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // TODO IMPORTANT Write a nice test suite for this whole file
 
+inline bool AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
+inline bool GreaterOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
+inline bool LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
+inline bool AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon = 0 );
+inline r32 Radians( r32 degrees );
+
+// Vector 2
+
+union v2
+{
+    struct
+    {
+        r32 x, y;
+    };
+    struct
+    {
+        r32 u, v;
+    };
+    struct
+    {
+        r32 min, max;
+    };
+    r32 e[2];
+};
+
+const v2 V2Zero = { 0, 0 };
+
+inline v2
+V2( r32 x, r32 y )
+{
+    v2 result = { x, y };
+    return result;
+}
+
+inline bool
+operator ==( const v2& a, const v2& b )
+{
+    return a.x == b.x && a.y == b.y;
+}
+
+inline v2
+operator -( const v2 &a, const v2 &b )
+{
+    v2 result = { a.x - b.x, a.y - b.y };
+    return result;
+}
+
+inline v2
+operator *( const v2 &v, r32 s )
+{
+    v2 result = { (r32)v.x * s, (r32)v.y * s };
+    return result;
+}
+
+inline v2
+operator /( const v2& v, r32 s )
+{
+    v2 result = { v.x / s, v.y / s };
+    return result;
+}
+
+inline r32
+Length( const v2& v )
+{
+    r32 result = Sqrt( v.x * v.x + v.y * v.y );
+    return result;
+}
+
+inline r32
+LengthSq( const v2 &v )
+{
+    r32 result = v.x * v.x + v.y * v.y;
+    return result;
+}
 
 // Vector 2 integer
 
@@ -59,6 +137,13 @@ inline v2i
 V2i( i32 x, i32 y )
 {
     v2i result = { x, y };
+    return result;
+}
+
+inline v2
+V2( const v2i &v )
+{
+    v2 result = { (r32)v.x, (r32)v.y };
     return result;
 }
 
@@ -82,6 +167,13 @@ Hadamard( const v2i& a, const v2i& b )
     return result;
 }
 
+inline v2i
+Round( const v2 &v )
+{
+    v2i result = { (i32)v.x, (i32)v.y };
+    return result;
+}
+
 // Vector 2 unsigned
 
 union v2u
@@ -93,6 +185,9 @@ union v2u
     u32 e[2];
 };
 
+const v2u V2uZero = { 0, 0 };
+const v2u V2uOne = { 1, 1 };
+
 inline v2u
 V2u( u32 x, u32 y )
 {
@@ -101,7 +196,22 @@ V2u( u32 x, u32 y )
 }
 
 inline v2u
+V2u( u32 s )
+{
+    v2u result = { s, s };
+    return result;
+}
+
+inline v2u
 V2u( const v2i& v )
+{
+    ASSERT( v.x >= 0 && v.y >= 0 );
+    v2u result = { (u32)v.x, (u32)v.y };
+    return result;
+}
+
+inline v2u
+V2u( const v2& v )
 {
     ASSERT( v.x >= 0 && v.y >= 0 );
     v2u result = { (u32)v.x, (u32)v.y };
@@ -117,69 +227,32 @@ V2i( const v2u& v )
 }
 
 inline v2u
+operator +( const v2u& a, const v2u& b )
+{
+    v2u result = { a.x + b.x, a.y + b.y };
+    return result;
+}
+
+inline v2u
+operator *( const v2u &v, r32 s )
+{
+    v2u result = V2u( V2( (r32)v.x * s, (r32)v.y * s ) );
+    return result;
+}
+
+inline bool
+operator ==( const v2u& a, const v2u& b )
+{
+    return a.x == b.x && a.y == b.y;
+}
+
+inline v2u
 Hadamard( const v2u& a, const v2u& b )
 {
     v2u result = { a.x * b.x, a.y * b.y };
     return result;
 }
 
-// Vector 2
-
-union v2
-{
-    struct
-    {
-        r32 x, y;
-    };
-    struct
-    {
-        r32 u, v;
-    };
-    r32 e[2];
-};
-
-const v2 V2Zero = { 0, 0 };
-
-inline v2
-V2( r32 x, r32 y )
-{
-    v2 result = { x, y };
-    return result;
-}
-
-inline v2
-V2( const v2i &v )
-{
-    v2 result = { (r32)v.x, (r32)v.y };
-    return result;
-}
-
-inline bool
-operator ==( const v2& a, const v2& b )
-{
-    return a.x == b.x && a.y == b.y;
-}
-
-inline v2
-operator -( const v2 &a, const v2 &b )
-{
-    v2 result = { a.x - b.x, a.y - b.y };
-    return result;
-}
-
-inline r32
-LengthSq( const v2 &v )
-{
-    r32 result = v.x * v.x + v.y * v.y;
-    return result;
-}
-
-inline v2i
-Round( const v2 &v )
-{
-    v2i result = { (i32)v.x, (i32)v.y };
-    return result;
-}
 
 // Vector 3 integer
 
@@ -202,10 +275,19 @@ union v3i
     i32 e[3];
 };
 
+const v3i V3iZero = { 0, 0, 0 };
+
 inline v3i
 V3i( i32 x, i32 y, i32 z )
 {
     v3i result = { x, y, z };
+    return result;
+}
+
+inline v3i
+V3i( v2i v )
+{
+    v3i result = { v.x, v.y, 0 };
     return result;
 }
 
@@ -256,6 +338,9 @@ union v3u
     u32 e[3];
 };
 
+const v3u V3uZero = { 0, 0, 0 };
+const v3u V3uOne = { 1, 1, 1 };
+
 inline v3u
 V3u( u32 x, u32 y, u32 z )
 {
@@ -267,6 +352,13 @@ inline v3u
 V3u( u32 s )
 {
     v3u result = { s, s, s };
+    return result;
+}
+
+inline v3u
+V3u( v3i const& v )
+{
+    v3u result = { ToU32Safe( v.x ), ToU32Safe( v.y ), ToU32Safe( v.z ) };
     return result;
 }
 
@@ -338,7 +430,9 @@ union v3
 };
 
 const v3 V3Zero = { 0.0f, 0.0f, 0.0f };
+const v3 V3One = { 1.f, 1.f, 1.f };
 const v3 V3Undefined = { R32NAN, R32NAN, R32NAN };
+const v3 V3Inf = { R32INF, R32INF, R32INF };
 // Canonical world orientations
 // We define our right-handed game world as having the positive Z axis pointing up
 // (consequently the positive Y axis points 'forward')
@@ -350,9 +444,23 @@ const v3 V3Forward = { 0.0f, 1.0f, 0.0f };
 const v3 V3Up      = { 0.0f, 0.0f, 1.0f };
 
 inline v3
+V3( r32 s )
+{
+    v3 result = { s, s, s };
+    return result;
+}
+
+inline v3
 V3( r32 x, r32 y, r32 z )
 {
     v3 result = { x, y, z };
+    return result;
+}
+
+inline v3
+V3( u32 x, u32 y, u32 z )
+{
+    v3 result = { (r32)x, (r32)y, (r32)z };
     return result;
 }
 
@@ -370,10 +478,30 @@ V3( const v3i& v )
     return result;
 }
 
+inline v3
+V3( const v3u& v )
+{
+    v3 result = { (r32)v.x, (r32)v.y, (r32)v.z };
+    return result;
+}
+
+inline v3u
+V3uCeil( v3 const& v )
+{
+    v3u result = { Ceil( v.x ), Ceil( v.y ), Ceil( v.z ) };
+    return result;
+}
+
 inline bool
 operator ==( const v3 &a, const v3 &b )
 {
     return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+inline bool
+operator !=( const v3 &a, const v3 &b )
+{
+    return a.x != b.x || a.y != b.y || a.z != b.z;
 }
 
 inline bool
@@ -420,14 +548,6 @@ operator *( const v3 &v, r32 s )
     return result;
 }
 
-inline void
-operator *=( v3& v, r32 s )
-{
-    v.x *= s;
-    v.y *= s;
-    v.z *= s;
-}
-
 inline v3
 operator *( const v3i &v, r32 s )
 {
@@ -442,11 +562,27 @@ operator *( r32 s, const v3 &v )
     return result;
 }
 
+inline void
+operator *=( v3& v, r32 s )
+{
+    v.x *= s;
+    v.y *= s;
+    v.z *= s;
+}
+
 inline v3
 operator /( const v3& v, r32 s )
 {
     v3 result = { v.x / s, v.y / s, v.z / s };
     return result;
+}
+
+inline void
+operator /=( v3& v, r32 s )
+{
+    v.x /= s;
+    v.y /= s;
+    v.z /= s;
 }
 
 inline r32
@@ -468,33 +604,42 @@ Cross( const v3 &a, const v3 &b )
     return result;
 }
 
-inline void
-Normalize( v3& v )
+inline v3
+Hadamard( const v3& a, const v3& b )
 {
-    r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
-    v *= invL;
+    v3 result = { a.x * b.x, a.y * b.y, a.z * b.z };
+    return result;
 }
 
 inline v3
-Normalized( const v3 &v )
+Abs( const v3& v )
 {
-    r32 invL = 1.0f / Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
-    v3 result = v * invL;
+    v3 result = { Abs( v.x ), Abs( v.y ), Abs( v.z ) };
     return result;
 }
 
 inline r32
 Length( const v3& v )
 {
-    r32 result = Sqrt( Dot( v, v ) );
+    r32 result = Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
     return result;
 }
 
 inline r32
 LengthSq( const v3& v )
 {
-    r32 result = Dot( v, v );
+    r32 result = v.x * v.x + v.y * v.y + v.z * v.z;
     return result;
+}
+
+inline bool
+IsUnit( const v3& v, r32* outLengthSq = nullptr )
+{
+    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    if( outLengthSq )
+        *outLengthSq = lengthSq;
+
+    return AlmostEqual( lengthSq, 1.f, 1e-05f );
 }
 
 inline r32
@@ -509,6 +654,38 @@ DistanceSq( const v3& a, const v3& b )
 {
     r32 result = LengthSq(a - b);
     return result;
+}
+
+inline void
+Normalize( v3& v )
+{
+    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+
+    if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
+    {
+        r32 invL = 1.0f / Sqrt( lengthSq );
+        v *= invL;
+    }
+}
+
+inline v3
+Normalized( const v3 &v )
+{
+    v3 result = v;
+
+    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
+    {
+        r32 invL = 1.0f / Sqrt( lengthSq );
+        result = v * invL;
+    }
+    return result;
+}
+
+inline v3
+Lerp( v3 const& a, v3 const& b, r32 t )
+{
+    return a + (b - a) * t;
 }
 
 // Vector 4
@@ -636,135 +813,6 @@ const m4 M4Identity =
     { 0, 0, 0, 1 }
 }};
 
-inline bool
-AlmostEqual( const m4& a, const m4& b )
-{
-    for( int r = 0; r < 4; ++r )
-        for( int c = 0; c < 4; ++c )
-            // C is row-major
-            if( !AlmostEqual( a.e[r][c], b.e[r][c] ) )
-                return false;
-    return true;
-}
-
-inline m4
-Translation( const v3 &p )
-{
-    m4 result =
-    {{
-         { 1,   0,  0,  p.x },
-         { 0,   1,  0,  p.y },
-         { 0,   0,  1,  p.z },
-         { 0,   0,  0,  1 }
-    }};
-
-    return result;
-}
-
-inline v3
-GetTranslation( const m4 &m )
-{
-    v3 result = { m.e[0][3], m.e[1][3], m.e[2][3] };
-    return result;
-}
-
-inline void
-SetTranslation( m4 &m, const v3 &p )
-{
-    m.e[0][3] = p.x;
-    m.e[1][3] = p.y;
-    m.e[2][3] = p.z;
-}
-
-inline m4
-Translate( m4 &m, const v3 &v )
-{
-    m.e[0][3] += v.x;
-    m.e[1][3] += v.y;
-    m.e[2][3] += v.z;
-
-    return m;
-}
-
-inline m4
-XRotation( r32 angleRads )
-{
-    r32 s = Sin( angleRads );
-    r32 c = Cos( angleRads );
-
-    m4 result =
-    {{
-         { 1, 0, 0, 0 },
-         { 0, c,-s, 0 },
-         { 0, s, c, 0 },
-         { 0, 0, 0, 1 }
-    }};
-
-    return result;
-}
-
-inline m4
-YRotation( r32 angleRads )
-{
-    r32 s = Sin( angleRads );
-    r32 c = Cos( angleRads );
-
-    m4 result =
-    {{
-         { c, 0, s, 0 },
-         { 0, 1, 0, 0 },
-         {-s, 0, c, 0 },
-         { 0, 0, 0, 1 }
-    }};
-
-    return result;
-}
-
-inline m4
-ZRotation( r32 angleRads )
-{
-    r32 s = Sin( angleRads );
-    r32 c = Cos( angleRads );
-
-    m4 result =
-    {{
-         { c,-s, 0, 0 },
-         { s, c, 0, 0 },
-         { 0, 0, 1, 0 },
-         { 0, 0, 0, 1 }
-    }};
-
-    return result;
-}
-
-inline m4
-Scale( const v3 &f )
-{
-    m4 result =
-    {{
-         { f.x,   0,    0,    0 },
-         { 0,     f.y,  0,    0 },
-         { 0,     0,    f.z,  0 },
-         { 0,     0,    0,    1 }
-    }};
-
-    return result;
-}
-
-inline m4
-GetRotation( const m4 &m )
-{
-    m4 result =
-    {{
-         { m.e[0][0], m.e[0][1], m.e[0][2], 0 },
-         { m.e[1][0], m.e[1][1], m.e[1][2], 0 },
-         { m.e[2][0], m.e[2][1], m.e[2][2], 0 },
-         {         0,         0,         0, 1 }
-    }};
-
-    return result;
-}
-
 inline m4
 M4Rows( const v3 &x, const v3 &y, const v3 &z )
 {
@@ -776,14 +824,6 @@ M4Rows( const v3 &x, const v3 &y, const v3 &z )
          {   0,   0,   0, 1 }
     }};
 
-    return result;
-}
-
-inline v4
-GetRow( const m4 &m, u32 row )
-{
-    ASSERT( row >= 0 && row < 4 );
-    v4 result = { m.e[row][0], m.e[row][1], m.e[row][2], m.e[row][3] };
     return result;
 }
 
@@ -801,50 +841,138 @@ M4Columns( const v3 &x, const v3 &y, const v3 &z )
     return result;
 }
 
-inline v4
-GetColumn( const m4 &m, u32 col )
-{
-    ASSERT( col >= 0 && col < 4 );
-    v4 result = { m.e[0][col], m.e[1][col], m.e[2][col], m.e[3][col] };
-    return result;
-}
-
 inline m4
 M4Basis( const v3& x, const v3& y, const v3& z )
 {
+    ASSERT( IsUnit( x ) );
+    ASSERT( IsUnit( y ) );
+    ASSERT( IsUnit( z ) );
+
     return M4Columns( x, y, z );
 }
 
-inline v3
-GetXBasis( const m4& m )
+inline m4
+M4CameraBasis( const v3 &x, const v3 &y, const v3 &z )
 {
-    v3 result = { m.e[0][0], m.e[1][0], m.e[2][0] };
-    return result;
+    ASSERT( IsUnit( x ) );
+    ASSERT( IsUnit( y ) );
+    ASSERT( IsUnit( z ) );
+
+    return M4Rows( x, y, z );
 }
 
-inline v3
-GetYBasis( const m4& m )
+inline m4
+M4Translation( const v3 &p )
 {
-    v3 result = { m.e[0][1], m.e[1][1], m.e[2][1] };
-    return result;
-}
+    m4 result =
+    {{
+         { 1,   0,  0,  p.x },
+         { 0,   1,  0,  p.y },
+         { 0,   0,  1,  p.z },
+         { 0,   0,  0,  1 }
+    }};
 
-inline v3
-GetZBasis( const m4& m )
-{
-    v3 result = { m.e[0][2], m.e[1][2], m.e[2][2] };
     return result;
 }
 
 inline m4
-Transposed( const m4 &m )
+M4XRotation( r32 pitchAngleRads )
+{
+    r32 s = Sin( pitchAngleRads );
+    r32 c = Cos( pitchAngleRads );
+
+    m4 result =
+    {{
+         { 1, 0, 0, 0 },
+         { 0, c,-s, 0 },
+         { 0, s, c, 0 },
+         { 0, 0, 0, 1 }
+    }};
+
+    return result;
+}
+
+inline m4
+M4YRotation( r32 rollAngleRads )
+{
+    r32 s = Sin( rollAngleRads );
+    r32 c = Cos( rollAngleRads );
+
+    m4 result =
+    {{
+         { c, 0, s, 0 },
+         { 0, 1, 0, 0 },
+         {-s, 0, c, 0 },
+         { 0, 0, 0, 1 }
+    }};
+
+    return result;
+}
+
+inline m4
+M4ZRotation( r32 yawAngleRads )
+{
+    r32 s = Sin( yawAngleRads );
+    r32 c = Cos( yawAngleRads );
+
+    m4 result =
+    {{
+         { c,-s, 0, 0 },
+         { s, c, 0, 0 },
+         { 0, 0, 1, 0 },
+         { 0, 0, 0, 1 }
+    }};
+
+    return result;
+}
+
+inline m4
+M4AxisAngle( const v3& v, const r32 angleRads )
+{
+    r32 s = Sin( angleRads );
+    r32 c = Cos( angleRads );
+    r32 c1 = 1 - c;
+
+    r32 xx = v.x * v.x;
+    r32 yy = v.y * v.y;
+    r32 zz = v.z * v.z;
+    r32 xy = v.x * v.y;
+    r32 xz = v.x * v.z;
+    r32 yz = v.y * v.z;
+
+    m4 result =
+    {{
+         { c + xx * c1,             xy * c1 - v.z * s,      xz * c1 + v.y * s,  0 },
+         { xy * c1 + v.z * s,       c + yy * c1,            yz * c1 - v.x * s,  0 },
+         { xz * c1 - v.y * s,       yz * c1 + v.x * s,      c + zz * c1,        0 },
+         { 0,                       0,                      0,                  1 }
+    }};
+    return result;
+}
+
+inline m4
+M4Scale( const v3 &f )
 {
     m4 result =
     {{
-         { m.e[0][0], m.e[1][0], m.e[2][0], m.e[3][0] },
-         { m.e[0][1], m.e[1][1], m.e[2][1], m.e[3][1] },
-         { m.e[0][2], m.e[1][2], m.e[2][2], m.e[3][2] },
-         { m.e[0][3], m.e[1][3], m.e[2][3], m.e[3][3] },
+         { f.x,   0,    0,    0 },
+         { 0,     f.y,  0,    0 },
+         { 0,     0,    f.z,  0 },
+         { 0,     0,    0,    1 }
+    }};
+
+    return result;
+}
+
+inline m4
+M4RotPos( const m4 &m, const v3 &p )
+{
+    m4 result =
+    {{
+         { m.e[0][0], m.e[0][1], m.e[0][2], p.x },
+         { m.e[1][0], m.e[1][1], m.e[1][2], p.y },
+         { m.e[2][0], m.e[2][1], m.e[2][2], p.z },
+         {         0,         0,         0,   1 }
     }};
 
     return result;
@@ -910,8 +1038,126 @@ operator*( const m4 &m1, const m4 &m2 )
     return result;
 }
 
+inline void
+operator *=( m4& m1, const m4& m2 )
+{
+    m1 = m1 * m2;
+}
+
+inline void
+Translate( m4 &m, const v3& vDelta )
+{
+    m.e[0][3] += vDelta.x;
+    m.e[1][3] += vDelta.y;
+    m.e[2][3] += vDelta.z;
+}
+
 inline m4
-CreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
+Translated( const m4& m, const v3& vDelta )
+{
+    m4 result = m;
+    result.e[0][3] += vDelta.x;
+    result.e[1][3] += vDelta.y;
+    result.e[2][3] += vDelta.z;
+
+    return result;
+}
+
+inline m4
+GetRotation( const m4 &m )
+{
+    m4 result =
+    {{
+         { m.e[0][0], m.e[0][1], m.e[0][2], 0 },
+         { m.e[1][0], m.e[1][1], m.e[1][2], 0 },
+         { m.e[2][0], m.e[2][1], m.e[2][2], 0 },
+         {         0,         0,         0, 1 }
+    }};
+
+    return result;
+}
+
+inline m4
+M4CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
+{
+    ASSERT( IsUnit( x ) );
+    ASSERT( IsUnit( y ) );
+    ASSERT( IsUnit( z ) );
+
+    m4 r = M4Rows( x, y, z );
+    Translate( r, -(r*p) );
+    return r;
+}
+
+inline void
+GetCameraBasis( const m4& m, v3* vX, v3* vY, v3* vZ )
+{
+    *vX = { m.e[0][0], m.e[0][1], m.e[0][2] };
+    *vY = { m.e[1][0], m.e[1][1], m.e[1][2] };
+    *vZ = { m.e[2][0], m.e[2][1], m.e[2][2] };
+}
+
+inline m4
+M4CameraTransform( const m4& rot, const v3& p )
+{
+#if !RELEASE
+    v3 x, y, z;
+    GetCameraBasis( rot, &x, &y, &z );
+    ASSERT( IsUnit( x ) );
+    ASSERT( IsUnit( y ) );
+    ASSERT( IsUnit( z ) );
+#endif
+    m4 result = GetRotation( rot );
+    Translate( result, -(result * p) );
+    return result;
+}
+
+inline m4
+M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
+{
+    v3 vUpN = Normalized( vUp );
+    v3 vZ = Normalized( -(pTgt - pSrc) );
+    
+    v3 vX = V3X;
+    v3 vY = V3Y;
+    if( AlmostEqual( vUpN, vZ ) )
+        ; // No-op
+    else if( AlmostEqual( -vUpN, vZ ) )
+        vY = -V3Y;
+    else
+    {
+        vX = Normalized( Cross( vUpN, vZ ) );
+        vY = Normalized( Cross( vZ, vX ) );
+    }
+
+    m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
+    return r;
+}
+
+inline m4
+M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
+{
+    v3 vUpN = Normalized( vUp );
+    v3 vZ = Normalized( -vDir );
+
+    v3 vX = V3X;
+    v3 vY = V3Y;
+    if( AlmostEqual( vUpN, vZ ) )
+        ; // No-op
+    else if( AlmostEqual( -vUpN, vZ ) )
+        vY = -V3Y;
+    else
+    {
+        vX = Normalized( Cross( vUpN, vZ ) );
+        vY = Normalized( Cross( vZ, vX ) );
+    }
+
+    m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
+    return r;
+}
+
+inline m4
+M4Perspective( r32 aspectRatio, r32 fovYDeg )
 {
     r32 n = 0.1f;		// Make this configurable?
     r32 f = 1000.0f;
@@ -932,7 +1178,7 @@ CreatePerspectiveMatrix( r32 aspectRatio, r32 fovYDeg )
 }
 
 inline m4
-CreateOrthographicMatrix( r32 width, r32 height )
+M4Orthographic( r32 width, r32 height )
 {
     r32 w = width;
     r32 h = -height;
@@ -948,65 +1194,113 @@ CreateOrthographicMatrix( r32 width, r32 height )
     return result;
 }
 
-inline m4
-CameraTransform( const v3 &x, const v3 &y, const v3 &z, const v3 &p )
+inline bool
+AlmostEqual( const m4& a, const m4& b )
 {
-    m4 r = M4Rows( x, y, z );
-    r = Translate( r, -(r*p) );
+    for( int r = 0; r < 4; ++r )
+        for( int c = 0; c < 4; ++c )
+            // C is row-major
+            if( !AlmostEqual( a.e[r][c], b.e[r][c] ) )
+                return false;
+    return true;
+}
 
-    return r;
+inline v3
+GetTranslation( const m4 &m )
+{
+    v3 result = { m.e[0][3], m.e[1][3], m.e[2][3] };
+    return result;
+}
+
+inline void
+SetTranslation( m4 &m, const v3 &p )
+{
+    m.e[0][3] = p.x;
+    m.e[1][3] = p.y;
+    m.e[2][3] = p.z;
+}
+
+inline v4
+GetRow( const m4 &m, u32 row )
+{
+    ASSERT( row >= 0 && row < 4 );
+    v4 result = { m.e[row][0], m.e[row][1], m.e[row][2], m.e[row][3] };
+    return result;
+}
+
+inline v4
+GetColumn( const m4 &m, u32 col )
+{
+    ASSERT( col >= 0 && col < 4 );
+    v4 result = { m.e[0][col], m.e[1][col], m.e[2][col], m.e[3][col] };
+    return result;
+}
+
+inline v3
+GetBasisX( const m4& m )
+{
+    v3 result = { m.e[0][0], m.e[1][0], m.e[2][0] };
+    return result;
+}
+
+inline v3
+GetBasisY( const m4& m )
+{
+    v3 result = { m.e[0][1], m.e[1][1], m.e[2][1] };
+    return result;
+}
+
+inline v3
+GetBasisZ( const m4& m )
+{
+    v3 result = { m.e[0][2], m.e[1][2], m.e[2][2] };
+    return result;
+}
+
+inline void
+GetBasis( const m4& m, v3* vX, v3* vY, v3* vZ )
+{
+    *vX = { m.e[0][0], m.e[1][0], m.e[2][0] };
+    *vY = { m.e[0][1], m.e[1][1], m.e[2][1] };
+    *vZ = { m.e[0][2], m.e[1][2], m.e[2][2] };
+}
+
+inline v3
+GetCameraBasisX( const m4& m )
+{
+    v3 result = { m.e[0][0], m.e[0][1], m.e[0][2] };
+    return result;
+}
+
+inline v3
+GetCameraBasisY( const m4& m )
+{
+    v3 result = { m.e[1][0], m.e[1][1], m.e[1][2] };
+    return result;
+}
+
+inline v3
+GetCameraBasisZ( const m4& m )
+{
+    v3 result = { m.e[2][0], m.e[2][1], m.e[2][2] };
+    return result;
 }
 
 inline m4
-CameraTransform( const m4 &rot, const v3 &p )
-{
-    m4 r = GetRotation( rot );
-    r = Translate( r, -(r*p) );
-
-    return r;
-}
-
-inline m4
-CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
-{
-    v3 vUpN = Normalized( vUp );
-    v3 vZ = Normalized( pSrc - pTgt );
-    v3 vX = Cross( vUpN, vZ );
-    v3 vY = Cross( vZ, vX );
-
-    m4 r = M4Rows( vX, vY, vZ );
-    r = Translate( r, -(r*pSrc) );
-
-    return r;
-}
-
-inline m4
-CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
-{
-    v3 vUpN = Normalized( vUp );
-    v3 vZ = Normalized( -vDir );
-    v3 vX = Cross( vUpN, vZ );
-    v3 vY = Cross( vZ, vX );
-
-    m4 r = M4Rows( vX, vY, vZ );
-    r = Translate( r, -(r*pSrc) );
-
-    return r;
-}
-
-inline m4
-RotPos( const m4 &m, const v3 &p )
+Transposed( const m4 &m )
 {
     m4 result =
     {{
-         { m.e[0][0], m.e[0][1], m.e[0][2], p.x },
-         { m.e[1][0], m.e[1][1], m.e[1][2], p.y },
-         { m.e[2][0], m.e[2][1], m.e[2][2], p.z },
-         {         0,         0,         0,   1 }
+         { m.e[0][0], m.e[1][0], m.e[2][0], m.e[3][0] },
+         { m.e[0][1], m.e[1][1], m.e[2][1], m.e[3][1] },
+         { m.e[0][2], m.e[1][2], m.e[2][2], m.e[3][2] },
+         { m.e[0][3], m.e[1][3], m.e[2][3], m.e[3][3] },
     }};
 
     return result;
 }
+
+
 
 // Symmetric Matrix 4x4 (double precision)
 
@@ -1088,9 +1382,95 @@ union qn
     r32 e[4];
 };
 
+const qn QnIdentity = { 0.0f, 0.0f, 0.0f, 1.0f };
+
 // TODO (Unit) Test everything quaternion related
+
+inline r32
+SqNorm( const qn& q )
+{
+    r32 result = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    return result;
+}
+
+inline r32
+Norm( const qn& q )
+{
+    return Sqrt( SqNorm( q ) );
+}
+
+inline bool
+IsUnit( const qn& q, r32* outSqNorm = nullptr )
+{
+    r32 sqNorm = SqNorm( q );
+    if( outSqNorm )
+        *outSqNorm = sqNorm;
+    
+    return AlmostEqual( sqNorm, 1.f, 1e-05f );
+}
+
+inline void
+Normalize( qn& q )
+{
+    r32 sqNorm;
+    if( !IsUnit( q, &sqNorm ) )
+    {
+        r32 invNorm = 1.0f / Sqrt( sqNorm );
+        q.x *= invNorm;
+        q.y *= invNorm;
+        q.z *= invNorm;
+        q.w *= invNorm;
+    }
+}
+
 inline qn
-QN( const m4 &m )
+Qn( const v3& vAxis, r32 angleRads )
+{
+    v3 vAxisN = Normalized( vAxis );
+
+    r32 halfAngleRads = angleRads * 0.5f;
+    r32 sinTheta = Sin( halfAngleRads );
+    r32 cosTheta = Cos( halfAngleRads );
+
+    qn result =
+    {
+        vAxisN.x * sinTheta,
+        vAxisN.y * sinTheta,
+        vAxisN.z * sinTheta,
+        cosTheta
+    };
+    //r32 norm = Norm( result );
+
+    return result;
+}
+
+inline qn
+QnXRotation( r32 pitchAngleRads )
+{
+    v3 vAngle = V3X;
+    qn result = Qn( vAngle, pitchAngleRads );
+    r32 norm = Norm( result );
+    return result;
+}
+
+inline qn
+QnYRotation( r32 rollAngleRads )
+{
+    v3 vAngle = V3Y;
+    qn result = Qn( vAngle, rollAngleRads );
+    return result;
+}
+
+inline qn
+QnZRotation( r32 yawAngleRads )
+{
+    v3 vAngle = V3Z;
+    qn result = Qn( vAngle, yawAngleRads );
+    return result;
+}
+
+inline qn
+Qn( const m4 &m )
 {
     qn r;
     float tr = m.e[0][0] + m.e[1][1] + m.e[2][2];
@@ -1131,12 +1511,45 @@ QN( const m4 &m )
     return r;
 }
 
-inline void
-ToEulerXYZ( const qn &r, float *pitch, float *yaw, float *roll )
+#if 0
+// NOTE Untested
+inline qn
+QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 {
-    // TODO Develop the editor a bit further so that these ops can be applied
-    // over a selected object so we can visually test them at least
+    // TODO How to enforce this?
+    v3 vUpN = Normalized( vUp );
+
+    v3 vTargetFwdN = Normalized( pTgt - pSrc );
+    v3 vCamFwdDefaultN = V3( 0, 0, -1 );
+
+    r32 theta = PI;
+    v3 vRotAxis = { 1, 0, 0 };
+    qn result = QnIdentity;
+
+    if( AlmostEqual( vTargetFwdN, vCamFwdDefaultN ) )
+        // No-op
+        ;
+    else if( AlmostEqual( -vTargetFwdN, vCamFwdDefaultN ) )
+    {
+        result = Qn( vRotAxis, theta );
+    }
+    else
+    {
+        r32 cosTheta = Dot( vCamFwdDefaultN, vTargetFwdN );
+        // The camera transform is actually the transform we would apply to the _world_ to put it in front of the camera,
+        // so we invert the angle here..
+        // @Speed Find a way to build the quat directly without this
+        theta = -ACos( cosTheta );
+        vRotAxis = Cross( vCamFwdDefaultN, vTargetFwdN );
+        vRotAxis.y = 0;
+        vRotAxis = Normalized( vRotAxis );
+
+        result = Qn( vRotAxis, theta );
+    }
+
+    return result;
 }
+#endif
 
 inline m4
 ToM4( const qn& q )
@@ -1147,27 +1560,34 @@ ToM4( const qn& q )
     r64 sqz = q.z * q.z;
 
     m4 result = {};
-    // Inverse square lenght, only required if quaternion is not already normalized (multiply all matrix terms by it)
-    //r64 invs = 1.0 / (sqx + sqy + sqz + sqw);
-    result.e[0][0] = (r32)( sqx - sqy - sqz + sqw);
-    result.e[1][1] = (r32)(-sqx + sqy - sqz + sqw);
-    result.e[2][2] = (r32)(-sqx - sqy + sqz + sqw);
+    r64 invs = 1.0;
+    r64 sqNorm = sqx + sqy + sqz + sqw;
+    if( !AlmostEqual( sqNorm, 1.0 ) )
+    {
+        // Inverse square lenght, only required if quaternion is not already normalized (multiply all matrix terms by it)
+        invs = 1.0 / sqNorm;
+    }
+
+    result.e[0][0] = r32(( sqx - sqy - sqz + sqw) * invs);
+    result.e[1][1] = r32((-sqx + sqy - sqz + sqw) * invs);
+    result.e[2][2] = r32((-sqx - sqy + sqz + sqw) * invs);
 
     r64 tmp1 = q.x * q.y;
     r64 tmp2 = q.z * q.w;
-    result.e[1][0] = (r32)(2.0 * (tmp1 + tmp2));
-    result.e[0][1] = (r32)(2.0 * (tmp1 - tmp2));
+    result.e[1][0] = r32(2.0 * (tmp1 + tmp2) * invs);
+    result.e[0][1] = r32(2.0 * (tmp1 - tmp2) * invs);
     
     tmp1 = q.x * q.z;
     tmp2 = q.y * q.w;
-    result.e[2][0] = (r32)(2.0 * (tmp1 - tmp2));
-    result.e[0][2] = (r32)(2.0 * (tmp1 + tmp2));
+    result.e[2][0] = r32(2.0 * (tmp1 - tmp2) * invs);
+    result.e[0][2] = r32(2.0 * (tmp1 + tmp2) * invs);
 
     tmp1 = q.y * q.z;
     tmp2 = q.x * q.w;
-    result.e[2][1] = (r32)(2.0 * (tmp1 + tmp2));
-    result.e[1][2] = (r32)(2.0 * (tmp1 - tmp2));
+    result.e[2][1] = r32(2.0 * (tmp1 + tmp2) * invs);
+    result.e[1][2] = r32(2.0 * (tmp1 - tmp2) * invs);
 
+    result.e[3][3] = 1.f;
     return result;
 }
 
@@ -1175,6 +1595,21 @@ inline qn
 Conjugate( const qn& q )
 {
     qn result = { -q.x, -q.y, -q.z, q.w };
+    return result;
+}
+
+inline qn
+Inverse( const qn& q )
+{
+    qn result = Conjugate( q );
+    if( !IsUnit( q ) )
+    {
+        r32 invSqNorm = 1.0f / SqNorm( q );
+        result.x *= invSqNorm;
+        result.y *= invSqNorm;
+        result.z *= invSqNorm;
+        result.w *= invSqNorm;
+    }
     return result;
 }
 
@@ -1189,9 +1624,17 @@ operator *( const qn& a, const qn& b )
     return result;
 }
 
+inline void
+operator *=( qn& a, const qn& b )
+{
+    a = a * b;
+}
+
 inline v3
 Rotate( const v3& v, const qn& q )
 {
+    ASSERT( IsUnit( q ) );
+
     // TODO Optimize
     qn vPure = { v.x, v.y, v.z, 0 };
     qn qResult = q * vPure * Conjugate( q );
@@ -1231,11 +1674,80 @@ Tri( const v3& v0, const v3& v1, const v3& v2, bool findNormal = false )
 
 struct aabb
 {
-    r32 xMin, xMax;
-    r32 yMin, yMax;
-    r32 zMin, zMax;
+    v3 min;
+    v3 max;
 };
 
+inline aabb
+AABB( v3 const& min, v3 const& max )
+{
+    aabb result = { min, max };
+    return result;
+}
+
+inline aabb
+AABB( const v3& min, r32 size )
+{
+    aabb result =
+    {
+        min,
+        { min.x + size, min.y + size, min.z + size, }
+    };
+    return result;
+}
+
+inline aabb
+AABBCenterDim( const v3& p, r32 size )
+{
+    r32 halfSize = size * 0.5f;
+    aabb result =
+    {
+        { p.x - halfSize, p.y - halfSize, p.z - halfSize, },
+        { p.x + halfSize, p.y + halfSize, p.z + halfSize, }
+    };
+    return result;
+}
+
+inline aabb
+AABBCenterDim( const v3& p, const v3& dim )
+{
+    v3 halfDim = dim * 0.5f;
+    aabb result =
+    {
+        { p.x - halfDim.x, p.y - halfDim.y, p.z - halfDim.z, },
+        { p.x + halfDim.x, p.y + halfDim.y, p.z + halfDim.z, }
+    };
+    return result;
+}
+
+inline v3
+Dim( aabb const& b )
+{
+    return b.max - b.min;
+}
+
+inline v3
+Center( const aabb& b )
+{
+    v3 result = b.min + (b.max - b.min) * 0.5f;
+    return result;
+}
+
+inline bool
+Contains( aabb const& b, v3 const& p )
+{
+    return (b.min.x < p.x && p.x < b.max.x)
+        && (b.min.y < p.y && p.y < b.max.y)
+        && (b.min.z < p.z && p.z < b.max.z);
+}
+
+inline void
+Clamp( v3* v, aabb const& b )
+{
+    Clamp( &v->x, b.min.x, b.max.x );
+    Clamp( &v->y, b.min.y, b.max.y );
+    Clamp( &v->z, b.min.z, b.max.z );
+}
 
 // Ray
 

@@ -20,6 +20,16 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
+#if NON_UNITY_BUILD
+#include "editor.h"
+#include "renderer.h"
+#include "robotrider.h" 
+#include "meshgen.h"
+#include "asset_loaders.h"
+#include "wfc.h"
+#include "game.h"
+#include "ui.h"
+#endif
 
 #if !RELEASE
 
@@ -32,32 +42,32 @@ CreateEditorEntityFor( Mesh* mesh, u32 cellsPerSide )
 }
 
 internal void
-DrawEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, RenderCommands* renderCommands )
+RenderEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, RenderCommands* renderCommands )
 {
     if( editorEntity.mesh )
     {
-        DrawBounds( editorEntity.mesh->bounds, editorEntity.color, renderCommands );
+        RenderBounds( editorEntity.mesh->bounds, editorEntity.color, renderCommands );
 
-        aabb& box = editorEntity.mesh->bounds;
-        r32 resolutionStep = (box.xMax - box.xMin) / editorEntity.cellsPerSide;
-        //DrawCubicGrid( box, resolutionStep, Pack01ToRGBA( 1, 0, 0, 0.05f ), false, renderCommands ); 
+        aabb const& box = editorEntity.mesh->bounds;
+        r32 resolutionStep = (box.max.x - box.min.x) / editorEntity.cellsPerSide;
+        //RenderCubicGrid( box, resolutionStep, Pack01ToRGBA( 1, 0, 0, 0.05f ), false, renderCommands ); 
         r32 step = resolutionStep;
         u32 color = Pack01ToRGBA( 0, 0, 0, 0.3f );
-        r32 xMin = box.xMin;
-        r32 xMax = box.xMax;
-        r32 yMin = box.yMin;
-        r32 yMax = box.yMax;
+        r32 xMin = box.min.x;
+        r32 xMax = box.max.x;
+        r32 yMin = box.min.y;
+        r32 yMax = box.max.y;
         //for( u32 layer = displayedLayer; layer <= displayedLayer + 1; ++layer )
         u32 layer = displayedLayer + 1;
         {
-            r32 z = box.zMin + layer * step;
+            r32 z = box.min.z + layer * step;
 
             for( r32 y = yMin; y <= yMax; y += step )
-                PushLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );
+                RenderLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );
 
             for( r32 x = xMin; x <= xMax; x += step )
             {
-                PushLine( { x, yMin, z }, { x, yMax, z }, color, renderCommands );
+                RenderLine( { x, yMin, z }, { x, yMax, z }, color, renderCommands );
             }
         }
     }
@@ -66,10 +76,11 @@ DrawEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, RenderCo
 internal void
 InitMeshSamplerTest( TransientState* transientState, MemoryArena* editorArena, MemoryArena* transientArena )
 {
-    transientState->cacheBuffers = InitMarchingCacheBuffers( editorArena, 50 );
+    transientState->samplingCache = InitSurfaceSamplingCache( editorArena, V2u( 50 ) );
 
     TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
-    transientState->testMesh = LoadOBJ( "bunny.obj", editorArena, tmpMemory, Scale( V3( 10.f, 10.f, 10.f ) ) * Translation( V3( 0, 0, 1.f ) ) );
+    transientState->sampledMesh = LoadOBJ( "bunny.obj", editorArena, tmpMemory, 
+                                           M4Scale( V3( 10.f, 10.f, 10.f ) ) * M4Translation( V3( 0, 0, 1.f ) ) );
     EndTemporaryMemory( tmpMemory );
 }
 
@@ -77,28 +88,28 @@ internal void
 TickMeshSamplerTest( const EditorState& editorState, TransientState* transientState, MeshPool* meshPoolArray, const TemporaryMemory& frameMemory,
                      r32 elapsedT, RenderCommands* renderCommands )
 {
-    if( !transientState->testIsoSurfaceMesh ) //|| input->executableReloaded )
+    if( !transientState->testIsoSurfaceMesh ) //|| input.gameCodeReloaded )
     {
-        transientState->displayedLayer = (transientState->displayedLayer + 1) % transientState->cacheBuffers.cellsPerAxis;
-        transientState->drawingDistance = Distance( GetTranslation( transientState->testMesh.mTransform ), editorState.pCamera );
+        transientState->displayedLayer = (transientState->displayedLayer + 1) % transientState->samplingCache.cellsPerAxis.x;
+        transientState->drawingDistance = Distance( GetTranslation( transientState->sampledMesh.mTransform ), editorState.cachedCameraWorldP );
         transientState->displayedLayer = 172;
 
         if( transientState->testIsoSurfaceMesh )
             ReleaseMesh( &transientState->testIsoSurfaceMesh );
-        transientState->testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( transientState->testMesh, transientState->drawingDistance,
-                                                                      transientState->displayedLayer, &transientState->cacheBuffers, meshPoolArray,
+        transientState->testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( transientState->sampledMesh, transientState->drawingDistance,
+                                                                      transientState->displayedLayer, &transientState->samplingCache, meshPoolArray,
                                                                       frameMemory, renderCommands );
     }
 
-    PushProgramChange( ShaderProgramName::FlatShading, renderCommands );
-    //PushMesh( transientState->testMesh, renderCommands );
-    PushMesh( *transientState->testIsoSurfaceMesh, renderCommands );
+    RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
+    //PushMesh( transientState->sampledMesh, renderCommands );
+    RenderMesh( *transientState->testIsoSurfaceMesh, renderCommands );
 
-    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
-    PushMaterial( nullptr, renderCommands );
+    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
+    RenderSetMaterial( nullptr, renderCommands );
 
-	transientState->testEditorEntity = CreateEditorEntityFor(transientState->testIsoSurfaceMesh, transientState->cacheBuffers.cellsPerAxis);
-	DrawEditorEntity( transientState->testEditorEntity, transientState->displayedLayer, renderCommands );
+	transientState->testEditorEntity = CreateEditorEntityFor(transientState->testIsoSurfaceMesh, transientState->samplingCache.cellsPerAxis.x);
+	RenderEditorEntity( transientState->testEditorEntity, transientState->displayedLayer, renderCommands );
 }
 
 internal void
@@ -135,10 +146,10 @@ TickWFCTest( TransientState* transientState, DebugState* debugState, const Tempo
     {
         v2 renderDim = V2( renderCommands->width, renderCommands->height );
         v2 displayDim = renderDim * 0.9f;
-        v2 pDisplay = (renderDim - displayDim) / 2.f;
+        v2 displayP = (renderDim - displayDim) / 2.f;
 
         u32 selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, transientState->wfcGlobalState,
-                                               &transientState->wfcDisplayState, pDisplay, displayDim, debugState,
+                                               &transientState->wfcDisplayState, displayP, displayDim, debugState,
                                                &transientState->wfcDisplayArena, frameMemory );
 
         if( selectedSpecIndex != U32MAX )
@@ -160,93 +171,378 @@ TickWFCTest( TransientState* transientState, DebugState* debugState, const Tempo
     }
 }
 
+internal EditorInput
+MapGameInputToEditorInput( const GameInput& input )
+{
+    EditorInput result = {};
+    const GameControllerInput& input0 = GetController( input, 0 );
+
+    result.camLeft      = input.keyMouse.keysDown[KeyA] || input0.dLeft.endedDown;
+    result.camRight     = input.keyMouse.keysDown[KeyD] || input0.dRight.endedDown;
+    result.camForward   = input.keyMouse.keysDown[KeyW] || input0.dUp.endedDown;
+    result.camBackwards = input.keyMouse.keysDown[KeyS] || input0.dDown.endedDown;
+    result.camUp        = input.keyMouse.keysDown[KeySpace] || input0.rightShoulder.endedDown;
+    result.camDown      = input.keyMouse.keysDown[KeyLeftControl] || input0.leftShoulder.endedDown;
+
+    result.camYawDelta = input.keyMouse.mouseRawXDelta
+        ? input.keyMouse.mouseRawXDelta : input0.rightStick.avgX;
+    result.camPitchDelta = input.keyMouse.mouseRawYDelta
+        ? -input.keyMouse.mouseRawYDelta : input0.rightStick.avgY;
+    result.camLookAt = input.keyMouse.mouseButtons[MouseButtonRight].endedDown || input0.rightThumb.endedDown;
+    result.camOrbit = input.keyMouse.keysDown[KeyLeftShift];
+    // TODO Progressive zoom
+    result.camZDelta = input.keyMouse.mouseRawZDelta;
+
+    return result;
+}
+
+#if 0
+internal void
+TickMeshSimplifierTest()
+{
+    // Mesh simplification test
+    // TODO Update
+    Mesh testMesh;
+    {
+        if( ((i32)input.frameCounter - 180) % 300 == 0 )
+        {
+            FQSMesh gen;
+            {
+                genVertices.count = testVertices.count;
+                for( u32 i = 0; i < genVertices.count; ++i )
+                    genVertices[i].p = testVertices[i].p;
+                genTriangles.count = testIndices.count / 3;
+                for( u32 i = 0; i < genTriangles.count; ++i )
+                {
+                    genTriangles[i].v[0] = testIndices[i*3];
+                    genTriangles[i].v[1] = testIndices[i*3 + 1];
+                    genTriangles[i].v[2] = testIndices[i*3 + 2];
+                }
+                gen.vertices = genVertices;
+                gen.triangles = genTriangles;
+            }
+            FastQuadricSimplify( &gen, (u32)(gen.triangles.count * 0.75f) );
+
+            testVertices.count = gen.vertices.count;
+            for( u32 i = 0; i < testVertices.count; ++i )
+                testVertices[i].p = gen.vertices[i].p;
+            testIndices.count = gen.triangles.count * 3;
+            for( u32 i = 0; i < gen.triangles.count; ++i )
+            {
+                testIndices[i*3 + 0] = gen.triangles[i].v[0];
+                testIndices[i*3 + 1] = gen.triangles[i].v[1];
+                testIndices[i*3 + 2] = gen.triangles[i].v[2];
+            }
+        }
+
+        testMesh.vertices = testVertices.data;
+        testMesh.indices = testIndices.data;
+        testMesh.vertexCount = testVertices.count;
+        testMesh.indexCount = testIndices.count;
+        testMesh.mTransform = Scale({ 10, 10, 10 });
+    }
+    PushMesh( testMesh, renderCommands );
+}
+#endif
+
+internal void
+InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientState )
+{
+    v2u maxCellsPerAxis = V2u( VoxelsPerClusterAxis );
+
+    if( Empty( transientState->testMesh ) )
+    {
+        transientState->samplingCache = InitSurfaceSamplingCache( editorArena, maxCellsPerAxis );
+
+        transientState->settings.mcInterpolate = true;
+        transientState->settings.dc.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
+        transientState->settings.dc.sigmaN = 0.1f;
+        transientState->settings.dc.sigmaNDouble = 0.1f;
+    }
+}
+
+internal void
+TickSurfaceContouringTest( const GameInput& input, TransientState* transientState, RenderCommands* renderCommands,
+                           MemoryArena* editorArena, MemoryArena* tempArena )
+{
+    v2 renderDim = V2( renderCommands->width, renderCommands->height );
+    v2 displayDim = { renderDim.x * 0.2f, renderDim.y * 0.5f };
+    v2 displayP = { 100, 100 };
+
+    SamplingData samplingData = {};
+
+    //ImGui::ShowDemoWindow();
+
+    ContouringSettings& currentSettings = transientState->settings;
+    ContouringSettings settings = currentSettings;
+
+    ImGui::SetNextWindowPos( displayP, ImGuiCond_Always );
+    ImGui::SetNextWindowSize( displayDim, ImGuiCond_Always );
+    ImGui::SetNextWindowSizeConstraints( ImVec2( -1, -1 ), ImVec2( -1, -1 ) );
+
+    ImGui::Begin( "window_contour", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove );
+
+    ImGui::Combo( "Surface", &settings.currentSurfaceIndex, SimpleSurface::Values::names, SimpleSurface::Values::count );
+    samplingData.surfaceType = settings.currentSurfaceIndex;
+
+    static const r32 minus180 = -180.f;
+    static const r32 plus180 = 180.f;
+    ImGui::DragFloat( "X Rotation", &settings.surfaceRotDegrees.x, 0.1f, minus180, plus180, "%.1f deg." );
+    ImGui::DragFloat( "Y Rotation", &settings.surfaceRotDegrees.y, 0.1f, minus180, plus180, "%.1f deg." );
+    ImGui::DragFloat( "Z Rotation", &settings.surfaceRotDegrees.z, 0.1f, minus180, plus180, "%.1f deg." );
+    m4 invRotation = M4ZRotation( -Radians( settings.surfaceRotDegrees.z ) )
+        * M4YRotation( -Radians( settings.surfaceRotDegrees.y ) )
+        * M4XRotation( -Radians( settings.surfaceRotDegrees.x ) );
+    samplingData.invWorldTransform = invRotation;
+
+    ImGui::Dummy( { 0, 20 } );
+    ImGui::Combo( "Algorithm", &settings.currentTechniqueIndex, ContouringTechnique::Values::names,
+                  ContouringTechnique::Values::count );
+    
+    switch( settings.currentTechniqueIndex )
+    {
+        case ContouringTechnique::MarchingCubes().index:
+        {
+            ImGui::Checkbox( "Interpolate edge points", &settings.mcInterpolate );
+        } break;
+        case ContouringTechnique::DualContouring().index:
+        {
+            static const r32 sigmaMin = 0.001f;
+            static const r32 sigmaMinDouble = 0.00001f;
+            static const r32 sigmaMax = 100.f;
+
+            ImGui::RadioButton( "Average", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::Average );
+            ImGui::RadioButton( "QEFClassic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFClassic );
+            ImGui::RadioButton( "QEFProbabilistic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilistic );
+            ImGui::SameLine( 250 );
+            ImGui::PushItemWidth( -100 );
+            ImGui::SliderFloat( "Sigma N##sigma_n", &settings.dc.sigmaN, sigmaMin, sigmaMax, "%.3f", 10.f );
+            ImGui::PopItemWidth();
+            ImGui::RadioButton( "QEFProbabilisticDouble", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFProbabilisticDouble );
+            ImGui::SameLine( 250 );
+            ImGui::PushItemWidth( -100 );
+            ImGui::SliderFloat( "Sigma N##sigma_n_double", &settings.dc.sigmaNDouble, sigmaMinDouble, sigmaMax, "%.5f", 10.f );
+            ImGui::PopItemWidth();
+
+            ImGui::Dummy( { 0, 20 } );
+            ImGui::Checkbox( "Clamp cell points", &settings.dc.clampCellPoints );
+            ImGui::Checkbox( "Approximate edge intersections", &settings.dc.approximateEdgeIntersection );
+        } break;
+    }
+
+    // Rebuild after a while if settings change
+    if( !EQUAL( settings, currentSettings ) )
+    {
+        COPY( settings, currentSettings );
+        transientState->nextRebuildTimeSeconds = input.totalElapsedSeconds + 0.5f;
+    }
+
+    if( Empty( transientState->testMesh ) || input.gameCodeReloaded
+        || (transientState->nextRebuildTimeSeconds && input.totalElapsedSeconds > transientState->nextRebuildTimeSeconds) )
+    {
+        BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
+        BucketArray<u32> tmpIndices( tempArena, 1024, Temporary() );
+        r64 start = globalPlatform.DEBUGCurrentTimeMillis();
+
+        switch( settings.currentTechniqueIndex )
+        {
+            case ContouringTechnique::MarchingCubes().index:
+            {
+                MarchVolumeFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc, &samplingData,
+                                 &transientState->samplingCache, &tmpVertices, &tmpIndices, settings.mcInterpolate );
+               
+            } break;
+            case ContouringTechnique::DualContouring().index:
+            {
+                DCVolume( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc, &samplingData,
+                          &tmpVertices, &tmpIndices, tempArena, settings.dc );
+
+            } break;
+        }
+        transientState->testMesh = CreateMeshFromBuffers( tmpVertices, tmpIndices, editorArena );
+        transientState->contourTimeMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
+
+        start = globalPlatform.DEBUGCurrentTimeMillis();
+
+#if 0
+        // Simplify mesh
+        TemporaryMemory tempMemory = BeginTemporaryMemory( tempArena );
+
+        FQSMesh fqsMesh = CreateFQSMesh( transientState->testMesh->vertices, transientState->testMesh->indices, tempMemory );
+        FastQuadricSimplify( &fqsMesh, 10000, tempMemory );
+
+        transientState->testMesh->vertices.Resize( fqsMesh.vertices.count );
+        for( u32 i = 0; i < fqsMesh.vertices.count; ++i )
+            // FIXME Vertex attributes
+            transientState->testMesh->vertices[i].p = fqsMesh.vertices[i].p;
+        transientState->testMesh->indices.Resize( fqsMesh.triangles.count * 3 );
+        for( u32 i = 0; i < fqsMesh.triangles.count; ++i )
+        {
+            transientState->testMesh->indices[ i*3 + 0 ] = fqsMesh.triangles[i].v[0];
+            transientState->testMesh->indices[ i*3 + 1 ] = fqsMesh.triangles[i].v[1];
+            transientState->testMesh->indices[ i*3 + 2 ] = fqsMesh.triangles[i].v[2];
+        }
+        EndTemporaryMemory( tempMemory );
+
+        transientState->simplifyTimeMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
+#endif
+
+        transientState->nextRebuildTimeSeconds = 0.f;
+    }
+
+    ImGui::Dummy( { 0, 20 } );
+    ImGui::Separator();
+    u32 c = (u32)ClusterSizeMeters;
+    ImGui::Text( "%u x %u x %u cells", c, c, c );
+    ImGui::Dummy( { 0, 20 } );
+    ImGui::Text( "Tris: %u", transientState->testMesh.indices.count / 3 );
+    ImGui::Text( "Verts: %u", transientState->testMesh.vertices.count );
+    ImGui::Dummy( { 0, 20 } );
+    ImGui::Text( "Extracted in: %g millis.", transientState->contourTimeMillis );
+    //ImGui::Text( "Simplified in: %g millis.", transientState->simplifyTimeMillis );
+    ImGui::End();
+
+    RenderSwitch( RenderSwitchType::Culling, false, renderCommands );
+    RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
+    RenderMesh( transientState->testMesh, renderCommands );
+
+    RenderSwitch( RenderSwitchType::Culling, true, renderCommands );
+}
+
 void
 InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState, TransientState* transientState,
             MemoryArena* editorArena, MemoryArena* transientArena )
 {
-    RandomSeed();
-
 #if 0
     InitMeshSamplerTest( transientState, editorArena, transientArena );
-#endif
 
     InitWFCTest( transientState, editorArena, transientArena );
+#endif
+
+    InitSurfaceContouringTest( editorArena, transientState );
 }
 
 void
-UpdateAndRenderEditor( GameInput *input, GameState* gameState, TransientState* transientState, 
+UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientState* transientState, 
                        DebugState* debugState, RenderCommands *renderCommands, const char* statsText, 
-                       const TemporaryMemory& frameMemory )
+                       MemoryArena* editorArena, const TemporaryMemory& frameMemory )
 {
-    float dT = input->frameElapsedSeconds;
-    float elapsedT = input->totalElapsedSeconds;
+    float dT = input.frameElapsedSeconds;
+    float elapsedT = input.totalElapsedSeconds;
 
     EditorState* editorState = &gameState->DEBUGeditorState;
     World* world = gameState->world;
 
-    // Setup a zenithal camera initially
-    if( editorState->pCamera == V3Zero )
+    EditorInput editorInput = MapGameInputToEditorInput( input );
+
+    if( editorState->cachedCameraWorldP == V3Zero )
     {
-        editorState->pCamera = V3( 0, -20, 20 );
-        editorState->camYaw = 0;
-        editorState->camPitch = 0;
-        //v3 pLookAt = gameState->pPlayer;
-        //m4 mInitialRot = CameraLookAt( editorState->pCamera, pLookAt, V3Up() );
-        editorState->camPitch = -PI / 4.f;
+        v3 pCamera = V3( 0.f, -150.f, 220.f );
+        m4 mLookAt = M4CameraLookAt( pCamera, world->pPlayer, V3Up );
+
+        editorState->camera = DefaultCamera();
+        editorState->camera.worldToCamera = mLookAt;
+        editorState->translationSpeedStep = 2;
     }
 
     // Update camera based on input
     {
-        GameControllerInput *input0 = GetController( input, 0 );
-        r32 camSpeed = 9.f;
+        editorState->translationSpeedStep += (int)editorInput.camZDelta;
+        Clamp( &editorState->translationSpeedStep, 0, 2 );
 
-        v3 vCamDelta = {};
-        if( input0->dLeft.endedDown )
-            vCamDelta.x -= camSpeed * dT;
-        if( input0->dRight.endedDown )
-            vCamDelta.x += camSpeed * dT;
+        r32 camMovementSpeed = Pow( 10, (r32)editorState->translationSpeedStep );
+        r32 camRotationSpeed = 1.f;
 
-        if( input0->dUp.endedDown )
-            vCamDelta.z -= camSpeed * dT;
-        if( input0->dDown.endedDown )
-            vCamDelta.z += camSpeed * dT;
+        v3 camTranslationDelta = {};
+        if( editorInput.camLeft )
+            camTranslationDelta.x -= camMovementSpeed * dT;
+        if( editorInput.camRight )
+            camTranslationDelta.x += camMovementSpeed * dT;
 
-        if( input0->leftShoulder.endedDown )
-            vCamDelta.y -= camSpeed * dT;
-        if( input0->rightShoulder.endedDown )
-            vCamDelta.y += camSpeed * dT;
+        if( editorInput.camForward )
+            camTranslationDelta.z -= camMovementSpeed * dT;
+        if( editorInput.camBackwards )
+            camTranslationDelta.z += camMovementSpeed * dT;
 
-        if( input0->rightStick.avgX || input0->rightStick.avgY )
+        if( editorInput.camDown )
+            camTranslationDelta.y -= camMovementSpeed * dT;
+        if( editorInput.camUp )
+            camTranslationDelta.y += camMovementSpeed * dT;
+
+        r32 camPitchDelta = 0, camYawDelta = 0;
+        if( editorInput.camPitchDelta )
+            camPitchDelta += editorInput.camPitchDelta * camRotationSpeed * dT;
+        if( editorInput.camYawDelta )
+            camYawDelta += editorInput.camYawDelta * camRotationSpeed * dT; 
+
+
+        m4& worldToCamera = editorState->camera.worldToCamera;
+        m4 cameraToWorld = Transposed( worldToCamera );
+
+        // Find camera position in the world
+        v3 cameraWorldP = -(cameraToWorld * GetTranslation( worldToCamera ));
+
+        if( editorInput.camLookAt )
         {
-            editorState->camPitch += input0->rightStick.avgY / 15.f * dT;
-            editorState->camYaw += input0->rightStick.avgX / 15.f * dT; 
+            // Rotate around camera X axis
+            m4 localXRotation = cameraToWorld * M4XRotation( camPitchDelta );
+            worldToCamera = Transposed( localXRotation );
+
+            // Rotate around world Z axis
+            m4 worldZRotation = M4Translation( cameraWorldP ) * M4ZRotation( camYawDelta ) * M4Translation( -cameraWorldP );
+            worldToCamera *= worldZRotation;
+        }
+        else if( editorInput.camOrbit )
+        {
+            if( !editorState->wasOrbiting )
+            {
+                v3 cameraTargetP = V3Zero; // For now
+                worldToCamera = M4CameraLookAt( cameraWorldP, cameraTargetP, V3Up );
+                cameraToWorld = Transposed( worldToCamera );
+            }
+
+            // Orbit around world axes
+            worldToCamera *= M4AxisAngle( GetCameraBasisX( worldToCamera ), -camPitchDelta );
+            worldToCamera *= M4ZRotation( camYawDelta );
+
+            camTranslationDelta = Hadamard( camTranslationDelta, { 0, 0, 1 } );
         }
 
-        m4 mCamRot = XRotation( editorState->camPitch )
-            * ZRotation( editorState->camYaw );
+        // Apply translation (already in camera space)
+        Translate( worldToCamera, -camTranslationDelta );
 
-        v3 vCamForward = GetColumn( mCamRot, 2 ).xyz;
-        v3 vCamRight = GetColumn( mCamRot, 0 ).xyz;
-        editorState->pCamera += Transposed( mCamRot ) * vCamDelta;
+        renderCommands->camera = editorState->camera;
 
-        renderCommands->camera = DefaultCamera();
-        renderCommands->camera.mTransform = mCamRot * Translation( -editorState->pCamera );
+        editorState->cachedCameraWorldP = cameraWorldP;
+        editorState->wasOrbiting = editorInput.camOrbit;
     }
 
-    TickWFCTest( transientState, debugState, frameMemory, renderCommands );
-
 #if 0
+    // Resampling meshes using marching cubes
     TickMeshSamplerTest( *editorState, transientState, &world->meshPools[0], frameMemory, elapsedT, renderCommands );
+    // Mesh simplification
+    TickMeshSimplifierTest();
+
+    // Wave function collapse algorithm
+    TickWFCTest( transientState, debugState, frameMemory, renderCommands );
 #endif
 
-    PushProgramChange( ShaderProgramName::PlainColor, renderCommands );
-    PushMaterial( nullptr, renderCommands );
+    TickSurfaceContouringTest( input, transientState, renderCommands, editorArena, frameMemory.arena );
 
-	DrawFloorGrid(CLUSTER_HALF_SIZE_METERS * 2, gameState->world->marchingCubeSize, renderCommands);
+    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
+    RenderSetMaterial( nullptr, renderCommands );
+
+    // Render current cluster limits
+    u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
+    RenderBoundsAt( V3Zero, ClusterSizeMeters, red, renderCommands );
+
+	//RenderFloorGrid( ClusterSizeMeters, 10.f, renderCommands );
     DrawAxisGizmos( renderCommands );
 
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
+    DrawEditorStateWindow( V2u( width - 280, 50 ), V2u( 250, height - 900 ), *editorState );
+
     DrawEditorStats( width, height, statsText, (i32)elapsedT % 2 == 0 );
 }
 #endif

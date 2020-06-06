@@ -13,6 +13,11 @@
 
 #pragma once
 
+#if NON_UNITY_BUILD
+#include "math_types.h"
+#include "data_types.h"
+#endif
+
 //---- Define assertion handler. Defaults to calling assert().
 #define IM_ASSERT(_EXPR)  ASSERT(_EXPR)
 
@@ -50,6 +55,8 @@
 
 //---- Define constructor and implicit cast operators to convert back<>forth between your math types and ImVec2/ImVec4.
 // This will be inlined as part of ImVec2 and ImVec4 class declarations.
+// TODO Use this to auto convert relative to absolute coords by using ImGui::GetIO().DisplaySize.x & ImGui::GetIO().DisplaySize.y
+// TODO Remove the integer based ones?
 #define IM_VEC2_CLASS_EXTRA                                                 \
         ImVec2(const v2& f) { x = f.x; y = f.y; }                       \
         operator v2() const { return V2(x,y); }                         \

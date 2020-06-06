@@ -21,21 +21,26 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-// Some global constants for colors, styling, etc.
-ImVec4 UInormalTextColor( 0.9f, 0.9f, 0.9f, 1.0f );
-ImVec4 UIdarkTextColor( .0f, .0f, .0f, 1.0f );
-ImVec4 UItoolWindowBgColor( 0.f, 0.f, 0.f, 0.6f );
-ImVec4 UIlightOverlayBgColor( 0.5f, 0.5f, 0.5f, 0.05f );
+#if NON_UNITY_BUILD
+#include "ui.h"
+#include "util.h"
+#include "renderer.h"
+#include "debugstats.h"
+#include "editor.h"
+#endif
 
-void
-DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
+// TODO Make sure everything here uses resolution-independant (0 to 1) coordinates
+
+
+void DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
 {
-    ImVec2 statsPos( 0, 0 );
-
-    ImGui::SetNextWindowPos( statsPos, ImGuiCond_FirstUseEver );
+    ImVec2 statsPos( 0, windowHeight );
+    ImGui::SetNextWindowPos( statsPos, ImGuiCond_Always, ImVec2( 0, 1.f ) );
     ImGui::SetNextWindowSize( ImVec2( windowWidth, ImGui::GetTextLineHeight() ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.0f );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowBorderSize, 0.0f );
     ImGui::PushStyleColor( ImGuiCol_WindowBg, UIlightOverlayBgColor );
+
     ImGui::Begin( "window_stats", NULL,
                   ImGuiWindowFlags_NoTitleBar |
                   ImGuiWindowFlags_NoResize |
@@ -48,18 +53,18 @@ DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
 #endif
     ImGui::End();
     ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
 }
 
-void
-DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool blinkToggle )
+void DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool blinkToggle )
 {
-    ImVec2 statsPos( 0, 0 );
-
-    ImGui::SetNextWindowPos( statsPos, ImGuiCond_FirstUseEver );
+    ImVec2 statsPos( 0, windowHeight );
+    ImGui::SetNextWindowPos( statsPos, ImGuiCond_Always, ImVec2( 0, 1.f ) );
     ImGui::SetNextWindowSize( ImVec2( windowWidth, ImGui::GetTextLineHeight() ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.0f );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowBorderSize, 0.0f );
     ImGui::PushStyleColor( ImGuiCol_WindowBg, UIlightOverlayBgColor );
+
     ImGui::Begin( "window_stats", NULL,
                   ImGuiWindowFlags_NoTitleBar |
                   ImGuiWindowFlags_NoResize |
@@ -69,28 +74,27 @@ DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool 
     ImGui::SameLine( (r32)windowWidth - 100 );
     ImGui::TextColored( UIdarkTextColor, blinkToggle ? "EDITOR MODE" : "" );
     ImGui::End();
+
     ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
 }
 
-inline void
-DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, r32 xLen, const v3& yAxis, r32 yLen, u32 color,
-                                 RenderCommands *renderCommands )
+inline void DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, r32 xLen, const v3& yAxis, r32 yLen, u32 color,
+                                      RenderCommands *renderCommands )
 {
     v3 p1 = origin + xAxis * 0.f  + yAxis * 0.f;
     v3 p2 = origin + xAxis * xLen + yAxis * 0.f;
     v3 p3 = origin + xAxis * xLen + yAxis * yLen;
     v3 p4 = origin + xAxis * 0.f  + yAxis * yLen;
-    PushQuad( p1, p2, p3, p4, color, renderCommands );
+    RenderQuad( p1, p2, p3, p4, color, renderCommands );
 }
 
-void
-DrawAxisGizmos( RenderCommands *renderCommands )
+void DrawAxisGizmos( RenderCommands *renderCommands )
 {
-    const m4 &currentCamTransform = renderCommands->camera.mTransform;
-    v3 vCamFwd = -GetRow( currentCamTransform, 2 ).xyz;
-    v3 vCamX = GetRow( currentCamTransform, 0 ).xyz;
-    v3 vCamY = GetRow( currentCamTransform, 1 ).xyz;
+    const m4 &currentCamTransform = renderCommands->camera.worldToCamera;
+    v3 vCamX = GetCameraBasisX( currentCamTransform );
+    v3 vCamY = GetCameraBasisY( currentCamTransform );
+    v3 vCamFwd = -GetCameraBasisZ( currentCamTransform );
 
     v3 p = GetTranslation( currentCamTransform );
     v3 pCamera = Transposed( currentCamTransform ) * (-p);
@@ -125,8 +129,7 @@ DrawAxisGizmos( RenderCommands *renderCommands )
     DrawAlignedQuadWithBasis( origin + V3Y * w,             V3Z, len, -V3Y, w, color, renderCommands );
 }
 
-void
-DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ... )
+void DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ... )
 {
     char textBuffer[1024];
 
@@ -140,8 +143,7 @@ DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ..
     ImGui::Text( textBuffer );
 }
 
-void
-DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tmpMemory )
+void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tmpMemory )
 {
     r32 windowHeight = ImGui::GetWindowHeight();
 
@@ -150,11 +152,11 @@ DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tm
     ImGui::Columns( 4, nullptr, true );
 
     Array<DebugCounterLog> counterLogs = Array<DebugCounterLog>( (DebugCounterLog*)debugState->counterLogs,
-                                                                 debugState->counterLogsCount,
                                                                  (u32)ARRAYCOUNT(debugState->counterLogs) );
+    counterLogs.count = debugState->counterLogsCount;
 
     u32 snapshotIndex = debugState->counterSnapshotIndex;
-    Array<KeyIndex64> counterFrameKeys = Array<KeyIndex64>( tmpMemory.arena, 0, counterLogs.count, Temporary() );
+    Array<KeyIndex64> counterFrameKeys = Array<KeyIndex64>( tmpMemory.arena, counterLogs.count, Temporary() );
     BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, snapshots[snapshotIndex].cycleCount),
                             &counterFrameKeys );
     // TODO Use RadixSort11 if this gets big
@@ -201,7 +203,7 @@ DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tm
     contentWidth = ImGui::GetWindowWidth();
     ImGui::Columns( 3, nullptr, true );
 
-    Array<KeyIndex64> counterTotalKeys = Array<KeyIndex64>( tmpMemory.arena, 0, counterLogs.count, Temporary() );
+    Array<KeyIndex64> counterTotalKeys = Array<KeyIndex64>( tmpMemory.arena, counterLogs.count, Temporary() );
     BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, totalCycleCount), &counterTotalKeys );
     RadixSort( &counterTotalKeys, RadixKey::U64, false, tmpMemory.arena );
 
@@ -230,12 +232,10 @@ DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tm
     ImGui::EndChild();
 }
 
-void
-DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight,
-                               const TemporaryMemory& tmpMemory )
+void DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight, const TemporaryMemory& tmpMemory )
 {
-    ImGui::SetNextWindowPos( ImVec2( 100.f, windowHeight * 0.25f + 100 ), ImGuiCond_FirstUseEver );
-    ImGui::SetNextWindowSize( ImVec2( 500.f, windowHeight * 0.25f ), ImGuiCond_Appearing );
+    ImGui::SetNextWindowPos( ImVec2( 100.f, windowHeight * 0.25f + 100 ), ImGuiCond_Always );
+    ImGui::SetNextWindowSize( ImVec2( 500.f, windowHeight * 0.25f ), ImGuiCond_Always );
     ImGui::SetNextWindowSizeConstraints( ImVec2( -1, 100 ), ImVec2( -1, FLT_MAX ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 3.f );
     ImGui::PushStyleColor( ImGuiCol_WindowBg, UItoolWindowBgColor );
@@ -251,5 +251,19 @@ DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u3
     ImGui::End();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
+}
+
+void DrawEditorStateWindow( const v2u& windowP, const v2u& windowDim, const EditorState& state )
+{
+    ImGui::SetNextWindowPos( windowP, ImGuiCond_Always );
+    ImGui::SetNextWindowSize( windowDim, ImGuiCond_Always );
+
+    ImGui::Begin( "window_editor_state", NULL,
+                  ImGuiWindowFlags_NoTitleBar |
+                  ImGuiWindowFlags_NoResize |
+                  ImGuiWindowFlags_NoMove );
+
+    ImGui::Text( "Camera translation speed: %d", state.translationSpeedStep );
+    ImGui::End();
 }
 

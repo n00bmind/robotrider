@@ -24,46 +24,56 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __RENDERER_H__
 #define __RENDERER_H__ 
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#include "math_types.h"
+#include "data_types.h"
+#endif
+
+
 enum class Renderer
 {
     OpenGL,
     Gnmx,
-    // OpenGLES,
-    // Software?
 };
 
+// TODO Turn into a StructEnum
 enum class ShaderProgramName
 {
     None,
     PlainColor,
+    PlainColorVoxel,
     FlatShading,
 };
 
-enum class RenderSwitch
+enum class RenderSwitchType
 {
+    Culling,
 };
 
 
 struct Camera
 {
+    m4 worldToCamera;
     r32 fovYDeg;
-    m4 mTransform;
 };
 
 inline Camera
-DefaultCamera()
+DefaultCamera( r32 fovYDeg = 60 )
 {
-    Camera result = { 60, M4Identity };
+    Camera result = { M4Identity, fovYDeg };
     return result;
 }
 
+// TODO Test different layouts and investigate alignment etc here
 struct TexturedVertex
 {
     v3 p;
     u32 color;
-    v2 uv;
     // TODO Should we just ignore these and do it all in the GS based on what shading we want?
+    // TODO In any case, create a separate vertex format for all the debug stuff etc. that will never need this
     v3 n;
+    v2 uv;
 };
 
 struct Texture
@@ -85,58 +95,92 @@ struct MeshPool;
 
 struct Mesh
 {
-    TexturedVertex* vertices;
-    u32 vertexCount;
-    u32* indices;
-    u32 indexCount;
+    MeshPool* ownerPool;
 
-    m4 mTransform;
-    aabb bounds;
+    Array<TexturedVertex> vertices;
+    Array<u32> indices;
 
     Material* material;
+    aabb bounds;
 
-    MeshPool* ownerPool;
+    // NOTE Static geometry doesnt need this at all
+    // NOTE Dynamic geometry will be always transformed relative to the cluster they live in
+    m4 mTransform;
+
+    // Index into the global cluster offset array to determine final translation in the shader
+    u32 simClusterIndex;
 };
 
 inline void
-Init( Mesh* mesh )
+InitMesh( Mesh* mesh )
 {
     *mesh = {};
     mesh->mTransform = M4Identity;
+    mesh->simClusterIndex = 0;
+}
+
+inline bool
+Empty( Mesh const& mesh )
+{
+    return mesh.vertices.count == 0;
+}
+
+inline Mesh
+CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<u32> const& indices, MemoryArena* arena )
+{
+    Mesh result;
+    InitMesh( &result );
+
+    result.vertices = Array<TexturedVertex>( arena, vertices.count );
+    vertices.CopyTo( &result.vertices );
+    result.indices = Array<u32>( arena, indices.count );
+    indices.CopyTo( &result.indices );
+
+    return result;
 }
 
 inline void
 CalcBounds( Mesh* mesh )
 {
-    aabb boundingBox =
-    {
-        R32INF, -R32INF,
-        R32INF, -R32INF,
-        R32INF, -R32INF,
-    };
+    aabb result = { V3Inf, -V3Inf };
 
-    for( u32 i = 0; i < mesh->vertexCount; ++i )
+    for( u32 i = 0; i < mesh->vertices.count; ++i )
     {
         v3& p = mesh->vertices[i].p;
 
-        if( boundingBox.xMin > p.x )
-            boundingBox.xMin = p.x;
-        if( boundingBox.xMax < p.x )
-            boundingBox.xMax = p.x;
+        if( result.min.x > p.x )
+            result.min.x = p.x;
+        if( result.max.x < p.x )
+            result.max.x = p.x;
 
-        if( boundingBox.yMin > p.y )
-            boundingBox.yMin = p.y;
-        if( boundingBox.yMax < p.y )
-            boundingBox.yMax = p.y;
+        if( result.min.y > p.y )
+            result.min.y = p.y;
+        if( result.max.y < p.y )
+            result.max.y = p.y;
 
-        if( boundingBox.zMin > p.z )
-            boundingBox.zMin = p.z;
-        if( boundingBox.zMax < p.z )
-            boundingBox.zMax = p.z;
+        if( result.min.z > p.z )
+            result.min.z = p.z;
+        if( result.max.z < p.z )
+            result.max.z = p.z;
     }
 
-    mesh->bounds = boundingBox;
+    mesh->bounds = result;
 }
+
+
+struct InstanceData
+{
+    v3 worldOffset;
+    u32 color;
+};
+
+struct MeshData
+{
+    u32 vertexCount;
+    u32 indexCount;
+    u32 indexStartOffset;
+    u32 simClusterIndex;
+};
 
 
 enum class RenderEntryType
@@ -147,6 +191,9 @@ enum class RenderEntryType
     RenderEntryProgramChange,
     RenderEntryMaterial,
     RenderEntrySwitch,
+    RenderEntryVoxelGrid,
+    RenderEntryVoxelChunk,
+    RenderEntryMeshChunk,
 };
 
 struct RenderEntry
@@ -200,10 +247,40 @@ struct RenderEntrySwitch
 {
     RenderEntry header;
 
-    RenderSwitch renderSwitch;
+    RenderSwitchType renderSwitch;
     bool enable;
 };
 
+struct RenderEntryVoxelGrid
+{
+    RenderEntry header;
+
+    u32 vertexBufferOffset;
+    u32 instanceBufferOffset;
+    u32 instanceCount;
+};
+
+struct RenderEntryVoxelChunk
+{
+    RenderEntry header;
+
+    u32 vertexBufferOffset;
+    u32 indexBufferOffset;
+    u32 instanceBufferOffset;
+    u32 instanceCount;
+};
+
+struct RenderEntryMeshChunk
+{
+    RenderEntry header;
+
+    u32 vertexBufferOffset;
+    u32 indexBufferOffset;
+    u32 instanceBufferOffset;
+    u32 meshCount;
+
+    u32 runningVertexCount;
+};
 
 
 struct RenderBuffer
@@ -227,21 +304,33 @@ struct IndexBuffer
     u32 maxCount;
 };
 
+struct InstanceBuffer
+{
+    u8* base;
+    u32 size;
+    u32 maxSize;
+};
+
 
 
 struct RenderCommands
 {
-    u16 width;
-    u16 height;
-
-    Camera camera;
-
-    RenderBuffer renderBuffer;
-    VertexBuffer vertexBuffer;
-    IndexBuffer indexBuffer;
+    RenderBuffer   renderBuffer;
+    VertexBuffer   vertexBuffer;
+    IndexBuffer    indexBuffer;
+    InstanceBuffer instanceBuffer;
 
     RenderEntryTexturedTris *currentTris;
     RenderEntryLines *currentLines;
+    RenderEntryMeshChunk* currentMeshChunk;
+
+    Camera camera;
+
+    u16 width;
+    u16 height;
+
+    v3* simClusterOffsets;
+    u32 simClusterCount;
 
     bool isValid;
 };
@@ -249,7 +338,8 @@ struct RenderCommands
 inline RenderCommands
 InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
                     TexturedVertex *vertexBuffer, u32 vertexBufferMaxCount,
-                    u32 *indexBuffer, u32 indexBufferMaxCount )
+                    u32 *indexBuffer, u32 indexBufferMaxCount,
+                    u8* instanceBuffer, u32 instanceBufferMaxSize )
 {
     RenderCommands result;
 
@@ -262,11 +352,15 @@ InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
     result.indexBuffer.base = indexBuffer;
     result.indexBuffer.count = 0;
     result.indexBuffer.maxCount = indexBufferMaxCount;
+    result.instanceBuffer.base = instanceBuffer;
+    result.instanceBuffer.size = 0;
+    result.instanceBuffer.maxSize = instanceBufferMaxSize;
 
     result.currentTris = nullptr;
     result.currentLines = nullptr;
+    result.currentMeshChunk = nullptr;
 
-    result.isValid = renderBuffer && vertexBuffer && indexBuffer;
+    result.isValid = renderBuffer && vertexBuffer && indexBuffer && instanceBuffer;
 
     return result;
 }
@@ -277,8 +371,32 @@ ResetRenderCommands( RenderCommands *commands )
     commands->renderBuffer.size = 0;
     commands->vertexBuffer.count = 0;
     commands->indexBuffer.count = 0;
-    commands->currentTris = 0;
+    commands->instanceBuffer.size = 0;
+
+    commands->currentTris = nullptr;
+    commands->currentLines = nullptr;
+    commands->currentMeshChunk = nullptr;
 }
+
+
+struct Cluster;
+typedef Grid3D<u8> ClusterVoxelGrid;
+
+void RenderClear( const v4& color, RenderCommands *commands );
+void RenderQuad( const v3 &p1, const v3 &p2, const v3 &p3, const v3 &p4, u32 color, RenderCommands *commands );
+void RenderLine( v3 pStart, v3 pEnd, u32 color, RenderCommands *commands );
+void RenderSetShader( ShaderProgramName programName, RenderCommands *commands );
+void RenderSetMaterial( Material* material, RenderCommands* commands );
+void RenderSwitch( RenderSwitchType renderSwitch, bool enable, RenderCommands* commands );
+void RenderMesh( const Mesh& mesh, RenderCommands *commands );
+void RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands );
+void RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands );
+void RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands );
+void RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands );
+void RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands );
+void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands );
+void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands );
+
 
 
 

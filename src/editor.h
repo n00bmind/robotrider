@@ -1,6 +1,11 @@
 #ifndef __EDITOR_H__
 #define __EDITOR_H__ 
 
+#if NON_UNITY_BUILD
+#include "renderer.h"
+#endif
+
+
 struct EditorEntity
 {
     Mesh* mesh;
@@ -9,11 +14,27 @@ struct EditorEntity
     u32 cellsPerSide;
 };
 
+struct EditorInput
+{
+    bool camLeft;
+    bool camRight;
+    bool camForward;
+    bool camBackwards;
+    bool camUp;
+    bool camDown;
+    r32 camPitchDelta;
+    r32 camYawDelta;
+    r32 camZDelta;
+    bool camLookAt;
+    bool camOrbit;
+};
+
 struct EditorState
 {
-    v3 pCamera;
-    r32 camPitch;
-    r32 camYaw;
+    Camera camera;
+    v3 cachedCameraWorldP;
+    i32 translationSpeedStep;
+    bool wasOrbiting;
 };
 
 #endif /* __EDITOR_H__ */

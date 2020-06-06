@@ -30,10 +30,22 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <x86intrin.h>
 #endif
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#endif
+
 
 // TODO Convert all of these to the most platform-efficient versions
 // for all supported compilers & platforms
 // TODO Examine disassemblies for all compilers and compare!
+
+inline u32
+ToU32Safe( i32 value )
+{
+    ASSERT( value >= 0 );
+    u32 result = (u32)value;
+    return result;
+}
 
 inline u32
 ToU32Safe( u64 value )
@@ -102,6 +114,19 @@ Cos( r32 angleRads )
 }
 
 inline r32
+ACos( r32 angleRads )
+{
+    r32 result = acosf( angleRads );
+    return result;
+}
+
+inline r32
+Sqr( r32 value )
+{
+    return value * value;
+}
+
+inline r32
 Sqrt( r32 value )
 {
     r32 result = sqrtf( value );
@@ -144,6 +169,12 @@ Max( i32 a, i32 b )
     return a > b ? a : b;
 }
 
+inline u32
+Max( u32 a, u32 b )
+{
+    return a > b ? a : b;
+}
+
 inline r32
 Max( r32 a, r32 b )
 {
@@ -163,10 +194,28 @@ Median( i32 a, i32 b, i32 c )
     return result;
 }
 
+inline void
+Clamp( i32* value, i32 min, i32 max )
+{
+    *value = Min( Max( *value, min ), max );
+}
+
+inline void
+Clamp( r32* value, r32 min, r32 max )
+{
+    *value = Min( Max( *value, min ), max );
+}
+
 inline r32
 Clamp0( r32 value )
 {
     return Max( 0.f, value );
+}
+
+inline r32
+Clamp01( r32 value )
+{
+    return Min( Max( 0.f, value ), 1.f );
 }
 
 inline i32
@@ -214,6 +263,12 @@ Swap( i32* a, i32* b )
 }
 
 inline bool
+Sign( r32 value )
+{
+    return (*(int*)&value) & 0x80000000;
+}
+
+inline bool
 IsPowerOf2( u64 value )
 {
     return (value & (value - 1)) == 0;
@@ -258,6 +313,7 @@ NextPowerOf2( u32 value )
     return result;
 }
 
+// TODO Rewrite this stuff enforcing sizes with templates
 inline u32
 AtomicCompareExchange( volatile u32* value, u32 newValue, u32 expectedValue )
 {

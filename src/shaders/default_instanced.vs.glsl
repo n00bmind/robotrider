@@ -26,6 +26,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec2 inTexCoords;
 layout(location = 2) in uint inColor;
+layout(location = 3) in vec3 inInstanceOffset;
+layout(location = 4) in uint inInstanceColor;
 
 out VertexData
 {
@@ -36,7 +38,7 @@ out VertexData
 
 // TODO Consider using interface block for uniforms in the future too
 uniform mat4 mTransform;
-// FIXME Add a #define for the size of this array from code and guard against the actual size of the source data and the OpenGL limits
+// FIXME Somehow define the size of this array externally and guard against the actual size of the source data and the OpenGL limits
 // NOTE Consider using Texture Buffer Objects for more complex per-mesh data
 // https://www.khronos.org/opengl/wiki/Buffer_Texture
 // https://gist.github.com/roxlu/5090067
@@ -76,10 +78,9 @@ vec4 unpack( uint value )
 
 void main()
 {
-    _out.worldP = inPosition + simClusterOffsets[simClusterIndex];
+    _out.worldP = inPosition + simClusterOffsets[simClusterIndex] + inInstanceOffset;
     gl_Position = mTransform * vec4( _out.worldP, 1.0 );
-
+    _out.color = unpack( inColor ) * unpack( inInstanceColor );
     _out.texCoords = inTexCoords;
-    _out.color = unpack( inColor );
 }
 

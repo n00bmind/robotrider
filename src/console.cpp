@@ -20,6 +20,12 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
+#if NON_UNITY_BUILD
+#include "imgui/imgui.h"
+#include "robotrider.h"
+#include "ui.h"
+#endif
+
  
 #define COMMAND(name) bool name( const char *args, char *out )
 typedef COMMAND(CommandParserFunc);
@@ -188,7 +194,9 @@ DrawConsole( GameConsole *console, u16 screenWidth, u16 screenHeight, const char
     ImGui::Separator();
 
     // Input
-    if( ImGui::InputText( "input_console", console->inputBuffer, ARRAYCOUNT(console->inputBuffer),
+    ImGui::PushItemWidth( ImGui::GetWindowWidth() ); ImGui::AlignTextToFramePadding(); ImGui::Text( "::" );
+    ImGui::SameLine();
+    if( ImGui::InputText( "##input_console", console->inputBuffer, ARRAYCOUNT(console->inputBuffer),
                           ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory,
                           &ConsoleInputCallback, console ) )
     {

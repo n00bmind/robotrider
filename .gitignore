@@ -19,3 +19,4 @@ rr.cap
 .vs/
 *.vim
 SyncToy*
+*.rdbg

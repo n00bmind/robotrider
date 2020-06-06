@@ -24,11 +24,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MATH_H__
 #define __MATH_H__ 
 
+#if NON_UNITY_BUILD
+#include <float.h>
+#include <time.h>
+#include <stdlib.h>
+#include "intrinsics.h"
+#endif
+
 #define PI   3.141592653589f
 #define PI64 3.14159265358979323846
 
+// NOTE Absolute epsilon comparison will be necessary when comparing against zero
 inline bool
-AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
+AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon /*= 0*/ )
 {
     bool result = false;
 
@@ -45,19 +53,19 @@ AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
 }
 
 inline bool
-GreaterOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
+GreaterOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon /*= 0*/ )
 {
     return a > b || AlmostEqual( a, b, absoluteEpsilon );
 }
 
 inline bool
-LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 )
+LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon /*= 0*/ )
 {
     return a < b || AlmostEqual( a, b, absoluteEpsilon );
 }
 
 inline bool
-AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon = 0 )
+AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon /*= 0*/ )
 {
     bool result = false;
 
@@ -85,6 +93,7 @@ Radians( r32 degrees )
 // https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/monte-carlo-methods-in-practice/generating-random-numbers
 // http://www.pcg-random.org/
 // Also, we should probably distinguish between "fast & repeatable" (for PCG) and "good distribution" (for other stuff) random numbers
+// FIXME All random functions should have the seed passed in, or even better, a Distribution which already was created using one.
 
 inline void
 RandomSeed()
@@ -95,7 +104,7 @@ RandomSeed()
 inline r32
 RandomNormalizedR32()
 {
-    r32 result = (r32)rand() / ((r32)RAND_MAX + 1.f);
+    r32 result = (r32)rand() / (r32)RAND_MAX;
     return result;
 }
 
@@ -109,7 +118,7 @@ RandomBinormalizedR32()
 inline r64
 RandomNormalizedR64()
 {
-    r64 result = (r64)rand() / ((r64)RAND_MAX + 1.);
+    r64 result = (r64)rand() / (r64)RAND_MAX;
     return result;
 }
 
@@ -148,20 +157,25 @@ RandomI64()
 inline i32
 RandomRangeI32( i32 min, i32 max )
 {
-    i32 result = min + rand() / (RAND_MAX / (max - min + 1) + 1);
+    ASSERT( min < max );
+    r32 t = RandomNormalizedR32();
+    i32 result = (i32)(min + t * (max - min));
     return result;
 }
 
 inline u32
 RandomRangeU32( u32 min, u32 max )
 {
-    u32 result = min + rand() / (RAND_MAX / max + 1);
+    ASSERT( min < max );
+    r32 t = RandomNormalizedR32();
+    u32 result = (u32)(min + t * (max - min));
     return result;
 }
 
 inline r32
 RandomRangeR32( r32 min, r32 max )
 {
+    ASSERT( min < max );
     r32 t = RandomNormalizedR32();
     r32 result = min + t * (max - min);
     return result;
@@ -170,6 +184,7 @@ RandomRangeR32( r32 min, r32 max )
 inline r64
 RandomRangeR64( r64 min, r64 max )
 {
+    ASSERT( min < max );
     r64 t = RandomNormalizedR64();
     r64 result = min + t * (max - min);
     return result;
@@ -209,7 +224,9 @@ Log2( u32 value )
     return result;
 }
 
-// TODO Substitute with Meow Hash?
+// TODO Replace with MurmurHash3 128 (just truncate for 32/64 bit hashes) (https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp)
+// (improve it with http://zimbry.blogspot.com/2011/09/better-bit-mixing-improving-on.html)
+// TODO Add Meow Hash for hashing large blocks (also get the code and study it a little, there's gems in the open there!)
 inline u32
 Fletcher32( const void* buffer, sz len )
 {

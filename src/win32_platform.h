@@ -110,11 +110,14 @@ struct Win32State
 
     char currentDirectory[PLATFORM_PATH_MAX];
     char exeFilePath[PLATFORM_PATH_MAX];
+    char binFolderPath[PLATFORM_PATH_MAX];
     char sourceDLLPath[PLATFORM_PATH_MAX];
     char tempDLLPath[PLATFORM_PATH_MAX];
-    char assetDataPath[PLATFORM_PATH_MAX];
+    char lockFilePath[PLATFORM_PATH_MAX];
+    char dataFolderPath[PLATFORM_PATH_MAX];
 
     Win32GameCode gameCode;
+    bool gameCodeReloading;
     Renderer renderer;
 
     void *gameMemoryBlock;
@@ -133,6 +136,31 @@ struct Win32State
     u32 assetListenerCount;
 
     PlatformJobQueue hiPriorityQueue;
+};
+
+// Taken from https://github.com/depp/keycode
+// And https://gist.github.com/WestonThayer/9b7a0e04b045be1656ce9f01de141cd2
+// NOTEs
+// Break is actually triggered by pressing Ctrl+Break
+// RightAlt sends both Alt scancodes
+const u32 Win32NativeToHID[] =
+{
+    0,  41, 30, 31, 32, 33, 34,  35, 36,  37, 38,  39,  45,  46,  42, 43,
+    20, 26, 8,  21, 23, 28, 24,  12, 18,  19, 47,  48,  40,  224, 4,  22,
+    7,  9,  10, 11, 13, 14, 15,  51, 52,  53, 225, 49,  29,  27,  6,  25,
+    5,  17, 16, 54, 55, 56, 229, 85, 226, 44, 57,  58,  59,  60,  61, 62,
+    63, 64, 65, 66, 67, 72, 71,  95, 96,  97, 86,  92,  93,  94,  87, 89,
+    90, 91, 98, 99, 0,  0,  100, 68, 69,  0,  0,   0,   0,   0,   0,  0,
+    0,  0,  0,  0,  0,  0,  0,   0,  0,   0,  0,   0,   0,   0,   0,  0,
+    0,  0,  0,  0,  0,  0,  0,   0,  0,   0,  0,   0,   0,   0,   0,  0,
+    0,  0,  0,  0,  0,  0,  0,   0,  0,   0,  0,   0,   0,   0,   0,  0,
+    0,  0,  0,  0,  0,  0,  0,   0,  0,   0,  0,   0,   88,  228, 0,  0,
+    0,  0,  0,  0,  0,  0,  0,   0,  0,   0,  0,   0,   0,   0,   0,  0,
+    0,  0,  0,  0,  0,  0,  84,  70, 230, 0,  0,   0,   0,   0,   0,  0,
+    0,  0,  0,  0,  0,  0,  0,   74, 82,  75, 0,   80,  0,   79,  0,  77,
+    81, 78, 73, 76, 0,  0,  0,   0,  0,   0,  0,   227, 231, 0,   0,  0,
+    0,  0,  0,  0,  0,  0,  0,   0,  0,   0,  0,   0,   0,   0,   0,  0,
+    0,  0,  0,  0,  0,  0,  0,   0,  0,   0,  0,   0,   0,   0,   0,  0
 };
 
 #endif /* __WIN32_PLATFORM_H__ */

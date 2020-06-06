@@ -21,6 +21,12 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#include "data_types.h"
+#include "util.h"
+#endif
+
 
 void
 InsertSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
@@ -114,7 +120,7 @@ QuickSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
 void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
 {
     u8* in = (u8*)inOut;
-    u8* out = PUSH_ARRAY( tmpArena, count * stride, u8, Temporary() );
+    u8* out = PUSH_ARRAY( tmpArena, u8, count * stride, Temporary() );
 
     const u32 RadixBits = 8;
     const u64 Radix = 1 << RadixBits;
@@ -208,7 +214,7 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
 
                 u32 outIdx = ++(digitCounts[digitIdx]);
                 u8* outIt = out + outIdx * stride;
-                COPY( inIt, outIt, stride );
+                PCOPY( inIt, outIt, stride );
             }
         }
 
@@ -221,7 +227,7 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
     }
 
     if( in != inOut )
-        COPY( in, inOut, count * stride );
+        PCOPY( in, inOut, count * stride );
 }
 
 void
@@ -267,8 +273,7 @@ RadixSort( Array<r64>* inputOutput, bool ascending, MemoryArena* tmpArena )
     RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::R64, ascending, tmpArena );
 }
 
-void
-RadixSort( Array<KeyIndex64>* inputOutput, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
+void RadixSort( Array<KeyIndex64>* inputOutput, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
 {
     ASSERT( keyType >= RadixKey::U64 );
     RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(KeyIndex64), keyType, ascending, tmpArena );
@@ -287,7 +292,7 @@ RadixSort( Array<T>* inputOutput, sz offset, RadixKey keyType, bool ascending, M
 void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, MemoryArena* tmpArena )
 {
     u32* in = inOut;
-    u32* out = PUSH_ARRAY( tmpArena, count, u32, Temporary() );
+    u32* out = PUSH_ARRAY( tmpArena, u32, count, Temporary() );
 
 #define MASK0(x) ( ascending ? (x & 0x7FF)            : (~x & 0x7FF) )
 #define MASK1(x) ( ascending ? ((x >> 11) & 0x7FF)    : (~(x >> 11) & 0x7FF) )
@@ -375,7 +380,7 @@ void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, Mem
 #undef MASK1
 #undef MASK2
 
-    COPY( out, inOut, count * sizeof(u32) );
+    PCOPY( out, inOut, count * sizeof(u32) );
 }
 
 void

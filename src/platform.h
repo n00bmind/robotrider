@@ -56,9 +56,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #endif //__clang__
 
-//
-// Exports
-//
+
 
 #ifdef _WIN32
 #define LIB_EXPORT extern "C" __declspec(dllexport)
@@ -91,11 +89,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 
+
 //
 // Services that the platform layer provides to the game
 //
 
-// TODO Add support for different log levels (like in Android) and categories/filters
+// TODO Add support for different log severities and categories/filters
 #define LOG globalPlatform.Log
 
 
@@ -152,6 +151,10 @@ typedef DEBUG_PLATFORM_JOIN_PATHS(DebugPlatformJoinPathsFunc);
 typedef DEBUG_PLATFORM_GET_PARENT_PATH(DebugPlatformGetParentPathFunc);
 
 
+#define DEBUG_PLATFORM_CURRENT_TIME_MILLIS(name) r64 name()
+typedef DEBUG_PLATFORM_CURRENT_TIME_MILLIS(DebugPlatformCurrentTimeMillis);
+
+
 struct PlatformJobQueue;
 
 #define PLATFORM_JOBQUEUE_CALLBACK(name) void name( void* userData, u32 workerThreadIndex )
@@ -186,6 +189,7 @@ struct PlatformAPI
     DebugPlatformListAllAssetsFunc* DEBUGListAllAssets;
     DebugPlatformJoinPathsFunc* DEBUGJoinPaths;
     DebugPlatformGetParentPathFunc* DEBUGGetParentPath;
+    DebugPlatformCurrentTimeMillis* DEBUGCurrentTimeMillis;
 
     PlatformAddNewJobFunc* AddNewJob;
     PlatformCompleteAllJobsFunc* CompleteAllJobs;

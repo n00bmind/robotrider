@@ -32,9 +32,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <gl/gl.h>
 #include "glext.h"
 #include "wglext.h"
-#define GL_DEBUG_CALLBACK(name) \
-    void WINAPI name( GLenum source, GLenum type, GLuint id, GLenum severity, \
-                      GLsizei length, const GLchar *message, const void *userParam )
 #include "opengl_renderer.h"
 #include "opengl_renderer.cpp"
 
@@ -189,7 +186,7 @@ DEBUG_PLATFORM_LIST_ALL_ASSETS(Win32ListAllAssets)
     DEBUGFileInfoList result = {};
 
     char joinedPath[PLATFORM_PATH_MAX] = {};
-    Win32JoinPaths( globalPlatformState.assetDataPath, relativeRootPath, joinedPath, true );
+    Win32JoinPaths( globalPlatformState.dataFolderPath, relativeRootPath, joinedPath, true );
     char findPath[PLATFORM_PATH_MAX] = {};
     Win32JoinPaths( joinedPath, "*", findPath, false );
 
@@ -205,7 +202,7 @@ DEBUG_PLATFORM_LIST_ALL_ASSETS(Win32ListAllAssets)
         FindClose( hFind );
     }
 
-    result.files = PUSH_ARRAY( arena, result.entryCount, DEBUGFileInfo );
+    result.files = PUSH_ARRAY( arena, DEBUGFileInfo, result.entryCount );
     hFind = FindFirstFile( findPath, &findData );
     if( hFind != INVALID_HANDLE_VALUE )
     {
@@ -245,8 +242,8 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
     char absolutePath[PLATFORM_PATH_MAX];
     if( PathIsRelative( filename ) )
     {
-        // If path is relative, use executable location to complete it
-        Win32JoinPaths( globalPlatformState.assetDataPath, filename, absolutePath, true );
+        // If path is relative, use data location to complete it
+        Win32JoinPaths( globalPlatformState.dataFolderPath, filename, absolutePath, true );
     }
 
     HANDLE fileHandle = CreateFile( absolutePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0 );
@@ -302,8 +299,8 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGWin32WriteEntireFile)
     char absolutePath[PLATFORM_PATH_MAX];
     if( PathIsRelative( filename ) )
     {
-        // If path is relative, use executable location to complete it
-        Win32JoinPaths( globalPlatformState.assetDataPath, filename, absolutePath, true );
+        // If path is relative, use data location to complete it
+        Win32JoinPaths( globalPlatformState.dataFolderPath, filename, absolutePath, true );
         filename = absolutePath;
     }
 
@@ -369,7 +366,14 @@ Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameMemory *gameMemor
     Win32GameCode result = {};
     result.lastDLLWriteTime = Win32GetLastWriteTime( sourceDLLPath );
 
-    CopyFile( sourceDLLPath, tempDLLPath, FALSE );
+    BOOL res = CopyFile( sourceDLLPath, tempDLLPath, FALSE );
+    if( !res )
+    {
+        DWORD err = GetLastError();
+        LOG( "ERROR: DLL copy to temp location failed! (%08x)", err );
+        INVALID_CODE_PATH
+    }
+
     result.gameCodeDLL = LoadLibrary( tempDLLPath );
     if( result.gameCodeDLL )
     {
@@ -410,7 +414,7 @@ Win32SetupAssetUpdateListeners( Win32State *platformState )
         Win32AssetUpdateListener& listener = platformState->assetListeners[i];
 
         char absolutePath[PLATFORM_PATH_MAX];
-        Win32JoinPaths( platformState->assetDataPath, listener.relativePath, absolutePath, true );
+        Win32JoinPaths( platformState->dataFolderPath, listener.relativePath, absolutePath, true );
 
         listener.dirHandle
             = CreateFile( absolutePath, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
@@ -855,156 +859,155 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput, GameCon
     // TODO Should we poll this more frequently?
     // TODO Mouse?
     u32 maxControllerCount = XUSER_MAX_COUNT;
-    // First controller is the keyboard
+    // First controller is the keyboard, and we only support Xbox controllers for now
     ASSERT( ARRAYCOUNT(GameInput::_controllers) >= XUSER_MAX_COUNT + 1 );
 
-    DWORD controllerIndex = 0;
-    for( u32 index = 0; index < ARRAYCOUNT(GameInput::_controllers); ++index )
+    for( u32 index = 1, gamepadIndex = 0; index < ARRAYCOUNT(GameInput::_controllers); ++index, ++gamepadIndex )
     {
-        if( index == PLATFORM_KEYMOUSE_CONTROLLER_SLOT )
-            continue;
-
         GameControllerInput *oldController = GetController( oldInput, index );
         GameControllerInput *newController = GetController( newInput, index );
         *newController = {};
 
-        XINPUT_STATE controllerState;
-        // FIXME This call apparently stalls for a few hundred thousand cycles when the controller is not present
-        if( XInputGetState( controllerIndex, &controllerState ) == ERROR_SUCCESS )
+        if( gamepadIndex < XUSER_MAX_COUNT )
         {
-            // Plugged in
-            newController->isConnected = true;
-            XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
+            newController->isConnected = false;
 
-            newController->leftStick.startX = oldController->leftStick.endX;
-            newController->leftStick.startY = oldController->leftStick.endY;
+            // Use key-mouse data as the first controller too (can be overriden by the real one)
+            // TODO Merge data instead
+            if( gamepadIndex == 0 && keyMouseController )
+                *newController = *keyMouseController;
 
-            newController->leftStick.endX = Win32ProcessXInputStickValue( pad->sThumbLX,
-                                                                          XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE );
-            newController->leftStick.avgX
-                = (newController->leftStick.startX + newController->leftStick.endX) / 2;
+            XINPUT_STATE controllerState;
+            // FIXME This call apparently stalls for a few hundred thousand cycles when the controller is not present
+            if( XInputGetState( gamepadIndex, &controllerState ) == ERROR_SUCCESS )
+            {
+                // Plugged in
+                newController->isConnected = true;
+                XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
 
-            newController->leftStick.endY = Win32ProcessXInputStickValue( pad->sThumbLY,
-                                                                          XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE );
-            newController->leftStick.avgY
-                = (newController->leftStick.startY + newController->leftStick.endY) / 2;
+                newController->leftStick.startX = oldController->leftStick.endX;
+                newController->leftStick.startY = oldController->leftStick.endY;
 
-            newController->rightStick.startX = oldController->rightStick.endX;
-            newController->rightStick.startY = oldController->rightStick.endY;
+                newController->leftStick.endX = Win32ProcessXInputStickValue( pad->sThumbLX,
+                                                                              XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE );
+                newController->leftStick.avgX
+                    = (newController->leftStick.startX + newController->leftStick.endX) / 2;
 
-            newController->rightStick.endX = Win32ProcessXInputStickValue( pad->sThumbRX,
-                                                                           XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE );
-            newController->rightStick.avgX
-                = (newController->rightStick.startX + newController->rightStick.endX) / 2;
+                newController->leftStick.endY = Win32ProcessXInputStickValue( pad->sThumbLY,
+                                                                              XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE );
+                newController->leftStick.avgY
+                    = (newController->leftStick.startY + newController->leftStick.endY) / 2;
 
-            newController->rightStick.endY = Win32ProcessXInputStickValue( pad->sThumbRY,
-                                                                           XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE );
-            newController->rightStick.avgY
-                = (newController->rightStick.startY + newController->rightStick.endY) / 2;
+                newController->rightStick.startX = oldController->rightStick.endX;
+                newController->rightStick.startY = oldController->rightStick.endY;
 
-            // TODO Left/right triggers
+                newController->rightStick.endX = Win32ProcessXInputStickValue( pad->sThumbRX,
+                                                                               XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE );
+                newController->rightStick.avgX
+                    = (newController->rightStick.startX + newController->rightStick.endX) / 2;
 
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dUp,
-                                             XINPUT_GAMEPAD_DPAD_UP, &newController->dUp );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dDown,
-                                             XINPUT_GAMEPAD_DPAD_DOWN, &newController->dDown );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dLeft,
-                                             XINPUT_GAMEPAD_DPAD_LEFT, &newController->dLeft );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dRight,
-                                             XINPUT_GAMEPAD_DPAD_RIGHT, &newController->dRight );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->aButton,
-                                             XINPUT_GAMEPAD_A, &newController->aButton );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->bButton,
-                                             XINPUT_GAMEPAD_B, &newController->bButton );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->xButton,
-                                             XINPUT_GAMEPAD_X, &newController->xButton );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->yButton,
-                                             XINPUT_GAMEPAD_Y, &newController->yButton );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->leftThumb,
-                                             XINPUT_GAMEPAD_LEFT_THUMB, &newController->leftThumb );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->rightThumb,
-                                             XINPUT_GAMEPAD_RIGHT_THUMB, &newController->rightThumb );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->leftShoulder,
-                                             XINPUT_GAMEPAD_LEFT_SHOULDER, &newController->leftShoulder );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->rightShoulder,
-                                             XINPUT_GAMEPAD_RIGHT_SHOULDER, &newController->rightShoulder );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->start,
-                                             XINPUT_GAMEPAD_START, &newController->start );
-            Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->back,
-                                             XINPUT_GAMEPAD_BACK, &newController->back );
+                newController->rightStick.endY = Win32ProcessXInputStickValue( pad->sThumbRY,
+                                                                               XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE );
+                newController->rightStick.avgY
+                    = (newController->rightStick.startY + newController->rightStick.endY) / 2;
+
+                // TODO Left/right triggers
+
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dUp,
+                                                 XINPUT_GAMEPAD_DPAD_UP, &newController->dUp );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dDown,
+                                                 XINPUT_GAMEPAD_DPAD_DOWN, &newController->dDown );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dLeft,
+                                                 XINPUT_GAMEPAD_DPAD_LEFT, &newController->dLeft );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->dRight,
+                                                 XINPUT_GAMEPAD_DPAD_RIGHT, &newController->dRight );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->aButton,
+                                                 XINPUT_GAMEPAD_A, &newController->aButton );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->bButton,
+                                                 XINPUT_GAMEPAD_B, &newController->bButton );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->xButton,
+                                                 XINPUT_GAMEPAD_X, &newController->xButton );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->yButton,
+                                                 XINPUT_GAMEPAD_Y, &newController->yButton );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->leftThumb,
+                                                 XINPUT_GAMEPAD_LEFT_THUMB, &newController->leftThumb );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->rightThumb,
+                                                 XINPUT_GAMEPAD_RIGHT_THUMB, &newController->rightThumb );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->leftShoulder,
+                                                 XINPUT_GAMEPAD_LEFT_SHOULDER, &newController->leftShoulder );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->rightShoulder,
+                                                 XINPUT_GAMEPAD_RIGHT_SHOULDER, &newController->rightShoulder );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->start,
+                                                 XINPUT_GAMEPAD_START, &newController->start );
+                Win32ProcessXInputDigitalButton( pad->wButtons, &oldController->back,
+                                                 XINPUT_GAMEPAD_BACK, &newController->back );
 
 #if 1
-            // Link left stick and dPad direction buttons
-            // FIXME This shouldn't be done at the platform level!
-            if(pad->wButtons & XINPUT_GAMEPAD_DPAD_UP)
-            {
-                newController->leftStick.avgY = 1.0f;
-            }
-            if(pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
-            {
-                newController->leftStick.avgY = -1.0f;
-            }
-            if(pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
-            {
-                newController->leftStick.avgX = -1.0f;
-            }
-            if(pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
-            {
-                newController->leftStick.avgX = 1.0f;
-            }
+                // Link left stick and dPad direction buttons
+                // FIXME This shouldn't be done at the platform level!
+                if(pad->wButtons & XINPUT_GAMEPAD_DPAD_UP)
+                {
+                    newController->leftStick.avgY = 1.0f;
+                }
+                if(pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
+                {
+                    newController->leftStick.avgY = -1.0f;
+                }
+                if(pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
+                {
+                    newController->leftStick.avgX = -1.0f;
+                }
+                if(pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
+                {
+                    newController->leftStick.avgX = 1.0f;
+                }
 
-            r32 threshold = 0.5f;
-            Win32ProcessXInputDigitalButton( (newController->leftStick.avgX < -threshold) ? 1 : 0,
-                                            &oldController->dLeft, 1,
-                                            &newController->dLeft );
-            Win32ProcessXInputDigitalButton( (newController->leftStick.avgX > threshold) ? 1 : 0,
-                                            &oldController->dRight, 1,
-                                            &newController->dRight );
-            Win32ProcessXInputDigitalButton( (newController->leftStick.avgY < -threshold) ? 1 : 0,
-                                            &oldController->dDown, 1,
-                                            &newController->dDown );
-            Win32ProcessXInputDigitalButton( (newController->leftStick.avgY > threshold) ? 1 : 0,
-                                            &oldController->dUp, 1,
-                                            &newController->dUp );
+                r32 threshold = 0.5f;
+                Win32ProcessXInputDigitalButton( (newController->leftStick.avgX < -threshold) ? 1 : 0,
+                                                 &oldController->dLeft, 1,
+                                                 &newController->dLeft );
+                Win32ProcessXInputDigitalButton( (newController->leftStick.avgX > threshold) ? 1 : 0,
+                                                 &oldController->dRight, 1,
+                                                 &newController->dRight );
+                Win32ProcessXInputDigitalButton( (newController->leftStick.avgY < -threshold) ? 1 : 0,
+                                                 &oldController->dDown, 1,
+                                                 &newController->dDown );
+                Win32ProcessXInputDigitalButton( (newController->leftStick.avgY > threshold) ? 1 : 0,
+                                                 &oldController->dUp, 1,
+                                                 &newController->dUp );
 #endif
+            }
         }
-        else
-        {
-            if( controllerIndex == 0 && keyMouseController )
-                *newController = *keyMouseController;
-            else
-                // Controller not available
-                newController->isConnected = false;
-        }
-
-        ++controllerIndex;
-        if( controllerIndex == XUSER_MAX_COUNT )
-            break;
     }
 }
 
 internal void
-Win32PrepareInputData( GameInput *&oldInput, GameInput *&newInput,
+Win32PrepareInputData( GameInput** oldInput, GameInput** newInput,
                        float elapsedSeconds, float totalSeconds, u32 frameCounter )
 {
-    GameInput *temp = newInput;
-    newInput = oldInput;
-    oldInput = temp;
+    // Swap pointers
+    GameInput *temp = *newInput;
+    *newInput = *oldInput;
+    *oldInput = temp;
 
-    newInput->executableReloaded = false;
-    newInput->frameElapsedSeconds = elapsedSeconds;
-    newInput->totalElapsedSeconds = totalSeconds;
-    newInput->frameCounter = frameCounter;
+    (*newInput)->gameCodeReloaded = false;
+    (*newInput)->frameElapsedSeconds = elapsedSeconds;
+    (*newInput)->totalElapsedSeconds = totalSeconds;
+    (*newInput)->frameCounter = frameCounter;
 
-    newInput->hasEditorInput = true;
-    newInput->editor.mouseX = oldInput->editor.mouseX;
-    newInput->editor.mouseY = oldInput->editor.mouseY;
-    newInput->editor.mouseZ = oldInput->editor.mouseZ;
+    // Copy over key & mouse state
+    (*newInput)->hasKeyMouseInput = true;
+    (*newInput)->keyMouse.mouseX = (*oldInput)->keyMouse.mouseX;
+    (*newInput)->keyMouse.mouseY = (*oldInput)->keyMouse.mouseY;
+    (*newInput)->keyMouse.mouseZ = (*oldInput)->keyMouse.mouseZ;
+    (*newInput)->keyMouse.mouseRawXDelta = 0;
+    (*newInput)->keyMouse.mouseRawYDelta = 0;
+    (*newInput)->keyMouse.mouseRawZDelta = 0;
 
-    for( u32 i = 0; i < ARRAYCOUNT(newInput->editor.mouseButtons); ++i )
-        newInput->editor.mouseButtons[i] = oldInput->editor.mouseButtons[i];
-    for( u32 i = 0; i < ARRAYCOUNT(newInput->editor.buttons); ++i )
-        newInput->editor.buttons[i] = oldInput->editor.buttons[i];
+    for( u32 i = 0; i < ARRAYCOUNT((*newInput)->keyMouse.mouseButtons); ++i )
+        (*newInput)->keyMouse.mouseButtons[i] = (*oldInput)->keyMouse.mouseButtons[i];
+    for( u32 i = 0; i < ARRAYCOUNT((*newInput)->keyMouse.keysDown); ++i )
+        (*newInput)->keyMouse.keysDown[i] = (*oldInput)->keyMouse.keysDown[i];
 }
 
 
@@ -1014,7 +1017,7 @@ Win32GetInputFilePath( const Win32State& platformState, u32 slotIndex, bool isIn
     char buffer[PLATFORM_PATH_MAX];
     sprintf_s( buffer, ARRAYCOUNT(buffer), "%s%d%s%s", "gamestate", slotIndex, isInputStream ? "_input" : "", ".in" );
 
-    Win32JoinPaths( platformState.exeFilePath, buffer, destination, false );
+    Win32JoinPaths( platformState.binFolderPath, buffer, destination, false );
 }
 
 internal Win32ReplayBuffer*
@@ -1125,6 +1128,14 @@ inline r32
 Win32GetSecondsElapsed( LARGE_INTEGER start, LARGE_INTEGER end )
 {
     r32 result = (r32)(end.QuadPart - start.QuadPart) / (r32)globalPerfCounterFrequency;
+    return result;
+}
+
+DEBUG_PLATFORM_CURRENT_TIME_MILLIS(Win32CurrentTimeMillis)
+{
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter( &counter );
+    r64 result = (r64)counter.QuadPart / globalPerfCounterFrequency * 1000;
     return result;
 }
 
@@ -1246,9 +1257,11 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 bool wasDown = ((message.lParam & (1 << 30)) != 0);
                 bool isDown =  ((message.lParam & (1 << 31)) == 0);
 
-                UINT scancode = (message.lParam & 0x00ff0000) >> 16;
                 bool extended  = (message.lParam & 0x01000000) != 0;
+                u32 scanCode = ((message.lParam >> 16) & 0x7f) | (extended ? 0x80 : 0);
 
+                // TODO Use scancodes too for all special keys!?
+                // @Test
                 message.wParam = Win32MapLeftRightKeys( message.wParam, message.lParam );
                 u32 vkCode = ToU32Safe( message.wParam );
                 if( vkCode < 256 )
@@ -1271,26 +1284,35 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 // (don't ever send keys to game if ImGui is handling them)
                 if( isDown != wasDown && !imGuiIO.WantCaptureKeyboard )
                 {
+                    // Translate key code into the game's platform agnostic codes
+                    if( scanCode >= 0 && scanCode < ARRAYCOUNT(Win32NativeToHID) )
+                    {
+                        u32 hidCode = Win32NativeToHID[scanCode];
+                        if( hidCode < ARRAYCOUNT(input->keyMouse.keysDown) )
+                            input->keyMouse.keysDown[hidCode] = isDown;
+                    }
+
+                    // Emulate controller from keys
                     if( vkCode == 'W' )
                     {
                         Win32SetButtonState( &keyMouseController->dUp, isDown );
                         // Simulate fake stick
-                        keyMouseController->leftStick.avgY += isDown ? 0.5f : -0.5f;
+                        keyMouseController->leftStick.avgY += isDown ? 1 : -1;
                     }
                     else if( vkCode == 'A' )
                     {
                         Win32SetButtonState( &keyMouseController->dLeft, isDown );
-                        keyMouseController->leftStick.avgX += isDown ? -0.5f : 0.5f;
+                        keyMouseController->leftStick.avgX += isDown ? -1 : 1;
                     }
                     else if( vkCode == 'S' )
                     {
                         Win32SetButtonState( &keyMouseController->dDown, isDown );
-                        keyMouseController->leftStick.avgY += isDown ? -0.5f : 0.5f;
+                        keyMouseController->leftStick.avgY += isDown ? -1 : 1;
                     }
                     else if( vkCode == 'D' )
                     {
                         Win32SetButtonState( &keyMouseController->dRight, isDown );
-                        keyMouseController->leftStick.avgX += isDown ? 0.5f : -0.5f;
+                        keyMouseController->leftStick.avgX += isDown ? 1 : -1;
                     }
                     else if( vkCode == VK_LSHIFT )
                     {
@@ -1319,7 +1341,6 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     }
                     else if( vkCode == VK_RIGHT )
                     {
-                        Win32SetButtonState( &input->editor.nextStep, isDown );
                     }
                     else if( vkCode == VK_RETURN )
                     {
@@ -1330,13 +1351,11 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 // Respond to keyboard input
                 if( isDown )
                 {
-#if RELEASE
-                    if( vkCode == VK_ESCAPE ||
-                        (vkCode == VK_F4 && altKeyDown) )
+                    if( vkCode == VK_F4 && altKeyDown )
                     {
                         globalRunning = false;
                     }
-#else
+#if !RELEASE
                     if( vkCode == VK_RETURN && altKeyDown )
                     {
                         Win32ToggleFullscreen( platformState->mainWindow );
@@ -1348,42 +1367,50 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                             Win32EndInputPlayback( platformState );
                             Win32ResetController( keyMouseController );
                         }
-                        else if( gameMemory->DEBUGglobalDebugging )
-                        {
+                        //else if( gameMemory->DEBUGglobalDebugging )
+                        //{
+                            //Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
+                        //}
+                        //else if( gameMemory->DEBUGglobalEditing )
+                        //{
+                            //gameMemory->DEBUGglobalEditing = false;
+                        //}
+                        //else
+                        //{
+                            //globalRunning = false;
+                        //}
+                    }
+
+                    // @Test The "key above TAB"
+                    else if( vkCode == VK_OEM_3 || vkCode == VK_OEM_5 )
+                    {
+                        if( !gameMemory->DEBUGglobalDebugging )
                             Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
-                        }
-                        else if( gameMemory->DEBUGglobalEditing )
+                    }
+
+                    else if( vkCode == VK_F1 )
+                    {
+                        if( !gameMemory->DEBUGglobalDebugging && !gameMemory->DEBUGglobalEditing )
                         {
-                            gameMemory->DEBUGglobalEditing = false;
-                        }
-                        else
-                        {
-                            globalRunning = false;
+                            if( platformState->inputPlaybackIndex == 0 )
+                            {
+                                if( platformState->inputRecordingIndex == 0 )
+                                {
+                                    Win32BeginInputRecording( platformState, 1 );
+                                }
+                                else if( platformState->inputRecordingIndex == 1 )
+                                {
+                                    Win32EndInputRecording( platformState );
+                                    Win32BeginInputPlayback( platformState, 1 );
+                                }
+                            }
                         }
                     }
 
-                    // FIXME This only works on a spanish keyboard it seems
-                    else if( vkCode == VK_OEM_5 )
+                    // FIXME F12 Crashes!
+                    else if( vkCode == VK_F11 )
                     {
-                        if( ctrlKeyDown )
-                            gameMemory->DEBUGglobalEditing = true;
-                        else if( !gameMemory->DEBUGglobalDebugging && !gameMemory->DEBUGglobalEditing )
-                            Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
-                    }
-                    else if( vkCode == VK_F1 )
-                    {
-                        if( platformState->inputPlaybackIndex == 0 )
-                        {
-                            if( platformState->inputRecordingIndex == 0 )
-                            {
-                                Win32BeginInputRecording( platformState, 1 );
-                            }
-                            else if( platformState->inputRecordingIndex == 1 )
-                            {
-                                Win32EndInputRecording( platformState );
-                                Win32BeginInputPlayback( platformState, 1 );
-                            }
-                        }
+                        gameMemory->DEBUGglobalEditing = !gameMemory->DEBUGglobalEditing;
                     }
 #endif
                 }
@@ -1396,29 +1423,25 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     imGuiIO.AddInputCharacter( (ImWchar)ch );
             } break;
 
-#define GET_SIGNED_LO(dw) ((int)(short)LOWORD(dw))
-#define GET_SIGNED_HI(dw) ((int)(short)HIWORD(dw))
+// Copied from windowsx.h
+#define GET_X_LPARAM(lp)    ((int)(short)LOWORD(lp))
+#define GET_Y_LPARAM(lp)    ((int)(short)HIWORD(lp))
 
             case WM_MOUSEMOVE:
             {
-                input->editor.mouseX = GET_SIGNED_LO( message.lParam );
-                input->editor.mouseY = GET_SIGNED_HI( message.lParam );
+                // Can be negative on multiple monitors
+                input->keyMouse.mouseX = GET_X_LPARAM( message.lParam );
+                input->keyMouse.mouseY = GET_Y_LPARAM( message.lParam );
                 
-                imGuiIO.MousePos.x = (float)input->editor.mouseX;
-                imGuiIO.MousePos.y = (float)input->editor.mouseY;
+                imGuiIO.MousePos.x = (float)input->keyMouse.mouseX;
+                imGuiIO.MousePos.y = (float)input->keyMouse.mouseY;
             } break;
 
             case WM_MOUSEWHEEL:
             {
-                POINT pt;
-                pt.x = GET_SIGNED_LO( message.lParam );
-                pt.y = GET_SIGNED_HI( message.lParam );
-                ScreenToClient( platformState->mainWindow, &pt );
-                input->editor.mouseX = pt.x;
-                input->editor.mouseY = pt.y;
-                input->editor.mouseZ = GET_WHEEL_DELTA_WPARAM( message.wParam );
+                input->keyMouse.mouseZ = GET_WHEEL_DELTA_WPARAM( message.wParam );
 
-                imGuiIO.MouseWheel = input->editor.mouseZ > 0 ? +1.0f : -1.0f;
+                imGuiIO.MouseWheel = input->keyMouse.mouseZ > 0 ? +1.0f : -1.0f;
             } break;
 
             case WM_LBUTTONDOWN:
@@ -1451,10 +1474,12 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 {
                     if( raw->data.mouse.usFlags == MOUSE_MOVE_RELATIVE )
                     {
-                        int xPosRelative = raw->data.mouse.lLastX;
-                        int yPosRelative = raw->data.mouse.lLastY;
-                        keyMouseController->rightStick.avgX += xPosRelative;
-                        keyMouseController->rightStick.avgY += yPosRelative;
+                        i32 xMotionRelative = raw->data.mouse.lLastX;
+                        i32 yMotionRelative = raw->data.mouse.lLastY;
+                        input->keyMouse.mouseRawXDelta += xMotionRelative;
+                        input->keyMouse.mouseRawYDelta += yMotionRelative;
+                        keyMouseController->rightStick.avgX += xMotionRelative;
+                        keyMouseController->rightStick.avgY += yMotionRelative;
                     }
 
                     bool bUp, bDown;
@@ -1464,42 +1489,43 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     bDown = (buttonFlags & RI_MOUSE_LEFT_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->editor.mouseButtons[0], bDown );
-                        imGuiIO.MouseDown[0] = input->editor.mouseButtons[0].endedDown;
+                        Win32SetButtonState( &input->keyMouse.mouseButtons[MouseButtonLeft], bDown );
+                        imGuiIO.MouseDown[0] = input->keyMouse.mouseButtons[MouseButtonLeft].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_MIDDLE_BUTTON_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->editor.mouseButtons[1], bDown );
-                        imGuiIO.MouseDown[1] = input->editor.mouseButtons[1].endedDown;
+                        Win32SetButtonState( &input->keyMouse.mouseButtons[MouseButtonMiddle], bDown );
+                        imGuiIO.MouseDown[1] = input->keyMouse.mouseButtons[MouseButtonMiddle].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_RIGHT_BUTTON_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->editor.mouseButtons[2], bDown );
-                        imGuiIO.MouseDown[2] = input->editor.mouseButtons[2].endedDown;
+                        Win32SetButtonState( &input->keyMouse.mouseButtons[MouseButtonRight], bDown );
+                        imGuiIO.MouseDown[2] = input->keyMouse.mouseButtons[MouseButtonRight].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_BUTTON_4_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_BUTTON_4_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->editor.mouseButtons[3], bDown  );
-                        imGuiIO.MouseDown[3] = input->editor.mouseButtons[3].endedDown;
+                        Win32SetButtonState( &input->keyMouse.mouseButtons[MouseButton4], bDown  );
+                        imGuiIO.MouseDown[3] = input->keyMouse.mouseButtons[MouseButton4].endedDown;
                     }
                     bUp = (buttonFlags & RI_MOUSE_BUTTON_5_UP) != 0;
                     bDown = (buttonFlags & RI_MOUSE_BUTTON_5_DOWN) != 0;
                     if( bUp || bDown )
                     {
-                        Win32SetButtonState( &input->editor.mouseButtons[4], bDown  );
-                        imGuiIO.MouseDown[4] = input->editor.mouseButtons[4].endedDown;
+                        Win32SetButtonState( &input->keyMouse.mouseButtons[MouseButton5], bDown  );
+                        imGuiIO.MouseDown[4] = input->keyMouse.mouseButtons[MouseButton5].endedDown;
                     }
 
                     if( buttonFlags & RI_MOUSE_WHEEL )
                     {
-                        int zPosRelative = raw->data.mouse.usButtonData;
-                        //keyMouseController->rightStick.avgZ += zPosRelative;
+                        r32 zMotionRelative = (r32)(i16)raw->data.mouse.usButtonData / (r32)WHEEL_DELTA;
+                        input->keyMouse.mouseRawZDelta += zMotionRelative;
+                        //keyMouseController->rightStick.avgZ += zMotionRelative;
                     }
                 } 
             } break;
@@ -1581,7 +1607,7 @@ Win32ResolvePaths( Win32State *state )
     LOG( state->currentDirectory );
 
     pathLen = GetModuleFileName( 0, state->exeFilePath, ARRAYCOUNT(state->exeFilePath) );
-    Win32GetParentPath( state->exeFilePath, state->exeFilePath );
+    Win32GetParentPath( state->exeFilePath, state->binFolderPath );
 
     {
         bool result = false;
@@ -1591,7 +1617,7 @@ Win32ResolvePaths( Win32State *state )
         // This is just to support the dist mechanism
         {
             char* sourceDLLName = "robotrider.debug.dll";
-            Win32JoinPaths( globalPlatformState.exeFilePath, sourceDLLName, state->sourceDLLPath, false );
+            Win32JoinPaths( state->binFolderPath, sourceDLLName, state->sourceDLLPath, false );
             if( PathFileExists( state->sourceDLLPath ) )
             {
                 result = true;
@@ -1602,7 +1628,7 @@ Win32ResolvePaths( Win32State *state )
         char *sourceDLLName = buffer;
         if( !result )
         {
-            Win32JoinPaths( globalPlatformState.exeFilePath, sourceDLLName, state->sourceDLLPath, false );
+            Win32JoinPaths( state->binFolderPath, sourceDLLName, state->sourceDLLPath, false );
             if( PathFileExists( state->sourceDLLPath ) )
             {
                 result = true;
@@ -1613,12 +1639,15 @@ Win32ResolvePaths( Win32State *state )
         {
             TrimFileExtension( sourceDLLName );
             char tempDLLPath[PLATFORM_PATH_MAX];
-            sprintf_s( state->tempDLLPath, ARRAYCOUNT(state->tempDLLPath), "%s\\%s.temp.dll", globalPlatformState.exeFilePath, sourceDLLName );
+            sprintf_s( state->tempDLLPath, ARRAYCOUNT(state->tempDLLPath), "%s\\%s.temp.dll",
+                       state->binFolderPath, sourceDLLName );
         }
 
         ASSERT( result );
         if( !result )
             LOG( ".FATAL: Could not find game DLL!" );
+
+        Win32JoinPaths( state->binFolderPath, "dll.lock", state->lockFilePath, false );
     }
 
     {
@@ -1632,8 +1661,8 @@ Win32ResolvePaths( Win32State *state )
 
         for( int i = 0; i < ARRAYCOUNT( supportedDataPaths ); ++i )
         {
-            Win32JoinPaths( state->exeFilePath, supportedDataPaths[i], state->assetDataPath, true );
-            if( PathFileExists( state->assetDataPath ) )
+            Win32JoinPaths( state->binFolderPath, supportedDataPaths[i], state->dataFolderPath, true );
+            if( PathFileExists( state->dataFolderPath ) )
             {
                 result = true;
                 break;
@@ -1642,7 +1671,7 @@ Win32ResolvePaths( Win32State *state )
 
         ASSERT( result );
         if( !result )
-            LOG( ".FATAL: Could not find game DLL!" );
+            LOG( ".FATAL: Could not data root folder!" );
     }
 }
 
@@ -1784,6 +1813,12 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
     BINDGLPROC( glBeginQuery, PFNGLBEGINQUERYPROC );
     BINDGLPROC( glEndQuery, PFNGLENDQUERYPROC );
     BINDGLPROC( glGetQueryObjectuiv, PFNGLGETQUERYOBJECTUIVPROC );
+    BINDGLPROC( glVertexAttribDivisor, PFNGLVERTEXATTRIBDIVISORARBPROC );
+    BINDGLPROC( glDrawArraysInstanced, PFNGLDRAWARRAYSINSTANCEDPROC );
+    BINDGLPROC( glDrawElementsInstanced, PFNGLDRAWELEMENTSINSTANCEDPROC );
+    BINDGLPROC( glDrawElementsBaseVertex, PFNGLDRAWELEMENTSBASEVERTEXPROC );
+    BINDGLPROC( glUniform3fv, PFNGLUNIFORM3FVPROC );
+    BINDGLPROC( glUniform1ui, PFNGLUNIFORM1UIPROC );
 #undef BINDGLPROC
 
 
@@ -1951,6 +1986,7 @@ main( int argC, char **argV )
     globalPlatform.DEBUGListAllAssets = Win32ListAllAssets;
     globalPlatform.DEBUGJoinPaths = Win32JoinPaths;
     globalPlatform.DEBUGGetParentPath = Win32GetParentPath;
+    globalPlatform.DEBUGCurrentTimeMillis = Win32CurrentTimeMillis;
     globalPlatform.AddNewJob = Win32AddNewJob;
     globalPlatform.CompleteAllJobs = Win32CompleteAllJobs;
     globalPlatform.AllocateOrUpdateTexture = Win32AllocateTexture;
@@ -1972,7 +2008,7 @@ main( int argC, char **argV )
 
     LOG( "Initializing Win32 platform with game DLL at: %s", globalPlatformState.sourceDLLPath );
     GameMemory gameMemory = {};
-    gameMemory.permanentStorageSize = GIGABYTES(1);
+    gameMemory.permanentStorageSize = GIGABYTES(2);
     gameMemory.transientStorageSize = GIGABYTES(2);
 #if !RELEASE
     gameMemory.debugStorageSize = MEGABYTES(64);
@@ -2062,22 +2098,27 @@ main( int argC, char **argV )
 
             // TODO Decide a proper size for this
             u32 renderBufferSize = MEGABYTES( 4 );
-            u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize,
-                                                   MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-            u32 vertexBufferMaxCount = 8*1024*1024;
+            u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+
+            u32 vertexBufferMaxCount = MEGABYTES( 32 ); // Million vertices
             TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferMaxCount * sizeof(TexturedVertex),
                                                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
             u32 indexBufferMaxCount = vertexBufferMaxCount * 8;
-            u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferMaxCount * sizeof(u32),
-                                                    MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+            u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferMaxCount * sizeof(u32), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+
+            u32 instanceBufferSize = MEGABYTES( 256 );
+            u8 *instanceBuffer = (u8 *)VirtualAlloc( 0, instanceBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+
             RenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
-                                                                    vertexBuffer, vertexBufferMaxCount,
-                                                                    indexBuffer, indexBufferMaxCount );
+                                                                vertexBuffer, vertexBufferMaxCount,
+                                                                indexBuffer, indexBufferMaxCount,
+                                                                instanceBuffer, instanceBufferSize );
 
             if( Win32InitOpenGL( deviceContext, renderCommands, frameVSyncSkipCount ) )
             {
                 LPVOID baseAddress = 0;
 
+                // TODO Make simple growable arenas for these, that _reserve_ say 8Gb each, but only commit in sizeable blocks as needed
                 // Allocate game memory pools
                 u64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
 #if !RELEASE
@@ -2177,10 +2218,10 @@ main( int argC, char **argV )
 #endif
                             totalElapsedSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
 
-                        Win32PrepareInputData( oldInput, newInput,
+                        Win32PrepareInputData( &oldInput, &newInput,
                                                lastDeltaTimeSecs, totalElapsedSeconds, runningFrameCounter );
                         if( runningFrameCounter == 0 )
-                            newInput->executableReloaded = true;
+                            newInput->gameCodeReloaded = true;
 
 #if !RELEASE
                         // Check for game code updates
@@ -2189,11 +2230,28 @@ main( int argC, char **argV )
                         {
                             Win32CompleteAllJobs( globalPlatform.hiPriorityQueue );
 
-                            LOG( "Detected updated game DLL. Reloading.." );
+                            if( !globalPlatformState.gameCodeReloading )
+                                LOG( "Detected updated game DLL. Reloading.." );
                             Win32UnloadGameCode( &globalPlatformState.gameCode );
-                            globalPlatformState.gameCode
-                                = Win32LoadGameCode( globalPlatformState.sourceDLLPath, globalPlatformState.tempDLLPath, &gameMemory );
-                            newInput->executableReloaded = true;
+
+                            WIN32_FILE_ATTRIBUTE_DATA data;
+                            if( !GetFileAttributesEx( globalPlatformState.lockFilePath, GetFileExInfoStandard, &data ) )
+                            {
+                                globalPlatformState.gameCode = Win32LoadGameCode( globalPlatformState.sourceDLLPath,
+                                                                                  globalPlatformState.tempDLLPath,
+                                                                                  &gameMemory );
+                                globalPlatformState.gameCodeReloading = false;
+                                newInput->gameCodeReloaded = true;
+                                LOG( "Game code reloaded" );
+                            }
+                            else
+                            {
+                                if( !globalPlatformState.gameCodeReloading )
+                                {
+                                    LOG( "Waiting for DLL lock.." );
+                                    globalPlatformState.gameCodeReloading = true;
+                                }
+                            }
                         }
 
                         // Check for asset updates

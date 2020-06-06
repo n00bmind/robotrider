@@ -24,21 +24,25 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __DEBUGSTATS_H__
 #define __DEBUGSTATS_H__ 
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#include "intrinsics.h"
+#endif
 
 // Minimal counter tied to a specific code location
 struct DebugCycleCounter
 {
+    volatile u64 frameHitCount24CycleCount40;
+
     const char* filename;
     const char* function;
     u32 lineNumber;
-
-    volatile u64 frameHitCount24CycleCount40;
 };
 
 struct DebugCounterSnapshot
 {
-    u32 hitCount;
     u64 cycleCount;
+    u32 hitCount;
 };
 
 struct DebugCounterLog
@@ -77,20 +81,24 @@ UnpackAndResetFrameCounter( DebugCycleCounter* c, DebugCounterLog* dest, u32 sna
 struct DebugState
 {
     // NOTE Since we use __COUNTER__ for indexing, we'd need a separate array for platform counters
+    // FIXME Use a constexpr counter instead
     DebugCounterLog counterLogs[1024];
     u32 counterLogsCount;
     u32 counterSnapshotIndex;
 
     u32 totalDrawCalls;
     u32 totalVertexCount;
-    u32 totalGeneratedVerticesCount;
     u32 totalPrimitiveCount;
+    u32 totalInstanceCount;
+    u32 totalGeneratedVerticesCount;
     u32 totalEntities;
+    u32 totalMeshCount;
 };
 
 
 extern DebugCycleCounter DEBUGglobalCounters[];
 
+// TODO Use rdtsc intrinsic
 struct DebugTimedBlock
 {
     DebugCycleCounter& counter;

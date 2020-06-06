@@ -1,12 +1,16 @@
 #ifndef __WFC_H__
 #define __WFC_H__ 
 
+#if NON_UNITY_BUILD
+#include "data_types.h"
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // So... We finally managed to find an inter-chunk propagation pattern that works! (sort of)
 // It seems the best method is to leave a "safe margin" of a certain width on each side of each wave, and then copy just the inner area
 // (the area that truly belongs to each chunk) when propagating to a neighbour.
-// (see Sketchup diagram in wfc_merging_tiles.skp)
+// (see Sketchup diagram in docs/wfc_merging_tiles.skp)
 //  
 // However, some cells are _still_ causing contradictions, which is incredibly weird since the very same patterns in the corresponding
 // cells of the source chunk were obviously playing along nicely (otherwise it wouldn't have completed).
@@ -32,6 +36,8 @@
 
 // TODO Inline and collapse functions where possible
 
+
+struct DebugState;
 
 namespace WFC
 {
@@ -288,6 +294,15 @@ namespace WFC
 
         bool allDone;
     };
+
+
+
+    GlobalState* StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena );
+    void UpdateWFCAsync( GlobalState* globalState );
+    u32 DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState* displayState,
+                  const v2& pDisplay, const v2& displayDim, const DebugState* debugState, MemoryArena* wfcDisplayArena,
+                  const TemporaryMemory& tmpMemory );
+
 
 } // namespace WFC
 

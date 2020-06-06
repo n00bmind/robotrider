@@ -24,6 +24,28 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __OPENGL_RENDERER_H__
 #define __OPENGL_RENDERER_H__ 
 
+#if NON_UNITY_BUILD
+#ifdef _WIN32
+#include <windows.h>
+#include <gl/gl.h>
+#else
+//
+#endif
+#include "glext.h"
+#include "wglext.h"
+#include "renderer.h"
+#endif
+
+
+#ifdef _WIN32
+#define GL_DEBUG_CALLBACK(name) \
+    void WINAPI name( GLenum source, GLenum type, GLuint id, GLenum severity, \
+                      GLsizei length, const GLchar *message, const void *userParam )
+#else
+#define GL_DEBUG_CALLBACK(name) \
+    void name( GLenum source, GLenum type, GLuint id, GLenum severity, \
+               GLsizei length, const GLchar *message, const void *userParam )
+#endif
 #define ASSERT_GL_STATE ASSERT( glGetError() == GL_NO_ERROR );
 
 struct OpenGLInfo
@@ -92,7 +114,8 @@ struct OpenGLState
 {
     GLuint vertexBuffer;
     GLuint indexBuffer;
-    m4 mCurrentProjView;
+    GLuint instanceBuffer;
+    m4 currentProjectViewM;
 
     OpenGLImGuiState imGui;
 
@@ -106,6 +129,7 @@ struct OpenGLState
 
 // Pointers to extension functions setup natively by the platform
 // TODO Is this really cross-platform?
+// TODO Consider glew?
 PFNGLGETSTRINGIPROC	                    glGetStringi;
 PFNGLGENBUFFERSPROC	                    glGenBuffers;
 PFNGLBINDBUFFERPROC	                    glBindBuffer;
@@ -142,6 +166,12 @@ PFNGLGENQUERIESPROC                     glGenQueries;
 PFNGLBEGINQUERYPROC                     glBeginQuery;
 PFNGLENDQUERYPROC                       glEndQuery;
 PFNGLGETQUERYOBJECTUIVPROC              glGetQueryObjectuiv;
+PFNGLVERTEXATTRIBDIVISORARBPROC         glVertexAttribDivisor;
+PFNGLDRAWARRAYSINSTANCEDPROC            glDrawArraysInstanced;
+PFNGLDRAWELEMENTSINSTANCEDPROC          glDrawElementsInstanced;
+PFNGLDRAWELEMENTSBASEVERTEXPROC         glDrawElementsBaseVertex;
+PFNGLUNIFORM3FVPROC                     glUniform3fv;
+PFNGLUNIFORM1UIPROC                     glUniform1ui;
 
 
 #endif /* __OPENGL_RENDERER_H__ */

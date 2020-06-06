@@ -23,67 +23,66 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #version 330 core
 
+#define GS_STAGE 1
+#if GS_STAGE
+#define WIREFRAME 1
+#endif
+
 in VertexData
 {
-    flat uint color;
+    vec3 worldP;
     vec2 texCoords;
-    flat vec3 faceNormal;
+    smooth vec4 color;
+#if GS_STAGE
+    vec2 barycentricP;
+#endif
 } _in;
 
 out vec4 outColor;
 
 
-// TODO Move this to an include when we support that
-// TODO Test
-// vec4 to rgba8 uint
-uint pack( vec4 value )
-{
-    // Ensure values are in [0..1] and make NaNs become zeros
-    value = min( max( value, 0.0f ), 1.0f );
-    
-    // Each component gets 8 bit
-    value = value * 255 + 0.5f;
-    value = floor( value );
-    
-    // Pack into one 32 bit uint
-    return( uint(value.x) |
-           (uint(value.y)<< 8) |
-           (uint(value.z)<<16) |
-           (uint(value.w)<<24) );
-}
-
-// rgba8 uint to vec4
-vec4 unpack( uint value )
-{
-    return vec4(float(value & 0xFFu) / 255,
-                float((value >>  8) & 0xFFu) / 255,
-                float((value >> 16) & 0xFFu) / 255,
-                float((value >> 24) & 0xFFu) / 255);
-}
-
 void main()
 {
-    vec4 vertexColor = unpack( _in.color );
+    // Our 'sun' at -Z inf.
+    //vec3 sunLightDirection = vec3( 0.0, 0.0, -1.0 );
+    vec3 sunLightDirection = vec3( 0.0, 0.0, 1.0 );
 
-    // Face normal in eyespace
-    // NOTE This is supposedly faster than using a GS? CHECK!
-    // vec3 nES = normalize( cross( dFdx( pES ), dFdy( pES ) ) );
+    float wireMul = 1;
+#if WIREFRAME
+    vec3 barys;
+    barys.xy = _in.barycentricP;
+    barys.z = 1 - barys.x - barys.y;
 
-    // FIXME This is relative to the view,
-    // make the light always come from a 'sun' at -Z inf. (so a directional light pointing to +Z)
-    vec3 lightDirection = vec3( 0.0, 0.0, 1.0 );
-    float d = dot( lightDirection, _in.faceNormal );
-    vec4 lightColor = vertexColor * d;
-    lightColor.a = vertexColor.a;
+    vec3 deltas = fwidth(barys);
+	vec3 smoothing = deltas * 1;
+	vec3 thickness = deltas * 0.0000001;
+	barys = smoothstep( thickness, thickness + smoothing, barys );
+    wireMul = min(barys.x, min(barys.y, barys.z));
+    wireMul = clamp( wireMul, 0.2, 1 );
 
-#if 1 // Extremely simple fog
+    //vec4 diffuseLight = vec4( _in.color.xyz * wireMul, 1 );
+#endif
+
+    // Face normal using derivatives of world position
+    vec3 faceNormal = normalize( cross( dFdx( _in.worldP ), dFdy( _in.worldP ) ) );
+
+    float d = clamp( dot( sunLightDirection, faceNormal ), 0, 1 );
+    vec4 diffuseLight = _in.color * d;
+    diffuseLight.a = _in.color.a;
+
+    vec4 ambientLight = vec4( 0.7, 0.7, 0.7, 1 );
+    diffuseLight += ambientLight;
+
+#if 0 // Extremely simple fog
     float dMax = 400;
     float dMin = 10;
     float dist = gl_FragCoord.z / gl_FragCoord.w;
     float tFog = clamp( (dMax - dist) / (dMax - dMin), 0, 1 );
 
-    outColor = mix( vec4( 0.95, 0.95, 0.95, 1 ), lightColor, tFog );
+    outColor = mix( vec4( 0.95, 0.95, 0.95, 1 ), diffuseLight, tFog );
+#else
+    // NOTE Apparently gl_FrontFacing doesn't have good support
+    outColor = vec4( (gl_FrontFacing ? diffuseLight.xyz : vec3( 0.2, 0.2, 0.2 ) ) * wireMul, 1 );
 #endif
-
-    //outColor = lightColor;
 }
+

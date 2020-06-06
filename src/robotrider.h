@@ -24,6 +24,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __ROBOTRIDER_H__
 #define __ROBOTRIDER_H__ 
 
+#if NON_UNITY_BUILD
+#include "common.h"
+#include "memory.h"
+#include "world.h"
+#include "editor.h"
+#include "wfc.h"
+#endif
 
 
 enum class ConsoleEntryType
@@ -70,17 +77,46 @@ struct GameState
     GameConsole gameConsole;
 };
 
+#define VALUES(x) \
+    x(DualContouring) \
+    x(MarchingCubes) \
+
+STRUCT_ENUM(ContouringTechnique, VALUES)
+#undef VALUES
+
+struct ContouringSettings
+{
+    // Marching Cubes
+    struct
+    {
+        bool mcInterpolate;
+    };
+    // Dual Contour
+    DCSettings dc;
+
+    v3 surfaceRotDegrees;
+    int currentSurfaceIndex;
+    int currentTechniqueIndex;
+};
+
 struct TransientState
 {
+    IsoSurfaceSamplingCache samplingCache;
+    Mesh testMesh;
+
+    ContouringSettings settings;
+    r64 contourTimeMillis;
+    r64 simplifyTimeMillis;
+    r32 nextRebuildTimeSeconds;
+
+    // NOTE All this needs to be here for stuff to compile, but it's not being used
 #if 1
     // Mesh resampling test
-    MarchingCacheBuffers cacheBuffers;
-    Mesh testMesh;
+    Mesh sampledMesh;
     Mesh* testIsoSurfaceMesh;
     EditorEntity testEditorEntity;
     r32 drawingDistance;
     u32 displayedLayer;
-#endif
     
     // Wave Function Collapse test
     Array<WFC::Spec> wfcSpecs;
@@ -89,6 +125,8 @@ struct TransientState
     MemoryArena wfcDisplayArena;
     WFC::GlobalState* wfcGlobalState;
     WFC::DisplayState wfcDisplayState;
+#endif
+
 };
 
 #endif /* __ROBOTRIDER_H__ */

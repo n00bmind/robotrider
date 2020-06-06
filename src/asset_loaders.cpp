@@ -21,8 +21,15 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-Texture
-LoadTexture( const char* path, bool flipVertically, bool filtered = true, int desiredChannels = 0 )
+#if NON_UNITY_BUILD
+#include "renderer.h"
+#include "platform.h"
+#include "stb/stb_image.h"
+#include "data_types.h"
+#include "wfc.h"
+#endif
+
+Texture LoadTexture( const char* path, bool flipVertically, bool filtered /*= true*/, int desiredChannels /*= 0*/ )
 {
     DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
 
@@ -48,8 +55,7 @@ LoadTexture( const char* path, bool flipVertically, bool filtered = true, int de
     return result;
 }
 
-Array<WFC::Spec>
-LoadWFCVars( const char* path, MemoryArena* arena, const TemporaryMemory& tempMemory )
+Array<WFC::Spec> LoadWFCVars( const char* path, MemoryArena* arena, const TemporaryMemory& tempMemory )
 {
     Array<WFC::Spec> empty;
     BucketArray<WFC::Spec> result( tempMemory.arena, 128, Temporary() );
@@ -138,7 +144,7 @@ LoadWFCVars( const char* path, MemoryArena* arena, const TemporaryMemory& tempMe
         else
         {
             if( !currentSpec )
-                currentSpec = result.Add( WFC::DefaultSpec() );
+                currentSpec = result.Push( WFC::DefaultSpec() );
 
             if( var.IsEqual( "name", false ) )
             {
@@ -252,9 +258,7 @@ VertexHash( const VertexKey& key, u32 tableSize )
     return key.pIdx;
 }
 
-Mesh
-LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory,
-         const m4& appliedTransform = M4Identity )
+Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory, const m4& appliedTransform /*= M4Identity*/ )
 {
     // TODO Centralize asset loading in the platform layer (through a 'bundle' file),
     // so that temporary memory used while loading is reused and not allocated every time
@@ -296,11 +300,11 @@ LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory,
         }
     }
 
-    Array<u32> indices( arena, 0, indexCount );
+    Array<u32> indices( arena, indexCount );
 
-    Array<v3> positions( tmpMemory.arena, 0, vertexCount, Temporary() );
-    Array<v2> uvs( tmpMemory.arena, 0, uvCount, Temporary() );
-    Array<v3> normals( tmpMemory.arena, 0, normalCount, Temporary() );
+    Array<v3> positions( tmpMemory.arena, vertexCount, Temporary() );
+    Array<v2> uvs( tmpMemory.arena, uvCount, Temporary() );
+    Array<v3> normals( tmpMemory.arena, normalCount, Temporary() );
 
     // Map vertex pos+uv+normal to final vertex index
     // Initially every vertex would map to exactly one entry in the table, but due to
@@ -422,16 +426,15 @@ LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory,
                     if( haveNormals )
                         n = normals[key.nIdx];
 
-                    TexturedVertex newVertex =
-                    {
-                        positions[key.pIdx],
-                        Pack01ToRGBA( 1, 1, 1, 1 ),
-                        uv,
-                        n,
-                    };
+                    TexturedVertex newVertex;
+                    newVertex.p = positions[key.pIdx];
+                    newVertex.color = Pack01ToRGBA( 1, 1, 1, 1 );
+                    newVertex.n = n;
+                    newVertex.uv = uv;
+
                     vertexIndex[i] = vertices.count;
-                    vertices.Add( newVertex );
-                    cachedVertices.Add( key, vertexIndex[i] );
+                    vertices.Push( newVertex );
+                    cachedVertices.Insert( key, vertexIndex[i] );
                 }
 
                 i++;
@@ -456,9 +459,8 @@ LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory,
 
     globalPlatform.DEBUGFreeFileMemory( read.contents );
 
-    Array<TexturedVertex> packedVertices( arena, 0, vertices.count );
-    vertices.CopyTo( packedVertices.data );
-    packedVertices.count = vertices.count;
+    Array<TexturedVertex> packedVertices( arena, vertices.count );
+    vertices.CopyTo( &packedVertices );
 
     // Pre apply transform
     if( !AlmostEqual( appliedTransform, M4Identity ) )
@@ -468,11 +470,9 @@ LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory,
     }
 
     Mesh result;
-    Init( &result );
-    result.vertices = packedVertices.data;
-    result.vertexCount = packedVertices.count;
-    result.indices = indices.data;
-    result.indexCount = indices.count;
+    InitMesh( &result );
+    result.vertices = Array<TexturedVertex>( packedVertices.data, packedVertices.count );
+    result.indices = Array<u32>( indices.data, indices.count );
     CalcBounds( &result );
 
     return result;

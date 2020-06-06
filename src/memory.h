@@ -24,9 +24,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MEMORY_H__
 #define __MEMORY_H__ 
 
+#if NON_UNITY_BUILD
+#include <string.h>
+#include "common.h"
+#include "intrinsics.h"
+#endif
 
+
+// TODO ASAP Add a tag per allocation (even the same arena can contain different stuff)
 #define PUSH_STRUCT(arena, type, ...) (type *)_PushSize( arena, sizeof(type), ## __VA_ARGS__ )
-#define PUSH_ARRAY(arena, count, type, ...) (type *)_PushSize( arena, (count)*sizeof(type), ## __VA_ARGS__ )
+#define PUSH_ARRAY(arena, type, count, ...) (type *)_PushSize( arena, (count)*sizeof(type), ## __VA_ARGS__ )
 #define PUSH_SIZE(arena, size, ...) _PushSize( arena, size, ## __VA_ARGS__ )
 
 
@@ -73,7 +80,7 @@ ClearArena( MemoryArena* arena, bool clearToZero = true )
     arena->tempCount = 0;
 
     if( clearToZero )
-        ZERO( arena->base, arena->size );
+        PZERO( arena->base, arena->size );
 }
 
 inline sz
@@ -106,7 +113,7 @@ NoClear()
 }
 
 inline MemoryParams
-Align( u32 alignment )
+Aligned( u32 alignment )
 {
     MemoryParams result = DefaultMemoryParams();
     result.alignment = alignment;
@@ -126,6 +133,7 @@ _PushSize( MemoryArena *arena, sz size, MemoryParams params = DefaultMemoryParam
 {
     ASSERT( arena->used + size <= arena->size );
     if( !(params.flags & MemoryFlags_TemporaryMemory) )
+        // Need to pass temp memory flag if the arena has an ongoing temp memory block
         ASSERT( arena->tempCount == 0 );
 
     void* free = arena->base + arena->used;
@@ -141,7 +149,7 @@ _PushSize( MemoryArena *arena, sz size, MemoryParams params = DefaultMemoryParam
     arena->used += size + waste;
 
     if( params.flags & MemoryFlags_ClearToZero )
-        ZERO( result, size );
+        PZERO( result, size );
 
     return result;
 }

@@ -23,8 +23,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __MESHGEN_H__
 #define __MESHGEN_H__ 
 
+#if NON_UNITY_BUILD
+#include "data_types.h"
+#include "renderer.h"
+#include "debugstats.h"
+#endif
 
-struct MarchingCacheBuffers
+
+// 2D slice of a 3D sampled area, allowing reuse of sampled values and generated vertices
+struct IsoSurfaceSamplingCache
 {
     r32* bottomLayerSamples;
     r32* topLayerSamples;
@@ -33,7 +40,7 @@ struct MarchingCacheBuffers
     u32* middleLayerVertexIndices;
     u32* topLayerVertexIndices;
 
-    u32 cellsPerAxis;
+    v2u cellsPerAxis;
 };
 
 struct MeshPool
@@ -47,7 +54,7 @@ struct MeshPool
 
 
 
-struct InflatedVertex
+struct FQSVertex
 {
     v3 p;
     u32 refStart;
@@ -56,7 +63,7 @@ struct InflatedVertex
     bool border;
 };
 
-struct InflatedTriangle
+struct FQSTriangle
 {
     u32 v[3];
     r64 error[4];
@@ -66,27 +73,69 @@ struct InflatedTriangle
 };
 
 // Back-references from vertices to the triangles they belong to
-struct InflatedVertexRef
+struct FQSVertexRef
 {
     u32 tId;        // Triangle index
     u32 tVertex;    // Vertex index (in triangle, so 0,1,2)
 };
 
-struct InflatedMesh
+struct FQSMesh
 {
-    Array<InflatedVertex> vertices;
-    Array<InflatedTriangle> triangles;
+    Array<FQSVertex> vertices;
+    Array<FQSTriangle> triangles;
 };
 
 
 
 
-struct Metaball
+
+struct MeshGeneratorData;
+struct WorldCoords;
+#define MESH_GENERATOR_FUNC(name) Mesh* name( const MeshGeneratorData& generatorData, const WorldCoords& entityCoords, \
+                                              IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, \
+                                              BucketArray<u32>* indices ) 
+typedef MESH_GENERATOR_FUNC(MeshGeneratorFunc);
+
+struct StoredEntity;
+struct LiveEntity;
+
+struct MeshGeneratorJob
 {
-    v3 pCenter;
-    r32 radiusMeters;
+    const StoredEntity*     storedEntity;
+    const v3i*              worldOriginClusterP;
+    IsoSurfaceSamplingCache*   samplingCache;
+    MeshPool*               meshPools;
+    LiveEntity*             outputEntity;
+
+    volatile bool occupied;
 };
 
+
+struct MeshGeneratorRoomData
+{
+    v3 dim;
+};
+
+// @Size Using this in the entity storage means every entity spans the maximum size which is very inefficient
+struct MeshGeneratorData
+{
+    r32 areaSideMeters;
+    r32 resolutionMeters;
+
+    union
+    {
+        MeshGeneratorRoomData room;
+        // ...
+    };
+};
+
+struct MeshGenerator
+{
+    MeshGeneratorFunc* func;
+    MeshGeneratorData data;
+};
+
+#if 0
 enum class IsoSurfaceType
 {
     Cuboid,
@@ -94,29 +143,8 @@ enum class IsoSurfaceType
     Cylinder,
 };
 
-
-// NOTE MUST be read only data, so that it can be used by multiple threads!
-struct GeneratorData
+struct MeshGeneratorPathData
 {
-    // ...
-};
-
-struct UniversalCoords;
-#define GENERATOR_FUNC(name) \
-    Mesh* name( const GeneratorData* generatorData, const UniversalCoords& p, MarchingCacheBuffers* cacheBuffers, MeshPool* meshPool ) 
-typedef GENERATOR_FUNC(GeneratorFunc);
-
-struct Generator
-{
-    GeneratorFunc* func;
-    GeneratorData* data;
-};
-
-
-struct GeneratorPathData
-{
-    GeneratorData header;
-
     // Center point and area around it for cube marching
     v3 pCenter;
     r32 areaSideMeters;
@@ -136,16 +164,48 @@ struct GeneratorPathData
     r32 distanceToNextFork;
     m4* nextBasis;
     // TODO Support multiple forks?
-    GeneratorPathData* nextFork;
+    MeshGeneratorPathData* nextFork;
 };
+#endif
 
-struct StoredEntity;
-struct GeneratorHullNodeData
+enum class DCComputeMethod
 {
-    GeneratorData header;
-
-    r32 areaSideMeters;
-    r32 resolutionMeters;
+    Average,
+    QEFClassic,
+    QEFProbabilistic,
+    QEFProbabilisticDouble,
 };
+
+struct DCSettings
+{
+    DCComputeMethod cellPointsComputationMethod;
+    r32 sigmaN;
+    r32 sigmaNDouble;
+    bool approximateEdgeIntersection;
+    bool clampCellPoints;
+};
+
+
+
+IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2u const& cellsPerAxis );
+void ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottomLayer );
+void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache );
+void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size );
+Mesh* AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount );
+Mesh* AllocateMeshFromScratchBuffers( MeshPool* pool );
+void ClearScratchBuffers( MeshPool* pool );
+void ReleaseMesh( Mesh** mesh );
+void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
+                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices,
+                const bool interpolate = true );
+Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displayedLayer, IsoSurfaceSamplingCache* samplingCache,
+                               MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands );
+
+
+#define ISO_SURFACE_FUNC(name) float name( WorldCoords const& worldP, void const* samplingData )
+typedef ISO_SURFACE_FUNC(IsoSurfaceFunc);
+
+ISO_SURFACE_FUNC(RoomSurfaceFunc);
+
 
 #endif /* __MESHGEN_H__ */

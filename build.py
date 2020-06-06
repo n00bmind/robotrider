@@ -22,11 +22,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-#!/usr/bin/env python3
 
 import os, sys, subprocess, atexit, random, argparse
 from collections import namedtuple
-
 
 
 Platform = namedtuple('Platform', ['name', 'compiler', 'toolset', 'common_compiler_flags', 'libs', 'common_linker_flags'])
@@ -67,12 +65,12 @@ config_win_debug = Config(
         compiler_flags = ['-DDEBUG=1', '-Z7', '-Od'],
         linker_flags   = ['/debug:full']                # Required for debugging after hot reloading
 )
-# This config is extremely confusing and we need to clarify this:
+# This config is a bit confusing and we need to clarify this:
 # The choice of whether we have certain "development" features (like an editor mode) is a platform thing
 # totally unrelated to build mode, and so it should be reflected in the platform - game interface.
 # (for example, by adding keyboard/mouse info for the editor, which a PC would provide but a phone wouldn't)
 # This build only makes sense as a faster non-release build to use during development when Debug is just
-# too slow (also, it remains to be seen how useful all the debug information is in this context)
+# too slow, for example one that artists could use as their everyday default. (also, it remains to be seen how useful all the debug information is in this context)
 config_win_develop = Config(
         name           = 'Develop',
         platform       = platform_win,
@@ -84,15 +82,14 @@ config_win_release = Config(
         name           = 'Release',
         platform       = platform_win,
         cmdline_opts   = ['r', 'rel', 'release'],
-        compiler_flags = ['-DRELEASE=1', '-O2'],
+        compiler_flags = ['-DRELEASE=1', '-Z7', '-O2'],
         linker_flags   = ['/debug:full']
 )
 
 
+default_config = config_win_debug
+# default_config = config_win_develop
 default_platform = platform_win
-# default_config = config_win_debug
-default_config = config_win_develop
-# default_config = config_win_release
 
 
 class colors:
@@ -117,7 +114,6 @@ class colors:
 # print '\033[1;48mHighlighted Crimson like Chianti\033[1;m'
 
 def print_color(text, color_string):
-    # For Python 3
     print(color_string, end='')
     print(text, end='')
     print(colors.END)
@@ -138,6 +134,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     config_group = parser.add_mutually_exclusive_group()
     config_group.add_argument('-d', '--debug', help='Create Debug build', action='store_true')
+    config_group.add_argument('--dev', help='Create Develop build', action='store_true')
     config_group.add_argument('-r', '--release', help='Create Release build', action='store_true')
     parser.add_argument('-v', '--verbose', help='Increase verbosity', action='store_true')
     in_args = parser.parse_args()
@@ -153,7 +150,8 @@ if __name__ == '__main__':
         os.mkdir(binpath)
     else:
         for file in os.listdir(binpath):
-            if file.lower().endswith('.pdb'):
+            filelow = file.lower()
+            if filelow.startswith('robotrider') and filelow.endswith('.pdb'):
                 try:
                     pdbpath = os.path.join(binpath, file)
                     os.remove(pdbpath)
@@ -166,63 +164,80 @@ if __name__ == '__main__':
     config = default_config
     if in_args.debug:
         config = config_win_debug
+    elif in_args.dev:
+        config = config_win_develop
     elif in_args.release:
         config = config_win_release
 
-    if platform.toolset == 'CL':
-        # TODO Do the renaming of pdbs etc. so that reloading can work inside VS (?)
-        
-        # Build game library
-        out_args = [platform.compiler]
-        out_args.extend(platform.common_compiler_flags)
-        out_args.extend(config.compiler_flags)
-        out_args.append(os.path.join(srcpath, 'robotrider.cpp'))
-        out_args.append('-LD')
-        out_args.append('/link')
-        out_args.extend(platform.common_linker_flags)
-        out_args.extend(config.linker_flags)
-        # FIXME Generating a different PDB each time breaks debugging in VS when hot reloading (?)
-        out_args.append('/PDB:robotrider_{}.pdb'.format(random.randint(0, 100000)))
+    with open(os.path.join(binpath, 'config'), 'w') as cfg_file:
+        print(f'-> Config \'{config.name}\'')
+        cfg_file.write(f'Config: {config.name}\n')
+        cfg_file.write(f'Platform: {platform.name}\n\n')
 
-        if in_args.verbose:
-            print('\nBuilding game library...')
-            print_color(out_args, colors.GRAY)
-        ret = subprocess.call(out_args, cwd=binpath)
+        if platform.toolset == 'CL':
+            # TODO Do the renaming of pdbs etc. so that reloading can work inside VS (?)
+            
+            # Build game library
+            out_args = [platform.compiler]
+            out_args.extend(platform.common_compiler_flags)
+            out_args.extend(config.compiler_flags)
+            out_args.append(os.path.join(srcpath, 'robotrider.cpp'))
+            out_args.append('-LD')
+            out_args.append('/link')
+            out_args.extend(platform.common_linker_flags)
+            out_args.extend(config.linker_flags)
+            # FIXME Generating a different PDB each time breaks debugging in VS when hot reloading (?)
+            out_args.append('/PDB:robotrider_{}.pdb'.format(random.randint(0, 100000)))
 
-        # Build platform executable
-        out_args = [platform.compiler]
-        out_args.extend(platform.common_compiler_flags)
-        out_args.extend(config.compiler_flags)
-        out_args.append(os.path.join(srcpath, 'win32_platform.cpp'))
-        out_args.append('-Felauncher.exe')
-        out_args.append('/link')
-        out_args.extend(platform.common_linker_flags)
-        out_args.extend(config.linker_flags)
-        out_args.append('-subsystem:console,5.2')
-        out_args.extend(platform.libs)
+            if in_args.verbose:
+                print('\nBuilding game library...')
+                print_color(out_args, colors.GRAY)
+            cfg_file.write(f'Game lib args:\n{out_args}\n\n')
 
-        if in_args.verbose:
-            print('\nBuilding platform executable...')
-            print_color(out_args, colors.GRAY)
-        ret |= subprocess.call(out_args, cwd=binpath)
+            # Create a lock file so the platform doesn't try to load the dll too soon
+            lockfilepath = os.path.join(binpath, 'dll.lock')
+            os.close(os.open(lockfilepath, os.O_CREAT))
+            ret = subprocess.call(out_args, cwd=binpath)
+            os.remove(lockfilepath)
 
-        # Build test suite
-        out_args = [platform.compiler]
-        out_args.extend(platform.common_compiler_flags)
-        out_args.extend(config.compiler_flags)
-        out_args.append(os.path.join(srcpath, 'testsuite.cpp'))
-        out_args.append('/link')
-        out_args.extend(platform.common_linker_flags)
-        out_args.extend(config.linker_flags)
-        out_args.append('-subsystem:console,5.2')
-        # out_args.extend(platform.libs)
+            # Build platform executable
+            out_args = [platform.compiler]
+            out_args.extend(platform.common_compiler_flags)
+            out_args.extend(config.compiler_flags)
+            out_args.append(os.path.join(srcpath, 'win32_platform.cpp'))
+            out_args.append('-Felauncher.exe')
+            out_args.append('/link')
+            out_args.extend(platform.common_linker_flags)
+            out_args.extend(config.linker_flags)
+            out_args.append('-subsystem:console,5.2')
+            out_args.extend(platform.libs)
 
-        if in_args.verbose:
-            print('\nBuilding test suite...')
-            print_color(out_args, colors.GRAY)
-        ret |= subprocess.call(out_args, cwd=binpath)
+            if in_args.verbose:
+                print('\nBuilding platform executable...')
+                print_color(out_args, colors.GRAY)
+            cfg_file.write(f'Platform exe args:\n{out_args}\n\n')
 
-    else:
-        sys.exit('Unsupported toolset')
+            ret |= subprocess.call(out_args, cwd=binpath)
+
+            # Build test suite
+            out_args = [platform.compiler]
+            out_args.extend(platform.common_compiler_flags)
+            out_args.extend(config.compiler_flags)
+            out_args.append(os.path.join(srcpath, 'testsuite.cpp'))
+            out_args.append('/link')
+            out_args.extend(platform.common_linker_flags)
+            out_args.extend(config.linker_flags)
+            out_args.append('-subsystem:console,5.2')
+            # out_args.extend(platform.libs)
+
+            if in_args.verbose:
+                print('\nBuilding test suite...')
+                print_color(out_args, colors.GRAY)
+            cfg_file.write(f'Test suite args:\n{out_args}\n\n')
+
+            ret |= subprocess.call(out_args, cwd=binpath)
+
+        else:
+            sys.exit('Unsupported toolset')
 
     sys.exit(ret)

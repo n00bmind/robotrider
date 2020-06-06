@@ -21,6 +21,17 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#if NON_UNITY_BUILD
+#include "opengl_renderer.h"
+#include "platform.h"
+#include "game.h"
+#include "imgui/imgui.h"
+#endif
+
+
+// TODO Add a list of #defines as a string built on the fly with values from the code to every program
+// (this would include the vertex format(s) that the programs will use, together with uniforms and all input essentially)
+// TODO Unify all stages in a single file per program, using an approach like in https://community.khronos.org/t/vertex-and-fragment-shaders-in-same-file/49949/3
 internal
 OpenGLShaderProgram globalShaderPrograms[] =
 {
@@ -30,15 +41,24 @@ OpenGLShaderProgram globalShaderPrograms[] =
         nullptr,
         "plain_color.fs.glsl",
         { "inPosition", "inTexCoords", "inColor" },
-        { "mTransform" },
+        { { "mTransform" }, { "simClusterOffsets" }, { "simClusterIndex" }, },
+    },
+    {
+        ShaderProgramName::PlainColorVoxel,
+        "default_instanced.vs.glsl",
+        nullptr,
+        "plain_color.fs.glsl",
+        { "inPosition", "inTexCoords", "inColor", "inInstanceOffset" },
+        { { "mTransform" }, { "simClusterOffsets" }, { "simClusterIndex" }, },
     },
     {
         ShaderProgramName::FlatShading,
         "default.vs.glsl",
         "face_normal.gs.glsl",
+        //nullptr,
         "flat.fs.glsl",
         { "inPosition", "inTexCoords", "inColor" },
-        { "mTransform" },
+        { { "mTransform" }, { "simClusterOffsets" }, { "simClusterIndex" }, },
     },
 };
 
@@ -145,8 +165,10 @@ OpenGLGetInfo( bool modernContext )
 }
 
 internal GLint
-OpenGLCompileShader( GLenum shaderType, const char *shaderSource, GLuint *outShaderId )
+OpenGLCompileShader( GLenum shaderType, const char *shaderSource, GLuint *outShaderId, char const* displayName )
 {
+    LOG( ".Compiling shader '%s'..", displayName );
+
     GLuint shader = glCreateShader( shaderType );
     if( shader == 0 )
         return GL_FALSE;
@@ -244,7 +266,7 @@ DEBUG_GAME_ASSET_LOADED_CALLBACK(OpenGLHotswapShader)
 
         if( strcmp( filename, prg.vsFilename ) == 0 )
         {
-            success = OpenGLCompileShader( GL_VERTEX_SHADER, shaderSource, &newId );
+            success = OpenGLCompileShader( GL_VERTEX_SHADER, shaderSource, &newId, prg.vsFilename );
             if( success )
             {
                 prg.vsId = newId;
@@ -253,7 +275,7 @@ DEBUG_GAME_ASSET_LOADED_CALLBACK(OpenGLHotswapShader)
         }
         else if( prg.gsFilename && strcmp( filename, prg.gsFilename ) == 0 )
         {
-            success = OpenGLCompileShader( GL_GEOMETRY_SHADER, shaderSource, &newId );
+            success = OpenGLCompileShader( GL_GEOMETRY_SHADER, shaderSource, &newId, prg.gsFilename );
             if( success )
             {
                 prg.gsId = newId;
@@ -262,7 +284,7 @@ DEBUG_GAME_ASSET_LOADED_CALLBACK(OpenGLHotswapShader)
         }
         else if( strcmp( filename, prg.fsFilename ) == 0 )
         {
-            success = OpenGLCompileShader( GL_FRAGMENT_SHADER, shaderSource, &newId );
+            success = OpenGLCompileShader( GL_FRAGMENT_SHADER, shaderSource, &newId, prg.fsFilename );
             if( success )
             {
                 prg.fsId = newId;
@@ -338,14 +360,14 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     // We're also using a single VBO and index buffer
     // TODO Test performance when using just one vs various
     glGenBuffers( 1, &gl.vertexBuffer );
-    glBindBuffer( GL_ARRAY_BUFFER, gl.vertexBuffer );
     glGenBuffers( 1, &gl.indexBuffer );
-    glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, gl.indexBuffer );
+    glGenBuffers( 1, &gl.instanceBuffer );
 
     // Compile all program definitions
     for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
+        //LOG( ".Compiling program '%s'..", prg.name );
 
         char filePath[MAX_PATH];
         DEBUGReadFileResult result;
@@ -360,7 +382,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
         ASSERT( result.contents );
         prg.vsSource = (char *)result.contents;
 
-        success = OpenGLCompileShader( GL_VERTEX_SHADER, prg.vsSource, &prg.vsId );
+        success = OpenGLCompileShader( GL_VERTEX_SHADER, prg.vsSource, &prg.vsId, prg.vsFilename );
         globalPlatform.DEBUGFreeFileMemory( result.contents );
         if( !success )
             continue;
@@ -374,7 +396,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
             ASSERT( result.contents );
             prg.gsSource = (char *)result.contents;
 
-            success = OpenGLCompileShader( GL_GEOMETRY_SHADER, prg.gsSource, &prg.gsId );
+            success = OpenGLCompileShader( GL_GEOMETRY_SHADER, prg.gsSource, &prg.gsId, prg.gsFilename );
             globalPlatform.DEBUGFreeFileMemory( result.contents );
             if( !success )
                 continue;
@@ -387,7 +409,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
         ASSERT( result.contents );
         prg.fsSource = (char *)result.contents;
 
-        success = OpenGLCompileShader( GL_FRAGMENT_SHADER, prg.fsSource, &prg.fsId );
+        success = OpenGLCompileShader( GL_FRAGMENT_SHADER, prg.fsSource, &prg.fsId, prg.fsFilename );
         globalPlatform.DEBUGFreeFileMemory( result.contents );
         if( !success )
             continue;
@@ -428,7 +450,7 @@ OpenGLRenderImGui( const OpenGLState& gl, ImDrawData *drawData )
 
     // Setup viewport, orthographic projection matrix
     glViewport( 0, 0, (GLsizei)fbWidth, (GLsizei)fbHeight );
-    m4 orthoProj = CreateOrthographicMatrix( io.DisplaySize.x, io.DisplaySize.y );
+    m4 orthoProj = M4Orthographic( io.DisplaySize.x, io.DisplaySize.y );
     glUseProgram( gl.imGui.program );
     glUniform1i( gl.imGui.texUniformId, 0 );
     glUniformMatrix4fv( gl.imGui.projUniformId, 1, GL_FALSE, orthoProj.e[0] );
@@ -691,7 +713,7 @@ OpenGLInitImGui( OpenGLState &gl )
 }
 
 internal void
-OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
+OpenGLUseProgram( ShaderProgramName programName, RenderCommands const& commands, OpenGLState* gl )
 {
     if( programName == ShaderProgramName::None )
     {
@@ -732,7 +754,14 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
 
             // Material *matPtr = entry->materialArray;
 
-            glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, gl->mCurrentProjView.e[0] );
+            glBindBuffer( GL_ARRAY_BUFFER, gl->vertexBuffer );
+
+            // mTransform
+            glUniformMatrix4fv( prg.uniforms[0].locationId, 1, GL_TRUE, gl->currentProjectViewM.e[0] );
+            // simClusterOffsets
+            glUniform3fv( prg.uniforms[1].locationId, commands.simClusterCount, (GLfloat*)commands.simClusterOffsets );
+            // simClusterIndex
+            glUniform1ui( prg.uniforms[2].locationId, 0 );
 
             GLuint pAttribId = 0;
             GLuint uvAttribId = 1;
@@ -742,8 +771,11 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
             glEnableVertexAttribArray( uvAttribId );
             glEnableVertexAttribArray( cAttribId );
 
+            // inPosition
             glVertexAttribPointer( pAttribId, 3, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, p) );
+            // inTexCoords
             glVertexAttribPointer( uvAttribId, 2, GL_FLOAT, false, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, uv) );
+            // inColor
             // NOTE glVertexAttribPointer cannot be used with integral data. Beware the I!!!
             glVertexAttribIPointer( cAttribId, 1, GL_UNSIGNED_INT, sizeof(TexturedVertex), (void *)OFFSETOF(TexturedVertex, color) );
 
@@ -753,39 +785,45 @@ OpenGLUseProgram( ShaderProgramName programName, OpenGLState* gl )
 }
 
 internal void
-OpenGLNewFrame( u32 viewportWidth, u32 viewportHeight )
+OpenGLNewFrame( const RenderCommands &commands, OpenGLState* gl )
 {
+    u32 viewportWidth = commands.width;
+    u32 viewportHeight = commands.height;
     glViewport( 0, 0, viewportWidth, viewportHeight );
     
     glDisable( GL_SCISSOR_TEST );
     glEnable( GL_CULL_FACE );
     glEnable( GL_DEPTH_TEST );
+    glFrontFace( GL_CCW );
 
     // TODO Create a 1x1 white texture to bind here so that shaders that use samplers
     // don't have to check whether there's a 'valid' texture or not
     glBindTexture( GL_TEXTURE_2D, 0 );
+
+    m4 projectViewM = M4Perspective( (r32)viewportWidth / viewportHeight, commands.camera.fovYDeg )
+        * commands.camera.worldToCamera;
+
+    gl->currentProjectViewM = projectViewM;
 }
 
 internal void
 OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemory* gameMemory )
 {
-    OpenGLNewFrame( commands.width, commands.height );
-
-    m4 mProjView = CreatePerspectiveMatrix( (r32)commands.width / commands.height, commands.camera.fovYDeg );
-    mProjView = mProjView * commands.camera.mTransform;
-    gl->mCurrentProjView = mProjView;
+    OpenGLNewFrame( commands, gl );
 
 #if !RELEASE
-    DebugState* debugState = (DebugState*)gameMemory->debugStorage;
-    debugState->totalDrawCalls = 0;
-    debugState->totalPrimitiveCount = 0;
-    debugState->totalVertexCount = 0;
-
     if( gl->queryObjectId == 0 )
         glGenQueries( 1, &gl->queryObjectId );
 
+    // Ask the GPU how many extra primitives were generated in shaders
     glBeginQuery( GL_PRIMITIVES_GENERATED, gl->queryObjectId );
 #endif
+
+    u32 totalDrawCalls = 0;
+    u32 totalVertexCount = 0;
+    u32 totalPrimitiveCount = 0;
+    u32 totalInstanceCount = 0;
+    u32 totalMeshCount = 0;
 
     const RenderBuffer &buffer = commands.renderBuffer;
     for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
@@ -813,26 +851,25 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
 
                 RenderEntryTexturedTris *entry = (RenderEntryTexturedTris *)entryHeader;
 
-                //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+                GLuint vertexByteCount = entry->vertexCount * sizeof(TexturedVertex);
+                GLuint indexByteCount = entry->indexCount * sizeof(u32);
 
-                GLuint countBytes = entry->vertexCount * sizeof(TexturedVertex);
+                glBindBuffer( GL_ARRAY_BUFFER, gl->vertexBuffer );
                 glBufferData( GL_ARRAY_BUFFER,
-                              countBytes,
+                              vertexByteCount,
                               commands.vertexBuffer.base + entry->vertexBufferOffset,
                               GL_STREAM_DRAW );
-
-                countBytes = entry->indexCount * sizeof(u32);
+                glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, gl->indexBuffer );
                 glBufferData( GL_ELEMENT_ARRAY_BUFFER,
-                              countBytes,
+                              indexByteCount,
                               commands.indexBuffer.base + entry->indexBufferOffset,
                               GL_STREAM_DRAW );
 
                 glDrawElements( GL_TRIANGLES, entry->indexCount, GL_UNSIGNED_INT, (void *)0 );
-#if !RELEASE
-                debugState->totalDrawCalls++;
-                debugState->totalVertexCount += entry->vertexCount;
-                debugState->totalPrimitiveCount += (entry->indexCount / 3);
-#endif
+
+                totalDrawCalls++;
+                totalVertexCount += entry->vertexCount;
+                totalPrimitiveCount += (entry->indexCount / 3);
             } break;
 
             case RenderEntryType::RenderEntryLines:
@@ -840,6 +877,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                 RenderEntryLines *entry = (RenderEntryLines *)entryHeader;
 
                 GLuint countBytes = entry->lineCount * 2 * sizeof(TexturedVertex);
+                glBindBuffer( GL_ARRAY_BUFFER, gl->vertexBuffer );
                 glBufferData( GL_ARRAY_BUFFER,
                               countBytes,
                               commands.vertexBuffer.base + entry->vertexBufferOffset,
@@ -847,17 +885,16 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
 
                 glDrawArrays( GL_LINES, 0, entry->lineCount * 2 );
 
-#if !RELEASE
-                debugState->totalDrawCalls++;
-                debugState->totalPrimitiveCount += entry->lineCount;
-#endif
+                totalDrawCalls++;
+                totalVertexCount += entry->lineCount * 2;
+                totalPrimitiveCount += entry->lineCount;
             } break;
 
             case RenderEntryType::RenderEntryProgramChange:
             {
                 RenderEntryProgramChange* entry = (RenderEntryProgramChange*)entryHeader;
 
-                OpenGLUseProgram( entry->programName, gl );
+                OpenGLUseProgram( entry->programName, commands, gl );
             } break;
 
             case RenderEntryType::RenderEntryMaterial:
@@ -874,11 +911,152 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                 RenderEntrySwitch* entry = (RenderEntrySwitch*)entryHeader;
                 bool enable = entry->enable;
 
-                //switch( entry->renderSwitch )
-                //{
-                    //// TODO 
-                    //INVALID_DEFAULT_CASE
-                //}
+                switch( entry->renderSwitch )
+                {
+                    case RenderSwitchType::Culling:
+                        if( enable )
+                            glEnable( GL_CULL_FACE );
+                        else
+                            glDisable( GL_CULL_FACE );
+                        break;
+                        
+                    INVALID_DEFAULT_CASE
+                }
+            } break;
+
+            case RenderEntryType::RenderEntryVoxelGrid:
+            {
+                RenderEntryVoxelGrid* entry = (RenderEntryVoxelGrid*)entryHeader;
+
+                const u32 lineCount = 12;
+                const GLuint countBytes = lineCount * 2 * sizeof(TexturedVertex);
+
+                // TODO Should be part of the shader setup
+                glBindBuffer( GL_ARRAY_BUFFER, gl->instanceBuffer );
+                glBufferData( GL_ARRAY_BUFFER, sizeof(InstanceData) * entry->instanceCount,
+                              commands.instanceBuffer.base + entry->instanceBufferOffset, GL_STATIC_DRAW );
+
+                const GLuint offAttribId = 3;
+                glEnableVertexAttribArray( offAttribId );
+                // inInstanceOffset
+                glVertexAttribPointer( offAttribId, 3, GL_FLOAT, false, sizeof(InstanceData), (void *)OFFSETOF(InstanceData, worldOffset) );
+                // Update per instance
+                glVertexAttribDivisor( offAttribId, 1 );
+
+                const GLuint instColorAttribId = 4;
+                glEnableVertexAttribArray( instColorAttribId );
+                // inInstanceColor
+                glVertexAttribIPointer( instColorAttribId, 1, GL_UNSIGNED_INT, sizeof(InstanceData), (void *)OFFSETOF(InstanceData, color) );
+                // Update per instance
+                glVertexAttribDivisor( instColorAttribId, 1 );
+
+                glBindBuffer( GL_ARRAY_BUFFER, gl->vertexBuffer );
+                glBufferData( GL_ARRAY_BUFFER,
+                              countBytes,
+                              commands.vertexBuffer.base + entry->vertexBufferOffset,
+                              GL_STATIC_DRAW );
+                glDrawArraysInstanced( GL_LINES, 0, lineCount * 2, entry->instanceCount );
+
+                totalDrawCalls++;
+                totalVertexCount += lineCount * 2;
+                totalPrimitiveCount += lineCount;
+                totalInstanceCount += entry->instanceCount;
+            } break;
+
+            case RenderEntryType::RenderEntryVoxelChunk:
+            {
+                RenderEntryVoxelChunk* entry = (RenderEntryVoxelChunk*)entryHeader;
+
+                // TODO Should be part of the shader setup
+                // TODO Should be part of the shader setup
+                // TODO Should be part of the shader setup
+                // TODO Should be part of the shader setup
+                // Each shader should have a set of buffer endpoints (GLuint), each with a set of attribute definitions
+                // After enabling a certain program, we need a call that provides the data for each buffer endpoint
+                glBindBuffer( GL_ARRAY_BUFFER, gl->instanceBuffer );
+                glBufferData( GL_ARRAY_BUFFER, sizeof(InstanceData) * entry->instanceCount,
+                              commands.instanceBuffer.base + entry->instanceBufferOffset, GL_STATIC_DRAW );
+
+                const GLuint offAttribId = 3;
+                glEnableVertexAttribArray( offAttribId );
+                // inInstanceOffset
+                glVertexAttribPointer( offAttribId, 3, GL_FLOAT, false, sizeof(InstanceData), (void *)OFFSETOF(InstanceData, worldOffset) );
+                // Update per instance
+                glVertexAttribDivisor( offAttribId, 1 );
+
+                const GLuint instColorAttribId = 4;
+                glEnableVertexAttribArray( instColorAttribId );
+                // inInstanceColor
+                glVertexAttribIPointer( instColorAttribId, 1, GL_UNSIGNED_INT, sizeof(InstanceData), (void *)OFFSETOF(InstanceData, color) );
+                // Update per instance
+                glVertexAttribDivisor( instColorAttribId, 1 );
+
+                GLuint vertexByteCount = 8 * sizeof(TexturedVertex);
+                GLuint indexByteCount = 36 * sizeof(u32);
+
+                glBindBuffer( GL_ARRAY_BUFFER, gl->vertexBuffer );
+                glBufferData( GL_ARRAY_BUFFER,
+                              vertexByteCount,
+                              commands.vertexBuffer.base + entry->vertexBufferOffset,
+                              GL_STATIC_DRAW );
+                glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, gl->indexBuffer );
+                glBufferData( GL_ELEMENT_ARRAY_BUFFER,
+                              indexByteCount,
+                              commands.indexBuffer.base + entry->indexBufferOffset,
+                              GL_STATIC_DRAW );
+
+                glDrawElementsInstanced( GL_TRIANGLES, 36, GL_UNSIGNED_INT, (void *)0, entry->instanceCount );
+
+                totalDrawCalls++;
+                totalVertexCount += 8;
+                totalPrimitiveCount += 12;
+                totalInstanceCount += entry->instanceCount;
+            } break;
+
+            case RenderEntryType::RenderEntryMeshChunk:
+            {
+                RenderEntryMeshChunk* entry = (RenderEntryMeshChunk*)entryHeader;
+
+                glBindBuffer( GL_ARRAY_BUFFER, gl->vertexBuffer );
+                glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, gl->indexBuffer );
+
+                u32 runningVertexCount = 0;
+                u32 runningIndexCount = 0;
+
+                // TODO We should be able to send the whole buffer in one go and just change the cluster index uniform on each drawcall
+                MeshData* mesh_data = (MeshData*)(commands.instanceBuffer.base + entry->instanceBufferOffset);
+                for( u32 i = 0; i < entry->meshCount; ++i )
+                {
+                    GLuint vertexByteCount = mesh_data->vertexCount * sizeof(TexturedVertex);
+                    GLuint indexByteCount = mesh_data->indexCount * sizeof(u32);
+
+                    // simClusterIndex
+                    glUniform1ui( gl->activeProgram->uniforms[2].locationId, mesh_data->simClusterIndex );
+
+                    glBufferData( GL_ARRAY_BUFFER,
+                                  vertexByteCount,
+                                  commands.vertexBuffer.base + entry->vertexBufferOffset + runningVertexCount,
+                                  GL_STATIC_DRAW );
+                    glBufferData( GL_ELEMENT_ARRAY_BUFFER,
+                                  indexByteCount,
+                                  commands.indexBuffer.base + entry->indexBufferOffset + runningIndexCount,
+                                  GL_STATIC_DRAW );
+
+                    //glDrawElementsBaseVertex( GL_TRIANGLES, mesh_data->indexCount, GL_UNSIGNED_INT, (void *)0, mesh_data->indexStartOffset );
+                    glDrawElements( GL_TRIANGLES, mesh_data->indexCount, GL_UNSIGNED_INT, (void *)0 );
+
+                    runningVertexCount += mesh_data->vertexCount;
+                    runningIndexCount += mesh_data->indexCount;
+                    mesh_data++;
+                }
+
+                // simClusterIndex
+                glUniform1ui( gl->activeProgram->uniforms[2].locationId, 0 );
+
+                totalDrawCalls += entry->meshCount;
+                totalVertexCount += runningVertexCount;
+                totalPrimitiveCount += runningIndexCount / 3;
+                totalMeshCount += entry->meshCount;
             } break;
 
             default:
@@ -893,10 +1071,17 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
     }
 
     // Don't keep active program for next frame
-    OpenGLUseProgram( ShaderProgramName::None, gl );
+    OpenGLUseProgram( ShaderProgramName::None, commands, gl );
 
 #if !RELEASE
     glEndQuery( GL_PRIMITIVES_GENERATED );
+
+    DebugState* debugState = (DebugState*)gameMemory->debugStorage;
+    debugState->totalDrawCalls = totalDrawCalls;
+    debugState->totalVertexCount = totalVertexCount;
+    debugState->totalPrimitiveCount = totalPrimitiveCount;
+    debugState->totalInstanceCount = totalInstanceCount;
+    debugState->totalMeshCount = totalMeshCount;
 
     // Ask for query object result asynchronously, otherwise we would stall the GPU until results are available
     u32 queryResult = 0;
