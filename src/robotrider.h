@@ -102,8 +102,7 @@ struct ContouringSettings
 struct TransientState
 {
     IsoSurfaceSamplingCache samplingCache;
-    MeshPool meshPool;
-    Mesh* testMesh;
+    Mesh testMesh;
 
     ContouringSettings settings;
     r64 contourTimeMillis;

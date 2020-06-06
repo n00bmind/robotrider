@@ -568,12 +568,14 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
     if( IsInSimRegion( clusterP, *job->worldOriginClusterP ) )
     {
         // TODO Find a much more explicit and general way to associate thread-job data like this
+        // (also, make sure thread pool memory is aligned to 64 bit to avoid false sharing!)
         IsoSurfaceSamplingCache* samplingCache = &job->samplingCache[workerThreadIndex];
         MeshPool* meshPool = &job->meshPools[workerThreadIndex];
 
+        // TODO We probably don't want a mesh pool per thread but just the bucket arrays
         // Make live entity from stored and put it in the world
         Mesh* generatedMesh = job->storedEntity->generator.func( job->storedEntity->generator.data, job->storedEntity->worldP,
-                                                                 samplingCache, meshPool );
+                                                                 samplingCache, &meshPool->scratchVertices, &meshPool->scratchIndices );
         *job->outputEntity =
         {
             *job->storedEntity,
@@ -915,7 +917,8 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
 
     ///// Render
-    RenderClear( { 0.99f, 0.95f, 0.9f, 1.0f }, renderCommands );
+    RenderClear( { 0.94f, 0.97f, 0.99f, 1.0f }, renderCommands );
+
 
     // Pass world cluster offsets into the commands
     renderCommands->simClusterOffsets = world->simClusterOffsets.data;
@@ -968,20 +971,13 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #endif
     }
 
-    // Render current cluster limits
-    RenderSetMaterial( nullptr, renderCommands );
-    RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
-    u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
-    RenderBoundsAt( V3Zero, ClusterSizeMeters, red, renderCommands );
-    //RenderBoxAt( V3Zero, ClusterSizeMeters, red, renderCommands );
-
     if( !gameMemory->DEBUGglobalEditing )
     {
         RenderSetMaterial( world->player->mesh.material, renderCommands );
         RenderMesh( world->player->mesh, renderCommands );
         RenderSetMaterial( nullptr, renderCommands );
 
-#if 1
+#if 0
         Cluster* currentCluster = world->clusterTable.Find( world->originClusterP );
         r32 clusterHalfSize = ClusterSizeMeters * 0.5f;
         u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );

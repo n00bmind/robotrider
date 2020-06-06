@@ -1351,13 +1351,11 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 // Respond to keyboard input
                 if( isDown )
                 {
-#if RELEASE
-                    if( vkCode == VK_ESCAPE ||
-                        (vkCode == VK_F4 && altKeyDown) )
+                    if( vkCode == VK_F4 && altKeyDown )
                     {
                         globalRunning = false;
                     }
-#else
+#if !RELEASE
                     if( vkCode == VK_RETURN && altKeyDown )
                     {
                         Win32ToggleFullscreen( platformState->mainWindow );
@@ -1369,26 +1367,24 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                             Win32EndInputPlayback( platformState );
                             Win32ResetController( keyMouseController );
                         }
-                        else if( gameMemory->DEBUGglobalDebugging )
-                        {
-                            Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
-                        }
-                        else if( gameMemory->DEBUGglobalEditing )
-                        {
-                            gameMemory->DEBUGglobalEditing = false;
-                        }
-                        else
-                        {
-                            globalRunning = false;
-                        }
+                        //else if( gameMemory->DEBUGglobalDebugging )
+                        //{
+                            //Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
+                        //}
+                        //else if( gameMemory->DEBUGglobalEditing )
+                        //{
+                            //gameMemory->DEBUGglobalEditing = false;
+                        //}
+                        //else
+                        //{
+                            //globalRunning = false;
+                        //}
                     }
 
                     // @Test The "key above TAB"
                     else if( vkCode == VK_OEM_3 || vkCode == VK_OEM_5 )
                     {
-                        if( ctrlKeyDown )
-                            gameMemory->DEBUGglobalEditing = true;
-                        else if( !gameMemory->DEBUGglobalDebugging && !gameMemory->DEBUGglobalEditing )
+                        if( !gameMemory->DEBUGglobalDebugging )
                             Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
                     }
 
@@ -1409,6 +1405,12 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                                 }
                             }
                         }
+                    }
+
+                    // FIXME F12 Crashes!
+                    else if( vkCode == VK_F11 )
+                    {
+                        gameMemory->DEBUGglobalEditing = !gameMemory->DEBUGglobalEditing;
                     }
 #endif
                 }

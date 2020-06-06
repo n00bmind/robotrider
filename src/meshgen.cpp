@@ -751,93 +751,88 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
     }
 }
 
-Mesh*
+void
 MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
-                 const void* samplingData, IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool, const bool interpolate = true )
+                 const void* samplingData, IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices,
+                 BucketArray<u32>* indices, const bool interpolate = true )
 {
-    ClearScratchBuffers( meshPool );
+    TIMED_BLOCK;
 
+    vertices->Clear();
+    indices->Clear();
+
+    // TODO Should do ceil
+    v2u cellsPerSliceAxis = V2u( volumeSideMeters.xy / cellSizeMeters );
+    u32 sliceCount = (u32)(volumeSideMeters.z / cellSizeMeters);
+    ASSERT( samplingCache->cellsPerAxis.x >= cellsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= cellsPerSliceAxis.y );
+    v3 halfSideMeters = volumeSideMeters / 2;
+    v3 cornerOffset = -halfSideMeters;
+
+    v3 vXDelta = V3( cellSizeMeters, 0, 0 );
+    v3 vYDelta = V3( 0, cellSizeMeters, 0 );
+
+    v2u gridLinesPerAxis = cellsPerSliceAxis + V2uOne;
+    bool firstSlice = true;
+
+    WorldCoords p = worldP;
+
+    // Iterate slices, we consider both the bottom and the top samples of the cubes on each pass
+    for( u32 k = 0; k < sliceCount; ++k )
     {
-        TIMED_BLOCK;
+        r32* bottomSamples = samplingCache->bottomLayerSamples;
+        r32* topSamples = samplingCache->topLayerSamples;
 
-        // TODO Should do ceil
-        v2u cellsPerSliceAxis = V2u( volumeSideMeters.xy / cellSizeMeters );
-        u32 sliceCount = (u32)(volumeSideMeters.z / cellSizeMeters);
-        ASSERT( samplingCache->cellsPerAxis.x >= cellsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= cellsPerSliceAxis.y );
-        v3 halfSideMeters = volumeSideMeters / 2;
-        v3 cornerOffset = -halfSideMeters;
-
-        v3 vXDelta = V3( cellSizeMeters, 0, 0 );
-        v3 vYDelta = V3( 0, cellSizeMeters, 0 );
-
-        v2u gridLinesPerAxis = cellsPerSliceAxis + V2uOne;
-        bool firstSlice = true;
-
-        WorldCoords p = worldP;
-
-        // Iterate slices, we consider both the bottom and the top samples of the cubes on each pass
-        for( u32 k = 0; k < sliceCount; ++k )
+        // Pre-sample top and bottom corners of cubes for each slice (actually only the top for all slices except the first one)
+        // so we only sample one corner per cube instead of 8
+        for( int n = 0; n < 2; ++n )
         {
-            r32* bottomSamples = samplingCache->bottomLayerSamples;
-            r32* topSamples = samplingCache->topLayerSamples;
+            if( n == 0 && !firstSlice )
+                continue;
 
-            // Pre-sample top and bottom corners of cubes for each slice (actually only the top for all slices except the first one)
-            // so we only sample one corner per cube instead of 8
-            for( int n = 0; n < 2; ++n )
-            {
-                if( n == 0 && !firstSlice )
-                    continue;
+            r32* sampledLayer = n ? topSamples : bottomSamples;
 
-                r32* sampledLayer = n ? topSamples : bottomSamples;
+            p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k + n ) * cellSizeMeters;
 
-                p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k + n ) * cellSizeMeters;
-
-                r32* sample = sampledLayer;
-                // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
-                for( u32 j = 0; j < gridLinesPerAxis.y; ++j )
-                {
-                    v3 pAtRowStart = p.relativeP;
-                    for( u32 i = 0; i < gridLinesPerAxis.x; ++i )
-                    {
-                        *sample++ = sampleFunc( p, samplingData );
-                        p.relativeP += vXDelta;
-                    }
-                    p.relativeP = pAtRowStart + vYDelta;
-                }
-            }
-
-            // Keep a cache of already calculated vertices to eliminate duplication
-            ClearVertexCaches( samplingCache, firstSlice );
-
-            p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k ) * cellSizeMeters;
-            for( u32 j = 0; j < cellsPerSliceAxis.y; ++j )
+            r32* sample = sampledLayer;
+            // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
+            for( u32 j = 0; j < gridLinesPerAxis.y; ++j )
             {
                 v3 pAtRowStart = p.relativeP;
-                for( u32 i = 0; i < cellsPerSliceAxis.x; ++i )
+                for( u32 i = 0; i < gridLinesPerAxis.x; ++i )
                 {
-                    MarchCube( p.relativeP, V2i( i, j ), cellsPerSliceAxis, cellSizeMeters, samplingCache,
-                               &meshPool->scratchVertices, &meshPool->scratchIndices, interpolate );
+                    *sample++ = sampleFunc( p, samplingData );
                     p.relativeP += vXDelta;
                 }
                 p.relativeP = pAtRowStart + vYDelta;
             }
-
-            firstSlice = false;
-            SwapTopAndBottomLayers( samplingCache );
         }
-    }
 
-    // Write output mesh
-    Mesh* result = AllocateMeshFromScratchBuffers( meshPool );
-    return result;
+        // Keep a cache of already calculated vertices to eliminate duplication
+        ClearVertexCaches( samplingCache, firstSlice );
+
+        p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k ) * cellSizeMeters;
+        for( u32 j = 0; j < cellsPerSliceAxis.y; ++j )
+        {
+            v3 pAtRowStart = p.relativeP;
+            for( u32 i = 0; i < cellsPerSliceAxis.x; ++i )
+            {
+                MarchCube( p.relativeP, V2i( i, j ), cellsPerSliceAxis, cellSizeMeters, samplingCache, vertices, indices, interpolate );
+                p.relativeP += vXDelta;
+            }
+            p.relativeP = pAtRowStart + vYDelta;
+        }
+
+        firstSlice = false;
+        SwapTopAndBottomLayers( samplingCache );
+    }
 }
 
 
 
 // TODO Clean up asserts
-Mesh*
+void
 DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
-          MeshPool* meshPool, MemoryArena* tempArena, DCSettings const& settings )
+          BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices, MemoryArena* tempArena, DCSettings const& settings )
 {
     struct CellData
     {
@@ -888,7 +883,8 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
         { 2, 6, 6, 2 },     // Z
     };
 
-    ClearScratchBuffers( meshPool );
+    vertices->Clear();
+    indices->Clear();
 
     // One extra layer of cells in X,Y,Z (around the min grid corner) to store the edges and samples at the border
     v3u cellsPerAxis = V3uCeil( volumeSideMeters / cellSizeMeters ) + V3uOne;
@@ -1153,11 +1149,11 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                     //ASSERT( Contains( cellBounds, cellVertex ) );
                 }
 
-                u32 vertexIndex = meshPool->scratchVertices.count;
+                u32 vertexIndex = vertices->count;
                 TexturedVertex v = {};
                 v.p = cellVertex;
                 v.color = clamped ? Pack01ToRGBA( 1, 0, 0, 1 ) : Pack01ToRGBA( 1, 1, 1, 1 );
-                meshPool->scratchVertices.Push( v );
+                vertices->Push( v );
 
                 cellData( i, j, k ).vertexIndex = vertexIndex;
 #if 0
@@ -1191,69 +1187,69 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                         {
                             if( sA < sB )
                             {
-                                meshPool->scratchIndices.Push( vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
+                                indices->Push( vertexIndex );
+                                indices->Push( cellData( i, j-1, k ).vertexIndex );
+                                indices->Push( cellData( i, j, k-1 ).vertexIndex );
 
-                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j-1, k-1 ).vertexIndex ); 
+                                indices->Push( cellData( i, j, k-1 ).vertexIndex );
+                                indices->Push( cellData( i, j-1, k ).vertexIndex );
+                                indices->Push( cellData( i, j-1, k-1 ).vertexIndex ); 
                             }
                             else
                             {
-                                meshPool->scratchIndices.Push( vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
+                                indices->Push( vertexIndex );
+                                indices->Push( cellData( i, j, k-1 ).vertexIndex );
+                                indices->Push( cellData( i, j-1, k ).vertexIndex );
 
-                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j-1, k-1 ).vertexIndex ); 
+                                indices->Push( cellData( i, j-1, k ).vertexIndex );
+                                indices->Push( cellData( i, j, k-1 ).vertexIndex );
+                                indices->Push( cellData( i, j-1, k-1 ).vertexIndex ); 
                             }
                         } break;
                         case 1:     // Normal aligned to +/- Y
                         {
                             if( sA < sB )
                             {
-                                meshPool->scratchIndices.Push( vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
+                                indices->Push( vertexIndex );
+                                indices->Push( cellData( i, j, k-1 ).vertexIndex );
+                                indices->Push( cellData( i-1, j, k ).vertexIndex );
 
-                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i-1, j, k-1 ).vertexIndex );
+                                indices->Push( cellData( i-1, j, k ).vertexIndex );
+                                indices->Push( cellData( i, j, k-1 ).vertexIndex );
+                                indices->Push( cellData( i-1, j, k-1 ).vertexIndex );
                             }
                             else
                             {
-                                meshPool->scratchIndices.Push( vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
+                                indices->Push( vertexIndex );
+                                indices->Push( cellData( i-1, j, k ).vertexIndex );
+                                indices->Push( cellData( i, j, k-1 ).vertexIndex );
 
-                                meshPool->scratchIndices.Push( cellData( i, j, k-1 ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i-1, j, k-1 ).vertexIndex );
+                                indices->Push( cellData( i, j, k-1 ).vertexIndex );
+                                indices->Push( cellData( i-1, j, k ).vertexIndex );
+                                indices->Push( cellData( i-1, j, k-1 ).vertexIndex );
                             }
                         } break;
                         case 2:     // Normal aligned to +/- Z
                         {
                             if( sA < sB )
                             {
-                                meshPool->scratchIndices.Push( vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
+                                indices->Push( vertexIndex );
+                                indices->Push( cellData( i-1, j, k ).vertexIndex );
+                                indices->Push( cellData( i, j-1, k ).vertexIndex );
 
-                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i-1, j-1, k).vertexIndex );
+                                indices->Push( cellData( i, j-1, k ).vertexIndex );
+                                indices->Push( cellData( i-1, j, k ).vertexIndex );
+                                indices->Push( cellData( i-1, j-1, k).vertexIndex );
                             }
                             else
                             {
-                                meshPool->scratchIndices.Push( vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
+                                indices->Push( vertexIndex );
+                                indices->Push( cellData( i, j-1, k ).vertexIndex );
+                                indices->Push( cellData( i-1, j, k ).vertexIndex );
 
-                                meshPool->scratchIndices.Push( cellData( i-1, j, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i, j-1, k ).vertexIndex );
-                                meshPool->scratchIndices.Push( cellData( i-1, j-1, k).vertexIndex );
+                                indices->Push( cellData( i-1, j, k ).vertexIndex );
+                                indices->Push( cellData( i, j-1, k ).vertexIndex );
+                                indices->Push( cellData( i-1, j-1, k).vertexIndex );
                             }
                         } break;
                         }
@@ -1262,10 +1258,6 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
             }
         }
     }
-
-    // Write output mesh
-    Mesh* result = AllocateMeshFromScratchBuffers( meshPool );
-    return result;
 }
 
 
@@ -1291,6 +1283,7 @@ ISO_SURFACE_FUNC(SampleMetaballs)
     return minValue;
 }
 
+#if 0
 void
 TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSurfaceSamplingCache* samplingCache,
                MeshPool* meshPool, RenderCommands *renderCommands )
@@ -1327,6 +1320,7 @@ TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSu
 
     RenderMesh( *metaMesh, renderCommands );
 }
+#endif
 
 ISO_SURFACE_FUNC( TorusSurfaceFunc )
 {
@@ -1557,6 +1551,7 @@ FQSUpdateTriangles( u32 i0, const FQSVertex& v, const Array<bool>& deleted,
 // to achieve a "magically forming" effect for structures that couldn't be contoured in time due to fast camera movements.
 // This would also have the advantage of being able to generate all LODs in a single pass.
 // Also, see if we can find an ultra-fast method mostly for coplanar regions and have it applied always after contouring regardless of LOD
+// (or make one!)
 void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemory& tmpMemory,
                           r32 agressiveness = 7 )
 {
@@ -1853,6 +1848,11 @@ FQSMesh CreateFQSMesh( Array<TexturedVertex> const& vertices, Array<u32> const& 
 
 #if 0
 // BunnyLODSimplify
+// NOTE Could be made reasonable by keeping a separate list of costs that is kept sorted always, hence choosing the minimum
+// cost edge would be a constant time operation
+
+// Even simpler, we could just have an increasing threshold mechanism like FQS above, and just remove all edges above that
+// threshold on each pass
 
 #include <vector>
 
@@ -2652,15 +2652,16 @@ ISO_SURFACE_FUNC(SampleRoomBody)
     return result;
 }
 
+#if 0
 MESH_GENERATOR_FUNC(MeshGeneratorRoomFunc)
 {
-    Mesh* result = MarchVolumeFast( { V3Zero, V3iZero }, V3( generatorData.areaSideMeters ), generatorData.resolutionMeters, SampleRoomBody,
-                                    &generatorData.room, samplingCache, meshPool );
+    Mesh* result = MarchVolumeFast( { V3Zero, V3iZero }, V3( generatorData.areaSideMeters ), generatorData.resolutionMeters,
+                                    SampleRoomBody, &generatorData.room, samplingCache, vertices, indices );
     result->mTransform = M4Translation( entityCoords.relativeP );
 
     return result;
 }
-
+#endif
 
 ISO_SURFACE_FUNC(RoomSurfaceFunc)
 {

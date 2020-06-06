@@ -48,7 +48,7 @@ enum class ShaderProgramName
 
 enum class RenderSwitchType
 {
-    Bla,
+    Culling,
 };
 
 
@@ -117,6 +117,26 @@ InitMesh( Mesh* mesh )
     *mesh = {};
     mesh->mTransform = M4Identity;
     mesh->simClusterIndex = 0;
+}
+
+inline bool
+Empty( Mesh const& mesh )
+{
+    return mesh.vertices.count == 0;
+}
+
+inline Mesh
+CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<u32> const& indices, MemoryArena* arena )
+{
+    Mesh result;
+    InitMesh( &result );
+
+    result.vertices = Array<TexturedVertex>( arena, vertices.count );
+    vertices.CopyTo( &result.vertices );
+    result.indices = Array<u32>( arena, indices.count );
+    indices.CopyTo( &result.indices );
+
+    return result;
 }
 
 inline void

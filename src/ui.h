@@ -8,7 +8,7 @@
 const ImVec4 UInormalTextColor( 0.9f, 0.9f, 0.9f, 1.0f );
 const ImVec4 UIdarkTextColor( .0f, .0f, .0f, 1.0f );
 const ImVec4 UItoolWindowBgColor( 0.f, 0.f, 0.f, 0.6f );
-const ImVec4 UIlightOverlayBgColor( 0.5f, 0.5f, 0.5f, 0.05f );
+const ImVec4 UIlightOverlayBgColor( 0.5f, 0.5f, 0.5f, 0.1f );
 
 
 struct RenderCommands;

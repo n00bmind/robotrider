@@ -785,8 +785,10 @@ OpenGLUseProgram( ShaderProgramName programName, RenderCommands const& commands,
 }
 
 internal void
-OpenGLNewFrame( u32 viewportWidth, u32 viewportHeight )
+OpenGLNewFrame( const RenderCommands &commands, OpenGLState* gl )
 {
+    u32 viewportWidth = commands.width;
+    u32 viewportHeight = commands.height;
     glViewport( 0, 0, viewportWidth, viewportHeight );
     
     glDisable( GL_SCISSOR_TEST );
@@ -797,16 +799,17 @@ OpenGLNewFrame( u32 viewportWidth, u32 viewportHeight )
     // TODO Create a 1x1 white texture to bind here so that shaders that use samplers
     // don't have to check whether there's a 'valid' texture or not
     glBindTexture( GL_TEXTURE_2D, 0 );
+
+    m4 projectViewM = M4Perspective( (r32)viewportWidth / viewportHeight, commands.camera.fovYDeg )
+        * commands.camera.worldToCamera;
+
+    gl->currentProjectViewM = projectViewM;
 }
 
 internal void
 OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemory* gameMemory )
 {
-    OpenGLNewFrame( commands.width, commands.height );
-
-    m4 projectViewM = M4Perspective( (r32)commands.width / commands.height, commands.camera.fovYDeg )
-        * commands.camera.worldToCamera;
-    gl->currentProjectViewM = projectViewM;
+    OpenGLNewFrame( commands, gl );
 
 #if !RELEASE
     if( gl->queryObjectId == 0 )
@@ -908,11 +911,17 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                 RenderEntrySwitch* entry = (RenderEntrySwitch*)entryHeader;
                 bool enable = entry->enable;
 
-                //switch( entry->renderSwitch )
-                //{
-                    //// TODO 
-                    //INVALID_DEFAULT_CASE
-                //}
+                switch( entry->renderSwitch )
+                {
+                    case RenderSwitchType::Culling:
+                        if( enable )
+                            glEnable( GL_CULL_FACE );
+                        else
+                            glDisable( GL_CULL_FACE );
+                        break;
+                        
+                    INVALID_DEFAULT_CASE
+                }
             } break;
 
             case RenderEntryType::RenderEntryVoxelGrid:

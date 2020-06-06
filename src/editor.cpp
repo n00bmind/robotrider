@@ -250,10 +250,9 @@ InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientSt
 {
     v2u maxCellsPerAxis = V2u( VoxelsPerClusterAxis );
 
-    if( transientState->testMesh == nullptr )
+    if( Empty( transientState->testMesh ) )
     {
         transientState->samplingCache = InitSurfaceSamplingCache( editorArena, maxCellsPerAxis );
-        InitMeshPool( &transientState->meshPool, editorArena, MEGABYTES( 256 ) );
 
         transientState->settings.mcInterpolate = true;
         transientState->settings.dc.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
@@ -264,7 +263,7 @@ InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientSt
 
 internal void
 TickSurfaceContouringTest( const GameInput& input, TransientState* transientState, RenderCommands* renderCommands,
-                           MemoryArena* tempArena )
+                           MemoryArena* editorArena, MemoryArena* tempArena )
 {
     v2 renderDim = V2( renderCommands->width, renderCommands->height );
     v2 displayDim = { renderDim.x * 0.2f, renderDim.y * 0.5f };
@@ -338,30 +337,34 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         transientState->nextRebuildTimeSeconds = input.totalElapsedSeconds + 0.5f;
     }
 
-    if( transientState->testMesh == nullptr || input.gameCodeReloaded
+    if( Empty( transientState->testMesh ) || input.gameCodeReloaded
         || (transientState->nextRebuildTimeSeconds && input.totalElapsedSeconds > transientState->nextRebuildTimeSeconds) )
     {
+        BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
+        BucketArray<u32> tmpIndices( tempArena, 1024, Temporary() );
         r64 start = globalPlatform.DEBUGCurrentTimeMillis();
+
         switch( settings.currentTechniqueIndex )
         {
             case ContouringTechnique::MarchingCubes().index:
             {
-                transientState->testMesh = MarchVolumeFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters,
-                                                            SimpleSurfaceFunc, &samplingData, &transientState->samplingCache,
-                                                            &transientState->meshPool, settings.mcInterpolate );
+                MarchVolumeFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc, &samplingData,
+                                 &transientState->samplingCache, &tmpVertices, &tmpIndices, settings.mcInterpolate );
                
             } break;
             case ContouringTechnique::DualContouring().index:
             {
-                transientState->testMesh = DCVolume( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc,
-                                                     &samplingData, &transientState->meshPool, tempArena, settings.dc );
+                DCVolume( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc, &samplingData,
+                          &tmpVertices, &tmpIndices, tempArena, settings.dc );
 
             } break;
         }
+        transientState->testMesh = CreateMeshFromBuffers( tmpVertices, tmpIndices, editorArena );
         transientState->contourTimeMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
 
         start = globalPlatform.DEBUGCurrentTimeMillis();
 
+#if 0
         // Simplify mesh
         TemporaryMemory tempMemory = BeginTemporaryMemory( tempArena );
 
@@ -382,7 +385,7 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         EndTemporaryMemory( tempMemory );
 
         transientState->simplifyTimeMillis = globalPlatform.DEBUGCurrentTimeMillis() - start;
-
+#endif
 
         transientState->nextRebuildTimeSeconds = 0.f;
     }
@@ -392,15 +395,18 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
     u32 c = (u32)ClusterSizeMeters;
     ImGui::Text( "%u x %u x %u cells", c, c, c );
     ImGui::Dummy( { 0, 20 } );
-    ImGui::Text( "Tris: %u", transientState->testMesh->indices.count / 3 );
-    ImGui::Text( "Verts: %u", transientState->testMesh->vertices.count );
+    ImGui::Text( "Tris: %u", transientState->testMesh.indices.count / 3 );
+    ImGui::Text( "Verts: %u", transientState->testMesh.vertices.count );
     ImGui::Dummy( { 0, 20 } );
     ImGui::Text( "Extracted in: %g millis.", transientState->contourTimeMillis );
-    ImGui::Text( "Simplified in: %g millis.", transientState->simplifyTimeMillis );
+    //ImGui::Text( "Simplified in: %g millis.", transientState->simplifyTimeMillis );
     ImGui::End();
 
+    RenderSwitch( RenderSwitchType::Culling, false, renderCommands );
     RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
-    RenderMesh( *transientState->testMesh, renderCommands );
+    RenderMesh( transientState->testMesh, renderCommands );
+
+    RenderSwitch( RenderSwitchType::Culling, true, renderCommands );
 }
 
 void
@@ -419,7 +425,7 @@ InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState,
 void
 UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientState* transientState, 
                        DebugState* debugState, RenderCommands *renderCommands, const char* statsText, 
-                       const TemporaryMemory& frameMemory )
+                       MemoryArena* editorArena, const TemporaryMemory& frameMemory )
 {
     float dT = input.frameElapsedSeconds;
     float elapsedT = input.totalElapsedSeconds;
@@ -521,10 +527,14 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
     TickWFCTest( transientState, debugState, frameMemory, renderCommands );
 #endif
 
-    TickSurfaceContouringTest( input, transientState, renderCommands, frameMemory.arena );
+    TickSurfaceContouringTest( input, transientState, renderCommands, editorArena, frameMemory.arena );
 
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );
+
+    // Render current cluster limits
+    u32 red = Pack01ToRGBA( 1, 0, 0, 1 );
+    RenderBoundsAt( V3Zero, ClusterSizeMeters, red, renderCommands );
 
 	//RenderFloorGrid( ClusterSizeMeters, 10.f, renderCommands );
     DrawAxisGizmos( renderCommands );

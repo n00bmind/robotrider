@@ -1167,6 +1167,7 @@ struct BucketArray
         ASSERT( count > 0 );
         ASSERT( index.IsValid() );
 
+        // TODO Maybe add support for removing and shifting inside a bucket and make a separate RemoveSwap() method
         T result = (T&)index;
         // If index is not pointing to last item, find last item and swap it
         if( index.base != last || index.index != last->count - 1 )

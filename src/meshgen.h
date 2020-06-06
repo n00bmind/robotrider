@@ -92,7 +92,8 @@ struct FQSMesh
 struct MeshGeneratorData;
 struct WorldCoords;
 #define MESH_GENERATOR_FUNC(name) Mesh* name( const MeshGeneratorData& generatorData, const WorldCoords& entityCoords, \
-                                              IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool ) 
+                                              IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, \
+                                              BucketArray<u32>* indices ) 
 typedef MESH_GENERATOR_FUNC(MeshGeneratorFunc);
 
 struct StoredEntity;

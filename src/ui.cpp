@@ -34,12 +34,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 void DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
 {
-    ImVec2 statsPos( 0, 0 );
-
-    ImGui::SetNextWindowPos( statsPos, ImGuiCond_Always );
+    ImVec2 statsPos( 0, windowHeight );
+    ImGui::SetNextWindowPos( statsPos, ImGuiCond_Always, ImVec2( 0, 1.f ) );
     ImGui::SetNextWindowSize( ImVec2( windowWidth, ImGui::GetTextLineHeight() ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.0f );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowBorderSize, 0.0f );
     ImGui::PushStyleColor( ImGuiCol_WindowBg, UIlightOverlayBgColor );
+
     ImGui::Begin( "window_stats", NULL,
                   ImGuiWindowFlags_NoTitleBar |
                   ImGuiWindowFlags_NoResize |
@@ -52,17 +53,18 @@ void DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
 #endif
     ImGui::End();
     ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
 }
 
 void DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, bool blinkToggle )
 {
-    ImVec2 statsPos( 0, 0 );
-
-    ImGui::SetNextWindowPos( statsPos, ImGuiCond_Always );
+    ImVec2 statsPos( 0, windowHeight );
+    ImGui::SetNextWindowPos( statsPos, ImGuiCond_Always, ImVec2( 0, 1.f ) );
     ImGui::SetNextWindowSize( ImVec2( windowWidth, ImGui::GetTextLineHeight() ) );
     ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.0f );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowBorderSize, 0.0f );
     ImGui::PushStyleColor( ImGuiCol_WindowBg, UIlightOverlayBgColor );
+
     ImGui::Begin( "window_stats", NULL,
                   ImGuiWindowFlags_NoTitleBar |
                   ImGuiWindowFlags_NoResize |
@@ -72,8 +74,9 @@ void DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, 
     ImGui::SameLine( (r32)windowWidth - 100 );
     ImGui::TextColored( UIdarkTextColor, blinkToggle ? "EDITOR MODE" : "" );
     ImGui::End();
+
     ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
 }
 
 inline void DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, r32 xLen, const v3& yAxis, r32 yLen, u32 color,
