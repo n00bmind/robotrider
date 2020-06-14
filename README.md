@@ -18,7 +18,6 @@ This is a (very work in progress) game & game engine where I get to experiment w
 · Hot code reloading (any change in the game layer code is immediately applied live)<br />
 · Looped live code editing (press F1 and input will start recording, press F1 again and whatever was recorded will be played back in a loop.. you can still modify the code live as per the previous point!)<br />
 · Live shaders recompilation (a la ShaderToy)<br/>
-· Debug mode (tilde) & editor mode (Ctrl+tilde)<br/>
 · Developer console with customizable commands<br />
 · Infinite procedural world (WIP)<br/>
 · Minimal dependencies (only ImGui and stb_image so far)<br/>
