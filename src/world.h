@@ -106,6 +106,8 @@ const r32 VoxelSizeMeters = 1.f;
 const i32 VoxelsPerClusterAxis = 256;
 
 const r32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;
+static_assert( (r32)(u32)(VoxelsPerClusterAxis * VoxelSizeMeters) == ClusterSizeMeters, "FAIL" );
+
 typedef Grid3D<u8> ClusterVoxelGrid;
 
 
