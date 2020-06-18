@@ -36,20 +36,20 @@ struct IsoSurfaceSamplingCache
     r32* bottomLayerSamples;
     r32* topLayerSamples;
 
-    u32* bottomLayerVertexIndices;
-    u32* middleLayerVertexIndices;
-    u32* topLayerVertexIndices;
+    i32* bottomLayerVertexIndices;
+    i32* middleLayerVertexIndices;
+    i32* topLayerVertexIndices;
 
-    v2u cellsPerAxis;
+    v2i cellsPerAxis;
 };
 
 struct MeshPool
 {
     BucketArray<TexturedVertex> scratchVertices;
-    BucketArray<u32> scratchIndices;
+    BucketArray<i32> scratchIndices;
 
     MemoryBlock memorySentinel;
-    u32 meshCount; 
+    i32 meshCount; 
 };
 
 
@@ -57,15 +57,15 @@ struct MeshPool
 struct FQSVertex
 {
     v3 p;
-    u32 refStart;
-    u32 refCount;     // How many tris share this vertex
+    i32 refStart;
+    i32 refCount;     // How many tris share this vertex
     m4Symmetric q;
     bool border;
 };
 
 struct FQSTriangle
 {
-    u32 v[3];
+    i32 v[3];
     r64 error[4];
     bool deleted;
     bool dirty;
@@ -75,8 +75,8 @@ struct FQSTriangle
 // Back-references from vertices to the triangles they belong to
 struct FQSVertexRef
 {
-    u32 tId;        // Triangle index
-    u32 tVertex;    // Vertex index (in triangle, so 0,1,2)
+    i32 tId;        // Triangle index
+    i32 tVertex;    // Vertex index (in triangle, so 0,1,2)
 };
 
 struct FQSMesh
@@ -93,7 +93,7 @@ struct MeshGeneratorData;
 struct WorldCoords;
 #define MESH_GENERATOR_FUNC(name) Mesh* name( const MeshGeneratorData& generatorData, const WorldCoords& entityCoords, \
                                               IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, \
-                                              BucketArray<u32>* indices ) 
+                                              BucketArray<i32>* indices ) 
 typedef MESH_GENERATOR_FUNC(MeshGeneratorFunc);
 
 struct StoredEntity;
@@ -187,18 +187,18 @@ struct DCSettings
 
 
 
-IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2u const& cellsPerAxis );
+IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2i const& cellsPerAxis );
 void ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottomLayer );
 void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache );
 void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size );
-Mesh* AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount );
+Mesh* AllocateMesh( MeshPool* pool, int vertexCount, int indexCount );
 Mesh* AllocateMeshFromScratchBuffers( MeshPool* pool );
 void ClearScratchBuffers( MeshPool* pool );
 void ReleaseMesh( Mesh** mesh );
-void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
-                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices,
+void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cellsPerAxis, r32 cellSizeMeters,
+                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices,
                 const bool interpolate = true );
-Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displayedLayer, IsoSurfaceSamplingCache* samplingCache,
+Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
                                MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands );
 
 

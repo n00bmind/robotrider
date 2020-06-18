@@ -31,7 +31,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define PUSH_RENDER_ELEMENT(commands, type) (type *)_PushRenderElement( commands, sizeof(type), RenderEntryType::type )
 internal RenderEntry *
-_PushRenderElement( RenderCommands *commands, u32 size, RenderEntryType type )
+_PushRenderElement( RenderCommands *commands, int size, RenderEntryType type )
 {
     RenderEntry *result = 0;
     RenderBuffer &buffer = commands->renderBuffer;
@@ -39,7 +39,7 @@ _PushRenderElement( RenderCommands *commands, u32 size, RenderEntryType type )
     if( buffer.size + size < buffer.maxSize )
     {
         result = (RenderEntry *)(buffer.base + buffer.size);
-        PZERO( result, size );
+        PZERO( result, Sz( size ) );
         result->type = type;
         result->size = size;
         buffer.size += size;
@@ -135,7 +135,7 @@ PushVertex( const v3 &p, u32 color, const v2 &uv, RenderCommands *commands )
 }
 
 inline internal void
-PushVertices( TexturedVertex const* vertexBase, u32 vertexCount, RenderCommands* commands )
+PushVertices( TexturedVertex const* vertexBase, int vertexCount, RenderCommands* commands )
 {
     ASSERT( commands->vertexBuffer.count + vertexCount <= commands->vertexBuffer.maxCount );
 
@@ -144,31 +144,31 @@ PushVertices( TexturedVertex const* vertexBase, u32 vertexCount, RenderCommands*
 }
 
 inline internal void
-PushIndex( u32 value, RenderCommands* commands )
+PushIndex( i32 value, RenderCommands* commands )
 {
     //TIMED_BLOCK;
 
     ASSERT( commands->indexBuffer.count + 1 <= commands->indexBuffer.maxCount );
 
-    u32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
+    i32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
     *index = value;
 
     commands->indexBuffer.count++;
 }
 
 inline internal void
-PushIndices( u32 const* indexBase, u32 indexCount, RenderCommands* commands )
+PushIndices( i32 const* indexBase, int indexCount, RenderCommands* commands )
 {
     ASSERT( commands->indexBuffer.count + indexCount <= commands->indexBuffer.maxCount );
 
-    PCOPY( indexBase, commands->indexBuffer.base + commands->indexBuffer.count, indexCount * sizeof(u32) );
+    PCOPY( indexBase, commands->indexBuffer.base + commands->indexBuffer.count, indexCount * sizeof(i32) );
     commands->indexBuffer.count += indexCount;
 }
 
 inline internal void
 PushInstanceData( InstanceData const& data, RenderCommands* commands )
 {
-    ASSERT( commands->instanceBuffer.size + sizeof(InstanceData) <= commands->instanceBuffer.maxSize );
+    ASSERT( commands->instanceBuffer.size + SIZE(InstanceData) <= commands->instanceBuffer.maxSize );
 
     InstanceData* dst = (InstanceData*)(commands->instanceBuffer.base + commands->instanceBuffer.size);
     *dst = data;
@@ -177,9 +177,9 @@ PushInstanceData( InstanceData const& data, RenderCommands* commands )
 }
 
 inline internal void
-PushMeshData( u32 vertexCount, u32 indexCount, u32 indexStartOffset, u32 simClusterIndex, RenderCommands* commands )
+PushMeshData( int vertexCount, int indexCount, int indexStartOffset, int simClusterIndex, RenderCommands* commands )
 {
-    ASSERT( commands->instanceBuffer.size + sizeof(MeshData) <= commands->instanceBuffer.maxSize );
+    ASSERT( commands->instanceBuffer.size + SIZE(MeshData) <= commands->instanceBuffer.maxSize );
 
     MeshData* data = (MeshData*)(commands->instanceBuffer.base + commands->instanceBuffer.size);
     data->vertexCount = vertexCount;
@@ -266,7 +266,7 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {
-        for( u32 i = 0; i < mesh.vertexCount; ++i )
+        for( int i = 0; i < mesh.vertexCount; ++i )
         {
             TexturedVertex& v = mesh.vertices[i];
 
@@ -276,7 +276,7 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
         int indexOffsetStart = entry->vertexCount;
         entry->vertexCount += mesh.vertexCount;
 
-        for( u32 i = 0; i < mesh.indexCount; ++i )
+        for( int i = 0; i < mesh.indexCount; ++i )
         {
             PushIndex( indexOffsetStart + mesh.indices[i], commands );
         }
@@ -286,7 +286,7 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
     RenderEntryMeshChunk* entry = GetOrCreateCurrentMeshChunk( commands );
     if( entry )
     {
-        u32 indexStartOffset = entry->runningVertexCount;
+        int indexStartOffset = entry->runningVertexCount;
 
         PushVertices( mesh.vertices.data, mesh.vertices.count, commands );
         entry->runningVertexCount += mesh.vertices.count;
@@ -366,13 +366,13 @@ void RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* 
     r32 yEnd = areaHalf;
     for( float x = -areaHalf; x <= areaHalf; x += resolutionMeters )
     {
-        RenderLine( V3( x, yStart, 0 ) + off, V3( x, yEnd, 0 ) + off, semiBlack, commands );
+        RenderLine( V3( x, yStart, 0.f ) + off, V3( x, yEnd, 0.f ) + off, semiBlack, commands );
     }
     r32 xStart = -areaHalf;
     r32 xEnd = areaHalf;
     for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
     {
-        RenderLine( V3( xStart, y, 0 ) + off, V3( xEnd, y, 0 ) + off, semiBlack, commands );
+        RenderLine( V3( xStart, y, 0.f ) + off, V3( xEnd, y, 0.f ) + off, semiBlack, commands );
     }
 }
 
@@ -441,7 +441,7 @@ void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffset
 
         // Per instance data
         InstanceData data = {};
-        u32 instanceCount = 0;
+        int instanceCount = 0;
         u8 const* grid = voxelGrid.data;
 
         for( int k = 0; k < VoxelsPerClusterAxis; ++k )
@@ -557,7 +557,7 @@ void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 
 
         // Per instance data
         InstanceData data = {};
-        u32 instanceCount = 0;
+        int instanceCount = 0;
 #if 0
         u8 const* grid = cluster.voxelGrid.data;
 
@@ -577,14 +577,14 @@ void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 
                     }
                 }
 #else
-        for( u32 r = 0; r < cluster.rooms.count; ++r )
+        for( int r = 0; r < cluster.rooms.count; ++r )
         {
-            v3u roomMinP = cluster.rooms[r].voxelP;
-            v3u roomMaxP = roomMinP + cluster.rooms[r].sizeVoxels - V3uOne;
+            v3i roomMinP = cluster.rooms[r].voxelP;
+            v3i roomMaxP = roomMinP + cluster.rooms[r].sizeVoxels - V3iOne;
 
-            for( u32 k = roomMinP.z; k <= roomMaxP.z; ++k )
-                for( u32 j = roomMinP.y; j <= roomMaxP.y; ++j )
-                    for( u32 i = roomMinP.x; i <= roomMaxP.x; ++i )
+            for( int k = roomMinP.z; k <= roomMaxP.z; ++k )
+                for( int j = roomMinP.y; j <= roomMaxP.y; ++j )
+                    for( int i = roomMinP.x; i <= roomMaxP.x; ++i )
                     {
                         bool atBorder = (i == roomMinP.x || i == roomMaxP.x)
                             || (j == roomMinP.y || j == roomMaxP.y)

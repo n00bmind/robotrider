@@ -81,9 +81,9 @@ struct Texture
     void* handle;
     void* imageBuffer;
 
-    u32 width;
-    u32 height;
-    u32 channelCount;
+    i32 width;
+    i32 height;
+    i32 channelCount;
 };
 
 struct Material
@@ -98,7 +98,7 @@ struct Mesh
     MeshPool* ownerPool;
 
     Array<TexturedVertex> vertices;
-    Array<u32> indices;
+    Array<i32> indices;
 
     Material* material;
     aabb bounds;
@@ -108,7 +108,7 @@ struct Mesh
     m4 mTransform;
 
     // Index into the global cluster offset array to determine final translation in the shader
-    u32 simClusterIndex;
+    i32 simClusterIndex;
 };
 
 inline void
@@ -126,14 +126,14 @@ Empty( Mesh const& mesh )
 }
 
 inline Mesh
-CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<u32> const& indices, MemoryArena* arena )
+CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<i32> const& indices, MemoryArena* arena )
 {
     Mesh result;
     InitMesh( &result );
 
     result.vertices = Array<TexturedVertex>( arena, vertices.count );
     vertices.CopyTo( &result.vertices );
-    result.indices = Array<u32>( arena, indices.count );
+    result.indices = Array<i32>( arena, indices.count );
     indices.CopyTo( &result.indices );
 
     return result;
@@ -144,7 +144,7 @@ CalcBounds( Mesh* mesh )
 {
     aabb result = { V3Inf, -V3Inf };
 
-    for( u32 i = 0; i < mesh->vertices.count; ++i )
+    for( int i = 0; i < mesh->vertices.count; ++i )
     {
         v3& p = mesh->vertices[i].p;
 
@@ -176,10 +176,10 @@ struct InstanceData
 
 struct MeshData
 {
-    u32 vertexCount;
-    u32 indexCount;
-    u32 indexStartOffset;
-    u32 simClusterIndex;
+    i32 vertexCount;
+    i32 indexCount;
+    i32 indexStartOffset;
+    i32 simClusterIndex;
 };
 
 
@@ -199,7 +199,7 @@ enum class RenderEntryType
 struct RenderEntry
 {
     RenderEntryType type;
-    u32 size;
+    i32 size;
 };
 
 struct RenderEntryClear
@@ -213,10 +213,10 @@ struct RenderEntryTexturedTris
 {
     RenderEntry header;
 
-    u32 vertexBufferOffset;
-    u32 vertexCount;
-    u32 indexBufferOffset;
-    u32 indexCount;
+    i32 vertexBufferOffset;
+    i32 vertexCount;
+    i32 indexBufferOffset;
+    i32 indexCount;
 
     // Material **materialArray;
 };
@@ -225,8 +225,8 @@ struct RenderEntryLines
 {
     RenderEntry header;
 
-    u32 vertexBufferOffset;
-    u32 lineCount;
+    i32 vertexBufferOffset;
+    i32 lineCount;
 };
 
 struct RenderEntryProgramChange
@@ -255,60 +255,60 @@ struct RenderEntryVoxelGrid
 {
     RenderEntry header;
 
-    u32 vertexBufferOffset;
-    u32 instanceBufferOffset;
-    u32 instanceCount;
+    i32 vertexBufferOffset;
+    i32 instanceBufferOffset;
+    i32 instanceCount;
 };
 
 struct RenderEntryVoxelChunk
 {
     RenderEntry header;
 
-    u32 vertexBufferOffset;
-    u32 indexBufferOffset;
-    u32 instanceBufferOffset;
-    u32 instanceCount;
+    i32 vertexBufferOffset;
+    i32 indexBufferOffset;
+    i32 instanceBufferOffset;
+    i32 instanceCount;
 };
 
 struct RenderEntryMeshChunk
 {
     RenderEntry header;
 
-    u32 vertexBufferOffset;
-    u32 indexBufferOffset;
-    u32 instanceBufferOffset;
-    u32 meshCount;
+    i32 vertexBufferOffset;
+    i32 indexBufferOffset;
+    i32 instanceBufferOffset;
+    i32 meshCount;
 
-    u32 runningVertexCount;
+    i32 runningVertexCount;
 };
 
 
 struct RenderBuffer
 {
     u8 *base;
-    u32 size;
-    u32 maxSize;
+    i32 size;
+    i32 maxSize;
 };
 
 struct VertexBuffer
 {
     TexturedVertex *base;
-    u32 count;
-    u32 maxCount;
+    i32 count;
+    i32 maxCount;
 };
 
 struct IndexBuffer
 {
-    u32 *base;
-    u32 count;
-    u32 maxCount;
+    i32 *base;
+    i32 count;
+    i32 maxCount;
 };
 
 struct InstanceBuffer
 {
     u8* base;
-    u32 size;
-    u32 maxSize;
+    i32 size;
+    i32 maxSize;
 };
 
 
@@ -330,17 +330,19 @@ struct RenderCommands
     u16 height;
 
     v3* simClusterOffsets;
-    u32 simClusterCount;
+    i32 simClusterCount;
 
     bool isValid;
 };
 
 inline RenderCommands
-InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
-                    TexturedVertex *vertexBuffer, u32 vertexBufferMaxCount,
-                    u32 *indexBuffer, u32 indexBufferMaxCount,
-                    u8* instanceBuffer, u32 instanceBufferMaxSize )
+InitRenderCommands( u8 *renderBuffer, int renderBufferMaxSize,
+                    TexturedVertex *vertexBuffer, int vertexBufferMaxCount,
+                    i32 *indexBuffer, int indexBufferMaxCount,
+                    u8* instanceBuffer, int instanceBufferMaxSize )
 {
+    ASSERT( renderBufferMaxSize > 0 && vertexBufferMaxCount > 0 && indexBufferMaxCount > 0 && instanceBufferMaxSize > 0 );
+
     RenderCommands result;
 
     result.renderBuffer.base = renderBuffer;

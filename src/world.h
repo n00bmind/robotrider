@@ -113,8 +113,8 @@ typedef Grid3D<u8> ClusterVoxelGrid;
 
 struct Room
 {
-    v3u voxelP;
-    v3u sizeVoxels;
+    v3i voxelP;
+    v3i sizeVoxels;
     // TODO This will be in the stored entity when we turn rooms into that
     // TODO Make sure everything in the pipeline uses these right up until we send the meshes for rendering
     WorldCoords worldP;
@@ -125,8 +125,8 @@ struct Room
 
 struct Hall
 {
-    v3u startP;
-    v3u endP;
+    v3i startP;
+    v3i endP;
     // Encoded as 2 bits per axis, first axis is LSB
     u8 axisOrder;
 };
@@ -142,8 +142,8 @@ struct BinaryVolume
         Hall hall;
     };
 
-    v3u voxelP;
-    v3u sizeVoxels;
+    v3i voxelP;
+    v3i sizeVoxels;
 };
 
 struct Cluster
@@ -160,13 +160,13 @@ struct Cluster
     bool populated;
 };
 
-inline u32 ClusterHash( const v3i& key, u32 tableSize );
-inline u32 EntityHash( const u32& key, u32 tableSize );
+inline u32 ClusterHash( const v3i& key, i32 tableSize );
+inline u32 EntityHash( const u32& key, i32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
 const int SimExteriorHalfSize = 0;
-const u32 SimRegionSizePerAxis = 2 * SimExteriorHalfSize + 1;
+const int SimRegionSizePerAxis = 2 * SimExteriorHalfSize + 1;
 
 enum MeshGeneratorType
 {
@@ -211,7 +211,7 @@ struct World
     MeshPool* meshPools;
 
     MeshGeneratorJob generatorJobs[PLATFORM_MAX_JOBQUEUE_JOBS];
-    u32 lastAddedJob;
+    i32 lastAddedJob;
 
     Array<v3> simClusterOffsets;
 };

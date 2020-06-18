@@ -57,8 +57,8 @@ struct GameConsole
     ConsoleEntry entries[4096];
     char inputBuffer[CONSOLE_LINE_MAXLEN];
 
-    u32 entryCount;
-    u32 nextEntryIndex;
+    i32 entryCount;
+    i32 nextEntryIndex;
     bool scrollToBottom;
 };
 
@@ -116,11 +116,11 @@ struct TransientState
     Mesh* testIsoSurfaceMesh;
     EditorEntity testEditorEntity;
     r32 drawingDistance;
-    u32 displayedLayer;
+    i32 displayedLayer;
     
     // Wave Function Collapse test
     Array<WFC::Spec> wfcSpecs;
-    u32 selectedSpecIndex;
+    i32 selectedSpecIndex;
     MemoryArena wfcArena;
     MemoryArena wfcDisplayArena;
     WFC::GlobalState* wfcGlobalState;

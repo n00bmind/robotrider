@@ -21,4 +21,4 @@ void DrawAxisGizmos( RenderCommands *renderCommands );
 void DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ... );
 void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tmpMemory );
 void DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight, const TemporaryMemory& tmpMemory );
-void DrawEditorStateWindow( const v2u& windowP, const v2u& windowDim, const EditorState& state );
+void DrawEditorStateWindow( const v2i& windowP, const v2i& windowDim, const EditorState& state );

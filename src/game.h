@@ -23,6 +23,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __GAME_H__
 #define __GAME_H__ 
 
+#pragma warning( push )
+
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -32,6 +34,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <float.h>
 #include <time.h>
 
+#pragma warning( pop )
 
 #include "common.h"
 #include "intrinsics.h"
@@ -56,7 +59,7 @@ struct GameAudioBuffer
 {
     // TODO Remove this
     u32 samplesPerSecond;
-    u32 frameCount;         // Audio frames to output
+    i32 frameCount;         // Audio frames to output
     u16 channelCount;       // Channels per frame
     // TODO Convert this to a format that is independent of final bitdepth (32bit-float?)
     // (even off-the-shelf audio mixers support this natively, it seems)
@@ -284,14 +287,14 @@ struct GameInput
 #define PLATFORM_KEYMOUSE_CONTROLLER_SLOT 0
 
 inline GameControllerInput *
-GetController( GameInput *input, u32 controllerIndex )
+GetController( GameInput *input, int controllerIndex )
 {
     ASSERT( controllerIndex < ARRAYCOUNT( input->_controllers ) );
     GameControllerInput *result = &input->_controllers[controllerIndex];
     return result;
 }
 inline const GameControllerInput&
-GetController( const GameInput& input, u32 controllerIndex )
+GetController( const GameInput& input, int controllerIndex )
 {
     ASSERT( controllerIndex < ARRAYCOUNT( input._controllers ) );
     return input._controllers[controllerIndex];

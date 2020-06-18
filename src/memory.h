@@ -143,7 +143,7 @@ _PushSize( MemoryArena *arena, sz size, MemoryParams params = DefaultMemoryParam
     if( params.alignment )
     {
         result = Align( free, params.alignment );
-        waste = (u8*)result - (u8*)free;
+        waste = Sz( (u8*)result - (u8*)free );
     }
 
     arena->used += size + waste;

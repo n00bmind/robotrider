@@ -43,10 +43,10 @@ namespace WFC
 {
     // Determines the size of the ring cache for cells that are "blacklisted" temporarily during the backtracking process
     // (0 = disabled)
-    const u32 BacktrackedCellsCacheCount = 0;
+    const int BacktrackedCellsCacheCount = 0;
     // Cap for the size of the snapshot stack, since beyond a certain point, more continuous snapshots means backtracking is less effective
     // Probably will need to be calibrated against the final sets that we use
-    const u32 MaxBacktrackingDepth = 64;
+    const int MaxBacktrackingDepth = 64;
     // Bigger means more U shaped, which makes it more likely to revisit very early steps in the solving process when backtracking
     // This will also need some tweaking with for final examples
     const r32 ObservationCountParabolaDegree = 8;
@@ -55,7 +55,7 @@ namespace WFC
     struct Pattern
     {
         u8* data;
-        u32 stride;
+        i32 stride;
     };
 
     // TODO Add later as an optimization
@@ -63,12 +63,12 @@ namespace WFC
     struct PackedPattern
     {
         u32 hash; //?
-        u32 frequency;
-        u32 stride;
+        i32 frequency;
+        i32 stride;
         u8 data[];
     };
 
-    inline u32 PatternHash( const Pattern& key, u32 tableSize );
+    inline u32 PatternHash( const Pattern& key, i32 tableSize );
 
     struct IndexEntry
     {
@@ -96,14 +96,14 @@ namespace WFC
     };
 
     // (still 4 bits free in each u64)
-    const u32 BitsPerAxis = 10;
-    const u32 MaxAdjacencyCount = 1 << BitsPerAxis;
+    const int BitsPerAxis = 10;
+    const int MaxAdjacencyCount = 1 << BitsPerAxis;
 
     struct AdjacencyMeta
     {
         Adjacency dir;
         v3i cellDelta;
-        u32 oppositeIndex;
+        i32 oppositeIndex;
         u64 counterExp;
         u64 counterMask;
     };
@@ -117,8 +117,8 @@ namespace WFC
 
     struct BannedTuple
     {
-        u32 cellIndex;
-        u32 patternIndex;
+        i32 cellIndex;
+        i32 patternIndex;
     };
 
     struct Spec
@@ -126,11 +126,11 @@ namespace WFC
         const char* name;
 
         Texture source;
-        u32 N;
+        i32 N;
 
-        v3u outputChunkDim;         // In voxels
-        v3u outputChunkCount;
-        u32 safeMarginWidth;        // Extra wave cells to add on top of the actual chunk dim
+        v3i outputChunkDim;         // In voxels
+        v3i outputChunkCount;
+        i32 safeMarginWidth;        // Extra wave cells to add on top of the actual chunk dim
         bool periodic;
     };
     inline Spec DefaultSpec()
@@ -163,13 +163,13 @@ namespace WFC
     {
         u8* inputSamples;
         u32 palette[256];
-        u32 paletteEntryCount;
+        i32 paletteEntryCount;
 
-        HashTable<Pattern, u32, PatternHash> patternsHash;
+        HashTable<Pattern, i32, PatternHash> patternsHash;
         Array<Pattern> patterns;
-        Array<u32> frequencies;                         // weights
+        Array<i32> frequencies;                         // weights
         Array<r64> weights;                             // weightLogWeights
-        u32 sumFrequencies;
+        i32 sumFrequencies;
         r64 sumWeights;
         r64 initialEntropy;
 
@@ -184,7 +184,7 @@ namespace WFC
         Array2<u64> adjacencyCounters;                  // compatible
         // @Memory This could be extracted from the wave (although slower)
         // (http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetKernighan)
-        Array<u32> compatiblesCount;                    // sumsOfOnes
+        Array<i32> compatiblesCount;                    // sumsOfOnes
 
         Array<r64> sumFrequencies;                      // sumsOfWeights
         Array<r64> sumWeights;                          // sumsOfWeightLogWeights
@@ -192,11 +192,11 @@ namespace WFC
 
         Array<r32> distribution;
         // Last random choice that was made in this snapshot, so we can undo it when rewinding
-        u32 lastObservedDistributionIndex;
+        i32 lastObservedDistributionIndex;
         // Last observed cell during this snapshot, so we can discard it when backtracking
-        u32 lastObservedCellIndex;
+        i32 lastObservedCellIndex;
 
-        u32 lastObservationCount;
+        i32 lastObservationCount;
     };
 
     struct State
@@ -206,12 +206,12 @@ namespace WFC
         Array<BannedTuple> propagationStack;
         Array<r32> distributionTemp;
 
-        RingBuffer<u32> backtrackedCellIndices;
+        RingBuffer<i32> backtrackedCellIndices;
         Array<Snapshot> snapshotStack;
         Snapshot* currentSnapshot;
 
-        u32 observationCount;
-        u32 contradictionCount;
+        i32 observationCount;
+        i32 contradictionCount;
         volatile Result currentResult;
     };
 
@@ -220,10 +220,10 @@ namespace WFC
     struct ChunkInfo
     {
         Job* buildJob;          // Only for visualization
-        Array<u32> collapsedWave;
+        Array<i32> collapsedWave;
         Array2<u8> outputSamples;
 
-        v2u pChunk;
+        v2i pChunk;
         volatile Result result;
         bool canProceed;
         bool done;
@@ -233,7 +233,7 @@ namespace WFC
     {
         const Snapshot* snapshot0;
         sz snapshot0Size;
-        const Array<u32>* adjacentChunks[Adjacency::Count];
+        const Array<i32>* adjacentChunks[Adjacency::Count];
     };
 
     struct JobMemory
@@ -270,7 +270,7 @@ namespace WFC
         Snapshot snapshot0;
         sz snapshot0Size;
 
-        u32 processedChunkCount;
+        i32 processedChunkCount;
         bool cancellationRequested;
         bool done;
     };
@@ -285,8 +285,8 @@ namespace WFC
     struct DisplayState
     {
         TestPage currentPage;
-        u32 currentSpecIndex;
-        u32 currentIndexEntry;
+        i32 currentSpecIndex;
+        i32 currentIndexEntry;
 
         Array<Texture> patternTextures;
         u32* outputImageBuffer;
@@ -297,9 +297,9 @@ namespace WFC
 
 
 
-    GlobalState* StartWFCAsync( const Spec& spec, const v2u& pStartChunk, MemoryArena* wfcArena );
+    GlobalState* StartWFCAsync( const Spec& spec, const v2i& pStartChunk, MemoryArena* wfcArena );
     void UpdateWFCAsync( GlobalState* globalState );
-    u32 DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState* displayState,
+    int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState* displayState,
                   const v2& pDisplay, const v2& displayDim, const DebugState* debugState, MemoryArena* wfcDisplayArena,
                   const TemporaryMemory& tmpMemory );
 

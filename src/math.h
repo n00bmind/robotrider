@@ -147,7 +147,7 @@ RandomU64()
     return (u64)(RandomNormalizedR64() * U64MAX);
 }
 
-inline u64
+inline i64
 RandomI64()
 {
     return (i64)(RandomNormalizedR64() * U64MAX);
@@ -228,17 +228,17 @@ Log2( u32 value )
 // (improve it with http://zimbry.blogspot.com/2011/09/better-bit-mixing-improving-on.html)
 // TODO Add Meow Hash for hashing large blocks (also get the code and study it a little, there's gems in the open there!)
 inline u32
-Fletcher32( const void* buffer, sz len )
+Fletcher32( const void* buffer, int len )
 {
 	const u8* data = (u8*)buffer;
 	u32 fletch1 = 0xFFFF;
 	u32 fletch2 = 0xFFFF;
 
-	while( data && len )
+	while( data && len > 0 )
 	{
-		sz l = (len <= 360) ? len : 360;
+		int l = (len <= 360) ? len : 360;
 		len -= l;
-		while (l)
+		while( l > 0 )
 		{
             fletch1 += *data++;
             fletch2 += fletch1;
@@ -253,10 +253,10 @@ Fletcher32( const void* buffer, sz len )
 inline u32
 Pack01ToRGBA( r32 r, r32 g, r32 b, r32 a )
 {
-    u32 result = (((Round( a * 255 ) & 0xFF) << 24)
-                | ((Round( b * 255 ) & 0xFF) << 16)
-                | ((Round( g * 255 ) & 0xFF) << 8)
-                |  (Round( r * 255 ) & 0xFF));
+    u32 result = (((U32( Round( a * 255 ) ) & 0xFF) << 24)
+                | ((U32( Round( b * 255 ) ) & 0xFF) << 16)
+                | ((U32( Round( g * 255 ) ) & 0xFF) << 8)
+                |  (U32( Round( r * 255 ) ) & 0xFF));
     return result;
 }
 

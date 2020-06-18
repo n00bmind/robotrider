@@ -59,9 +59,9 @@ ASSERT_HANDLER(DefaultAssertHandler)
 
 
 template <typename T>
-internal Array<T> NewArray( u32 n )
+internal Array<T> NewArray( int n )
 {
-    Array<T> result = Array<T>( new T[n], n );
+    Array<T> result = Array<T>( new T[Sz(n)], n );
     return result;
 }
 
@@ -69,7 +69,7 @@ template <typename T>
 internal Array<T> CopyArray( const Array<T>& source )
 {
     Array<T> result = source;
-    result.data = new T[source.capacity];
+    result.data = new T[Sz(source.capacity)];
     PCOPY( source.data, result.data, source.count * sizeof(T) );
     return result;
 }
@@ -85,7 +85,7 @@ template <typename T>
 internal T Average( const Array<T>& array )
 {
     T result = 0;
-    for( u32 i = 0; i < array.count; ++i )
+    for( int i = 0; i < array.count; ++i )
     {
         T prevResult = result;
         result += array[i];
@@ -166,7 +166,7 @@ struct SortingBenchmark
 };
 
 internal SortingBenchmark
-SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
+SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
 {
     SortingBenchmark result = {};
     result.tmpArena = tmpArena;
@@ -177,8 +177,8 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
         result.sorted = NewArray<i32>( N );
 
         i32 currentValue = ascending ? I32MIN : I32MAX;
-        i32 maxStep = (U32MAX / N) * (ascending ? 1 : -1);
-        for( u32 i = 0; i < result.sorted.capacity; ++i )
+        i32 maxStep = ((i64)U32MAX / N) * (ascending ? 1 : -1);
+        for( int i = 0; i < result.sorted.capacity; ++i )
         {
             i32 deviation = 0;
             r32 p = RandomNormalizedR32();
@@ -204,8 +204,8 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
         ascending = !ascending;
 
         i32 currentValue = ascending ? I32MIN : I32MAX;
-        i32 maxStep = (U32MAX / N) * (ascending ? 1 : -1);
-        for( u32 i = 0; i < result.reversed.capacity; ++i )
+        i32 maxStep = ((i64)U32MAX / N) * (ascending ? 1 : -1);
+        for( int i = 0; i < result.reversed.capacity; ++i )
         {
             i32 deviation = 0;
             r32 p = RandomNormalizedR32();
@@ -228,7 +228,7 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
     {
         // Random
         result.random = NewArray<i32>( N );
-        for( u32 i = 0; i < result.random.capacity; ++i )
+        for( int i = 0; i < result.random.capacity; ++i )
         {
             result.random[i] = RandomI32();
         }
@@ -239,12 +239,12 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
         result.duplicated = NewArray<i32>( N );
         PZERO( result.duplicated.data, N * sizeof(i32) );
 
-        u32 duplicateCount = (u32)(N * RandomRangeR32( 0.5f, 0.75f ));
-        u32 nextSwitch = RandomRangeU32( (u32)(duplicateCount * 0.1f), duplicateCount );
+        int duplicateCount = (int)(N * RandomRangeR32( 0.5f, 0.75f ));
+        int nextSwitch = RandomRangeI32( (int)(duplicateCount * 0.1f), duplicateCount );
         i32 value = RandomI32();
-        for( u32 d = 0; d < duplicateCount; ++d )
+        for( int d = 0; d < duplicateCount; ++d )
         {
-            u32 i = RandomRangeU32( 0, N );
+            int i = RandomRangeI32( 0, N );
             // NOTE We should check that the position hasn't already been asigned
             result.duplicated[i] = value;
 
@@ -253,7 +253,7 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
                 value = RandomI32();
             }
         }
-        for( u32 i = 0; i < result.duplicated.capacity; ++i )
+        for( int i = 0; i < result.duplicated.capacity; ++i )
         {
             if( !result.duplicated[i] )
                 result.duplicated[i] = RandomI32();
@@ -270,7 +270,7 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
     {
         // Only smallish-ish values
         result.smallish = NewArray<i32>( N );
-        for( u32 i = 0; i < result.smallish.capacity; ++i )
+        for( int i = 0; i < result.smallish.capacity; ++i )
         {
             result.smallish[i] = RandomI32() >> 11;
         }
@@ -279,7 +279,7 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
     {
         // Random float
         result.randomFloat = NewArray<r32>( N );
-        for( u32 i = 0; i < result.randomFloat.capacity; ++i )
+        for( int i = 0; i < result.randomFloat.capacity; ++i )
         {
             result.randomFloat[i] = RandomRangeR32( -10000, 10000 );
         }
@@ -288,7 +288,7 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
     {
         // Random long
         result.randomLong = NewArray<i64>( N );
-        for( u32 i = 0; i < result.randomLong.capacity; ++i )
+        for( int i = 0; i < result.randomLong.capacity; ++i )
         {
             result.randomLong[i] = RandomI64();
         }
@@ -297,7 +297,7 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
     {
         // Random double
         result.randomDouble = NewArray<r64>( N );
-        for( u32 i = 0; i < result.randomDouble.capacity; ++i )
+        for( int i = 0; i < result.randomDouble.capacity; ++i )
         {
             result.randomDouble[i] = RandomRangeR64( -1000000000, 100000000000 );
         }
@@ -306,7 +306,7 @@ SetUpSortingBenchmark( u32 N, bool ascending, MemoryArena* tmpArena )
     {
         // Random struct
         result.randomStruct = NewArray<KeyIndex64>( N );
-        for( u32 i = 0; i < result.randomStruct.capacity; ++i )
+        for( int i = 0; i < result.randomStruct.capacity; ++i )
         {
             result.randomStruct[i] = { RandomU64(), i };
         }
@@ -334,7 +334,7 @@ TearDownSortingBenchmark( SortingBenchmark* benchmark )
 }
 
 internal SortingBenchmark::Timings
-InitTimings( const char* name, u32 passes )
+InitTimings( const char* name, int passes )
 {
     SortingBenchmark::Timings result = {};
 
@@ -405,7 +405,7 @@ internal bool
 VerifySorted( const Array<T>& input, bool ascending )
 {
     bool result = true;
-    for( u32 i = 0; i < input.count - 1; ++i )
+    for( int i = 0; i < input.count - 1; ++i )
     {
         bool ordered = ascending ? input[i] <= input[i+1] : input[i] >= input[i+1];
         if( !ordered )
@@ -418,13 +418,13 @@ VerifySorted( const Array<T>& input, bool ascending )
 }
 
 void
-TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes )
+TestSortingBenchmark( SortingBenchmark* benchmark, int passes )
 {
 #if 0
     if( benchmark->sorted.count < 10000 )
     {
         SortingBenchmark::Timings insertionSort = InitTimings( "Insertion Sort", passes );
-        for( u32 i = 0; i < passes; ++i )
+        for( int i = 0; i < passes; ++i )
         {
             Array<i32> sorted = CopyArray( benchmark->sorted );
             insertionSort.sortedTimes[i] = TIME( InsertSort( &sorted, benchmark->ascending ) );
@@ -436,7 +436,7 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes )
 #endif
 #if 0
     SortingBenchmark::Timings quickSort = InitTimings( "Quick Sort", passes );
-    for( u32 i = 0; i < passes; ++i )
+    for( int i = 0; i < passes; ++i )
     {
         Array<i32> sorted = CopyArray( benchmark->sorted );
         StartCounter();
@@ -479,7 +479,7 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes )
 #endif
 
     SortingBenchmark::Timings radixSort = InitTimings( "Radix Sort", passes );
-    for( u32 i = 0; i < passes; ++i )
+    for( int i = 0; i < passes; ++i )
     {
         bool ascending = benchmark->ascending;
 
@@ -568,7 +568,7 @@ TestSortingBenchmark( SortingBenchmark* benchmark, u32 passes )
     printf( "---\n" );
 
     SortingBenchmark::Timings radixSort11 = InitTimings( "Radix Sort 11", passes );
-    for( u32 i = 0; i < passes; ++i )
+    for( int i = 0; i < passes; ++i )
     {
         bool ascending = benchmark->ascending;
 

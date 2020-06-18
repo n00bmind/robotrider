@@ -34,7 +34,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if !RELEASE
 
 internal EditorEntity
-CreateEditorEntityFor( Mesh* mesh, u32 cellsPerSide )
+CreateEditorEntityFor( Mesh* mesh, int cellsPerSide )
 {
     EditorEntity result = { mesh, Pack01ToRGBA( 1, 0, 0, 1 ) };
     result.cellsPerSide = cellsPerSide;
@@ -42,7 +42,7 @@ CreateEditorEntityFor( Mesh* mesh, u32 cellsPerSide )
 }
 
 internal void
-RenderEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, RenderCommands* renderCommands )
+RenderEditorEntity( const EditorEntity& editorEntity, int displayedLayer, RenderCommands* renderCommands )
 {
     if( editorEntity.mesh )
     {
@@ -57,8 +57,8 @@ RenderEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, Render
         r32 xMax = box.max.x;
         r32 yMin = box.min.y;
         r32 yMax = box.max.y;
-        //for( u32 layer = displayedLayer; layer <= displayedLayer + 1; ++layer )
-        u32 layer = displayedLayer + 1;
+        //for( int layer = displayedLayer; layer <= displayedLayer + 1; ++layer )
+        int layer = displayedLayer + 1;
         {
             r32 z = box.min.z + layer * step;
 
@@ -76,17 +76,17 @@ RenderEditorEntity( const EditorEntity& editorEntity, u32 displayedLayer, Render
 internal void
 InitMeshSamplerTest( TransientState* transientState, MemoryArena* editorArena, MemoryArena* transientArena )
 {
-    transientState->samplingCache = InitSurfaceSamplingCache( editorArena, V2u( 50 ) );
+    transientState->samplingCache = InitSurfaceSamplingCache( editorArena, V2i( 50 ) );
 
     TemporaryMemory tmpMemory = BeginTemporaryMemory( transientArena );
     transientState->sampledMesh = LoadOBJ( "bunny.obj", editorArena, tmpMemory, 
-                                           M4Scale( V3( 10.f, 10.f, 10.f ) ) * M4Translation( V3( 0, 0, 1.f ) ) );
+                                           M4Scale( V3( 10.f, 10.f, 10.f ) ) * M4Translation( V3( 0.f, 0.f, 1.f ) ) );
     EndTemporaryMemory( tmpMemory );
 }
 
 internal void
-TickMeshSamplerTest( const EditorState& editorState, TransientState* transientState, MeshPool* meshPoolArray, const TemporaryMemory& frameMemory,
-                     r32 elapsedT, RenderCommands* renderCommands )
+TickMeshSamplerTest( const EditorState& editorState, TransientState* transientState, MeshPool* meshPoolArray,
+                     const TemporaryMemory& frameMemory, r32 elapsedT, RenderCommands* renderCommands )
 {
     if( !transientState->testIsoSurfaceMesh ) //|| input.gameCodeReloaded )
     {
@@ -96,9 +96,9 @@ TickMeshSamplerTest( const EditorState& editorState, TransientState* transientSt
 
         if( transientState->testIsoSurfaceMesh )
             ReleaseMesh( &transientState->testIsoSurfaceMesh );
-        transientState->testIsoSurfaceMesh = ConvertToIsoSurfaceMesh( transientState->sampledMesh, transientState->drawingDistance,
-                                                                      transientState->displayedLayer, &transientState->samplingCache, meshPoolArray,
-                                                                      frameMemory, renderCommands );
+        transientState->testIsoSurfaceMesh =
+            ConvertToIsoSurfaceMesh( transientState->sampledMesh, transientState->drawingDistance, transientState->displayedLayer,
+                                     &transientState->samplingCache, meshPoolArray, frameMemory, renderCommands );
     }
 
     RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
@@ -148,11 +148,11 @@ TickWFCTest( TransientState* transientState, DebugState* debugState, const Tempo
         v2 displayDim = renderDim * 0.9f;
         v2 displayP = (renderDim - displayDim) / 2.f;
 
-        u32 selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, transientState->wfcGlobalState,
+        int selectedSpecIndex = WFC::DrawTest( transientState->wfcSpecs, transientState->wfcGlobalState,
                                                &transientState->wfcDisplayState, displayP, displayDim, debugState,
                                                &transientState->wfcDisplayArena, frameMemory );
 
-        if( selectedSpecIndex != U32MAX )
+        if( selectedSpecIndex != -1 )
         {
             transientState->selectedSpecIndex = selectedSpecIndex;
             transientState->wfcGlobalState->cancellationRequested = true;
@@ -209,10 +209,10 @@ TickMeshSimplifierTest()
             FQSMesh gen;
             {
                 genVertices.count = testVertices.count;
-                for( u32 i = 0; i < genVertices.count; ++i )
+                for( int i = 0; i < genVertices.count; ++i )
                     genVertices[i].p = testVertices[i].p;
                 genTriangles.count = testIndices.count / 3;
-                for( u32 i = 0; i < genTriangles.count; ++i )
+                for( int i = 0; i < genTriangles.count; ++i )
                 {
                     genTriangles[i].v[0] = testIndices[i*3];
                     genTriangles[i].v[1] = testIndices[i*3 + 1];
@@ -221,13 +221,13 @@ TickMeshSimplifierTest()
                 gen.vertices = genVertices;
                 gen.triangles = genTriangles;
             }
-            FastQuadricSimplify( &gen, (u32)(gen.triangles.count * 0.75f) );
+            FastQuadricSimplify( &gen, (int)(gen.triangles.count * 0.75f) );
 
             testVertices.count = gen.vertices.count;
-            for( u32 i = 0; i < testVertices.count; ++i )
+            for( int i = 0; i < testVertices.count; ++i )
                 testVertices[i].p = gen.vertices[i].p;
             testIndices.count = gen.triangles.count * 3;
-            for( u32 i = 0; i < gen.triangles.count; ++i )
+            for( int i = 0; i < gen.triangles.count; ++i )
             {
                 testIndices[i*3 + 0] = gen.triangles[i].v[0];
                 testIndices[i*3 + 1] = gen.triangles[i].v[1];
@@ -248,7 +248,7 @@ TickMeshSimplifierTest()
 internal void
 InitSurfaceContouringTest( MemoryArena* editorArena, TransientState* transientState )
 {
-    v2u maxCellsPerAxis = V2u( VoxelsPerClusterAxis );
+    v2i maxCellsPerAxis = V2i( VoxelsPerClusterAxis );
 
     if( Empty( transientState->testMesh ) )
     {
@@ -341,7 +341,7 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         || (transientState->nextRebuildTimeSeconds && input.totalElapsedSeconds > transientState->nextRebuildTimeSeconds) )
     {
         BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
-        BucketArray<u32> tmpIndices( tempArena, 1024, Temporary() );
+        BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
         r64 start = globalPlatform.DEBUGCurrentTimeMillis();
 
         switch( settings.currentTechniqueIndex )
@@ -372,11 +372,11 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
         FastQuadricSimplify( &fqsMesh, 10000, tempMemory );
 
         transientState->testMesh->vertices.Resize( fqsMesh.vertices.count );
-        for( u32 i = 0; i < fqsMesh.vertices.count; ++i )
+        for( int i = 0; i < fqsMesh.vertices.count; ++i )
             // FIXME Vertex attributes
             transientState->testMesh->vertices[i].p = fqsMesh.vertices[i].p;
         transientState->testMesh->indices.Resize( fqsMesh.triangles.count * 3 );
-        for( u32 i = 0; i < fqsMesh.triangles.count; ++i )
+        for( int i = 0; i < fqsMesh.triangles.count; ++i )
         {
             transientState->testMesh->indices[ i*3 + 0 ] = fqsMesh.triangles[i].v[0];
             transientState->testMesh->indices[ i*3 + 1 ] = fqsMesh.triangles[i].v[1];
@@ -392,7 +392,7 @@ TickSurfaceContouringTest( const GameInput& input, TransientState* transientStat
 
     ImGui::Dummy( { 0, 20 } );
     ImGui::Separator();
-    u32 c = (u32)ClusterSizeMeters;
+    int c = (int)ClusterSizeMeters;
     ImGui::Text( "%u x %u x %u cells", c, c, c );
     ImGui::Dummy( { 0, 20 } );
     ImGui::Text( "Tris: %u", transientState->testMesh.indices.count / 3 );
@@ -541,7 +541,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
     u16 width = renderCommands->width;
     u16 height = renderCommands->height;
-    DrawEditorStateWindow( V2u( width - 280, 50 ), V2u( 250, height - 900 ), *editorState );
+    DrawEditorStateWindow( V2i( width - 280, 50 ), V2i( 250, height - 900 ), *editorState );
 
     DrawEditorStats( width, height, statsText, (i32)elapsedT % 2 == 0 );
 }

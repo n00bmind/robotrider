@@ -30,39 +30,39 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 
-IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2u const& cellsPerAxis )
+IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2i const& cellsPerAxis )
 {
     IsoSurfaceSamplingCache result;
     result.cellsPerAxis = cellsPerAxis;
 
     // NOTE We add an extra row at the ends to account for the edges at the extremes,
     // which simplifies the algorithm by eliminating "edge" cases ¬¬
-    v2u stepsPerAxis = cellsPerAxis + V2uOne;
-    u32 layerCellCount = stepsPerAxis.x * stepsPerAxis.y;
+    v2i stepsPerAxis = cellsPerAxis + V2iOne;
+    int layerCellCount = stepsPerAxis.x * stepsPerAxis.y;
 
     result.bottomLayerSamples = PUSH_ARRAY( arena, r32, layerCellCount );
     result.topLayerSamples = PUSH_ARRAY( arena, r32, layerCellCount );
-    result.bottomLayerVertexIndices = PUSH_ARRAY( arena, u32, layerCellCount * 2 );
-    result.middleLayerVertexIndices = PUSH_ARRAY( arena, u32, layerCellCount );
-    result.topLayerVertexIndices = PUSH_ARRAY( arena, u32, layerCellCount * 2 );
+    result.bottomLayerVertexIndices = PUSH_ARRAY( arena, i32, layerCellCount * 2 );
+    result.middleLayerVertexIndices = PUSH_ARRAY( arena, i32, layerCellCount );
+    result.topLayerVertexIndices = PUSH_ARRAY( arena, i32, layerCellCount * 2 );
 
     return result;
 }
 
 void ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottomLayer )
 {
-    v2u stepsPerAxis = samplingCache->cellsPerAxis + V2uOne;
-    u32 layerCellCount = stepsPerAxis.x * stepsPerAxis.y;
+    v2i stepsPerAxis = samplingCache->cellsPerAxis + V2iOne;
+    int layerCellCount = stepsPerAxis.x * stepsPerAxis.y;
 
     if( clearBottomLayer )
     {
         PSET( samplingCache->bottomLayerVertexIndices, U32MAX,
-             layerCellCount * 2 * sizeof(u32) );
+             layerCellCount * 2 * sizeof(i32) );
     }
     PSET( samplingCache->middleLayerVertexIndices, U32MAX,
-         layerCellCount * sizeof(u32) );
+         layerCellCount * sizeof(i32) );
     PSET( samplingCache->topLayerVertexIndices, U32MAX, 
-         layerCellCount * 2 * sizeof(u32) );
+         layerCellCount * 2 * sizeof(i32) );
 }
 
 void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache )
@@ -79,7 +79,7 @@ void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size )
 {
     // TODO Measure whether it's faster to just have a really big contiguous array for these
     pool->scratchVertices = BucketArray<TexturedVertex>( arena, 1024 );
-    pool->scratchIndices = BucketArray<u32>( arena, 1024 );
+    pool->scratchIndices = BucketArray<i32>( arena, 1024 );
 
     // Initialize empty sentinel
     pool->memorySentinel.prev = &pool->memorySentinel;
@@ -99,10 +99,10 @@ void ClearScratchBuffers( MeshPool* pool )
     pool->scratchIndices.Clear();
 }
 
-Mesh* AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
+Mesh* AllocateMesh( MeshPool* pool, int vertexCount, int indexCount )
 {
     sz vertexSize = sizeof(TexturedVertex) * vertexCount;
-    sz indexSize = sizeof(u32) * indexCount;
+    sz indexSize = sizeof(i32) * indexCount;
     sz totalMeshSize = sizeof(Mesh) + vertexSize + indexSize;
 
     Mesh* result = nullptr;
@@ -119,7 +119,7 @@ Mesh* AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
 
         InitMesh( result );
         result->vertices = Array<TexturedVertex>( (TexturedVertex*)vertexData, vertexCount );
-        result->indices = Array<u32>( (u32*)indexData, indexCount );
+        result->indices = Array<i32>( (i32*)indexData, indexCount );
         result->ownerPool = pool;
 
         pool->meshCount++;
@@ -635,28 +635,28 @@ struct VertexCacheIndex
 namespace
 {
     extern v3i cornerOffsets[8];
-    extern u32 edgeVertexOffsets[12][2];
+    extern i32 edgeVertexOffsets[12][2];
     extern VertexCacheIndex vertexCacheIndices[12];
     extern int triangleTable[][16];
 }
 
-void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
-                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices,
+void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cellsPerAxis, r32 cellSizeMeters,
+                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices,
                 const bool interpolate /*= true*/ )
 {
     TIMED_BLOCK;
 
     // Cache layers contain one sample per _edge_
-    v2u layerStepsPerAxis = cellsPerAxis + V2uOne;
+    v2i layerStepsPerAxis = cellsPerAxis + V2iOne;
 
     // Construct case mask from 8 corner samples
-    u32 caseIndex = 0;
+    int caseIndex = 0;
     r32 cornerSamples[8];
     for( int i = 0; i < 8; ++i )
     {
         v3i cornerOffset = cornerOffsets[i];
         v3i layerP = V3i( gridCellP ) + cornerOffset;
-        u32 layerOffset = layerP.y * layerStepsPerAxis.x + layerP.x;
+        int layerOffset = layerP.y * layerStepsPerAxis.x + layerP.x;
 
         r32 sample = cornerOffset.z
             ? samplingCache->topLayerSamples[layerOffset]
@@ -672,7 +672,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
     if( caseIndex == 0 || caseIndex == 0xFF )
         return;
 
-    u32* vertexCaches[3] =
+    i32* vertexCaches[3] =
     {
         samplingCache->bottomLayerVertexIndices,
         samplingCache->middleLayerVertexIndices,
@@ -690,10 +690,10 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
 
             // First check if the vertex for this edge case is already in the cache
             VertexCacheIndex& idx = vertexCacheIndices[edgeCaseIndex];
-            u32* vertexCache = vertexCaches[idx.cacheTableIndex];
+            i32* vertexCache = vertexCaches[idx.cacheTableIndex];
 
             v2i layerP = gridCellP + idx.vCellOffset;
-            u32 vertexCacheOffset = layerP.y * layerStepsPerAxis.x + layerP.x;
+            int vertexCacheOffset = layerP.y * layerStepsPerAxis.x + layerP.x;
             if( idx.cacheTableIndex != 1)
             {
                 // Top or bottom layers
@@ -701,7 +701,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
             }
 
 #if 1       // Use vertex cache (produces around 1/8th vertices)
-            u32 cachedVertexIndex = vertexCache[vertexCacheOffset];
+            i32 cachedVertexIndex = vertexCache[vertexCacheOffset];
             if( cachedVertexIndex != U32MAX )
             {
                 indices->Push( cachedVertexIndex );
@@ -710,8 +710,8 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
 #endif
             {
                 // No cached vertex, so go on and create one
-                u32 indexA = edgeVertexOffsets[edgeCaseIndex][0];   // Edge start
-                u32 indexB = edgeVertexOffsets[edgeCaseIndex][1];   // Edge end
+                int indexA = edgeVertexOffsets[edgeCaseIndex][0];   // Edge start
+                int indexB = edgeVertexOffsets[edgeCaseIndex][1];   // Edge end
 
                 v3 pA = cellCornerWorldP + V3( cornerOffsets[indexA] ) * cellSizeMeters;
                 v3 pB = cellCornerWorldP + V3( cornerOffsets[indexB] ) * cellSizeMeters;
@@ -735,7 +735,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
                 }
 
                 // Add new vertex to the mesh
-                u32 newVertexIndex = vertices->count;
+                int newVertexIndex = vertices->count;
                 indices->Push( newVertexIndex );
                 TexturedVertex v = {};
                 v.p = vPos;
@@ -754,7 +754,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
 void
 MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
                  const void* samplingData, IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices,
-                 BucketArray<u32>* indices, const bool interpolate = true )
+                 BucketArray<i32>* indices, const bool interpolate = true )
 {
     TIMED_BLOCK;
 
@@ -762,22 +762,22 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cell
     indices->Clear();
 
     // TODO Should do ceil
-    v2u cellsPerSliceAxis = V2u( volumeSideMeters.xy / cellSizeMeters );
-    u32 sliceCount = (u32)(volumeSideMeters.z / cellSizeMeters);
+    v2i cellsPerSliceAxis = V2i( volumeSideMeters.xy / cellSizeMeters );
+    int sliceCount = (int)(volumeSideMeters.z / cellSizeMeters);
     ASSERT( samplingCache->cellsPerAxis.x >= cellsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= cellsPerSliceAxis.y );
     v3 halfSideMeters = volumeSideMeters / 2;
     v3 cornerOffset = -halfSideMeters;
 
-    v3 vXDelta = V3( cellSizeMeters, 0, 0 );
-    v3 vYDelta = V3( 0, cellSizeMeters, 0 );
+    v3 vXDelta = V3( cellSizeMeters, 0.f, 0.f );
+    v3 vYDelta = V3( 0.f, cellSizeMeters, 0.f );
 
-    v2u gridLinesPerAxis = cellsPerSliceAxis + V2uOne;
+    v2i gridLinesPerAxis = cellsPerSliceAxis + V2iOne;
     bool firstSlice = true;
 
     WorldCoords p = worldP;
 
     // Iterate slices, we consider both the bottom and the top samples of the cubes on each pass
-    for( u32 k = 0; k < sliceCount; ++k )
+    for( int k = 0; k < sliceCount; ++k )
     {
         r32* bottomSamples = samplingCache->bottomLayerSamples;
         r32* topSamples = samplingCache->topLayerSamples;
@@ -795,10 +795,10 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cell
 
             r32* sample = sampledLayer;
             // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
-            for( u32 j = 0; j < gridLinesPerAxis.y; ++j )
+            for( int j = 0; j < gridLinesPerAxis.y; ++j )
             {
                 v3 pAtRowStart = p.relativeP;
-                for( u32 i = 0; i < gridLinesPerAxis.x; ++i )
+                for( int i = 0; i < gridLinesPerAxis.x; ++i )
                 {
                     *sample++ = sampleFunc( p, samplingData );
                     p.relativeP += vXDelta;
@@ -811,10 +811,10 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cell
         ClearVertexCaches( samplingCache, firstSlice );
 
         p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k ) * cellSizeMeters;
-        for( u32 j = 0; j < cellsPerSliceAxis.y; ++j )
+        for( int j = 0; j < cellsPerSliceAxis.y; ++j )
         {
             v3 pAtRowStart = p.relativeP;
-            for( u32 i = 0; i < cellsPerSliceAxis.x; ++i )
+            for( int i = 0; i < cellsPerSliceAxis.x; ++i )
             {
                 MarchCube( p.relativeP, V2i( i, j ), cellsPerSliceAxis, cellSizeMeters, samplingCache, vertices, indices, interpolate );
                 p.relativeP += vXDelta;
@@ -832,7 +832,7 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cell
 // TODO Clean up asserts
 void
 DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
-          BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices, MemoryArena* tempArena, DCSettings const& settings )
+          BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* tempArena, DCSettings const& settings )
 {
     struct CellData
     {
@@ -843,7 +843,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
         // v3 n; // NOTE Unused for now
         // Only one sample per cell (the 'max' corner of the aabb)
         r32 sampledValue;
-        u32 vertexIndex;
+        i32 vertexIndex;
     };
 
     // Relative to 'max' aabb point, also used to locate neighbour cells
@@ -861,10 +861,10 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
 
     struct EdgeLocator
     {
-        u32 cornerA;
-        u32 cornerB;
-        u32 neighbourIndex;
-        u32 storeIndex;
+        i32 cornerA;
+        i32 cornerB;
+        i32 neighbourIndex;
+        i32 storeIndex;
     };
 
     static const EdgeLocator dcEdgeLocators[12] =
@@ -887,7 +887,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
     indices->Clear();
 
     // One extra layer of cells in X,Y,Z (around the min grid corner) to store the edges and samples at the border
-    v3u cellsPerAxis = V3uCeil( volumeSideMeters / cellSizeMeters ) + V3uOne;
+    v3i cellsPerAxis = V3iCeil( volumeSideMeters / cellSizeMeters ) + V3iOne;
 
     Grid3D<CellData> cellData = Grid3D<CellData>( tempArena, cellsPerAxis, Temporary() );
     PZERO( cellData.data, cellsPerAxis.x * cellsPerAxis.y * cellsPerAxis.z * sizeof(CellData) );
@@ -899,11 +899,11 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
     const r32 delta = 0.01f;
     const r32 deltaInv = 1.f / (2.f * delta);
 
-    for( u32 k = 0; k < cellsPerAxis.z; ++k )
+    for( int k = 0; k < cellsPerAxis.z; ++k )
     {
-        for( u32 j = 0; j < cellsPerAxis.y; ++j )
+        for( int j = 0; j < cellsPerAxis.y; ++j )
         {
-            for( u32 i = 0; i < cellsPerAxis.x; ++i )
+            for( int i = 0; i < cellsPerAxis.x; ++i )
             {
                 v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
 
@@ -946,10 +946,10 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                 }
 
                 // Early out if entirely inside or outside
-                if( caseMask == 0 || caseMask == 0xFF )
+                if( caseMask == 0u || caseMask == 0xFFu )
                     continue;
 
-                v2u edges[12];
+                v2i edges[12];
                 v3 edgePoints[12];
                 v3 edgeNormals[12];
                 int pointCount = 0;
@@ -960,8 +960,8 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                 {
                     EdgeLocator const& locator = dcEdgeLocators[e];
 
-                    u32 indexA = locator.cornerA;
-                    u32 indexB = locator.cornerB;
+                    int indexA = locator.cornerA;
+                    int indexB = locator.cornerB;
                     r32 sA = cornerSamples[ indexA ];
                     r32 sB = cornerSamples[ indexB ];
 
@@ -1059,7 +1059,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                             int neighbourIndex = locator.neighbourIndex;
                             ASSERT( neighbourIndex != 7 );
 
-                            v3u neighbourCoords = V3u( V3i( i, j, k ) + dcCornerOffsets[neighbourIndex] );
+                            v3i neighbourCoords = V3i( i, j, k ) + dcCornerOffsets[neighbourIndex];
                             edgePoints[pointCount] = cellData( neighbourCoords ).edgeCrossingsP[locator.storeIndex];
                             edgeNormals[pointCount] = cellData( neighbourCoords ).edgeCrossingsN[locator.storeIndex];
 
@@ -1149,7 +1149,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                     //ASSERT( Contains( cellBounds, cellVertex ) );
                 }
 
-                u32 vertexIndex = vertices->count;
+                int vertexIndex = vertices->count;
                 TexturedVertex v = {};
                 v.p = cellVertex;
                 v.color = clamped ? Pack01ToRGBA( 1, 0, 0, 1 ) : Pack01ToRGBA( 1, 1, 1, 1 );
@@ -1158,7 +1158,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                 cellData( i, j, k ).vertexIndex = vertexIndex;
 #if 0
                 v3 avgNormal = V3Zero;
-                for( u32 p = 0; p < pointCount; ++p )
+                for( int p = 0; p < pointCount; ++p )
                     avgNormal += edgeNormals[p];
                 avgNormal /= pointCount;
                 cellData( i, j, k ).n = avgNormal;
@@ -1167,14 +1167,14 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
 
                 // Now we look 'backwards' and create at most 3 quads corresponding to the edges that include the 'min' corner instead,
                 // as we know those vertices will be ready by now
-                static const u32 edgesProducingPolys[3][2] =
+                static const i32 edgesProducingPolys[3][2] =
                 {
                     { 0, 1 },
                     { 0, 2 },
                     { 0, 4 },
                 };
 
-                for( u32 e = 0; e < 3; ++e )
+                for( int e = 0; e < 3; ++e )
                 {
                     r32 sA = cornerSamples[ edgesProducingPolys[e][0] ];
                     r32 sB = cornerSamples[ edgesProducingPolys[e][1] ];
@@ -1273,7 +1273,7 @@ ISO_SURFACE_FUNC(SampleMetaballs)
     const Array<Metaball>& balls = *(const Array<Metaball>*)samplingData;
 
     r32 minValue = R32MAX;
-    for( u32 i = 0; i < balls.capacity; ++i )
+    for( int i = 0; i < balls.capacity; ++i )
     {
         r32 value = DistanceSq( balls[i].pCenter, worldP.relativeP ) - balls[i].radiusMeters;
         if( value < minValue )
@@ -1292,7 +1292,7 @@ TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSu
 
     if( balls[0].radiusMeters == 0 )
     {
-        for( u32 i = 0; i < balls.count; ++i )
+        for( int i = 0; i < balls.count; ++i )
         {
             //r32 x = RandomRange( -halfSideMeters, halfSideMeters );
             //r32 y = RandomRange( -halfSideMeters, halfSideMeters );
@@ -1303,7 +1303,7 @@ TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSu
     }
 
     // Update positions
-    for( u32 i = 0; i < balls.count; ++i )
+    for( int i = 0; i < balls.count; ++i )
     {
         Metaball& ball = balls[i];
         r32 x = (i+1) / 2.0f * Cos( elapsedT - i );
@@ -1359,7 +1359,7 @@ STRUCT_ENUM(SimpleSurface, SURFACE_LIST);
 struct SamplingData
 {
     m4 invWorldTransform;
-    u32 surfaceType;
+    i32 surfaceType;
 };
 
 
@@ -1438,7 +1438,7 @@ FQSVertexError( const m4Symmetric& q, r64 x, r64 y, r64 z )
 }
 
 internal r64
-FQSCalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
+FQSCalculateError( FQSMesh* mesh, int v1Idx, int v2Idx, v3* result )
 {
     FQSVertex& v1 = mesh->vertices[v1Idx];
     FQSVertex& v2 = mesh->vertices[v2Idx];
@@ -1482,17 +1482,17 @@ FQSCalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
 
 internal bool
 FQSFlipped( const FQSMesh& mesh, const Array<FQSVertexRef>& refs,
-            const v3& p, u32 i0, u32 i1, const FQSVertex& v0, const FQSVertex& v1, Array<bool>* deleted )
+            const v3& p, int i0, int i1, const FQSVertex& v0, const FQSVertex& v1, Array<bool>* deleted )
 {
-    for( u32 k = 0; k < v0.refCount; ++k )
+    for( int k = 0; k < v0.refCount; ++k )
     {
         const FQSTriangle& tri = mesh.triangles[refs[v0.refStart + k].tId];
         if( tri.deleted )
             continue;
 
-        u32 s = refs[v0.refStart + k].tVertex;
-        u32 id1 = tri.v[(s+1)%3];
-        u32 id2 = tri.v[(s+2)%3];
+        int s = refs[v0.refStart + k].tVertex;
+        int id1 = tri.v[(s+1)%3];
+        int id2 = tri.v[(s+2)%3];
 
         if( id1 == i1 || id2 == i1 )    // delete?
         {
@@ -1517,11 +1517,11 @@ FQSFlipped( const FQSMesh& mesh, const Array<FQSVertexRef>& refs,
 
 // Update triangle connections and edge error after an edge is collapsed
 internal void
-FQSUpdateTriangles( u32 i0, const FQSVertex& v, const Array<bool>& deleted,
-                    FQSMesh* mesh, Array<FQSVertexRef>* refs, u32* deleteTriangleCount )
+FQSUpdateTriangles( int i0, const FQSVertex& v, const Array<bool>& deleted,
+                    FQSMesh* mesh, Array<FQSVertexRef>* refs, i32* deleteTriangleCount )
 {
     v3 p;
-    for( u32 k = 0; k < v.refCount; ++k )
+    for( int k = 0; k < v.refCount; ++k )
     {
         FQSVertexRef& ref = (*refs)[v.refStart + k];
         FQSTriangle& tri = mesh->triangles[ref.tId];
@@ -1552,13 +1552,13 @@ FQSUpdateTriangles( u32 i0, const FQSVertex& v, const Array<bool>& deleted,
 // This would also have the advantage of being able to generate all LODs in a single pass.
 // Also, see if we can find an ultra-fast method mostly for coplanar regions and have it applied always after contouring regardless of LOD
 // (or make one!)
-void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemory& tmpMemory,
+void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, const TemporaryMemory& tmpMemory,
                           r32 agressiveness = 7 )
 {
-    u32 triangleCount = mesh->triangles.count;
-    u32 deletedTriangleCount = 0;
+    int triangleCount = mesh->triangles.count;
+    int deletedTriangleCount = 0;
 
-    for( u32 i = 0; i < triangleCount; ++i )
+    for( int i = 0; i < triangleCount; ++i )
         mesh->triangles[i].deleted = false;
 
     // Need extra space for FQSUpdateTriangles below
@@ -1575,10 +1575,10 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             // Required at the first iteration. Not required later, but could improve the result for closed meshes
             if( iteration == 0 )
             {
-                for( u32 i = 0; i < mesh->vertices.count; ++i )
+                for( int i = 0; i < mesh->vertices.count; ++i )
                     mesh->vertices[i].q = M4SymmetricZero;
 
-                for( u32 i = 0; i < mesh->triangles.count; ++i )
+                for( int i = 0; i < mesh->triangles.count; ++i )
                 {
                     FQSTriangle& tri = mesh->triangles[i];
                     v3 p[3] =
@@ -1597,7 +1597,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
                     }
                 }
 
-                for( u32 i = 0; i < mesh->triangles.count; ++i )
+                for( int i = 0; i < mesh->triangles.count; ++i )
                 {
                     FQSTriangle& tri = mesh->triangles[i];
                     v3 p;
@@ -1611,8 +1611,8 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             else
             {
                 // Compact tri array
-                u32 dst = 0;
-                for( u32 i = 0; i < mesh->triangles.count; ++i )
+                int dst = 0;
+                for( int i = 0; i < mesh->triangles.count; ++i )
                 {
                     if( !mesh->triangles[i].deleted )
                     {
@@ -1626,20 +1626,20 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             }
 
             // Rebuild refs list
-            for( u32 i = 0; i < mesh->vertices.count; ++i )
+            for( int i = 0; i < mesh->vertices.count; ++i )
             {
                 mesh->vertices[i].refStart = 0;
                 mesh->vertices[i].refCount = 0;
             }
-            for( u32 i = 0; i < mesh->triangles.count; ++i )
+            for( int i = 0; i < mesh->triangles.count; ++i )
             {
                 FQSTriangle& tri = mesh->triangles[i];
                 for( int j = 0; j < 3; ++j )
                     mesh->vertices[tri.v[j]].refCount++;
             }
 
-            u32 refStart = 0;
-            for( u32 i = 0; i < mesh->vertices.count; ++i )
+            int refStart = 0;
+            for( int i = 0; i < mesh->vertices.count; ++i )
             {
                 FQSVertex& v = mesh->vertices[i];
                 v.refStart = refStart;
@@ -1648,7 +1648,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             }
 
             refs.Resize( mesh->triangles.count * 3 );
-            for( u32 i = 0; i < mesh->triangles.count; ++i )
+            for( int i = 0; i < mesh->triangles.count; ++i )
             {
                 FQSTriangle& tri = mesh->triangles[i];
                 for( int j = 0; j < 3; ++j )
@@ -1665,28 +1665,28 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             // Identify boundary vertices
             if( iteration == 0 )
             {
-                Array<u32> vCount( tmpMemory.arena, 1000, Temporary() );
-                Array<u32> vIds( tmpMemory.arena, 1000, Temporary() );
+                Array<i32> vCount( tmpMemory.arena, 1000, Temporary() );
+                Array<i32> vIds( tmpMemory.arena, 1000, Temporary() );
 
-                for( u32 i = 0; i < mesh->vertices.count; ++i )
+                for( int i = 0; i < mesh->vertices.count; ++i )
                     mesh->vertices[i].border = false;
                 
-                for( u32 i = 0; i < mesh->vertices.count; ++i )
+                for( int i = 0; i < mesh->vertices.count; ++i )
                 {
                     vCount.count = 0;
                     vIds.count = 0;
 
                     FQSVertex& v = mesh->vertices[i];
 
-                    for( u32 j = 0; j < v.refCount; ++j )
+                    for( int j = 0; j < v.refCount; ++j )
                     {
-                        u32 tId = refs[v.refStart + j].tId;
+                        int tId = refs[v.refStart + j].tId;
                         FQSTriangle& tri = mesh->triangles[tId];
 
                         for( int k = 0; k < 3; ++k )
                         {
-                            u32 ofs = 0;
-                            u32 id = tri.v[k];
+                            int ofs = 0;
+                            int id = tri.v[k];
                             while( ofs < vCount.count )
                             {
                                 if( vIds[ofs] == id )
@@ -1704,7 +1704,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
                         }
                     }
 
-                    for( u32 j = 0; j < vCount.count; ++j )
+                    for( int j = 0; j < vCount.count; ++j )
                     {
                         if( vCount[j] == 1 )
                             mesh->vertices[vIds[j]].border = true;
@@ -1713,7 +1713,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             }
         }
 
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        for( int i = 0; i < mesh->triangles.count; ++i )
             mesh->triangles[i].dirty = false;
 
         // All triangles with edges below the threshold will be removed
@@ -1723,7 +1723,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
         if( iteration % 5 == 0 )
             LOG( "Iteration %d - tris %d  threshold %g", iteration, triangleCount - deletedTriangleCount, threshold );
 
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        for( int i = 0; i < mesh->triangles.count; ++i )
         {
             FQSTriangle& tri = mesh->triangles[i];
             if( tri.error[3] > threshold || tri.deleted || tri.dirty )
@@ -1736,8 +1736,8 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
                     Array<bool> deleted0( tmpMemory.arena, 1000, Temporary() );
                     Array<bool> deleted1( tmpMemory.arena, 1000, Temporary() );
 
-                    u32 i0 = tri.v[j];          FQSVertex& v0 = mesh->vertices[i0];
-                    u32 i1 = tri.v[(j+1)%3];    FQSVertex& v1 = mesh->vertices[i1];
+                    int i0 = tri.v[j];          FQSVertex& v0 = mesh->vertices[i0];
+                    int i1 = tri.v[(j+1)%3];    FQSVertex& v1 = mesh->vertices[i1];
 
                     if( v0.border != v1.border )
                         continue;
@@ -1758,10 +1758,10 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
                     v0.p = p;
                     v0.q = v1.q + v0.q;
 
-                    u32 refStart = refs.count;
+                    int refStart = refs.count;
                     FQSUpdateTriangles( i0, v0, deleted0, mesh, &refs, &deletedTriangleCount );
                     FQSUpdateTriangles( i0, v1, deleted1, mesh, &refs, &deletedTriangleCount );
-                    u32 refCount = refs.count - refStart;
+                    int refCount = refs.count - refStart;
 
                     if( refCount <= v0.refCount )
                     {
@@ -1784,11 +1784,11 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
 
     // Compact mesh
     {
-        for( u32 i = 0; i < mesh->vertices.count; ++i )
+        for( int i = 0; i < mesh->vertices.count; ++i )
             mesh->vertices[i].refCount = 0;
 
-        u32 dst = 0;
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        int dst = 0;
+        for( int i = 0; i < mesh->triangles.count; ++i )
         {
             FQSTriangle& tri = mesh->triangles[i];
             if( !tri.deleted )
@@ -1801,7 +1801,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
         mesh->triangles.count = dst;
         dst = 0;
 
-        for( u32 i = 0; i < mesh->vertices.count; ++i )
+        for( int i = 0; i < mesh->vertices.count; ++i )
         {
             FQSVertex& v = mesh->vertices[i];
             if( v.refCount )
@@ -1812,7 +1812,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             }
         }
 
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        for( int i = 0; i < mesh->triangles.count; ++i )
         {
             FQSTriangle& tri = mesh->triangles[i];
             for( int j = 0; j < 3; ++j )
@@ -1823,18 +1823,18 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
 }
 
 
-FQSMesh CreateFQSMesh( Array<TexturedVertex> const& vertices, Array<u32> const& indices, TemporaryMemory const& tmpMemory )
+FQSMesh CreateFQSMesh( Array<TexturedVertex> const& vertices, Array<i32> const& indices, TemporaryMemory const& tmpMemory )
 {
     FQSMesh result;
     result.vertices = Array<FQSVertex>( tmpMemory.arena, vertices.count, Temporary() );
     result.vertices.ResizeToCapacity();
 
-    for( u32 i = 0; i < result.vertices.count; ++i )
+    for( int i = 0; i < result.vertices.count; ++i )
         result.vertices[i].p = vertices[i].p;
 
     result.triangles = Array<FQSTriangle>( tmpMemory.arena, indices.count / 3, Temporary() );
     result.triangles.Resize( result.triangles.capacity );
-    for( u32 i = 0; i < result.triangles.count; ++i )
+    for( int i = 0; i < result.triangles.count; ++i )
     {
         result.triangles[i].v[0] = indices[ i*3 + 0 ];
         result.triangles[i].v[1] = indices[ i*3 + 1 ];
@@ -2186,7 +2186,7 @@ int Map(int a,int mx, std::vector<int> const& collapse_map) {
 
 
 // Adapted from https://github.com/dougbinks/BunnyLOD. Based on the article http://www.melax.com/gdmag.pdf
-void BunnyLODSimplify( Array<TexturedVertex>& srcVertices, Array<u32>& srcIndices )
+void BunnyLODSimplify( Array<TexturedVertex>& srcVertices, Array<i32>& srcIndices )
 {
     std::vector<v3> vert;       // global Array of vertices
     std::vector<tridata> tri;       // global Array of triangles
@@ -2196,10 +2196,10 @@ void BunnyLODSimplify( Array<TexturedVertex>& srcVertices, Array<u32>& srcIndice
     {
         // Copy the geometry from the arrays of data in rabdata.cpp into
         // the vert and tri Arrays which we send to the reduction routine
-        for( u32 i=0;i<srcVertices.count;i++) {
+        for( int i=0;i<srcVertices.count;i++) {
             vert.push_back( srcVertices[i].p );
         }
-        for( u32 i=0;i<srcIndices.count;i+=3) {
+        for( int i=0;i<srcIndices.count;i+=3) {
             tridata td;
             td.v[0]=srcIndices[i+0];
             td.v[1]=srcIndices[i+1];
@@ -2230,7 +2230,7 @@ void BunnyLODSimplify( Array<TexturedVertex>& srcVertices, Array<u32>& srcIndice
         }
     }
 
-    for( u32 i = 0; i < vert.size(); ++i )
+    for( int i = 0; i < vert.size(); ++i )
         // TODO Take care of the rest of the attributes
         srcVertices[i].p = vert[i];
 
@@ -2282,7 +2282,7 @@ AddSorted( const Hit& hit, Array<Hit>* result )
     Array<Hit>& out = *result;
     out.PushEmpty();
 
-    u32 i = out.count - 1;
+    int i = out.count - 1;
     for( ; i > 0; --i )
     {
         if( out[i-1].hitCoord < hit.hitCoord )
@@ -2304,14 +2304,14 @@ internal void
 FilterHits( const Array<Hit>& hits, const v2i& gridCoords, Array<Hit>* result )
 {
     result->Clear();
-    for( u32 i = 0; i < hits.count; ++i )
+    for( int i = 0; i < hits.count; ++i )
     {
         if( hits[i].gridCoords == gridCoords )
             AddSorted( hits[i], result );
     }
 }
 
-Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displayedLayer, IsoSurfaceSamplingCache* samplingCache,
+Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
                                MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands )
 {
     // Make bounds same length on all axes
@@ -2323,25 +2323,25 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
     v3 const &gridOriginP = box.min;
 
     ASSERT( samplingCache->cellsPerAxis.x == samplingCache->cellsPerAxis.y );
-    u32 cellsPerAxis = samplingCache->cellsPerAxis.x;
-    u32 gridLinesPerAxis = cellsPerAxis + 1;
+    int cellsPerAxis = samplingCache->cellsPerAxis.x;
+    int gridLinesPerAxis = cellsPerAxis + 1;
     r32 step = cubeSide / cellsPerAxis;
 
     // We store all intersections with grid rays in a hashtable where encoded integer coords are the hash
     // For example, for X rays, the Y|Z coords are the hash, for Y rays, the X|Z coords, etc.
     // NOTE This can be heavily compressed if needed by using a more compact hash, since most entries will be empty anyway
-    u32 rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
+    int rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
     Array<Hit> gridHits( tmpMemory.arena, 100000, Temporary() );
 
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );
 
     // Get all triangles and find their bounds
-    u32 triangleCount = sourceMesh.indices.count / 3;
+    int triangleCount = sourceMesh.indices.count / 3;
     ASSERT( triangleCount * 3 == sourceMesh.indices.count );
 
-    u32 vertIndex = 0;
-    for( u32 i = 0; i < triangleCount; ++i )
+    int vertIndex = 0;
+    for( int i = 0; i < triangleCount; ++i )
     {
         TexturedVertex const& v0 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
         TexturedVertex const& v1 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
@@ -2366,7 +2366,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
         // (this could be accelerated easily by using a binary search on grid coords)
         
         // Y rays
-        for( u32 x = 0; x < gridLinesPerAxis; ++x )
+        for( int x = 0; x < gridLinesPerAxis; ++x )
         {
             r32 xGrid = box.min.x + x * step;
 
@@ -2374,7 +2374,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
                 break;
             if( xGrid >= triBounds.min.x )
             {
-                for( u32 z = 0; z < gridLinesPerAxis; ++z )
+                for( int z = 0; z < gridLinesPerAxis; ++z )
                 {
                     r32 zGrid = box.min.z + z * step;
 
@@ -2402,7 +2402,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
     ClearScratchBuffers( meshPool );
     bool firstLayer = true;
 
-    for( u32 k = 0; k < cellsPerAxis; ++k )
+    for( int k = 0; k < cellsPerAxis; ++k )
     {
         r32* bottomSamples = samplingCache->bottomLayerSamples;
         r32* topSamples = samplingCache->topLayerSamples;
@@ -2416,7 +2416,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
 
             r32* sampledLayer = n ? topSamples : bottomSamples;
             r32* sample = sampledLayer;
-            for( u32 i = 0; i < gridLinesPerAxis; ++i )
+            for( int i = 0; i < gridLinesPerAxis; ++i )
             {
                 v2i vIK = n == 0 ? V2i( i, k ) : V2i( i, k+1 );
 
@@ -2427,9 +2427,9 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
                 // This usually signals a tolerance error in Intersects() (or a bogus mesh, of course)
                 ASSERT( (rayHits.count & 0x1) == 0 );
 
-                u32 h = 0;
+                int h = 0;
                 int value = 1;
-                for( u32 j = 0; j < gridLinesPerAxis; ++j )
+                for( int j = 0; j < gridLinesPerAxis; ++j )
                 {
                     r32 yGrid = j * step;
                     while( h < rayHits.count && rayHits[h].hitCoord < yGrid )
@@ -2446,9 +2446,9 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
         // Keep a cache of already calculated vertices to eliminate duplication
         ClearVertexCaches( samplingCache, firstLayer );
 
-        for( u32 i = 0; i < cellsPerAxis; ++i )
+        for( int i = 0; i < cellsPerAxis; ++i )
         {
-            for( u32 j = 0; j < cellsPerAxis; ++j )
+            for( int j = 0; j < cellsPerAxis; ++j )
             {
                 v3 p = gridOriginP + V3i( i, j, k ) * step;
 
@@ -2462,11 +2462,11 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
 
                     value = samplingCache->topLayerSamples[i * gridLinesPerAxis + j];
                     if( value < 0 )
-                        RenderBoundsAt( p + V3( 0, 0, step ), 0.005f * drawingDistance, color, renderCommands );
+                        RenderBoundsAt( p + V3( 0.f, 0.f, step ), 0.005f * drawingDistance, color, renderCommands );
                 }
 #endif
 
-                MarchCube( p, V2i( i, j ), V2u( cellsPerAxis ), step, samplingCache,
+                MarchCube( p, V2i( i, j ), V2i( cellsPerAxis ), step, samplingCache,
                            &meshPool->scratchVertices, &meshPool->scratchIndices );
             }
         }
@@ -2697,7 +2697,7 @@ namespace
 
     // Offsets from the minimal corner to 2 ends of the edges
     // (each entry is an index to the previous table)
-    u32 edgeVertexOffsets[12][2] =
+    i32 edgeVertexOffsets[12][2] =
     {
         { 0, 1 },           // Bottom (horizontal)
         { 1, 2 },

@@ -20,13 +20,13 @@ enum class RadixKey
 struct KeyIndex
 {
     u32 key;
-    u32 index;
+    i32 index;
 };
 
 struct KeyIndex64
 {
     u64 key;
-    u32 index;
+    i32 index;
     u32 _padding;
 };
 

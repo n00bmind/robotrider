@@ -58,7 +58,7 @@ struct DebugCounterLog
 };
 
 inline void
-UnpackAndResetFrameCounter( DebugCycleCounter* c, DebugCounterLog* dest, u32 snapshotIndex )
+UnpackAndResetFrameCounter( DebugCycleCounter* c, DebugCounterLog* dest, int snapshotIndex )
 {
     u64 result = AtomicExchange( &c->frameHitCount24CycleCount40, 0 );
 
@@ -83,15 +83,15 @@ struct DebugState
     // NOTE Since we use __COUNTER__ for indexing, we'd need a separate array for platform counters
     // FIXME Use a constexpr counter instead
     DebugCounterLog counterLogs[1024];
-    u32 counterLogsCount;
-    u32 counterSnapshotIndex;
+    i32 counterLogsCount;
+    i32 counterSnapshotIndex;
 
     u32 totalDrawCalls;
     u32 totalVertexCount;
     u32 totalPrimitiveCount;
     u32 totalInstanceCount;
     u32 totalGeneratedVerticesCount;
-    u32 totalEntities;
+    i32 totalEntities;
     u32 totalMeshCount;
 };
 

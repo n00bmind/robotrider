@@ -11,7 +11,7 @@ struct EditorEntity
     Mesh* mesh;
     u32 color;
 
-    u32 cellsPerSide;
+    i32 cellsPerSide;
 };
 
 struct EditorInput

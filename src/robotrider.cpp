@@ -34,6 +34,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "renderer.cpp"
 
+#pragma warning( push )
+#pragma warning( disable: 4365 )
+#pragma warning( disable: 4774 )
+
 #include "imgui/imgui_draw.cpp"
 #include "imgui/imgui.cpp"
 #include "imgui/imgui_widgets.cpp"
@@ -54,6 +58,8 @@ void  LibFree( void* p );
 #define STBI_ONLY_PNG
 #define STBI_NO_STDIO
 #include "stb/stb_image.h"
+
+#pragma warning( pop )
 
 #include "ui.h"
 #include "util.cpp"
@@ -239,8 +245,8 @@ DEBUG_GAME_FRAME_END(DebugGameFrameEnd)
     debugState->counterLogsCount = 0;
 
     // TODO Counter stats
-    u32 snapshotIndex = debugState->counterSnapshotIndex;
-    for( u32 i = 0; i < ARRAYCOUNT(DEBUGglobalCounters); ++i )
+    int snapshotIndex = debugState->counterSnapshotIndex;
+    for( int i = 0; i < ARRAYCOUNT(DEBUGglobalCounters); ++i )
     {
         DebugCycleCounter* source = DEBUGglobalCounters + i;
         DebugCounterLog* dest = debugState->counterLogs + debugState->counterLogsCount++;

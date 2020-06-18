@@ -23,6 +23,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "game.h"
 
+#pragma warning( push )
+#pragma warning( disable: 4365 )
+#pragma warning( disable: 4774 )
+
 #include <windows.h>
 
 #include "imgui/imgui_draw.cpp"
@@ -32,8 +36,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <gl/gl.h>
 #include "glext.h"
 #include "wglext.h"
-#include "opengl_renderer.h"
-#include "opengl_renderer.cpp"
 
 #include <xinput.h>
 #include <mmdeviceapi.h>
@@ -41,6 +43,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <audiosessiontypes.h>
 #include <shlwapi.h>
 #include <stdio.h>
+
+#pragma warning( pop )
+
+#include "opengl_renderer.h"
+#include "opengl_renderer.cpp"
 
 // Prefer discrete graphics where available
 extern "C"
@@ -72,7 +79,7 @@ internal Win32State globalPlatformState;
 
 // FIXME These probably don't need to be globals at all.. PRUNE!
 internal bool globalRunning;
-internal u32 globalMonitorRefreshHz;
+internal i32 globalMonitorRefreshHz;
 internal IAudioClient* globalAudioClient;
 internal IAudioRenderClient* globalAudioRenderClient;
 internal i64 globalPerfCounterFrequency;
@@ -135,7 +142,7 @@ DEBUG_PLATFORM_GET_PARENT_PATH(Win32GetParentPath)
     if( pathSeparator != path )
         --pathSeparator;
 
-    sz len = pathSeparator - path;
+    sz len = Sz( pathSeparator - path );
     if( destination != path )
         strncpy( destination, path, len );
 
@@ -143,7 +150,7 @@ DEBUG_PLATFORM_GET_PARENT_PATH(Win32GetParentPath)
 }
 
 internal char *
-ExtractFileExtension( char *filename, char *destination, u32 destinationMaxLen )
+ExtractFileExtension( char *filename, char *destination, sz destinationMaxLen )
 {
     char *lastDot = filename;
     for( char *scanChar = filename; *scanChar; ++scanChar )
@@ -206,7 +213,7 @@ DEBUG_PLATFORM_LIST_ALL_ASSETS(Win32ListAllAssets)
     hFind = FindFirstFile( findPath, &findData );
     if( hFind != INVALID_HANDLE_VALUE )
     {
-        u32 i = 0;
+        int i = 0;
         do
         {
             if( AcceptAssetFileData( findData ) )
@@ -252,7 +259,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
         LARGE_INTEGER fileSize;
         if( GetFileSizeEx( fileHandle, &fileSize ) )
         {
-            u32 fileSize32 = ToU32Safe( (u64)fileSize.QuadPart );
+            u32 fileSize32 = U32( (u64)fileSize.QuadPart );
             result.contents = VirtualAlloc( 0, fileSize32 + 1, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
             if( result.contents )
@@ -263,7 +270,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGWin32ReadEntireFile)
                 {
                     // Null-terminate to help when handling text files
                     *((u8 *)result.contents + fileSize32) = '\0';
-                    result.contentSize = fileSize32 + 1;
+                    result.contentSize = I32( fileSize32 + 1 );
                 }
                 else
                 {
@@ -377,10 +384,11 @@ Win32LoadGameCode( char *sourceDLLPath, char *tempDLLPath, GameMemory *gameMemor
     result.gameCodeDLL = LoadLibrary( tempDLLPath );
     if( result.gameCodeDLL )
     {
-        result.SetupAfterReload = (GameSetupAfterReloadFunc *)GetProcAddress( result.gameCodeDLL, "GameSetupAfterReload" );
-        result.UpdateAndRender = (GameUpdateAndRenderFunc *)GetProcAddress( result.gameCodeDLL, "GameUpdateAndRender" );
-        result.LogCallback = (GameLogCallbackFunc *)GetProcAddress( result.gameCodeDLL, "GameLogCallback" );
-        result.DebugFrameEnd = (DebugGameFrameEndFunc *)GetProcAddress( result.gameCodeDLL, "DebugGameFrameEnd" );
+        // Cast to void* first to avoid MSVC whining
+        result.SetupAfterReload = (GameSetupAfterReloadFunc *)(void*)GetProcAddress( result.gameCodeDLL, "GameSetupAfterReload" );
+        result.UpdateAndRender = (GameUpdateAndRenderFunc *)(void*)GetProcAddress( result.gameCodeDLL, "GameUpdateAndRender" );
+        result.LogCallback = (GameLogCallbackFunc *)(void*)GetProcAddress( result.gameCodeDLL, "GameLogCallback" );
+        result.DebugFrameEnd = (DebugGameFrameEndFunc *)(void*)GetProcAddress( result.gameCodeDLL, "DebugGameFrameEnd" );
 
         result.isValid = result.UpdateAndRender != 0;
     }
@@ -409,7 +417,7 @@ Win32UnloadGameCode( Win32GameCode *gameCode )
 internal void
 Win32SetupAssetUpdateListeners( Win32State *platformState )
 {
-    for( u32 i = 0; i < platformState->assetListenerCount; ++i )
+    for( int i = 0; i < platformState->assetListenerCount; ++i )
     {
         Win32AssetUpdateListener& listener = platformState->assetListeners[i];
 
@@ -441,7 +449,7 @@ Win32SetupAssetUpdateListeners( Win32State *platformState )
 internal void
 Win32CheckAssetUpdates( Win32State *platformState )
 {
-    for( u32 i = 0; i < platformState->assetListenerCount; ++i )
+    for( int i = 0; i < platformState->assetListenerCount; ++i )
     {
         Win32AssetUpdateListener& listener = platformState->assetListeners[i];
 
@@ -464,7 +472,7 @@ Win32CheckAssetUpdates( Win32State *platformState )
                 {
                     char filename[PLATFORM_PATH_MAX];
                     WideCharToMultiByte( CP_ACP, WC_COMPOSITECHECK,
-                                         notifyInfo->FileName, notifyInfo->FileNameLength,
+                                         notifyInfo->FileName, int( notifyInfo->FileNameLength ),
                                          filename, PLATFORM_PATH_MAX, NULL, NULL );
                     filename[notifyInfo->FileNameLength/2] = 0;
 
@@ -535,10 +543,10 @@ Win32InitXInput()
 
     if( XInputLibrary )
     {
-        XInputGetState = (XInputGetStateFunc *)GetProcAddress( XInputLibrary, "XInputGetState" );
+        XInputGetState = (XInputGetStateFunc *)(void*)GetProcAddress( XInputLibrary, "XInputGetState" );
         if( !XInputGetState ) { XInputGetState = XInputGetStateStub; }
 
-        XInputSetState = (XInputSetStateFunc *)GetProcAddress( XInputLibrary, "XInputSetState" );
+        XInputSetState = (XInputSetStateFunc *)(void*)GetProcAddress( XInputLibrary, "XInputSetState" );
         if( !XInputSetState ) { XInputSetState = XInputSetStateStub; }
     }
     else
@@ -550,7 +558,7 @@ Win32InitXInput()
 
 // WASAPI functions
 internal Win32AudioOutput
-Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount, u32 bufferSizeFrames )
+Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount, i32 bufferSizeFrames )
 {
     LOG( ".Initializing WASAPI buffer..." );
 
@@ -599,7 +607,7 @@ Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount, u32 bufferSiz
     waveFormat.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
 
     // TODO Use EVENTCALLBACK mode because this seems to improve latency
-    REFERENCE_TIME bufferDuration = 10000000ULL * bufferSizeFrames / samplingRate;     // buffer size in hundreds of nanoseconds (1 sec.)
+    REFERENCE_TIME bufferDuration = 10000000LL * bufferSizeFrames / samplingRate;     // buffer size in hundreds of nanoseconds (1 sec.)
     HRESULT result = globalAudioClient->Initialize( AUDCLNT_SHAREMODE_SHARED,
                                                     AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM|AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
                                                     bufferDuration, 0, (WAVEFORMATEX *)&waveFormat, nullptr );
@@ -644,7 +652,7 @@ Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount, u32 bufferSiz
         return audioOutput;
     }
 
-    ASSERT( bufferSizeFrames == audioFramesCount );
+    ASSERT( U32( bufferSizeFrames ) == audioFramesCount );
 
     audioOutput.samplingRate = waveFormat.Format.nSamplesPerSec;
     audioOutput.bytesPerFrame = AUDIO_BITDEPTH * AUDIO_CHANNELS / 8;
@@ -655,22 +663,22 @@ Win32InitWASAPI( u32 samplingRate, u16 bitDepth, u16 channelCount, u32 bufferSiz
 }
 
 internal void
-Win32BlitAudioBuffer( GameAudioBuffer *sourceBuffer, u32 framesToWrite, Win32AudioOutput *audioOutput )
+Win32BlitAudioBuffer( GameAudioBuffer *sourceBuffer, int framesToWrite, Win32AudioOutput *audioOutput )
 {
     BYTE *audioData;
-    HRESULT hr = globalAudioRenderClient->GetBuffer( framesToWrite, &audioData );
+    HRESULT hr = globalAudioRenderClient->GetBuffer( U32( framesToWrite ), &audioData );
     if( hr == S_OK )
     {
         i16* sourceSample = sourceBuffer->samples;
         i16* destSample = (i16*)audioData;
-        for( u32 frameIndex = 0; frameIndex < framesToWrite; ++frameIndex )
+        for( int frameIndex = 0; frameIndex < framesToWrite; ++frameIndex )
         {
             *destSample++ = *sourceSample++;
             *destSample++ = *sourceSample++;
             ++audioOutput->runningFrameCount;
         }
 
-        globalAudioRenderClient->ReleaseBuffer( framesToWrite, 0 );
+        globalAudioRenderClient->ReleaseBuffer( U32( framesToWrite ), 0 );
     }
     else
     {
@@ -744,7 +752,7 @@ Win32AllocateBackBuffer( Win32OffscreenBuffer *buffer, int width, int height )
     buffer->bitmapInfo.bmiHeader.biCompression = BI_RGB;
 
     int bitmapMemorySize = width * height * buffer->bytesPerPixel;
-    buffer->memory = VirtualAlloc( 0, bitmapMemorySize, MEM_COMMIT, PAGE_READWRITE );
+    buffer->memory = VirtualAlloc( 0, Sz( bitmapMemorySize ), MEM_COMMIT, PAGE_READWRITE );
 }
 
 internal void
@@ -796,7 +804,7 @@ Win32ResetKeyMouseController( GameInput* oldInput, GameInput* newInput )
     newKeyMouseController->leftStick = oldKeyMouseController->leftStick;
     //newKeyMouseController->rightStick = oldKeyMouseController->rightStick;
 
-    for( u32 buttonIndex = 0;
+    for( int buttonIndex = 0;
          buttonIndex < ARRAYCOUNT( newKeyMouseController->buttons );
          ++buttonIndex )
     {
@@ -858,11 +866,11 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput, GameCon
     // https://hero.handmade.network/forums/code-discussion/t/847-xinputgetstate
     // TODO Should we poll this more frequently?
     // TODO Mouse?
-    u32 maxControllerCount = XUSER_MAX_COUNT;
+    int maxControllerCount = XUSER_MAX_COUNT;
     // First controller is the keyboard, and we only support Xbox controllers for now
     ASSERT( ARRAYCOUNT(GameInput::_controllers) >= XUSER_MAX_COUNT + 1 );
 
-    for( u32 index = 1, gamepadIndex = 0; index < ARRAYCOUNT(GameInput::_controllers); ++index, ++gamepadIndex )
+    for( int index = 1, gamepadIndex = 0; index < ARRAYCOUNT(GameInput::_controllers); ++index, ++gamepadIndex )
     {
         GameControllerInput *oldController = GetController( oldInput, index );
         GameControllerInput *newController = GetController( newInput, index );
@@ -879,7 +887,7 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput, GameCon
 
             XINPUT_STATE controllerState;
             // FIXME This call apparently stalls for a few hundred thousand cycles when the controller is not present
-            if( XInputGetState( gamepadIndex, &controllerState ) == ERROR_SUCCESS )
+            if( XInputGetState( U32( gamepadIndex ), &controllerState ) == ERROR_SUCCESS )
             {
                 // Plugged in
                 newController->isConnected = true;
@@ -963,17 +971,17 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput, GameCon
                 }
 
                 r32 threshold = 0.5f;
-                Win32ProcessXInputDigitalButton( (newController->leftStick.avgX < -threshold) ? 1 : 0,
-                                                 &oldController->dLeft, 1,
+                Win32ProcessXInputDigitalButton( (newController->leftStick.avgX < -threshold) ? 1u : 0u,
+                                                 &oldController->dLeft, 1u,
                                                  &newController->dLeft );
-                Win32ProcessXInputDigitalButton( (newController->leftStick.avgX > threshold) ? 1 : 0,
-                                                 &oldController->dRight, 1,
+                Win32ProcessXInputDigitalButton( (newController->leftStick.avgX > threshold) ? 1u : 0u,
+                                                 &oldController->dRight, 1u,
                                                  &newController->dRight );
-                Win32ProcessXInputDigitalButton( (newController->leftStick.avgY < -threshold) ? 1 : 0,
-                                                 &oldController->dDown, 1,
+                Win32ProcessXInputDigitalButton( (newController->leftStick.avgY < -threshold) ? 1u : 0u,
+                                                 &oldController->dDown, 1u,
                                                  &newController->dDown );
-                Win32ProcessXInputDigitalButton( (newController->leftStick.avgY > threshold) ? 1 : 0,
-                                                 &oldController->dUp, 1,
+                Win32ProcessXInputDigitalButton( (newController->leftStick.avgY > threshold) ? 1u : 0u,
+                                                 &oldController->dUp, 1u,
                                                  &newController->dUp );
 #endif
             }
@@ -1004,15 +1012,15 @@ Win32PrepareInputData( GameInput** oldInput, GameInput** newInput,
     (*newInput)->keyMouse.mouseRawYDelta = 0;
     (*newInput)->keyMouse.mouseRawZDelta = 0;
 
-    for( u32 i = 0; i < ARRAYCOUNT((*newInput)->keyMouse.mouseButtons); ++i )
+    for( int i = 0; i < ARRAYCOUNT((*newInput)->keyMouse.mouseButtons); ++i )
         (*newInput)->keyMouse.mouseButtons[i] = (*oldInput)->keyMouse.mouseButtons[i];
-    for( u32 i = 0; i < ARRAYCOUNT((*newInput)->keyMouse.keysDown); ++i )
+    for( int i = 0; i < ARRAYCOUNT((*newInput)->keyMouse.keysDown); ++i )
         (*newInput)->keyMouse.keysDown[i] = (*oldInput)->keyMouse.keysDown[i];
 }
 
 
 internal void
-Win32GetInputFilePath( const Win32State& platformState, u32 slotIndex, bool isInputStream, char* destination )
+Win32GetInputFilePath( const Win32State& platformState, int slotIndex, bool isInputStream, char* destination )
 {
     char buffer[PLATFORM_PATH_MAX];
     sprintf_s( buffer, ARRAYCOUNT(buffer), "%s%d%s%s", "gamestate", slotIndex, isInputStream ? "_input" : "", ".in" );
@@ -1021,7 +1029,7 @@ Win32GetInputFilePath( const Win32State& platformState, u32 slotIndex, bool isIn
 }
 
 internal Win32ReplayBuffer*
-Win32GetReplayBuffer( Win32State* platformState, u32 index )
+Win32GetReplayBuffer( Win32State* platformState, int index )
 {
     ASSERT( index < ARRAYCOUNT(platformState->replayBuffers) );
     Win32ReplayBuffer *replayBuffer = &platformState->replayBuffers[index];
@@ -1030,7 +1038,7 @@ Win32GetReplayBuffer( Win32State* platformState, u32 index )
 }
 
 internal void
-Win32BeginInputRecording( Win32State *platformState, u32 inputRecordingIndex )
+Win32BeginInputRecording( Win32State *platformState, int inputRecordingIndex )
 {
     // Since we use an index value of 0 as an off flag, valid indices start at 1
     ASSERT( inputRecordingIndex > 0 && inputRecordingIndex < MAX_REPLAY_BUFFERS + 1 );
@@ -1069,7 +1077,7 @@ Win32RecordInput( const Win32State& platformState, GameInput *newInput )
 }
 
 internal void
-Win32BeginInputPlayback( Win32State *platformState, u32 inputPlaybackIndex )
+Win32BeginInputPlayback( Win32State *platformState, int inputPlaybackIndex )
 {
     // Since we use an index value of 0 as an off flag, valid indices start at 1
     ASSERT( inputPlaybackIndex > 0 && inputPlaybackIndex < MAX_REPLAY_BUFFERS + 1 );
@@ -1107,7 +1115,7 @@ Win32PlayBackInput( Win32State *platformState, GameInput *newInput )
     if( ReadFile( platformState->playbackHandle, newInput, sizeof(*newInput),
                                   &bytesRead, 0 ) == FALSE || bytesRead == 0 )
     {
-        u32 playingIndex = platformState->inputPlaybackIndex;
+        i32 playingIndex = platformState->inputPlaybackIndex;
         Win32EndInputPlayback( platformState );
         Win32BeginInputPlayback( platformState, playingIndex );
         ReadFile( platformState->playbackHandle, newInput, sizeof(*newInput),
@@ -1147,7 +1155,7 @@ Win32ToggleFullscreen( HWND window )
 
     // http://blogs.msdn.com/b/oldnewthing/archive/2010/04/12/9994016.aspx
 
-    DWORD style = GetWindowLong( window, GWL_STYLE );
+    LONG style = GetWindowLong( window, GWL_STYLE );
     if( style & WS_OVERLAPPEDWINDOW )
     {
         MONITORINFO monitorInfo = {sizeof(monitorInfo)};
@@ -1211,7 +1219,7 @@ internal WPARAM
 Win32MapLeftRightKeys( WPARAM wParam, LPARAM lParam )
 {
     WPARAM new_vk = wParam;
-    UINT scancode = (lParam & 0x00ff0000) >> 16;
+    UINT scancode = UINT( (lParam & 0x00ff0000) >> 16 );
     int extended  = (lParam & 0x01000000) != 0;
 
     switch (wParam)
@@ -1220,10 +1228,10 @@ Win32MapLeftRightKeys( WPARAM wParam, LPARAM lParam )
         new_vk = MapVirtualKey(scancode, MAPVK_VSC_TO_VK_EX);
         break;
     case VK_CONTROL:
-        new_vk = extended ? VK_RCONTROL : VK_LCONTROL;
+        new_vk = WPARAM( extended ? VK_RCONTROL : VK_LCONTROL );
         break;
     case VK_MENU:
-        new_vk = extended ? VK_RMENU : VK_LMENU;
+        new_vk = WPARAM( extended ? VK_RMENU : VK_LMENU );
         break;
     default:
         // not a key we map from generic to left/right specialized
@@ -1258,12 +1266,12 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 bool isDown =  ((message.lParam & (1 << 31)) == 0);
 
                 bool extended  = (message.lParam & 0x01000000) != 0;
-                u32 scanCode = ((message.lParam >> 16) & 0x7f) | (extended ? 0x80 : 0);
+                u32 scanCode = u32( ((message.lParam >> 16) & 0x7f) | (extended ? 0x80 : 0) );
 
                 // TODO Use scancodes too for all special keys!?
                 // @Test
                 message.wParam = Win32MapLeftRightKeys( message.wParam, message.lParam );
-                u32 vkCode = ToU32Safe( message.wParam );
+                u32 vkCode = U32( message.wParam );
                 if( vkCode < 256 )
                     imGuiIO.KeysDown[vkCode] = isDown ? 1 : 0;
 
@@ -1285,7 +1293,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 if( isDown != wasDown && !imGuiIO.WantCaptureKeyboard )
                 {
                     // Translate key code into the game's platform agnostic codes
-                    if( scanCode >= 0 && scanCode < ARRAYCOUNT(Win32NativeToHID) )
+                    if( scanCode < ARRAYCOUNT(Win32NativeToHID) )
                     {
                         u32 hidCode = Win32NativeToHID[scanCode];
                         if( hidCode < ARRAYCOUNT(input->keyMouse.keysDown) )
@@ -1677,7 +1685,7 @@ Win32ResolvePaths( Win32State *state )
 
 
 internal bool
-Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount )
+Win32InitOpenGL( HDC dc, const RenderCommands& commands, int frameVSyncSkipCount )
 {
     LOG( ".Initializing OpenGL..." );
 
@@ -1717,15 +1725,15 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
     HGLRC legacyContext = wglCreateContext( dc );
     if( !legacyContext )
     {
-        int error = glGetError();
-        LOG( ".ERROR: wglCreateContext failed with code %d", error );
+        GLenum error = glGetError();
+        LOG( ".ERROR: wglCreateContext failed with code %u", error );
         return false;
     }
 
     if( !wglMakeCurrent( dc, legacyContext ) )
     {
-        int error = glGetError();
-        LOG( ".ERROR: wglMakeCurrent failed with code %d", error );
+        GLenum error = glGetError();
+        LOG( ".ERROR: wglMakeCurrent failed with code %u", error );
         return false;
     }
 
@@ -1747,7 +1755,7 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
     };
 
     PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB
-        = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress( "wglCreateContextAttribsARB" );
+        = (PFNWGLCREATECONTEXTATTRIBSARBPROC)(void*)wglGetProcAddress( "wglCreateContextAttribsARB" );
     if( !wglCreateContextAttribsARB )
     {
         LOG( ".ERROR: Failed querying entry point for wglCreateContextAttribsARB!" );
@@ -1757,8 +1765,8 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
     HGLRC renderingContext = wglCreateContextAttribsARB( dc, 0, contextAttributes );
     if( !renderingContext )
     {
-        int error = glGetError();
-        LOG( ".ERROR: Couldn't create rendering context! Error code is: %d", error );
+        GLenum error = glGetError();
+        LOG( ".ERROR: Couldn't create rendering context! Error code is: %u", error );
         return false;
     }
 
@@ -1769,14 +1777,14 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
 
     if( !wglMakeCurrent( dc, renderingContext ) )
     {
-        int error = glGetError();
-        LOG( ".ERROR: wglMakeCurrent failed with code %d", error );
+        GLenum error = glGetError();
+        LOG( ".ERROR: wglMakeCurrent failed with code %u", error );
         return false;
     }
 
     // Success
     // Setup pointers to cross platform extension functions
-#define BINDGLPROC( name, type ) name = (type)wglGetProcAddress( #name )
+#define BINDGLPROC( name, type ) name = (type)(void*)wglGetProcAddress( #name )
     BINDGLPROC( glGetStringi, PFNGLGETSTRINGIPROC );
     BINDGLPROC( glGenBuffers, PFNGLGENBUFFERSPROC );
     BINDGLPROC( glBindBuffer, PFNGLBINDBUFFERPROC );
@@ -1827,7 +1835,7 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
 
     // VSync
     PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT =
-        (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress( "wglSwapIntervalEXT" );
+        (PFNWGLSWAPINTERVALEXTPROC)(void*)wglGetProcAddress( "wglSwapIntervalEXT" );
 
     ASSERT( wglSwapIntervalEXT );
     if( globalVSyncEnabled )
@@ -1839,7 +1847,7 @@ Win32InitOpenGL( HDC dc, const RenderCommands& commands, u32 frameVSyncSkipCount
 }
 
 internal bool
-Win32DoNextQueuedJob( PlatformJobQueue* queue, u32 workerThreadIndex )
+Win32DoNextQueuedJob( PlatformJobQueue* queue, int workerThreadIndex )
 {
     bool workAvailable = true;
 
@@ -1884,13 +1892,13 @@ Win32WorkerThreadProc( LPVOID lpParam )
 
 internal void
 Win32InitJobQueue( PlatformJobQueue* queue,
-                   Win32WorkerThreadContext* threadContexts, u32 threadCount )
+                   Win32WorkerThreadContext* threadContexts, int threadCount )
 {
     *queue = {0};
     queue->semaphore = CreateSemaphoreEx( 0, 0, threadCount,
                                           0, 0, SEMAPHORE_ALL_ACCESS );
 
-    for( u32 i = 0; i < threadCount; ++i )
+    for( int i = 0; i < threadCount; ++i )
     {
         // FIXME Separate platform thread infos from the queues!
         // TODO Consider creating an arena per thread (specially for hi-prio threads!)
@@ -1994,7 +2002,7 @@ main( int argC, char **argV )
 
     // FIXME Should be dynamic, but can't be bothered!
     Win32WorkerThreadContext threadContexts[32];
-    u32 coreCount = systemInfo.dwNumberOfProcessors;
+    int coreCount = int( systemInfo.dwNumberOfProcessors );
     ASSERT( coreCount <= ARRAYCOUNT(threadContexts) );
 
     Win32InitJobQueue( &globalPlatformState.hiPriorityQueue, threadContexts, coreCount );
@@ -2077,13 +2085,13 @@ main( int argC, char **argV )
             {
                 LOG( ".WARNING: Failed to query monitor refresh rate. Using %d Hz", VIDEO_TARGET_FRAMERATE );
             }
-            u32 frameVSyncSkipCount = Round( (r32)globalMonitorRefreshHz / VIDEO_TARGET_FRAMERATE );
-            u32 videoTargetFramerateHz = globalMonitorRefreshHz / frameVSyncSkipCount;
+            int frameVSyncSkipCount = I32( Round( (r32)globalMonitorRefreshHz / VIDEO_TARGET_FRAMERATE ) );
+            int videoTargetFramerateHz = globalMonitorRefreshHz / frameVSyncSkipCount;
 
             // Determine system latency
             REFERENCE_TIME latency;
             globalAudioClient->GetStreamLatency( &latency );
-            audioOutput.systemLatencyFrames = (u16)Ceil( (u64)latency * audioOutput.samplingRate / 10000000.0 );
+            audioOutput.systemLatencyFrames = U16( Ceil( (u64)latency * audioOutput.samplingRate / 10000000.0 ) );
             u32 audioLatencyFrames = audioOutput.samplingRate / videoTargetFramerateHz;
 
 #if !RELEASE
@@ -2097,22 +2105,22 @@ main( int argC, char **argV )
             Win32RegisterRawMouseInput( window );
 
             // TODO Decide a proper size for this
-            u32 renderBufferSize = MEGABYTES( 4 );
+            sz renderBufferSize = MEGABYTES( 4 );
             u8 *renderBuffer = (u8 *)VirtualAlloc( 0, renderBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
-            u32 vertexBufferMaxCount = MEGABYTES( 32 ); // Million vertices
+            sz vertexBufferMaxCount = MEGABYTES( 32 ); // Million vertices
             TexturedVertex *vertexBuffer = (TexturedVertex *)VirtualAlloc( 0, vertexBufferMaxCount * sizeof(TexturedVertex),
                                                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-            u32 indexBufferMaxCount = vertexBufferMaxCount * 8;
-            u32 *indexBuffer = (u32 *)VirtualAlloc( 0, indexBufferMaxCount * sizeof(u32), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+            sz indexBufferMaxCount = vertexBufferMaxCount * 8;
+            i32 *indexBuffer = (i32 *)VirtualAlloc( 0, indexBufferMaxCount * sizeof(i32), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
-            u32 instanceBufferSize = MEGABYTES( 256 );
+            sz instanceBufferSize = MEGABYTES( 256 );
             u8 *instanceBuffer = (u8 *)VirtualAlloc( 0, instanceBufferSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
-            RenderCommands renderCommands = InitRenderCommands( renderBuffer, renderBufferSize,
-                                                                vertexBuffer, vertexBufferMaxCount,
-                                                                indexBuffer, indexBufferMaxCount,
-                                                                instanceBuffer, instanceBufferSize );
+            RenderCommands renderCommands = InitRenderCommands( renderBuffer, I32( renderBufferSize ),
+                                                                vertexBuffer, I32( vertexBufferMaxCount ),
+                                                                indexBuffer, I32( indexBufferMaxCount ),
+                                                                instanceBuffer, I32( instanceBufferSize ) );
 
             if( Win32InitOpenGL( deviceContext, renderCommands, frameVSyncSkipCount ) )
             {
@@ -2140,7 +2148,7 @@ main( int argC, char **argV )
                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
 #if !RELEASE
-                for( u32 replayIndex = 0; replayIndex < ARRAYCOUNT(globalPlatformState.replayBuffers); ++replayIndex )
+                for( int replayIndex = 0; replayIndex < ARRAYCOUNT(globalPlatformState.replayBuffers); ++replayIndex )
                 {
                     Win32ReplayBuffer *replayBuffer = &globalPlatformState.replayBuffers[replayIndex];
 
@@ -2189,7 +2197,7 @@ main( int argC, char **argV )
 
                     LARGE_INTEGER firstCounter = Win32GetWallClock();
                     LARGE_INTEGER lastCounter = firstCounter;
-                    i64 lastCycleCounter = __rdtsc();
+                    u64 lastCycleCounter = __rdtsc();
 
                     globalPlatformState.gameCode
                         = Win32LoadGameCode( globalPlatformState.sourceDLLPath, globalPlatformState.tempDLLPath, &gameMemory );
@@ -2297,13 +2305,14 @@ main( int argC, char **argV )
                         io.KeySuper = false;
                         ImGui::NewFrame();
 
-                        u32 audioFramesToWrite = 0;
+                        int audioFramesToWrite = 0;
                         u32 audioPaddingFrames;
                         if( SUCCEEDED(globalAudioClient->GetCurrentPadding( &audioPaddingFrames )) )
                         {
                             // TODO Try priming the buffer with something like half a frame's worth of silence
 
-                            audioFramesToWrite = audioOutput.bufferSizeFrames - audioPaddingFrames;
+                            audioFramesToWrite = audioOutput.bufferSizeFrames - I32( audioPaddingFrames );
+                            ASSERT( audioFramesToWrite >= 0 );
                         }
 
                         // Prepare audio & video buffers
@@ -2394,7 +2403,7 @@ main( int argC, char **argV )
                         {
                             // Print game debug statistics
                             LOG( ":::Frame counters:" );
-                            for( u32 i = 0; i < DEBUGglobalStats->gameCountersCount; ++i )
+                            for( int i = 0; i < DEBUGglobalStats->gameCountersCount; ++i )
                             {
                                 DebugCycleCounter& c = DEBUGglobalStats->gameCounters[i];
 
@@ -2447,7 +2456,7 @@ main( int argC, char **argV )
     DebugState* debugState = (DebugState*)gameMemory.debugStorage;
 
     LOG( ":::Global counters:" );
-    for( u32 i = 0; i < debugState->counterLogsCount; ++i )
+    for( int i = 0; i < debugState->counterLogsCount; ++i )
     {
         DebugCounterLog &log = debugState->counterLogs[i];
         if( log.totalHitCount > 0 )

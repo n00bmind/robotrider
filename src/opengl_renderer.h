@@ -67,9 +67,9 @@ struct OpenGLImGuiState
 
     GLint texUniformId;
     GLint projUniformId;
-    GLint pAttribId;
-    GLint uvAttribId;
-    GLint cAttribId;
+    GLuint pAttribId;
+    GLuint uvAttribId;
+    GLuint cAttribId;
 
     GLuint fontTexture;
 };

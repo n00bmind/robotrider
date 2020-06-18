@@ -39,64 +39,28 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // for all supported compilers & platforms
 // TODO Examine disassemblies for all compilers and compare!
 
-inline u32
-ToU32Safe( i32 value )
-{
-    ASSERT( value >= 0 );
-    u32 result = (u32)value;
-    return result;
-}
-
-inline u32
-ToU32Safe( u64 value )
-{
-    ASSERT( value <= U32MAX );
-    u32 result = (u32)value;
-    return result;
-}
-
-inline u32
-ToU32Safe( r64 value )
-{
-    ASSERT( value <= U32MAX );
-    u32 result = (u32)value;
-    return result;
-}
-
-inline u8
-ToU8Safe( u32 value )
-{
-    ASSERT( value <= U8MAX );
-    u8 result = (u8)value;
-    return result;
-}
-
-inline u32
+inline r32
 Ceil( r32 value )
 {
-    u32 result = (u32)ceilf( value );
-    return result;
+    return ceilf( value );
 }
 
-inline u32
+inline r64
 Ceil( r64 value )
 {
-    u32 result = (u32)ceil( value );
-    return result;
+    return ceil( value );
 }
 
-inline u32
+inline r32
 Round( r32 value )
 {
-    u32 result = (u32)roundf( value );
-    return result;
+    return roundf( value );
 }
 
-inline u32
+inline r64
 Round( r64 value )
 {
-    u32 result = (u32)round( value );
-    return result;
+    return round( value );
 }
 
 inline r32
@@ -271,7 +235,13 @@ Sign( r32 value )
 inline bool
 IsPowerOf2( u64 value )
 {
-    return (value & (value - 1)) == 0;
+    return value > 0 && (value & (value - 1)) == 0;
+}
+
+inline bool
+IsPowerOf2( i64 value )
+{
+    return value > 0 && (value & (value - 1)) == 0;
 }
 
 inline sz
@@ -300,13 +270,13 @@ NextPowerOf2( u32 value )
     unsigned long msbPosition;
     if( _BitScanReverse( &msbPosition, value ) )
     {
-        result = 1 << (msbPosition + 1);
+        result = 1u << (msbPosition + 1);
     }
 #else
     u32 leadingZeros = _lzcnt_u32( value );
     if( leadingZeros < 32 )
     {
-        result = 1 << (32 - leadingZeros);
+        result = 1u << (32 - leadingZeros);
     }
 #endif
 
@@ -319,11 +289,9 @@ AtomicCompareExchange( volatile u32* value, u32 newValue, u32 expectedValue )
 {
     u32 previousValue = 0;
 #if _MSC_VER
-    previousValue = _InterlockedCompareExchange( (volatile long*)value,
-                                                 newValue, expectedValue );
+    previousValue = (u32)_InterlockedCompareExchange( (volatile long*)value, (long)newValue, (long)expectedValue );
 #else
-    __atomic_compare_exchange_n( value, &expectedValue, newValue, false,
-                                 __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST );
+    __atomic_compare_exchange_n( value, &expectedValue, newValue, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST );
     // The (copy of) expectedValue will be overwritten with the actual value if they were different
     previousValue = expectedValue;
 #endif
@@ -336,7 +304,7 @@ AtomicExchange( volatile u32* value, u32 newValue )
 {
     u32 previousValue = 0;
 #if _MSC_VER
-    previousValue = _InterlockedExchange( (volatile long*)value, newValue );
+    previousValue = (u32)_InterlockedExchange( (volatile long*)value, (long)newValue );
 #else
     previousValue = __atomic_exchange_n( value, newValue, __ATOMIC_SEQ_CST );
 #endif
@@ -349,7 +317,7 @@ AtomicExchange( volatile u64* value, u64 newValue )
 {
     u64 previousValue = 0;
 #if _MSC_VER
-    previousValue = _InterlockedExchange64( (volatile i64*)value, newValue );
+    previousValue = (u64)_InterlockedExchange64( (volatile i64*)value, (i64)newValue );
 #else
     previousValue = __atomic_exchange_n( value, newValue, __ATOMIC_SEQ_CST );
 #endif
@@ -376,7 +344,7 @@ AtomicLoad( volatile u32* value )
 {
     u32 result = 0;
 #if _MSC_VER
-    result = _InterlockedOr( (volatile long*)value, 0 );
+    result = (u32)_InterlockedOr( (volatile long*)value, 0u );
 #else
     result = __atomic_load_n( value, __ATOMIC_SEQ_CST );
 #endif
@@ -403,7 +371,7 @@ AtomicAdd( volatile u32* value, u32 addend )
 {
     u32 previousValue = 0;
 #if _MSC_VER
-    previousValue = _InterlockedExchangeAdd( (volatile long*)value, addend );
+    previousValue = (u32)_InterlockedExchangeAdd( (volatile long*)value, (long)addend );
 #else
     previousValue = __atomic_fetch_add( value, addend, __ATOMIC_SEQ_CST );
 #endif
@@ -416,7 +384,7 @@ AtomicAdd( volatile u64* value, u64 addend )
 {
     u64 previousValue = 0;
 #if _MSC_VER
-    previousValue = _InterlockedExchangeAdd64( (volatile i64*)value, addend );
+    previousValue = (u64)_InterlockedExchangeAdd64( (volatile i64*)value, (i64)addend );
 #else
     previousValue = __atomic_fetch_add( value, addend, __ATOMIC_SEQ_CST );
 #endif

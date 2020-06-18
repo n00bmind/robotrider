@@ -134,10 +134,10 @@ OpenGLGetInfo( bool modernContext )
     {
         result.SLversion = (const char *)glGetString( GL_SHADING_LANGUAGE_VERSION );
 
-        GLint n, i;
-        glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+        GLuint n, i;
+        glGetIntegerv(GL_NUM_EXTENSIONS, (GLint*)&n);
         // FIXME Not safe
-        ASSERT( (u32)n < ARRAYCOUNT(result.extensions) );
+        ASSERT( n < ARRAYCOUNT(result.extensions) );
 
         for( i = 0; i < n; i++ )
         {
@@ -195,7 +195,7 @@ OpenGLCompileShader( GLenum shaderType, const char *shaderSource, GLuint *outSha
 internal GLint
 OpenGLLinkProgram( OpenGLShaderProgram *prg )
 {
-    GLint programId;
+    GLuint programId;
 
     // TODO Identify programs by a string instead of an index
     programId = glCreateProgram();
@@ -225,7 +225,7 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
     }
 
     // Check attribute & uniform locations
-    for( u32 u = 0; u < ARRAYCOUNT(prg->uniforms); ++u )
+    for( int u = 0; u < ARRAYCOUNT(prg->uniforms); ++u )
     {
         OpenGLShaderUniform &uniform = prg->uniforms[u];
         if( uniform.name )
@@ -236,7 +236,7 @@ OpenGLLinkProgram( OpenGLShaderProgram *prg )
         }
     }
 
-    for( u32 a = 0; a < ARRAYCOUNT(prg->attribs); ++a )
+    for( int a = 0; a < ARRAYCOUNT(prg->attribs); ++a )
     {
         OpenGLShaderAttribute &attr = prg->attribs[a];
         if( attr.name )
@@ -256,7 +256,7 @@ DEBUG_GAME_ASSET_LOADED_CALLBACK(OpenGLHotswapShader)
     const char* shaderSource = (const char*)readFile.contents;
 
     // Find which program definition(s) the file belongs to
-    for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
+    for( int i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
 
@@ -364,7 +364,7 @@ OpenGLInit( OpenGLState &gl, bool modernContext )
     glGenBuffers( 1, &gl.instanceBuffer );
 
     // Compile all program definitions
-    for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
+    for( int i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
     {
         OpenGLShaderProgram &prg = globalShaderPrograms[i];
         //LOG( ".Compiling program '%s'..", prg.name );
@@ -470,8 +470,8 @@ OpenGLRenderImGui( const OpenGLState& gl, ImDrawData *drawData )
         const ImDrawList* cmdList = drawData->CmdLists[cmdListIdx];
         const ImDrawIdx* indexBufferOffset = 0;
 
-        glBufferData( GL_ARRAY_BUFFER, (GLsizeiptr)cmdList->VtxBuffer.Size * sizeof(ImDrawVert), (const GLvoid*)cmdList->VtxBuffer.Data, GL_STREAM_DRAW );
-        glBufferData( GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)cmdList->IdxBuffer.Size * sizeof(ImDrawIdx), (const GLvoid*)cmdList->IdxBuffer.Data, GL_STREAM_DRAW );
+        glBufferData( GL_ARRAY_BUFFER, (GLsizeiptr)cmdList->VtxBuffer.Size * SIZE(ImDrawVert), (const GLvoid*)cmdList->VtxBuffer.Data, GL_STREAM_DRAW );
+        glBufferData( GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)cmdList->IdxBuffer.Size * SIZE(ImDrawIdx), (const GLvoid*)cmdList->IdxBuffer.Data, GL_STREAM_DRAW );
 
         for( int cmdIdx = 0; cmdIdx < cmdList->CmdBuffer.Size; cmdIdx++ )
         {
@@ -679,9 +679,9 @@ OpenGLInitImGui( OpenGLState &gl )
 
     gl.imGui.texUniformId   = glGetUniformLocation( gl.imGui.program, "Texture" );
     gl.imGui.projUniformId  = glGetUniformLocation( gl.imGui.program, "ProjMtx" );
-    gl.imGui.pAttribId	    = glGetAttribLocation( gl.imGui.program, "Position" );
-    gl.imGui.uvAttribId	    = glGetAttribLocation( gl.imGui.program, "UV" );
-    gl.imGui.cAttribId	    = glGetAttribLocation( gl.imGui.program, "Color" );
+    gl.imGui.pAttribId	    = U32( glGetAttribLocation( gl.imGui.program, "Position" ) );
+    gl.imGui.uvAttribId	    = U32( glGetAttribLocation( gl.imGui.program, "UV" ) );
+    gl.imGui.cAttribId	    = U32( glGetAttribLocation( gl.imGui.program, "Color" ) );
 
     // Build texture atlas
     ImGuiIO &io = ImGui::GetIO();
@@ -717,7 +717,7 @@ OpenGLUseProgram( ShaderProgramName programName, RenderCommands const& commands,
 {
     if( programName == ShaderProgramName::None )
     {
-        for( int i = 0; i < MAX_SHADER_ATTRIBS; ++i )
+        for( u32 i = 0; i < MAX_SHADER_ATTRIBS; ++i )
             glDisableVertexAttribArray( i );
 
         glUseProgram( 0 );
@@ -731,7 +731,7 @@ OpenGLUseProgram( ShaderProgramName programName, RenderCommands const& commands,
             return;
 
         int programIndex = -1;
-        for( u32 i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
+        for( int i = 0; i < ARRAYCOUNT(globalShaderPrograms); ++i )
         {
             if( globalShaderPrograms[i].name == programName )
             {
@@ -787,8 +787,8 @@ OpenGLUseProgram( ShaderProgramName programName, RenderCommands const& commands,
 internal void
 OpenGLNewFrame( const RenderCommands &commands, OpenGLState* gl )
 {
-    u32 viewportWidth = commands.width;
-    u32 viewportHeight = commands.height;
+    int viewportWidth = commands.width;
+    int viewportHeight = commands.height;
     glViewport( 0, 0, viewportWidth, viewportHeight );
     
     glDisable( GL_SCISSOR_TEST );
@@ -826,7 +826,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
     u32 totalMeshCount = 0;
 
     const RenderBuffer &buffer = commands.renderBuffer;
-    for( u32 baseAddress = 0; baseAddress < buffer.size; /**/ )
+    for( int baseAddress = 0; baseAddress < buffer.size; /**/ )
     {
         RenderEntry *entryHeader = (RenderEntry *)(buffer.base + baseAddress);
 
@@ -933,7 +933,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
 
                 // TODO Should be part of the shader setup
                 glBindBuffer( GL_ARRAY_BUFFER, gl->instanceBuffer );
-                glBufferData( GL_ARRAY_BUFFER, sizeof(InstanceData) * entry->instanceCount,
+                glBufferData( GL_ARRAY_BUFFER, SIZE(InstanceData) * entry->instanceCount,
                               commands.instanceBuffer.base + entry->instanceBufferOffset, GL_STATIC_DRAW );
 
                 const GLuint offAttribId = 3;
@@ -974,7 +974,7 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
                 // Each shader should have a set of buffer endpoints (GLuint), each with a set of attribute definitions
                 // After enabling a certain program, we need a call that provides the data for each buffer endpoint
                 glBindBuffer( GL_ARRAY_BUFFER, gl->instanceBuffer );
-                glBufferData( GL_ARRAY_BUFFER, sizeof(InstanceData) * entry->instanceCount,
+                glBufferData( GL_ARRAY_BUFFER, SIZE(InstanceData) * entry->instanceCount,
                               commands.instanceBuffer.base + entry->instanceBufferOffset, GL_STATIC_DRAW );
 
                 const GLuint offAttribId = 3;
@@ -1025,13 +1025,13 @@ OpenGLRenderToOutput( const RenderCommands &commands, OpenGLState* gl, GameMemor
 
                 // TODO We should be able to send the whole buffer in one go and just change the cluster index uniform on each drawcall
                 MeshData* mesh_data = (MeshData*)(commands.instanceBuffer.base + entry->instanceBufferOffset);
-                for( u32 i = 0; i < entry->meshCount; ++i )
+                for( int i = 0; i < entry->meshCount; ++i )
                 {
                     GLuint vertexByteCount = mesh_data->vertexCount * sizeof(TexturedVertex);
                     GLuint indexByteCount = mesh_data->indexCount * sizeof(u32);
 
                     // simClusterIndex
-                    glUniform1ui( gl->activeProgram->uniforms[2].locationId, mesh_data->simClusterIndex );
+                    glUniform1ui( gl->activeProgram->uniforms[2].locationId, U32( mesh_data->simClusterIndex ) );
 
                     glBufferData( GL_ARRAY_BUFFER,
                                   vertexByteCount,

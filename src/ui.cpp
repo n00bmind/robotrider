@@ -155,7 +155,7 @@ void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemor
                                                                  (u32)ARRAYCOUNT(debugState->counterLogs) );
     counterLogs.count = debugState->counterLogsCount;
 
-    u32 snapshotIndex = debugState->counterSnapshotIndex;
+    int snapshotIndex = debugState->counterSnapshotIndex;
     Array<KeyIndex64> counterFrameKeys = Array<KeyIndex64>( tmpMemory.arena, counterLogs.count, Temporary() );
     BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, snapshots[snapshotIndex].cycleCount),
                             &counterFrameKeys );
@@ -163,7 +163,7 @@ void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemor
     RadixSort( &counterFrameKeys, RadixKey::U64, false, tmpMemory.arena );
 
     // TODO Counter stats
-    for( u32 i = 0; i < counterFrameKeys.count; ++i )
+    for( int i = 0; i < counterFrameKeys.count; ++i )
     {
         const DebugCounterLog &log = counterLogs[counterFrameKeys[i].index];
 
@@ -207,7 +207,7 @@ void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemor
     BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, totalCycleCount), &counterTotalKeys );
     RadixSort( &counterTotalKeys, RadixKey::U64, false, tmpMemory.arena );
 
-    for( u32 i = 0; i < counterTotalKeys.count; ++i )
+    for( int i = 0; i < counterTotalKeys.count; ++i )
     {
         const DebugCounterLog &log = debugState->counterLogs[counterTotalKeys[i].index];
 
@@ -253,7 +253,7 @@ void DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidt
     ImGui::PopStyleVar();
 }
 
-void DrawEditorStateWindow( const v2u& windowP, const v2u& windowDim, const EditorState& state )
+void DrawEditorStateWindow( const v2i& windowP, const v2i& windowDim, const EditorState& state )
 {
     ImGui::SetNextWindowPos( windowP, ImGuiCond_Always );
     ImGui::SetNextWindowSize( windowDim, ImGuiCond_Always );

@@ -101,8 +101,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 struct DEBUGReadFileResult
 {
-    u32 contentSize;
     void *contents;
+    i32 contentSize;
 };
 // TODO Change this to use a given arena instead of allocating
 #define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) DEBUGReadFileResult name( const char *filename )
@@ -157,7 +157,7 @@ typedef DEBUG_PLATFORM_CURRENT_TIME_MILLIS(DebugPlatformCurrentTimeMillis);
 
 struct PlatformJobQueue;
 
-#define PLATFORM_JOBQUEUE_CALLBACK(name) void name( void* userData, u32 workerThreadIndex )
+#define PLATFORM_JOBQUEUE_CALLBACK(name) void name( void* userData, int workerThreadIndex )
 typedef PLATFORM_JOBQUEUE_CALLBACK(PlatformJobQueueCallbackFunc);
 
 #define PLATFORM_ADD_NEW_JOB(name) void name( PlatformJobQueue* queue, PlatformJobQueueCallbackFunc* callback, void* userData )
@@ -170,7 +170,7 @@ typedef PLATFORM_COMPLETE_ALL_JOBS(PlatformCompleteAllJobsFunc);
 
 
 // Providing a handle means we're updating the texture data instead of creating it anew
-#define PLATFORM_ALLOCATE_OR_UPDATE_TEXTURE(name) void* name( void* data, u32 width, u32 height, bool filtered, void* optionalHandle )
+#define PLATFORM_ALLOCATE_OR_UPDATE_TEXTURE(name) void* name( void* data, int width, int height, bool filtered, void* optionalHandle )
 typedef PLATFORM_ALLOCATE_OR_UPDATE_TEXTURE(PlatformAllocateOrUpdateTextureFunc);
 
 #define PLATFORM_DEALLOCATE_TEXTURE(name) void name( void* handle )
@@ -196,7 +196,7 @@ struct PlatformAPI
     PlatformJobQueue* hiPriorityQueue;
     //PlatformJobQueue* loPriorityQueue;
     // NOTE Includes the main thread! (0)
-    u32 coreThreadsCount;
+    i32 coreThreadsCount;
 
     PlatformAllocateOrUpdateTextureFunc* AllocateOrUpdateTexture;
     PlatformDeallocateTextureFunc* DeallocateTexture;

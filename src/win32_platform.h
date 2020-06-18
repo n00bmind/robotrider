@@ -29,22 +29,22 @@ struct Win32OffscreenBuffer
 {
     BITMAPINFO bitmapInfo;
     void *memory;
-    int width;
-    int height;
-    int bytesPerPixel;
+    i32 width;
+    i32 height;
+    i32 bytesPerPixel;
 };
 
 struct Win32WindowDimension
 {
-    int width;
-    int height;
+    i32 width;
+    i32 height;
 };
 
 struct Win32AudioOutput
 {
     u32 samplingRate;
     u32 bytesPerFrame;  
-    u32 bufferSizeFrames;
+    i32 bufferSizeFrames;
     u16 systemLatencyFrames;
     u32 runningFrameCount;
 };
@@ -69,7 +69,7 @@ struct PlatformJobQueue
 
 struct Win32WorkerThreadContext
 {
-    u32 threadIndex;
+    i32 threadIndex;
     PlatformJobQueue* queue;
 };
 
@@ -124,16 +124,16 @@ struct Win32State
     u64 gameMemorySize;
     Win32ReplayBuffer replayBuffers[MAX_REPLAY_BUFFERS];
 
-    u32 inputRecordingIndex;
+    i32 inputRecordingIndex;
     HANDLE recordingHandle;
-    u32 inputPlaybackIndex;
+    i32 inputPlaybackIndex;
     HANDLE playbackHandle;
 
     // NOTE I operate under the assumption that this won't be filled until our call to GetOverlappedResult return true,
     // hence we should be able to just use one shared buffer for all our installed listeners. I could be wrong though!
     u8 assetsNotifyBuffer[1024];
     Win32AssetUpdateListener *assetListeners;
-    u32 assetListenerCount;
+    i32 assetListenerCount;
 
     PlatformJobQueue hiPriorityQueue;
 };

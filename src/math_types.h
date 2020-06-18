@@ -132,6 +132,7 @@ union v2i
 };
 
 const v2i V2iZero = { 0, 0 };
+const v2i V2iOne = { 1, 1 };
 
 inline v2i
 V2i( i32 x, i32 y )
@@ -140,10 +141,24 @@ V2i( i32 x, i32 y )
     return result;
 }
 
+inline v2i
+V2i( i32 s )
+{
+    v2i result = { s, s };
+    return result;
+}
+
 inline v2
 V2( const v2i &v )
 {
     v2 result = { (r32)v.x, (r32)v.y };
+    return result;
+}
+
+inline v2i
+V2i( const v2& v )
+{
+    v2i result = { I32( v.x ), I32( v.y ) };
     return result;
 }
 
@@ -175,7 +190,7 @@ Round( const v2 &v )
 }
 
 // Vector 2 unsigned
-
+#if 0
 union v2u
 {
     struct
@@ -252,6 +267,7 @@ Hadamard( const v2u& a, const v2u& b )
     v2u result = { a.x * b.x, a.y * b.y };
     return result;
 }
+#endif
 
 
 // Vector 3 integer
@@ -276,11 +292,20 @@ union v3i
 };
 
 const v3i V3iZero = { 0, 0, 0 };
+const v3i V3iOne = { 1, 1, 1 };
+
 
 inline v3i
 V3i( i32 x, i32 y, i32 z )
 {
     v3i result = { x, y, z };
+    return result;
+}
+
+inline v3i
+V3i( i32 s )
+{
+    v3i result = { s, s, s };
     return result;
 }
 
@@ -317,8 +342,16 @@ operator -( const v3i &a, const v3i &b )
     return result;
 }
 
-// Vector 3 unsigned
+inline v3i
+Hadamard( const v3i& a, const v3i& b )
+{
+    v3i result = { a.x * b.x, a.y * b.y, a.z * b.z };
+    return result;
+}
 
+
+// Vector 3 unsigned
+#if 0
 union v3u
 {
     struct
@@ -358,7 +391,7 @@ V3u( u32 s )
 inline v3u
 V3u( v3i const& v )
 {
-    v3u result = { ToU32Safe( v.x ), ToU32Safe( v.y ), ToU32Safe( v.z ) };
+    v3u result = { U32( v.x ), U32( v.y ), U32( v.z ) };
     return result;
 }
 
@@ -394,6 +427,7 @@ Hadamard( const v3u& a, const v3u& b )
     v3u result = { a.x * b.x, a.y * b.y, a.z * b.z };
     return result;
 }
+#endif
 
 // Vector 3
 
@@ -458,7 +492,7 @@ V3( r32 x, r32 y, r32 z )
 }
 
 inline v3
-V3( u32 x, u32 y, u32 z )
+V3( i32 x, i32 y, i32 z )
 {
     v3 result = { (r32)x, (r32)y, (r32)z };
     return result;
@@ -478,6 +512,14 @@ V3( const v3i& v )
     return result;
 }
 
+inline v3i
+V3iCeil( v3 const& v )
+{
+    v3i result = { I32( Ceil( v.x ) ), I32( Ceil( v.y ) ), I32( Ceil( v.z ) ) };
+    return result;
+}
+
+#if 0
 inline v3
 V3( const v3u& v )
 {
@@ -491,6 +533,7 @@ V3uCeil( v3 const& v )
     v3u result = { Ceil( v.x ), Ceil( v.y ), Ceil( v.z ) };
     return result;
 }
+#endif
 
 inline bool
 operator ==( const v3 &a, const v3 &b )
@@ -777,10 +820,10 @@ Hadamard( const v4& a, const v4& b )
 inline u32
 Pack01ToRGBA( const v4& c )
 {
-    u32 result = (((Round( c.a * 255 ) & 0xFF) << 24)
-                | ((Round( c.b * 255 ) & 0xFF) << 16)
-                | ((Round( c.g * 255 ) & 0xFF) << 8)
-                |  (Round( c.r * 255 ) & 0xFF));
+    u32 result = (((U32( Round( c.a * 255 ) ) & 0xFF) << 24)
+                | ((U32( Round( c.b * 255 ) ) & 0xFF) << 16)
+                | ((U32( Round( c.g * 255 ) ) & 0xFF) << 8)
+                |  (U32( Round( c.r * 255 ) ) & 0xFF));
     return result;
 }
 
@@ -1221,7 +1264,7 @@ SetTranslation( m4 &m, const v3 &p )
 }
 
 inline v4
-GetRow( const m4 &m, u32 row )
+GetRow( const m4 &m, int row )
 {
     ASSERT( row >= 0 && row < 4 );
     v4 result = { m.e[row][0], m.e[row][1], m.e[row][2], m.e[row][3] };
@@ -1229,7 +1272,7 @@ GetRow( const m4 &m, u32 row )
 }
 
 inline v4
-GetColumn( const m4 &m, u32 col )
+GetColumn( const m4 &m, int col )
 {
     ASSERT( col >= 0 && col < 4 );
     v4 result = { m.e[0][col], m.e[1][col], m.e[2][col], m.e[3][col] };

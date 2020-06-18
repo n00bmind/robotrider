@@ -34,9 +34,27 @@ platform_win = Platform(
         compiler              = 'cl.exe',
         toolset               = 'CL',
         common_compiler_flags = [
-            '-MTd', '-nologo', '-FC', '-W4', '-WX', '-Oi', '-GR-', '-EHa-',
+            '-MTd', '-nologo', '-FC', '-Wall', '-WX', '-Oi', '-GR-', '-EHa-',
             '-D_HAS_EXCEPTIONS=0', '-D_CRT_SECURE_NO_WARNINGS',
-            '-wd4201', '-wd4100', '-wd4189', '-wd4101', '-wd4505', '-wd4312', '-wd4200'
+            '-wd4061',          # Unhandled enum case in switch
+            '-wd4062',          # Unhandled enum case in switch
+            '-wd4100',          # Unreferenced parameter
+            '-wd4101',          # Unused local variable
+            '-wd4189',          # Initialized but unreferenced local variable
+            '-wd4200',          # Zero-sized array in struct
+            '-wd4201',          # Nameless struct/union
+            '-wd4312',          # Conversion from int to pointer
+            '-wd4505',          # Unreferenced function
+            '-wd4514',          # Unreferenced inline function removed
+            '-wd4623',          # Default constructor implicitly deleted
+            '-wd4625',          # Copy constructor implicitly deleted
+            '-wd4626',          # Assignment operator implicitly deleted
+            '-wd4668',          # Undefined preprocessor macro
+            '-wd4710',          # Function not inlined
+            '-wd4820',          # Padding added
+            '-wd5026',          # Move constructor implicitly deleted
+            '-wd5027',          # Move assignment implicitly deleted
+            '-wd5045'          # Spectre mitigations
             ],
         libs                  = ['user32.lib', 'gdi32.lib', 'winmm.lib', 'ole32.lib', 'opengl32.lib', 'shlwapi.lib'],
         common_linker_flags   = ['/opt:ref', '/incremental:no']

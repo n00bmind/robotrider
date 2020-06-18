@@ -94,7 +94,7 @@ ConsoleExec( GameConsole *console, char *input )
 
     // Search in known commands array
     bool found = false;
-    for( u32 i = 0; i < ARRAYCOUNT(knownCommands); ++i )
+    for( int i = 0; i < ARRAYCOUNT(knownCommands); ++i )
     {
         if( strcmp( cmd, knownCommands[i].name ) == 0 )
         {
@@ -161,9 +161,9 @@ DrawConsole( GameConsole *console, u16 screenWidth, u16 screenHeight, const char
     // This function can probably help (although not too sure how it works)
     //ImGui::CalcListClipping( ARRAYCOUNT(console->entries), ImGui::GetTextLineHeightWithSpacing(), &firstItemIndex, &visibleItemCount );
 
-    u32 visibleItemCount = (u32)(ImGui::GetContentRegionAvail().y / ImGui::GetTextLineHeightWithSpacing());
+    int visibleItemCount = (int)(ImGui::GetContentRegionAvail().y / ImGui::GetTextLineHeightWithSpacing());
     // Calc how many items to draw (always draw at least the visible number of items)
-    u32 itemCount = console->entryCount;
+    int itemCount = console->entryCount;
     if( itemCount < visibleItemCount )
         itemCount = visibleItemCount;
     // Find out what's the first line to draw (discard previous values since it's always reported as 0)
@@ -172,7 +172,7 @@ DrawConsole( GameConsole *console, u16 screenWidth, u16 screenHeight, const char
         firstItemIndex += ARRAYCOUNT(console->entries);
 
     u32 entryIndex = (u32)firstItemIndex;
-    for( u32 i = 0; i < itemCount; ++i )
+    for( int i = 0; i < itemCount; ++i )
     {
         auto& entry = console->entries[entryIndex];
         const char *text = (entry.type == ConsoleEntryType::Empty) ? "\n" : entry.text;
