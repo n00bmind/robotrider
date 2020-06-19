@@ -82,6 +82,4 @@ TESTING
 - All multithreaded code! (queues, etc.)
 
 MISC
-- Switch all indices in all loops and all data types operators to signed integers, as they're faster (Chandler dixit)
-  (https://critical.eschertech.com/2010/04/07/danger-unsigned-types-used-here/)
 

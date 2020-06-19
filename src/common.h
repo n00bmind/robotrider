@@ -1,5 +1,5 @@
-#ifndef __DEFS_H__
-#define __DEFS_H__ 
+#ifndef __COMMON_H__
+#define __COMMON_H__ 
 
 #if NON_UNITY_BUILD
 #include <stdint.h>
@@ -249,35 +249,38 @@ int main()
 #define _ENUM_ITEM(x, ...) x(),
 
 #define _CREATE_ENUM(enumName, valueType, xValueList, xBuilder) \
-struct enumName                                                \
-{                                                              \
-    char const* name;                                          \
-    u32 index;                                                 \
-    valueType value;                                           \
-                                                               \
-    using EnumName = enumName;                                 \
-    using ValueType = valueType;                               \
-    xValueList(xBuilder)                                       \
-                                                               \
-    struct Values;                                             \
-                                                               \
-private:                                                       \
-    enum class Enum : u32                                      \
-    {                                                          \
-        xValueList(_ENUM_ENTRY)                                \
-    };                                                         \
-};                                                             \
-struct enumName::Values                                        \
-{                                                              \
-    static constexpr char const* const names[] =               \
-    {                                                          \
-        xValueList(_ENUM_NAME)                                 \
-    };                                                         \
-    static constexpr const enumName items[] = {                \
-        xValueList(_ENUM_ITEM)                                 \
-    };                                                         \
-    static constexpr const int count = ARRAYCOUNT(items);      \
-};                                                             \
+struct enumName                                                 \
+{                                                               \
+    char const* name;                                           \
+    u32 index;                                                  \
+    valueType value;                                            \
+                                                                \
+    bool operator ==( enumName const& other ) const             \
+    { return index == other.index; }                            \
+                                                                \
+    using EnumName = enumName;                                  \
+    using ValueType = valueType;                                \
+    xValueList(xBuilder)                                        \
+                                                                \
+    struct Values;                                              \
+                                                                \
+private:                                                        \
+    enum class Enum : u32                                       \
+    {                                                           \
+        xValueList(_ENUM_ENTRY)                                 \
+    };                                                          \
+};                                                              \
+struct enumName::Values                                         \
+{                                                               \
+    static constexpr char const* const names[] =                \
+    {                                                           \
+        xValueList(_ENUM_NAME)                                  \
+    };                                                          \
+    static constexpr const enumName items[] = {                 \
+        xValueList(_ENUM_ITEM)                                  \
+    };                                                          \
+    static constexpr const int count = ARRAYCOUNT(items);       \
+};                                                              \
 
 #define STRUCT_ENUM(enumName, xValueList)                           _CREATE_ENUM(enumName, u32, xValueList, _ENUM_BUILDER)
 #define STRUCT_ENUM_WITH_TYPE(enumName, valueType, xValueList)      _CREATE_ENUM(enumName, valueType, xValueList, _ENUM_BUILDER)
@@ -286,4 +289,4 @@ struct enumName::Values                                        \
 
 
 
-#endif /* __DEFS_H__ */
+#endif /* __COMMON_H__ */

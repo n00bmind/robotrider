@@ -61,7 +61,7 @@ struct Array
     // NOTE All newly allocated arrays start empty
     Array( MemoryArena* arena, i32 capacity_, MemoryParams params = DefaultMemoryParams() )
     {
-        ASSERT( capacity_ > 0 );
+        ASSERT( capacity_ >= 0 );
         data = PUSH_ARRAY( arena, T, capacity_, params );
         count = 0;
         capacity = capacity_;
@@ -747,7 +747,7 @@ struct String
 
     String( const char *cString, i32 size_, i32 maxSize_ )
     {
-        ASSERT( size_ > 0 && maxSize_ > 0 );
+        ASSERT( size_ >= 0 && maxSize_ >= 0 );
         data = cString;
         size = size_;
         maxSize = maxSize_;

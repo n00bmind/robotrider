@@ -929,7 +929,7 @@ IsFinished( const State& state )
 }
 
 Result
-DoWFCSync( Job* job )
+DoWFC( Job* job )
 {
     const Spec& spec = *job->spec;
     const Input& input = *job->input;
@@ -1025,10 +1025,10 @@ EndJobWithMemory( Job* job, Result result )
 }
 
 internal
-PLATFORM_JOBQUEUE_CALLBACK(DoWFC)
+PLATFORM_JOBQUEUE_CALLBACK(DoWFCJob)
 {
     Job* job = (Job*)userData;
-    Result result = DoWFCSync( job );
+    Result result = DoWFC( job );
 
     EndJobWithMemory( job, result );
 }
@@ -1051,7 +1051,7 @@ TryStartJobFor( const v2i& pOutputChunk, GlobalState* globalState, const ChunkIn
         job->initInfo = initInfo;
 
         globalPlatform.AddNewJob( globalPlatform.hiPriorityQueue,
-                                  DoWFC,
+                                  DoWFCJob,
                                   job );
 
         result = true;
@@ -1755,9 +1755,6 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
     ImGui::EndChild();
 
     ImGui::End();
-
-
-    ImGui::ShowDemoWindow();
 
     return selectedIndex;
 }

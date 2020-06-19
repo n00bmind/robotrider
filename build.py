@@ -51,6 +51,7 @@ platform_win = Platform(
             '-wd4626',          # Assignment operator implicitly deleted
             '-wd4668',          # Undefined preprocessor macro
             '-wd4710',          # Function not inlined
+            '-wd4711',          # Function inlined
             '-wd4820',          # Padding added
             '-wd5026',          # Move constructor implicitly deleted
             '-wd5027',          # Move assignment implicitly deleted

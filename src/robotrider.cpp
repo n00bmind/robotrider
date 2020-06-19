@@ -214,7 +214,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if( memory->DEBUGglobalEditing )
     {
         UpdateAndRenderEditor( *input, gameState, transientState, debugState, renderCommands, statsText,
-                               &gameState->worldArena, frameMemory );
+                               &gameState->worldArena, &gameState->transientArena, frameMemory );
     }
     else if( memory->DEBUGglobalDebugging )
     {

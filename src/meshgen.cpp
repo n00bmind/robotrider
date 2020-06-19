@@ -1260,6 +1260,13 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
     }
 }
 
+#define VALUES(x) \
+    x(DualContouring) \
+    x(MarchingCubes) \
+
+STRUCT_ENUM(ContouringTechnique, VALUES)
+#undef VALUES
+
 
 
 struct Metaball
