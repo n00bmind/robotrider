@@ -74,8 +74,8 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef unsigned long long u64;
 
-typedef float r32;
-typedef double r64;
+typedef float f32;
+typedef double f64;
 
 typedef size_t sz;
 
@@ -88,11 +88,11 @@ typedef size_t sz;
 #define I64MAX INT64_MAX
 #define I64MIN INT64_MIN
 
-#define R32MAX FLT_MAX
-#define R32MIN FLT_MIN
-#define R32INF INFINITY
-#define R32NAN NAN
-#define R64INF (r64)INFINITY
+#define F32MAX FLT_MAX
+#define F32MIN FLT_MIN
+#define F32INF INFINITY
+#define F32NAN NAN
+#define F64INF (f64)INFINITY
 
 
 inline i32
@@ -110,14 +110,14 @@ I32( ptrdiff_t value )
 }
 
 inline i32
-I32( r32 value )
+I32( f32 value )
 {
     ASSERT( I32MIN <= value && value <= I32MAX );
     return (i32)value;
 }
 
 inline i32
-I32( r64 value )
+I32( f64 value )
 {
     ASSERT( I32MIN <= value && value <= I32MAX );
     return (i32)value;
@@ -152,7 +152,7 @@ U32( u64 value )
 }
 
 inline u32
-U32( r64 value )
+U32( f64 value )
 {
     ASSERT( 0 <= value && value <= U32MAX );
     return (u32)value;
@@ -166,7 +166,7 @@ U16( i64 value )
 }
 
 inline u16
-U16( r64 value )
+U16( f64 value )
 {
     ASSERT( 0 <= value && value <= U16MAX );
     return (u16)value;

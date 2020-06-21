@@ -33,8 +33,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // 2D slice of a 3D sampled area, allowing reuse of sampled values and generated vertices
 struct IsoSurfaceSamplingCache
 {
-    r32* bottomLayerSamples;
-    r32* topLayerSamples;
+    f32* bottomLayerSamples;
+    f32* topLayerSamples;
 
     i32* bottomLayerVertexIndices;
     i32* middleLayerVertexIndices;
@@ -66,7 +66,7 @@ struct FQSVertex
 struct FQSTriangle
 {
     i32 v[3];
-    r64 error[4];
+    f64 error[4];
     bool deleted;
     bool dirty;
     v3 n;
@@ -119,8 +119,8 @@ struct MeshGeneratorRoomData
 // @Size Using this in the entity storage means every entity spans the maximum size which is very inefficient
 struct MeshGeneratorData
 {
-    r32 areaSideMeters;
-    r32 resolutionMeters;
+    f32 areaSideMeters;
+    f32 resolutionMeters;
 
     union
     {
@@ -147,21 +147,21 @@ struct MeshGeneratorPathData
 {
     // Center point and area around it for cube marching
     v3 pCenter;
-    r32 areaSideMeters;
+    f32 areaSideMeters;
 
     // Current basis (Y is forward, Z is up)
     m4 basis;
     // Surface algorithm used
     IsoSurfaceType isoType;
 
-    r32 thicknessSq;
-    r32 minDistanceToTurn;
-    r32 maxDistanceToTurn;
-    r32 minDistanceToFork;
-    r32 maxDistanceToFork;
+    f32 thicknessSq;
+    f32 minDistanceToTurn;
+    f32 maxDistanceToTurn;
+    f32 minDistanceToFork;
+    f32 maxDistanceToFork;
 
-    r32 distanceToNextTurn;
-    r32 distanceToNextFork;
+    f32 distanceToNextTurn;
+    f32 distanceToNextFork;
     m4* nextBasis;
     // TODO Support multiple forks?
     MeshGeneratorPathData* nextFork;
@@ -179,8 +179,8 @@ enum class DCComputeMethod
 struct DCSettings
 {
     DCComputeMethod cellPointsComputationMethod;
-    r32 sigmaN;
-    r32 sigmaNDouble;
+    f32 sigmaN;
+    f32 sigmaNDouble;
     bool approximateEdgeIntersection;
     bool clampCellPoints;
 };
@@ -195,10 +195,10 @@ Mesh* AllocateMesh( MeshPool* pool, int vertexCount, int indexCount );
 Mesh* AllocateMeshFromScratchBuffers( MeshPool* pool );
 void ClearScratchBuffers( MeshPool* pool );
 void ReleaseMesh( Mesh** mesh );
-void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cellsPerAxis, r32 cellSizeMeters,
+void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cellsPerAxis, f32 cellSizeMeters,
                 IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices,
                 const bool interpolate = true );
-Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
+Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
                                MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands );
 
 

@@ -840,20 +840,20 @@ Win32ProcessXInputDigitalButton( DWORD buttonStateBits, GameButtonState *oldStat
     newState->halfTransitionCount = (oldState->endedDown != newState->endedDown) ? 1 : 0;
 }
 
-internal r32
+internal f32
 Win32ProcessXInputStickValue( SHORT value, SHORT deadZoneThreshold )
 {
     // TODO Cube the values as explained in the XInput help
     // to give more sensitivity to the movement
-    r32 result = 0;
+    f32 result = 0;
     // TODO Does hardware have a round deadzone?
     if( value < -deadZoneThreshold )
     {
-        result = (r32)(value + deadZoneThreshold) / (32768.0f - deadZoneThreshold);
+        result = (f32)(value + deadZoneThreshold) / (32768.0f - deadZoneThreshold);
     }
     else if( value > deadZoneThreshold )
     {
-        result = (r32)(value - deadZoneThreshold) / (32767.0f - deadZoneThreshold);
+        result = (f32)(value - deadZoneThreshold) / (32767.0f - deadZoneThreshold);
     }
 
     return result;
@@ -970,7 +970,7 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput, GameCon
                     newController->leftStick.avgX = 1.0f;
                 }
 
-                r32 threshold = 0.5f;
+                f32 threshold = 0.5f;
                 Win32ProcessXInputDigitalButton( (newController->leftStick.avgX < -threshold) ? 1u : 0u,
                                                  &oldController->dLeft, 1u,
                                                  &newController->dLeft );
@@ -1132,10 +1132,10 @@ Win32GetWallClock()
     return result;
 }
 
-inline r32
+inline f32
 Win32GetSecondsElapsed( LARGE_INTEGER start, LARGE_INTEGER end )
 {
-    r32 result = (r32)(end.QuadPart - start.QuadPart) / (r32)globalPerfCounterFrequency;
+    f32 result = (f32)(end.QuadPart - start.QuadPart) / (f32)globalPerfCounterFrequency;
     return result;
 }
 
@@ -1143,7 +1143,7 @@ DEBUG_PLATFORM_CURRENT_TIME_MILLIS(Win32CurrentTimeMillis)
 {
     LARGE_INTEGER counter;
     QueryPerformanceCounter( &counter );
-    r64 result = (r64)counter.QuadPart / globalPerfCounterFrequency * 1000;
+    f64 result = (f64)counter.QuadPart / globalPerfCounterFrequency * 1000;
     return result;
 }
 
@@ -1531,7 +1531,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
 
                     if( buttonFlags & RI_MOUSE_WHEEL )
                     {
-                        r32 zMotionRelative = (r32)(i16)raw->data.mouse.usButtonData / (r32)WHEEL_DELTA;
+                        f32 zMotionRelative = (f32)(i16)raw->data.mouse.usButtonData / (f32)WHEEL_DELTA;
                         input->keyMouse.mouseRawZDelta += zMotionRelative;
                         //keyMouseController->rightStick.avgZ += zMotionRelative;
                     }
@@ -2030,7 +2030,7 @@ main( int argC, char **argV )
     Win32AudioOutput audioOutput = Win32InitWASAPI( 48000, AUDIO_BITDEPTH, AUDIO_CHANNELS, AUDIO_LATENCY_SAMPLES );
 
     u32 runningFrameCounter = 0;
-    r32 totalElapsedSeconds = 0;
+    f32 totalElapsedSeconds = 0;
     LARGE_INTEGER perfCounterFreqMeasure;
     QueryPerformanceFrequency( &perfCounterFreqMeasure );
     globalPerfCounterFrequency = perfCounterFreqMeasure.QuadPart;
@@ -2085,7 +2085,7 @@ main( int argC, char **argV )
             {
                 LOG( ".WARNING: Failed to query monitor refresh rate. Using %d Hz", VIDEO_TARGET_FRAMERATE );
             }
-            int frameVSyncSkipCount = I32( Round( (r32)globalMonitorRefreshHz / VIDEO_TARGET_FRAMERATE ) );
+            int frameVSyncSkipCount = I32( Round( (f32)globalMonitorRefreshHz / VIDEO_TARGET_FRAMERATE ) );
             int videoTargetFramerateHz = globalMonitorRefreshHz / frameVSyncSkipCount;
 
             // Determine system latency
@@ -2186,9 +2186,9 @@ main( int argC, char **argV )
                     GameInput *newInput = &input[0];
                     GameInput *oldInput = &input[1];
 
-                    r32 targetElapsedPerFrameSecs = 1.0f / videoTargetFramerateHz;
+                    f32 targetElapsedPerFrameSecs = 1.0f / videoTargetFramerateHz;
                     // Assume our target for the first frame
-                    r32 lastDeltaTimeSecs = targetElapsedPerFrameSecs;
+                    f32 lastDeltaTimeSecs = targetElapsedPerFrameSecs;
 
                     globalRunning = true;
 
@@ -2297,8 +2297,8 @@ main( int argC, char **argV )
                         // Setup remaining stuff for the ImGui frame
                         ImGuiIO &io = ImGui::GetIO();
                         io.DeltaTime = lastDeltaTimeSecs;
-                        io.DisplaySize.x = (r32)windowDim.width;
-                        io.DisplaySize.y = (r32)windowDim.height;
+                        io.DisplaySize.x = (f32)windowDim.width;
+                        io.DisplaySize.y = (f32)windowDim.height;
                         io.KeyCtrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
                         io.KeyShift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
                         io.KeyAlt = (GetKeyState(VK_MENU) & 0x8000) != 0;
@@ -2346,14 +2346,14 @@ main( int argC, char **argV )
 
                         // Artificially increase wait time from 0 to 20ms.
                         int r = rand() % 20;
-                        targetElapsedPerFrameSecs = (1.0f / videoTargetFramerateHz) + ((r32)r / 1000.0f);
+                        targetElapsedPerFrameSecs = (1.0f / videoTargetFramerateHz) + ((f32)r / 1000.0f);
 #endif
 #if 0
                         LARGE_INTEGER endCounter = Win32GetWallClock();
-                        r32 frameElapsedSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
+                        f32 frameElapsedSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
 
                         // Wait till the target frame time
-                        r32 elapsedSecs = frameElapsedSecs;
+                        f32 elapsedSecs = frameElapsedSecs;
                         if( elapsedSecs < targetElapsedPerFrameSecs )
                         {
                             if( sleepIsGranular )
@@ -2395,7 +2395,7 @@ main( int argC, char **argV )
 #if 0
                         lastCycleCounter = endCycleCounter;
                         {
-                            r32 fps = 1.0f / lastDeltaTimeSecs;
+                            f32 fps = 1.0f / lastDeltaTimeSecs;
                             LOG( "ms: %.02f - FPS: %.02f (%d Kcycles) - audio padding: %d\n",
                                  1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed, audioPaddingFrames );
                         }
@@ -2450,7 +2450,7 @@ main( int argC, char **argV )
     //Win32CompleteAllJobs( globalPlatform.hiPriorityQueue );
 
     LOG( "\n\nFPS: %.1f imm. / %.1f avg.",
-         ImGui::GetIO().Framerate, (r32)runningFrameCounter / totalElapsedSeconds );
+         ImGui::GetIO().Framerate, (f32)runningFrameCounter / totalElapsedSeconds );
 
 #if !RELEASE
     DebugState* debugState = (DebugState*)gameMemory.debugStorage;

@@ -45,11 +45,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // TODO IMPORTANT Write a nice test suite for this whole file
 
-inline bool AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
-inline bool GreaterOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
-inline bool LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
-inline bool AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon = 0 );
-inline r32 Radians( r32 degrees );
+inline bool AlmostEqual( f32 a, f32 b, f32 absoluteEpsilon = 0 );
+inline bool GreaterOrAlmostEqual( f32 a, f32 b, f32 absoluteEpsilon = 0 );
+inline bool LessOrAlmostEqual( f32 a, f32 b, f32 absoluteEpsilon = 0 );
+inline bool AlmostEqual( f64 a, f64 b, f64 absoluteEpsilon = 0 );
+inline f32 Radians( f32 degrees );
 
 // Vector 2
 
@@ -57,23 +57,23 @@ union v2
 {
     struct
     {
-        r32 x, y;
+        f32 x, y;
     };
     struct
     {
-        r32 u, v;
+        f32 u, v;
     };
     struct
     {
-        r32 min, max;
+        f32 min, max;
     };
-    r32 e[2];
+    f32 e[2];
 };
 
 const v2 V2Zero = { 0, 0 };
 
 inline v2
-V2( r32 x, r32 y )
+V2( f32 x, f32 y )
 {
     v2 result = { x, y };
     return result;
@@ -93,30 +93,30 @@ operator -( const v2 &a, const v2 &b )
 }
 
 inline v2
-operator *( const v2 &v, r32 s )
+operator *( const v2 &v, f32 s )
 {
-    v2 result = { (r32)v.x * s, (r32)v.y * s };
+    v2 result = { (f32)v.x * s, (f32)v.y * s };
     return result;
 }
 
 inline v2
-operator /( const v2& v, r32 s )
+operator /( const v2& v, f32 s )
 {
     v2 result = { v.x / s, v.y / s };
     return result;
 }
 
-inline r32
+inline f32
 Length( const v2& v )
 {
-    r32 result = Sqrt( v.x * v.x + v.y * v.y );
+    f32 result = Sqrt( v.x * v.x + v.y * v.y );
     return result;
 }
 
-inline r32
+inline f32
 LengthSq( const v2 &v )
 {
-    r32 result = v.x * v.x + v.y * v.y;
+    f32 result = v.x * v.x + v.y * v.y;
     return result;
 }
 
@@ -151,7 +151,7 @@ V2i( i32 s )
 inline v2
 V2( const v2i &v )
 {
-    v2 result = { (r32)v.x, (r32)v.y };
+    v2 result = { (f32)v.x, (f32)v.y };
     return result;
 }
 
@@ -249,9 +249,9 @@ operator +( const v2u& a, const v2u& b )
 }
 
 inline v2u
-operator *( const v2u &v, r32 s )
+operator *( const v2u &v, f32 s )
 {
-    v2u result = V2u( V2( (r32)v.x * s, (r32)v.y * s ) );
+    v2u result = V2u( V2( (f32)v.x * s, (f32)v.y * s ) );
     return result;
 }
 
@@ -435,38 +435,38 @@ union v3
 {
     struct
     {
-        r32 x, y, z;
+        f32 x, y, z;
     };
     struct
     {
-        r32 u, v, __;
+        f32 u, v, __;
     };
     struct
     {
-        r32 r, g, b;
+        f32 r, g, b;
     };
     struct
     {
         v2 xy;
-        r32 _ignored0;
+        f32 _ignored0;
     };
     struct
     {
-        r32 _ignored1;
+        f32 _ignored1;
         v2 yz;
     };
     struct
     {
         v2 uv;
-        r32 _ignored2;
+        f32 _ignored2;
     };
-    r32 e[3];
+    f32 e[3];
 };
 
 const v3 V3Zero = { 0.0f, 0.0f, 0.0f };
 const v3 V3One = { 1.f, 1.f, 1.f };
-const v3 V3Undefined = { R32NAN, R32NAN, R32NAN };
-const v3 V3Inf = { R32INF, R32INF, R32INF };
+const v3 V3Undefined = { F32NAN, F32NAN, F32NAN };
+const v3 V3Inf = { F32INF, F32INF, F32INF };
 // Canonical world orientations
 // We define our right-handed game world as having the positive Z axis pointing up
 // (consequently the positive Y axis points 'forward')
@@ -478,14 +478,14 @@ const v3 V3Forward = { 0.0f, 1.0f, 0.0f };
 const v3 V3Up      = { 0.0f, 0.0f, 1.0f };
 
 inline v3
-V3( r32 s )
+V3( f32 s )
 {
     v3 result = { s, s, s };
     return result;
 }
 
 inline v3
-V3( r32 x, r32 y, r32 z )
+V3( f32 x, f32 y, f32 z )
 {
     v3 result = { x, y, z };
     return result;
@@ -494,12 +494,12 @@ V3( r32 x, r32 y, r32 z )
 inline v3
 V3( i32 x, i32 y, i32 z )
 {
-    v3 result = { (r32)x, (r32)y, (r32)z };
+    v3 result = { (f32)x, (f32)y, (f32)z };
     return result;
 }
 
 inline v3
-V3( const v2 &v, r32 z )
+V3( const v2 &v, f32 z )
 {
     v3 result = { v.x, v.y, z };
     return result;
@@ -508,7 +508,7 @@ V3( const v2 &v, r32 z )
 inline v3
 V3( const v3i& v )
 {
-    v3 result = { (r32)v.x, (r32)v.y, (r32)v.z };
+    v3 result = { (f32)v.x, (f32)v.y, (f32)v.z };
     return result;
 }
 
@@ -523,7 +523,7 @@ V3iCeil( v3 const& v )
 inline v3
 V3( const v3u& v )
 {
-    v3 result = { (r32)v.x, (r32)v.y, (r32)v.z };
+    v3 result = { (f32)v.x, (f32)v.y, (f32)v.z };
     return result;
 }
 
@@ -548,7 +548,7 @@ operator !=( const v3 &a, const v3 &b )
 }
 
 inline bool
-AlmostEqual( const v3& a, const v3& b, r32 absoluteEpsilon = 0 )
+AlmostEqual( const v3& a, const v3& b, f32 absoluteEpsilon = 0 )
 {
     return AlmostEqual( a.x, b.x, absoluteEpsilon )
         && AlmostEqual( a.y, b.y, absoluteEpsilon )
@@ -585,28 +585,28 @@ operator +=( v3 &a, const v3 &b )
 }
 
 inline v3
-operator *( const v3 &v, r32 s )
+operator *( const v3 &v, f32 s )
 {
     v3 result = { v.x * s, v.y * s, v.z * s };
     return result;
 }
 
 inline v3
-operator *( const v3i &v, r32 s )
+operator *( const v3i &v, f32 s )
 {
-    v3 result = { (r32)v.x * s, (r32)v.y * s, (r32)v.z * s };
+    v3 result = { (f32)v.x * s, (f32)v.y * s, (f32)v.z * s };
     return result;
 }
 
 inline v3
-operator *( r32 s, const v3 &v )
+operator *( f32 s, const v3 &v )
 {
     v3 result = { v.x * s, v.y * s, v.z * s };
     return result;
 }
 
 inline void
-operator *=( v3& v, r32 s )
+operator *=( v3& v, f32 s )
 {
     v.x *= s;
     v.y *= s;
@@ -614,24 +614,24 @@ operator *=( v3& v, r32 s )
 }
 
 inline v3
-operator /( const v3& v, r32 s )
+operator /( const v3& v, f32 s )
 {
     v3 result = { v.x / s, v.y / s, v.z / s };
     return result;
 }
 
 inline void
-operator /=( v3& v, r32 s )
+operator /=( v3& v, f32 s )
 {
     v.x /= s;
     v.y /= s;
     v.z /= s;
 }
 
-inline r32
+inline f32
 Dot( const v3& a, const v3& b )
 {
-    r32 result = a.x * b.x + a.y * b.y + a.z * b.z;
+    f32 result = a.x * b.x + a.y * b.y + a.z * b.z;
     return result;
 }
 
@@ -661,52 +661,52 @@ Abs( const v3& v )
     return result;
 }
 
-inline r32
+inline f32
 Length( const v3& v )
 {
-    r32 result = Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
+    f32 result = Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
     return result;
 }
 
-inline r32
+inline f32
 LengthSq( const v3& v )
 {
-    r32 result = v.x * v.x + v.y * v.y + v.z * v.z;
+    f32 result = v.x * v.x + v.y * v.y + v.z * v.z;
     return result;
 }
 
 inline bool
-IsUnit( const v3& v, r32* outLengthSq = nullptr )
+IsUnit( const v3& v, f32* outLengthSq = nullptr )
 {
-    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
     if( outLengthSq )
         *outLengthSq = lengthSq;
 
     return AlmostEqual( lengthSq, 1.f, 1e-05f );
 }
 
-inline r32
+inline f32
 Distance( const v3& a, const v3& b )
 {
-    r32 result = Length(a - b);
+    f32 result = Length(a - b);
     return result;
 }
 
-inline r32
+inline f32
 DistanceSq( const v3& a, const v3& b )
 {
-    r32 result = LengthSq(a - b);
+    f32 result = LengthSq(a - b);
     return result;
 }
 
 inline void
 Normalize( v3& v )
 {
-    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
 
     if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
     {
-        r32 invL = 1.0f / Sqrt( lengthSq );
+        f32 invL = 1.0f / Sqrt( lengthSq );
         v *= invL;
     }
 }
@@ -716,17 +716,17 @@ Normalized( const v3 &v )
 {
     v3 result = v;
 
-    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
     if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
     {
-        r32 invL = 1.0f / Sqrt( lengthSq );
+        f32 invL = 1.0f / Sqrt( lengthSq );
         result = v * invL;
     }
     return result;
 }
 
 inline v3
-Lerp( v3 const& a, v3 const& b, r32 t )
+Lerp( v3 const& a, v3 const& b, f32 t )
 {
     return a + (b - a) * t;
 }
@@ -742,11 +742,11 @@ union v4
             v3 xyz;
             struct
             {
-                r32 x, y, z;
+                f32 x, y, z;
             };
         };
         
-        r32 w;
+        f32 w;
     };
     struct
     {
@@ -755,56 +755,56 @@ union v4
             v3 rgb;
             struct
             {
-                r32 r, g, b;
+                f32 r, g, b;
             };
         };
         
-        r32 a;
+        f32 a;
     };
     struct
     {
         v2 xy;
-        r32 _ignored0;
-        r32 _ignored1;
+        f32 _ignored0;
+        f32 _ignored1;
     };
     struct
     {
-        r32 _ignored2;
+        f32 _ignored2;
         v2 yz;
-        r32 _ignored3;
+        f32 _ignored3;
     };
     struct
     {
-        r32 _ignored4;
-        r32 _ignored5;
+        f32 _ignored4;
+        f32 _ignored5;
         v2 zw;
     };
-    r32 e[4];
+    f32 e[4];
 };
 
 inline v4
-V4( r32 x, r32 y, r32 z, r32 w )
+V4( f32 x, f32 y, f32 z, f32 w )
 {
     v4 result = { x, y, z, w };
     return result;
 }
 
 inline v4
-V4( const v3 &v, r32 w )
+V4( const v3 &v, f32 w )
 {
     v4 result = { v.x, v.y, v.z, w };
     return result;
 }
 
 inline v4
-operator *( r32 f, const v4 &v )
+operator *( f32 f, const v4 &v )
 {
     v4 result = { f * v.x, f * v.y, f * v.z, f * v.w };
     return result;
 }
 
 inline v4
-operator /( const v4& v, r32 s )
+operator /( const v4& v, f32 s )
 {
     v4 result = { v.x / s, v.y / s, v.z / s, v.w / s };
     return result;
@@ -845,7 +845,7 @@ UnpackRGBAToV401( u32 c )
 
 union m4
 {
-    r32 e[4][4];
+    f32 e[4][4];
 };
 
 const m4 M4Identity =
@@ -919,10 +919,10 @@ M4Translation( const v3 &p )
 }
 
 inline m4
-M4XRotation( r32 pitchAngleRads )
+M4XRotation( f32 pitchAngleRads )
 {
-    r32 s = Sin( pitchAngleRads );
-    r32 c = Cos( pitchAngleRads );
+    f32 s = Sin( pitchAngleRads );
+    f32 c = Cos( pitchAngleRads );
 
     m4 result =
     {{
@@ -936,10 +936,10 @@ M4XRotation( r32 pitchAngleRads )
 }
 
 inline m4
-M4YRotation( r32 rollAngleRads )
+M4YRotation( f32 rollAngleRads )
 {
-    r32 s = Sin( rollAngleRads );
-    r32 c = Cos( rollAngleRads );
+    f32 s = Sin( rollAngleRads );
+    f32 c = Cos( rollAngleRads );
 
     m4 result =
     {{
@@ -953,10 +953,10 @@ M4YRotation( r32 rollAngleRads )
 }
 
 inline m4
-M4ZRotation( r32 yawAngleRads )
+M4ZRotation( f32 yawAngleRads )
 {
-    r32 s = Sin( yawAngleRads );
-    r32 c = Cos( yawAngleRads );
+    f32 s = Sin( yawAngleRads );
+    f32 c = Cos( yawAngleRads );
 
     m4 result =
     {{
@@ -970,18 +970,18 @@ M4ZRotation( r32 yawAngleRads )
 }
 
 inline m4
-M4AxisAngle( const v3& v, const r32 angleRads )
+M4AxisAngle( const v3& v, const f32 angleRads )
 {
-    r32 s = Sin( angleRads );
-    r32 c = Cos( angleRads );
-    r32 c1 = 1 - c;
+    f32 s = Sin( angleRads );
+    f32 c = Cos( angleRads );
+    f32 c1 = 1 - c;
 
-    r32 xx = v.x * v.x;
-    r32 yy = v.y * v.y;
-    r32 zz = v.z * v.z;
-    r32 xy = v.x * v.y;
-    r32 xz = v.x * v.z;
-    r32 yz = v.y * v.z;
+    f32 xx = v.x * v.x;
+    f32 yy = v.y * v.y;
+    f32 zz = v.z * v.z;
+    f32 xy = v.x * v.y;
+    f32 xz = v.x * v.z;
+    f32 yz = v.y * v.z;
 
     m4 result =
     {{
@@ -1200,14 +1200,14 @@ M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
 }
 
 inline m4
-M4Perspective( r32 aspectRatio, r32 fovYDeg )
+M4Perspective( f32 aspectRatio, f32 fovYDeg )
 {
-    r32 n = 0.1f;		// Make this configurable?
-    r32 f = 1000.0f;
-    r32 d = f - n;
-    r32 a = aspectRatio;
-    r32 fovy = Radians( fovYDeg );
-    r32 ctf = 1 / (r32)tan( fovy / 2 );
+    f32 n = 0.1f;		// Make this configurable?
+    f32 f = 1000.0f;
+    f32 d = f - n;
+    f32 a = aspectRatio;
+    f32 fovy = Radians( fovYDeg );
+    f32 ctf = 1 / (f32)tan( fovy / 2 );
 
     m4 result =
     {{
@@ -1221,10 +1221,10 @@ M4Perspective( r32 aspectRatio, r32 fovYDeg )
 }
 
 inline m4
-M4Orthographic( r32 width, r32 height )
+M4Orthographic( f32 width, f32 height )
 {
-    r32 w = width;
-    r32 h = -height;
+    f32 w = width;
+    f32 h = -height;
 
     m4 result =
     {{
@@ -1350,14 +1350,14 @@ Transposed( const m4 &m )
 union m4Symmetric
 {
     // TODO Try if it would be acceptable to use just floats here
-    r64 e[10];
+    f64 e[10];
 };
 
 const m4Symmetric M4SymmetricZero = {0};
 
 // Make plane
 inline m4Symmetric
-M4Symmetric( r64 a, r64 b, r64 c, r64 d )
+M4Symmetric( f64 a, f64 b, f64 c, f64 d )
 {
     m4Symmetric result =
     {{
@@ -1393,13 +1393,13 @@ operator +=( m4Symmetric& a, const m4Symmetric& b )
                                                           a.e[9] += b.e[9];
 }
 
-inline r64
+inline f64
 Determinant3x3( const m4Symmetric& m,
                 int e11, int e12, int e13,
                 int e21, int e22, int e23, 
                 int e31, int e32, int e33 )
 {
-    r64 result = m.e[e11]*m.e[e22]*m.e[e33] + m.e[e13]*m.e[e21]*m.e[e32] + m.e[e12]*m.e[e23]*m.e[e31]
+    f64 result = m.e[e11]*m.e[e22]*m.e[e33] + m.e[e13]*m.e[e21]*m.e[e32] + m.e[e12]*m.e[e23]*m.e[e31]
                - m.e[e13]*m.e[e22]*m.e[e31] - m.e[e11]*m.e[e23]*m.e[e32] - m.e[e12]*m.e[e21]*m.e[e33];
 
     return result;
@@ -1416,36 +1416,36 @@ union qn
             v3 xyz;
             struct
             {
-                r32 x, y, z;
+                f32 x, y, z;
             };
         };
         
-        r32 w;
+        f32 w;
     };
-    r32 e[4];
+    f32 e[4];
 };
 
 const qn QnIdentity = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 // TODO (Unit) Test everything quaternion related
 
-inline r32
+inline f32
 SqNorm( const qn& q )
 {
-    r32 result = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    f32 result = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
     return result;
 }
 
-inline r32
+inline f32
 Norm( const qn& q )
 {
     return Sqrt( SqNorm( q ) );
 }
 
 inline bool
-IsUnit( const qn& q, r32* outSqNorm = nullptr )
+IsUnit( const qn& q, f32* outSqNorm = nullptr )
 {
-    r32 sqNorm = SqNorm( q );
+    f32 sqNorm = SqNorm( q );
     if( outSqNorm )
         *outSqNorm = sqNorm;
     
@@ -1455,10 +1455,10 @@ IsUnit( const qn& q, r32* outSqNorm = nullptr )
 inline void
 Normalize( qn& q )
 {
-    r32 sqNorm;
+    f32 sqNorm;
     if( !IsUnit( q, &sqNorm ) )
     {
-        r32 invNorm = 1.0f / Sqrt( sqNorm );
+        f32 invNorm = 1.0f / Sqrt( sqNorm );
         q.x *= invNorm;
         q.y *= invNorm;
         q.z *= invNorm;
@@ -1467,13 +1467,13 @@ Normalize( qn& q )
 }
 
 inline qn
-Qn( const v3& vAxis, r32 angleRads )
+Qn( const v3& vAxis, f32 angleRads )
 {
     v3 vAxisN = Normalized( vAxis );
 
-    r32 halfAngleRads = angleRads * 0.5f;
-    r32 sinTheta = Sin( halfAngleRads );
-    r32 cosTheta = Cos( halfAngleRads );
+    f32 halfAngleRads = angleRads * 0.5f;
+    f32 sinTheta = Sin( halfAngleRads );
+    f32 cosTheta = Cos( halfAngleRads );
 
     qn result =
     {
@@ -1482,22 +1482,22 @@ Qn( const v3& vAxis, r32 angleRads )
         vAxisN.z * sinTheta,
         cosTheta
     };
-    //r32 norm = Norm( result );
+    //f32 norm = Norm( result );
 
     return result;
 }
 
 inline qn
-QnXRotation( r32 pitchAngleRads )
+QnXRotation( f32 pitchAngleRads )
 {
     v3 vAngle = V3X;
     qn result = Qn( vAngle, pitchAngleRads );
-    r32 norm = Norm( result );
+    f32 norm = Norm( result );
     return result;
 }
 
 inline qn
-QnYRotation( r32 rollAngleRads )
+QnYRotation( f32 rollAngleRads )
 {
     v3 vAngle = V3Y;
     qn result = Qn( vAngle, rollAngleRads );
@@ -1505,7 +1505,7 @@ QnYRotation( r32 rollAngleRads )
 }
 
 inline qn
-QnZRotation( r32 yawAngleRads )
+QnZRotation( f32 yawAngleRads )
 {
     v3 vAngle = V3Z;
     qn result = Qn( vAngle, yawAngleRads );
@@ -1565,7 +1565,7 @@ QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
     v3 vTargetFwdN = Normalized( pTgt - pSrc );
     v3 vCamFwdDefaultN = V3( 0, 0, -1 );
 
-    r32 theta = PI;
+    f32 theta = PI;
     v3 vRotAxis = { 1, 0, 0 };
     qn result = QnIdentity;
 
@@ -1578,7 +1578,7 @@ QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
     }
     else
     {
-        r32 cosTheta = Dot( vCamFwdDefaultN, vTargetFwdN );
+        f32 cosTheta = Dot( vCamFwdDefaultN, vTargetFwdN );
         // The camera transform is actually the transform we would apply to the _world_ to put it in front of the camera,
         // so we invert the angle here..
         // @Speed Find a way to build the quat directly without this
@@ -1597,38 +1597,38 @@ QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 inline m4
 ToM4( const qn& q )
 {
-    r64 sqw = q.w * q.w;
-    r64 sqx = q.x * q.x;
-    r64 sqy = q.y * q.y;
-    r64 sqz = q.z * q.z;
+    f64 sqw = q.w * q.w;
+    f64 sqx = q.x * q.x;
+    f64 sqy = q.y * q.y;
+    f64 sqz = q.z * q.z;
 
     m4 result = {};
-    r64 invs = 1.0;
-    r64 sqNorm = sqx + sqy + sqz + sqw;
+    f64 invs = 1.0;
+    f64 sqNorm = sqx + sqy + sqz + sqw;
     if( !AlmostEqual( sqNorm, 1.0 ) )
     {
         // Inverse square lenght, only required if quaternion is not already normalized (multiply all matrix terms by it)
         invs = 1.0 / sqNorm;
     }
 
-    result.e[0][0] = r32(( sqx - sqy - sqz + sqw) * invs);
-    result.e[1][1] = r32((-sqx + sqy - sqz + sqw) * invs);
-    result.e[2][2] = r32((-sqx - sqy + sqz + sqw) * invs);
+    result.e[0][0] = f32(( sqx - sqy - sqz + sqw) * invs);
+    result.e[1][1] = f32((-sqx + sqy - sqz + sqw) * invs);
+    result.e[2][2] = f32((-sqx - sqy + sqz + sqw) * invs);
 
-    r64 tmp1 = q.x * q.y;
-    r64 tmp2 = q.z * q.w;
-    result.e[1][0] = r32(2.0 * (tmp1 + tmp2) * invs);
-    result.e[0][1] = r32(2.0 * (tmp1 - tmp2) * invs);
+    f64 tmp1 = q.x * q.y;
+    f64 tmp2 = q.z * q.w;
+    result.e[1][0] = f32(2.0 * (tmp1 + tmp2) * invs);
+    result.e[0][1] = f32(2.0 * (tmp1 - tmp2) * invs);
     
     tmp1 = q.x * q.z;
     tmp2 = q.y * q.w;
-    result.e[2][0] = r32(2.0 * (tmp1 - tmp2) * invs);
-    result.e[0][2] = r32(2.0 * (tmp1 + tmp2) * invs);
+    result.e[2][0] = f32(2.0 * (tmp1 - tmp2) * invs);
+    result.e[0][2] = f32(2.0 * (tmp1 + tmp2) * invs);
 
     tmp1 = q.y * q.z;
     tmp2 = q.x * q.w;
-    result.e[2][1] = r32(2.0 * (tmp1 + tmp2) * invs);
-    result.e[1][2] = r32(2.0 * (tmp1 - tmp2) * invs);
+    result.e[2][1] = f32(2.0 * (tmp1 + tmp2) * invs);
+    result.e[1][2] = f32(2.0 * (tmp1 - tmp2) * invs);
 
     result.e[3][3] = 1.f;
     return result;
@@ -1647,7 +1647,7 @@ Inverse( const qn& q )
     qn result = Conjugate( q );
     if( !IsUnit( q ) )
     {
-        r32 invSqNorm = 1.0f / SqNorm( q );
+        f32 invSqNorm = 1.0f / SqNorm( q );
         result.x *= invSqNorm;
         result.y *= invSqNorm;
         result.z *= invSqNorm;
@@ -1659,10 +1659,10 @@ Inverse( const qn& q )
 inline qn
 operator *( const qn& a, const qn& b )
 {
-    r32 rw = b.w*a.w - b.x*a.x - b.y*a.y - b.z*a.z;
-    r32 rx = b.w*a.x + b.x*a.w - b.y*a.z + b.z*a.y;
-    r32 ry = b.w*a.y + b.x*a.z + b.y*a.w - b.z*a.x;
-    r32 rz = b.w*a.z - b.x*a.y + b.y*a.x + b.z*a.w;
+    f32 rw = b.w*a.w - b.x*a.x - b.y*a.y - b.z*a.z;
+    f32 rx = b.w*a.x + b.x*a.w - b.y*a.z + b.z*a.y;
+    f32 ry = b.w*a.y + b.x*a.z + b.y*a.w - b.z*a.x;
+    f32 rz = b.w*a.z - b.x*a.y + b.y*a.x + b.z*a.w;
     qn result = { rx, ry, rz, rw };
     return result;
 }
@@ -1729,7 +1729,7 @@ AABB( v3 const& min, v3 const& max )
 }
 
 inline aabb
-AABB( const v3& min, r32 size )
+AABB( const v3& min, f32 size )
 {
     aabb result =
     {
@@ -1740,9 +1740,9 @@ AABB( const v3& min, r32 size )
 }
 
 inline aabb
-AABBCenterDim( const v3& p, r32 size )
+AABBCenterDim( const v3& p, f32 size )
 {
-    r32 halfSize = size * 0.5f;
+    f32 halfSize = size * 0.5f;
     aabb result =
     {
         { p.x - halfSize, p.y - halfSize, p.z - halfSize, },
@@ -1801,7 +1801,7 @@ struct ray
 };
 
 inline bool
-Intersects( const ray& r, tri& t, v3* pI = nullptr, r32 absoluteEpsilon = 0 )
+Intersects( const ray& r, tri& t, v3* pI = nullptr, f32 absoluteEpsilon = 0 )
 {
     bool result = false;
 
@@ -1812,7 +1812,7 @@ Intersects( const ray& r, tri& t, v3* pI = nullptr, r32 absoluteEpsilon = 0 )
         t.n = Normalized( Cross( u, v ) );
     ASSERT( !AlmostEqual( t.n, V3Zero ) );
 
-    r32 denom = Dot( t.n, r.dir );
+    f32 denom = Dot( t.n, r.dir );
     if( AlmostEqual( denom, 0 ) )
     {
         // Check if ray is coplanar
@@ -1826,8 +1826,8 @@ Intersects( const ray& r, tri& t, v3* pI = nullptr, r32 absoluteEpsilon = 0 )
     else
     {
         v3 dist = t.v0 - r.p;
-        r32 num = Dot( t.n, dist );
-        r32 rDist = num / denom;
+        f32 num = Dot( t.n, dist );
+        f32 rDist = num / denom;
 
         if( AlmostEqual( rDist, 0 ) )
         {
@@ -1844,19 +1844,19 @@ Intersects( const ray& r, tri& t, v3* pI = nullptr, r32 absoluteEpsilon = 0 )
                 *pI = i;
 
             // Is it inside?
-            r32 uu = Dot( u, u );
-            r32 vv = Dot( v, v );
-            r32 uv = Dot( u, v );
+            f32 uu = Dot( u, u );
+            f32 vv = Dot( v, v );
+            f32 uv = Dot( u, v );
             denom = uv * uv - uu * vv;
 
             v3 w = i - t.v0;
-            r32 wu = Dot( w, u );
-            r32 wv = Dot( w, v );
+            f32 wu = Dot( w, u );
+            f32 wv = Dot( w, v );
 
-            r32 sI = (uv * wv - vv * wu) / denom;
+            f32 sI = (uv * wv - vv * wu) / denom;
             if( GreaterOrAlmostEqual( sI, 0, absoluteEpsilon ) && LessOrAlmostEqual( sI, 1, absoluteEpsilon ) )
             {
-                r32 tI = (uv * wu - uu * wv) / denom;
+                f32 tI = (uv * wu - uu * wv) / denom;
                 if( GreaterOrAlmostEqual( tI, 0, absoluteEpsilon ) && LessOrAlmostEqual( sI + tI, 1, absoluteEpsilon ) )
                 {
                     result = true;

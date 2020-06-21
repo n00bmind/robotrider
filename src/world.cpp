@@ -117,13 +117,13 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
 
     for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
     {
-        r32 zOff = k * ClusterSizeMeters;
+        f32 zOff = k * ClusterSizeMeters;
         for( int j = -SimExteriorHalfSize; j <= SimExteriorHalfSize; ++j )
         {
-            r32 yOff = j * ClusterSizeMeters;
+            f32 yOff = j * ClusterSizeMeters;
             for( int i = -SimExteriorHalfSize; i <= SimExteriorHalfSize; ++i )
             {
-                r32 xOff = i * ClusterSizeMeters;
+                f32 xOff = i * ClusterSizeMeters;
                 int index = CalcSimClusterIndex( { i, j, k } );
                 world->simClusterOffsets[index] = { xOff, yOff, zOff };
             }
@@ -162,7 +162,7 @@ bool SplitVolume( BinaryVolume* v, Array<BinaryVolume>* volumes, const int minVo
     int remainingDimCount = 3;
     for( int d = 0; d < 3; ++d )
     {
-        if( (r32)dims.e[maxDimIndex] / dims.e[d] > 1.25f )
+        if( (f32)dims.e[maxDimIndex] / dims.e[d] > 1.25f )
         {
             dims.e[d] = 0;
             remainingDimCount--;
@@ -338,7 +338,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
         if( leftRoom && rightRoom )
             CreateHall( v, *leftRoom, *rightRoom, cluster );
 
-        return RandomNormalizedR32() < 0.5f ? leftRoom : rightRoom;
+        return RandomNormalizedF32() < 0.5f ? leftRoom : rightRoom;
     }
     else
     {
@@ -412,7 +412,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
 
                 worldP.relativeP = -clusterHalfSizeMeters + V3( roomExtP + V3i( 0, 0, k + n ) ) * VoxelSizeMeters;
 
-                r32* sample = n ? samplingCache->topLayerSamples : samplingCache->bottomLayerSamples;
+                f32* sample = n ? samplingCache->topLayerSamples : samplingCache->bottomLayerSamples;
                 // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
                 for( int j = 0; j < gridEdgesPerSliceAxis.y; ++j )
                 {
@@ -482,8 +482,8 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
 {
     // Partition cluster space
     SectorParams genParams = CollectSectorParams( clusterP );
-    const int minVolumeSize = (int)(genParams.minVolumeRatio * (r32)VoxelsPerClusterAxis);
-    const int maxVolumeSize = (int)(genParams.maxVolumeRatio * (r32)VoxelsPerClusterAxis);
+    const int minVolumeSize = (int)(genParams.minVolumeRatio * (f32)VoxelsPerClusterAxis);
+    const int maxVolumeSize = (int)(genParams.maxVolumeRatio * (f32)VoxelsPerClusterAxis);
 
     // TODO Calc an upper bound given cluster size and minimum volume size
     const u32 maxSplits = 4096;
@@ -511,7 +511,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
                 if( v.sizeVoxels.x > maxVolumeSize ||
                     v.sizeVoxels.y > maxVolumeSize ||
                     v.sizeVoxels.z > maxVolumeSize ||
-                    RandomNormalizedR32() > genParams.volumeExtraPartitioningProbability )
+                    RandomNormalizedF32() > genParams.volumeExtraPartitioningProbability )
                 {
                     if( SplitVolume( &v, &volumes, minVolumeSize ) )
                         didSplit = true;
@@ -680,7 +680,7 @@ StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
     cluster->entityStorage.Clear();
     v3 clusterWorldOffset = GetClusterOffsetFromOrigin( clusterP, world->originClusterP );
 
-    r32 clusterHalfSize = ClusterSizeMeters  / 2.f;
+    f32 clusterHalfSize = ClusterSizeMeters  / 2.f;
 
     BucketArray<LiveEntity>::Idx it = world->liveEntities.Last();
     while( it )
@@ -859,7 +859,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         Player *player = world->player;
         v3 pPlayer = world->pPlayer;
 
-        r32 translationSpeed = input1->leftShoulder.endedDown ? 50.f : 25.f;
+        f32 translationSpeed = input1->leftShoulder.endedDown ? 50.f : 25.f;
         v3 vPlayerDelta = {};
 
         if( input1->leftStick.avgX != 0 )
@@ -871,7 +871,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             vPlayerDelta.y += input1->leftStick.avgY * translationSpeed * dT;
         }
 
-        r32 rotationSpeed = 0.1f;
+        f32 rotationSpeed = 0.1f;
         if( input1->rightStick.avgX != 0 )
         {
             world->playerYaw += -input1->rightStick.avgX * rotationSpeed * dT; 
@@ -890,7 +890,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         // Check if we moved to a different cluster
         {
             v3i originClusterP = world->originClusterP;
-            r32 clusterHalfSize = ClusterSizeMeters  / 2.f;
+            f32 clusterHalfSize = ClusterSizeMeters  / 2.f;
 
             if( pPlayer.x > clusterHalfSize )
                 originClusterP.x++;
@@ -979,7 +979,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 
 #if 0
         Cluster* currentCluster = world->clusterTable.Find( world->originClusterP );
-        r32 clusterHalfSize = ClusterSizeMeters * 0.5f;
+        f32 clusterHalfSize = ClusterSizeMeters * 0.5f;
         u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );
 
         // Render partitioned volumes

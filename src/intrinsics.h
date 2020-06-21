@@ -39,72 +39,72 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // for all supported compilers & platforms
 // TODO Examine disassemblies for all compilers and compare!
 
-inline r32
-Ceil( r32 value )
+inline f32
+Ceil( f32 value )
 {
     return ceilf( value );
 }
 
-inline r64
-Ceil( r64 value )
+inline f64
+Ceil( f64 value )
 {
     return ceil( value );
 }
 
-inline r32
-Round( r32 value )
+inline f32
+Round( f32 value )
 {
     return roundf( value );
 }
 
-inline r64
-Round( r64 value )
+inline f64
+Round( f64 value )
 {
     return round( value );
 }
 
-inline r32
-Sin( r32 angleRads )
+inline f32
+Sin( f32 angleRads )
 {
-    r32 result = sinf( angleRads );
+    f32 result = sinf( angleRads );
     return result;
 }
 
-inline r32
-Cos( r32 angleRads )
+inline f32
+Cos( f32 angleRads )
 {
-    r32 result = cosf( angleRads );
+    f32 result = cosf( angleRads );
     return result;
 }
 
-inline r32
-ACos( r32 angleRads )
+inline f32
+ACos( f32 angleRads )
 {
-    r32 result = acosf( angleRads );
+    f32 result = acosf( angleRads );
     return result;
 }
 
-inline r32
-Sqr( r32 value )
+inline f32
+Sqr( f32 value )
 {
     return value * value;
 }
 
-inline r32
-Sqrt( r32 value )
+inline f32
+Sqrt( f32 value )
 {
-    r32 result = sqrtf( value );
+    f32 result = sqrtf( value );
     return result;
 }
 
-inline r32
-Min( r32 a, r32 b )
+inline f32
+Min( f32 a, f32 b )
 {
     return a < b ? a : b;
 }
 
-inline r64
-Min( r64 a, r64 b )
+inline f64
+Min( f64 a, f64 b )
 {
     return a < b ? a : b;
 }
@@ -139,14 +139,14 @@ Max( u32 a, u32 b )
     return a > b ? a : b;
 }
 
-inline r32
-Max( r32 a, r32 b )
+inline f32
+Max( f32 a, f32 b )
 {
     return a > b ? a : b;
 }
 
-inline r64
-Max( r64 a, r64 b )
+inline f64
+Max( f64 a, f64 b )
 {
     return a > b ? a : b;
 }
@@ -165,19 +165,19 @@ Clamp( i32* value, i32 min, i32 max )
 }
 
 inline void
-Clamp( r32* value, r32 min, r32 max )
+Clamp( f32* value, f32 min, f32 max )
 {
     *value = Min( Max( *value, min ), max );
 }
 
-inline r32
-Clamp0( r32 value )
+inline f32
+Clamp0( f32 value )
 {
     return Max( 0.f, value );
 }
 
-inline r32
-Clamp01( r32 value )
+inline f32
+Clamp01( f32 value )
 {
     return Min( Max( 0.f, value ), 1.f );
 }
@@ -188,32 +188,32 @@ Square( i32 value )
     return value * value;
 }
 
-inline r32
-Pow( r32 b, r32 exp )
+inline f32
+Pow( f32 b, f32 exp )
 {
     return powf( b, exp );
 }
 
-inline r64
-PowR64( r64 b, r64 exp )
+inline f64
+PowF64( f64 b, f64 exp )
 {
     return pow( b, exp );
 }
 
-inline r64
-Log( r64 value )
+inline f64
+Log( f64 value )
 {
     return log( value );
 }
 
-inline r32
-Abs( r32 value )
+inline f32
+Abs( f32 value )
 {
     return value >= 0.f ? value : -value;
 }
 
-inline r64
-Abs( r64 value )
+inline f64
+Abs( f64 value )
 {
     return value >= 0.0 ? value : -value;
 }
@@ -227,7 +227,7 @@ Swap( i32* a, i32* b )
 }
 
 inline bool
-Sign( r32 value )
+Sign( f32 value )
 {
     return (*(int*)&value) & 0x80000000;
 }

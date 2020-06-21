@@ -49,7 +49,7 @@ namespace WFC
     const int MaxBacktrackingDepth = 64;
     // Bigger means more U shaped, which makes it more likely to revisit very early steps in the solving process when backtracking
     // This will also need some tweaking with for final examples
-    const r32 ObservationCountParabolaDegree = 8;
+    const f32 ObservationCountParabolaDegree = 8;
 
 
     struct Pattern
@@ -168,10 +168,10 @@ namespace WFC
         HashTable<Pattern, i32, PatternHash> patternsHash;
         Array<Pattern> patterns;
         Array<i32> frequencies;                         // weights
-        Array<r64> weights;                             // weightLogWeights
+        Array<f64> weights;                             // weightLogWeights
         i32 sumFrequencies;
-        r64 sumWeights;
-        r64 initialEntropy;
+        f64 sumWeights;
+        f64 initialEntropy;
 
         // TODO Layout this differently (and rename it)
         IndexCell patternsIndex[Adjacency::Count];      // propagator
@@ -186,11 +186,11 @@ namespace WFC
         // (http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetKernighan)
         Array<i32> compatiblesCount;                    // sumsOfOnes
 
-        Array<r64> sumFrequencies;                      // sumsOfWeights
-        Array<r64> sumWeights;                          // sumsOfWeightLogWeights
-        Array<r64> entropies;
+        Array<f64> sumFrequencies;                      // sumsOfWeights
+        Array<f64> sumWeights;                          // sumsOfWeightLogWeights
+        Array<f64> entropies;
 
-        Array<r32> distribution;
+        Array<f32> distribution;
         // Last random choice that was made in this snapshot, so we can undo it when rewinding
         i32 lastObservedDistributionIndex;
         // Last observed cell during this snapshot, so we can discard it when backtracking
@@ -204,7 +204,7 @@ namespace WFC
         MemoryArena* arena;
 
         Array<BannedTuple> propagationStack;
-        Array<r32> distributionTemp;
+        Array<f32> distributionTemp;
 
         RingBuffer<i32> backtrackedCellIndices;
         Array<Snapshot> snapshotStack;

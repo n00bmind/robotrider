@@ -49,23 +49,23 @@ RenderEditorEntity( const EditorEntity& editorEntity, int displayedLayer, Render
         RenderBounds( editorEntity.mesh->bounds, editorEntity.color, renderCommands );
 
         aabb const& box = editorEntity.mesh->bounds;
-        r32 resolutionStep = (box.max.x - box.min.x) / editorEntity.cellsPerSide;
+        f32 resolutionStep = (box.max.x - box.min.x) / editorEntity.cellsPerSide;
         //RenderCubicGrid( box, resolutionStep, Pack01ToRGBA( 1, 0, 0, 0.05f ), false, renderCommands ); 
-        r32 step = resolutionStep;
+        f32 step = resolutionStep;
         u32 color = Pack01ToRGBA( 0, 0, 0, 0.3f );
-        r32 xMin = box.min.x;
-        r32 xMax = box.max.x;
-        r32 yMin = box.min.y;
-        r32 yMax = box.max.y;
+        f32 xMin = box.min.x;
+        f32 xMax = box.max.x;
+        f32 yMin = box.min.y;
+        f32 yMax = box.max.y;
         //for( int layer = displayedLayer; layer <= displayedLayer + 1; ++layer )
         int layer = displayedLayer + 1;
         {
-            r32 z = box.min.z + layer * step;
+            f32 z = box.min.z + layer * step;
 
-            for( r32 y = yMin; y <= yMax; y += step )
+            for( f32 y = yMin; y <= yMax; y += step )
                 RenderLine( { xMin, y, z }, { xMax, y, z }, color, renderCommands );
 
-            for( r32 x = xMin; x <= xMax; x += step )
+            for( f32 x = xMin; x <= xMax; x += step )
             {
                 RenderLine( { x, yMin, z }, { x, yMax, z }, color, renderCommands );
             }
@@ -86,7 +86,7 @@ InitMeshSamplerTest( EditorState* state, MemoryArena* editorArena, MemoryArena* 
 
 internal void
 TickMeshSamplerTest( EditorState* state, MeshPool* meshPoolArray, MemoryArena* editorArena, MemoryArena* transientArena,
-                     const TemporaryMemory& frameMemory, r32 elapsedT, RenderCommands* renderCommands )
+                     const TemporaryMemory& frameMemory, f32 elapsedT, RenderCommands* renderCommands )
 {
     if( !state->tests.resampling.initialized )
     {
@@ -273,8 +273,8 @@ TickSurfaceContouringTest( const GameInput& input, EditorState* state, RenderCom
     ImGui::Combo( "Surface", &settings.currentSurfaceIndex, SimpleSurface::Values::names, SimpleSurface::Values::count );
     samplingData.surfaceType = settings.currentSurfaceIndex;
 
-    static const r32 minus180 = -180.f;
-    static const r32 plus180 = 180.f;
+    static const f32 minus180 = -180.f;
+    static const f32 plus180 = 180.f;
     ImGui::DragFloat( "X Rotation", &settings.surfaceRotDegrees.x, 0.1f, minus180, plus180, "%.1f deg." );
     ImGui::DragFloat( "Y Rotation", &settings.surfaceRotDegrees.y, 0.1f, minus180, plus180, "%.1f deg." );
     ImGui::DragFloat( "Z Rotation", &settings.surfaceRotDegrees.z, 0.1f, minus180, plus180, "%.1f deg." );
@@ -295,9 +295,9 @@ TickSurfaceContouringTest( const GameInput& input, EditorState* state, RenderCom
         } break;
         case ContouringTechnique::DualContouring().index:
         {
-            static const r32 sigmaMin = 0.001f;
-            static const r32 sigmaMinDouble = 0.00001f;
-            static const r32 sigmaMax = 100.f;
+            static const f32 sigmaMin = 0.001f;
+            static const f32 sigmaMinDouble = 0.00001f;
+            static const f32 sigmaMax = 100.f;
 
             ImGui::RadioButton( "Average", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::Average );
             ImGui::RadioButton( "QEFClassic", (int*)&settings.dc.cellPointsComputationMethod, (int)DCComputeMethod::QEFClassic );
@@ -330,7 +330,7 @@ TickSurfaceContouringTest( const GameInput& input, EditorState* state, RenderCom
     {
         BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
         BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
-        r64 start = globalPlatform.DEBUGCurrentTimeMillis();
+        f64 start = globalPlatform.DEBUGCurrentTimeMillis();
 
         switch( settings.currentTechniqueIndex )
         {
@@ -459,8 +459,8 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
         editorState->translationSpeedStep += (int)editorInput.camZDelta;
         Clamp( &editorState->translationSpeedStep, 0, 2 );
 
-        r32 camMovementSpeed = Pow( 10, (r32)editorState->translationSpeedStep );
-        r32 camRotationSpeed = 1.f;
+        f32 camMovementSpeed = Pow( 10, (f32)editorState->translationSpeedStep );
+        f32 camRotationSpeed = 1.f;
 
         v3 camTranslationDelta = {};
         if( editorInput.camLeft )
@@ -478,7 +478,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
         if( editorInput.camUp )
             camTranslationDelta.y += camMovementSpeed * dT;
 
-        r32 camPitchDelta = 0, camYawDelta = 0;
+        f32 camPitchDelta = 0, camYawDelta = 0;
         if( editorInput.camPitchDelta )
             camPitchDelta += editorInput.camPitchDelta * camRotationSpeed * dT;
         if( editorInput.camYawDelta )

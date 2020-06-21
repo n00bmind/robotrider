@@ -48,7 +48,7 @@ void DrawStats( u16 windowWidth, u16 windowHeight, const char *statsText )
                   ImGuiWindowFlags_NoInputs );
     ImGui::TextColored( UIdarkTextColor, statsText );
 #if !RELEASE
-    ImGui::SameLine( (r32)windowWidth - 100 );
+    ImGui::SameLine( (f32)windowWidth - 100 );
     ImGui::TextColored( UIdarkTextColor, "DEBUG BUILD" );
 #endif
     ImGui::End();
@@ -71,7 +71,7 @@ void DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, 
                   ImGuiWindowFlags_NoMove |
                   ImGuiWindowFlags_NoInputs );
     ImGui::TextColored( UIdarkTextColor, statsText );
-    ImGui::SameLine( (r32)windowWidth - 100 );
+    ImGui::SameLine( (f32)windowWidth - 100 );
     ImGui::TextColored( UIdarkTextColor, blinkToggle ? "EDITOR MODE" : "" );
     ImGui::End();
 
@@ -79,7 +79,7 @@ void DrawEditorStats( u16 windowWidth, u16 windowHeight, const char* statsText, 
     ImGui::PopStyleVar(2);
 }
 
-inline void DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, r32 xLen, const v3& yAxis, r32 yLen, u32 color,
+inline void DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, f32 xLen, const v3& yAxis, f32 yLen, u32 color,
                                       RenderCommands *renderCommands )
 {
     v3 p1 = origin + xAxis * 0.f  + yAxis * 0.f;
@@ -99,15 +99,15 @@ void DrawAxisGizmos( RenderCommands *renderCommands )
     v3 p = GetTranslation( currentCamTransform );
     v3 pCamera = Transposed( currentCamTransform ) * (-p);
 
-    r32 aspect = (r32)renderCommands->width / renderCommands->height;
-    r32 fovYHalfRads = Radians( renderCommands->camera.fovYDeg ) / 2;
-    r32 z = 1.0f;
-    r32 h2 = (r32)(tan( fovYHalfRads ) * z);
-	r32 w2 = h2 * aspect;
+    f32 aspect = (f32)renderCommands->width / renderCommands->height;
+    f32 fovYHalfRads = Radians( renderCommands->camera.fovYDeg ) / 2;
+    f32 z = 1.0f;
+    f32 h2 = (f32)(tan( fovYHalfRads ) * z);
+	f32 w2 = h2 * aspect;
 
-    r32 margin = 0.2f;
-    r32 len = 0.1f;
-    r32 w = 0.005f;
+    f32 margin = 0.2f;
+    f32 len = 0.1f;
+    f32 w = 0.005f;
     v3 origin = pCamera + z * vCamFwd - (w2-margin) * vCamX - (h2-margin) * vCamY;
 
     u32 color = Pack01ToRGBA( 1, 0, 0, 1 );
@@ -129,7 +129,7 @@ void DrawAxisGizmos( RenderCommands *renderCommands )
     DrawAlignedQuadWithBasis( origin + V3Y * w,             V3Z, len, -V3Y, w, color, renderCommands );
 }
 
-void DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* format, ... )
+void DrawTextRightAligned( f32 cursorStartX, f32 rightPadding, const char* format, ... )
 {
     char textBuffer[1024];
 
@@ -145,10 +145,10 @@ void DrawTextRightAligned( r32 cursorStartX, r32 rightPadding, const char* forma
 
 void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tmpMemory )
 {
-    r32 windowHeight = ImGui::GetWindowHeight();
+    f32 windowHeight = ImGui::GetWindowHeight();
 
     ImGui::BeginChild( "child_perf_counters_frame", ImVec2( -16, windowHeight / 2 ) );
-    r32 contentWidth = ImGui::GetWindowWidth();
+    f32 contentWidth = ImGui::GetWindowWidth();
     ImGui::Columns( 4, nullptr, true );
 
     Array<DebugCounterLog> counterLogs = Array<DebugCounterLog>( (DebugCounterLog*)debugState->counterLogs,
@@ -173,7 +173,7 @@ void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemor
         if( frameHitCount > 0 )
         {
             // Distribute according to child region size
-            r32 currentWidth = contentWidth * 0.45f;
+            f32 currentWidth = contentWidth * 0.45f;
             ImGui::SetColumnWidth( -1, currentWidth );
             ImGui::Text( "%s @ %u", log.function, log.lineNumber );
             ImGui::NextColumn();
@@ -213,7 +213,7 @@ void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemor
 
         if( log.totalHitCount > 0 )
         {
-            r32 currentWidth = contentWidth * 0.5f;
+            f32 currentWidth = contentWidth * 0.5f;
             ImGui::SetColumnWidth( -1, currentWidth );
             ImGui::Text( "%s @ %u", log.function, log.lineNumber );
             ImGui::NextColumn();

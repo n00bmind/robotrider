@@ -40,8 +40,8 @@ IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2i const&
     v2i stepsPerAxis = cellsPerAxis + V2iOne;
     int layerCellCount = stepsPerAxis.x * stepsPerAxis.y;
 
-    result.bottomLayerSamples = PUSH_ARRAY( arena, r32, layerCellCount );
-    result.topLayerSamples = PUSH_ARRAY( arena, r32, layerCellCount );
+    result.bottomLayerSamples = PUSH_ARRAY( arena, f32, layerCellCount );
+    result.topLayerSamples = PUSH_ARRAY( arena, f32, layerCellCount );
     result.bottomLayerVertexIndices = PUSH_ARRAY( arena, i32, layerCellCount * 2 );
     result.middleLayerVertexIndices = PUSH_ARRAY( arena, i32, layerCellCount );
     result.topLayerVertexIndices = PUSH_ARRAY( arena, i32, layerCellCount * 2 );
@@ -640,7 +640,7 @@ namespace
     extern int triangleTable[][16];
 }
 
-void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cellsPerAxis, r32 cellSizeMeters,
+void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cellsPerAxis, f32 cellSizeMeters,
                 IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices,
                 const bool interpolate /*= true*/ )
 {
@@ -651,14 +651,14 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cel
 
     // Construct case mask from 8 corner samples
     int caseIndex = 0;
-    r32 cornerSamples[8];
+    f32 cornerSamples[8];
     for( int i = 0; i < 8; ++i )
     {
         v3i cornerOffset = cornerOffsets[i];
         v3i layerP = V3i( gridCellP ) + cornerOffset;
         int layerOffset = layerP.y * layerStepsPerAxis.x + layerP.x;
 
-        r32 sample = cornerOffset.z
+        f32 sample = cornerOffset.z
             ? samplingCache->topLayerSamples[layerOffset]
             : samplingCache->bottomLayerSamples[layerOffset];
 
@@ -752,7 +752,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cel
 }
 
 void
-MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
+MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
                  const void* samplingData, IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices,
                  BucketArray<i32>* indices, const bool interpolate = true )
 {
@@ -779,8 +779,8 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cell
     // Iterate slices, we consider both the bottom and the top samples of the cubes on each pass
     for( int k = 0; k < sliceCount; ++k )
     {
-        r32* bottomSamples = samplingCache->bottomLayerSamples;
-        r32* topSamples = samplingCache->topLayerSamples;
+        f32* bottomSamples = samplingCache->bottomLayerSamples;
+        f32* topSamples = samplingCache->topLayerSamples;
 
         // Pre-sample top and bottom corners of cubes for each slice (actually only the top for all slices except the first one)
         // so we only sample one corner per cube instead of 8
@@ -789,11 +789,11 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cell
             if( n == 0 && !firstSlice )
                 continue;
 
-            r32* sampledLayer = n ? topSamples : bottomSamples;
+            f32* sampledLayer = n ? topSamples : bottomSamples;
 
             p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k + n ) * cellSizeMeters;
 
-            r32* sample = sampledLayer;
+            f32* sample = sampledLayer;
             // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
             for( int j = 0; j < gridLinesPerAxis.y; ++j )
             {
@@ -831,7 +831,7 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cell
 
 // TODO Clean up asserts
 void
-DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
+DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
           BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* tempArena, DCSettings const& settings )
 {
     struct CellData
@@ -842,7 +842,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
         v3 edgeCrossingsN[3];
         // v3 n; // NOTE Unused for now
         // Only one sample per cell (the 'max' corner of the aabb)
-        r32 sampledValue;
+        f32 sampledValue;
         i32 vertexIndex;
     };
 
@@ -896,8 +896,8 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
     v3 minGridP = worldP.relativeP - halfSideMeters;
     WorldCoords p = worldP;
 
-    const r32 delta = 0.01f;
-    const r32 deltaInv = 1.f / (2.f * delta);
+    const f32 delta = 0.01f;
+    const f32 deltaInv = 1.f / (2.f * delta);
 
     for( int k = 0; k < cellsPerAxis.z; ++k )
     {
@@ -907,21 +907,21 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
             {
                 v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
 
-                r32 boundsTolerance = 0.5f;
+                f32 boundsTolerance = 0.5f;
                 aabb cellBounds = AABB( cellP - V3( cellSizeMeters + boundsTolerance ),
                                         cellP + V3( boundsTolerance ) );
 
                 u32 caseMask = 0;
-                r32 cornerSamples[8] = {};
+                f32 cornerSamples[8] = {};
 
                 // Build our bitmask using the samples from every corner
                 // (each cell only samples its 'max' corner)
                 for( int s = 0; s < 8; ++s )
                 {
-                    cornerSamples[s] = R32MAX;
+                    cornerSamples[s] = F32MAX;
                     v3i cornerOffset = dcCornerOffsets[s];
 
-                    r32 sample = R32NAN;
+                    f32 sample = F32NAN;
                     if( s == 7 )
                     {
                         // Sample our own
@@ -962,8 +962,8 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
 
                     int indexA = locator.cornerA;
                     int indexB = locator.cornerB;
-                    r32 sA = cornerSamples[ indexA ];
-                    r32 sB = cornerSamples[ indexB ];
+                    f32 sA = cornerSamples[ indexA ];
+                    f32 sB = cornerSamples[ indexB ];
 
                     if( Sign( sA ) != Sign( sB ) )
                     {
@@ -974,17 +974,17 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                             v3 pB = cellP + V3( dcCornerOffsets[indexB] ) * cellSizeMeters;
                             v3 edgeP = V3Undefined;
 
-                            static const r32 epsilon = 0.01f;
-                            if( sB == R32MAX || AlmostEqual( sA, 0.f, epsilon ) )
+                            static const f32 epsilon = 0.01f;
+                            if( sB == F32MAX || AlmostEqual( sA, 0.f, epsilon ) )
                                 edgeP = pA;
-                            else if( sA == R32MAX || AlmostEqual( sB, 0.f, epsilon ) )
+                            else if( sA == F32MAX || AlmostEqual( sB, 0.f, epsilon ) )
                                 edgeP = pB;
                             else
                             {
                                 if( settings.approximateEdgeIntersection )
                                 {
                                     // Just interpolate along the edge
-                                    r32 t = sA / (sA - sB);
+                                    f32 t = sA / (sA - sB);
                                     Clamp01( t );
                                     edgeP = Lerp( pA, pB, t );
                                 }
@@ -993,7 +993,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                                     // Do a binary search along the edge
                                     static const int maxSearchSteps = 100;
                                     int searchSteps = maxSearchSteps;
-                                    r32 edgeSample = 0.f;
+                                    f32 edgeSample = 0.f;
                                     v3 lastP = V3Undefined;
 
                                     while( --searchSteps )
@@ -1034,19 +1034,19 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
 
                             // Find normal vector by sampling near the intersection point we found
                             p.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };
-                            r32 xPSample = sampleFunc( p, samplingData );
+                            f32 xPSample = sampleFunc( p, samplingData );
                             p.relativeP = { edgeP.x - delta, edgeP.y, edgeP.z };
-                            r32 xNSample = sampleFunc( p, samplingData );
+                            f32 xNSample = sampleFunc( p, samplingData );
 
                             p.relativeP = { edgeP.x, edgeP.y + delta, edgeP.z };
-                            r32 yPSample = sampleFunc( p, samplingData );
+                            f32 yPSample = sampleFunc( p, samplingData );
                             p.relativeP = { edgeP.x, edgeP.y - delta, edgeP.z };
-                            r32 yNSample = sampleFunc( p, samplingData );
+                            f32 yNSample = sampleFunc( p, samplingData );
 
                             p.relativeP = { edgeP.x, edgeP.y, edgeP.z + delta };
-                            r32 zPSample = sampleFunc( p, samplingData );
+                            f32 zPSample = sampleFunc( p, samplingData );
                             p.relativeP = { edgeP.x, edgeP.y, edgeP.z - delta };
-                            r32 zNSample = sampleFunc( p, samplingData );
+                            f32 zNSample = sampleFunc( p, samplingData );
 
                             v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
                             Normalize( normal );
@@ -1083,7 +1083,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                         v3 massPoint = V3Zero;
                         for( int pIndex = 0; pIndex < pointCount; ++pIndex )
                             massPoint += edgePoints[pIndex];
-                        massPoint /= (r32)pointCount;
+                        massPoint /= (f32)pointCount;
 
                         cellVertex = massPoint;
 
@@ -1176,8 +1176,8 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
 
                 for( int e = 0; e < 3; ++e )
                 {
-                    r32 sA = cornerSamples[ edgesProducingPolys[e][0] ];
-                    r32 sB = cornerSamples[ edgesProducingPolys[e][1] ];
+                    f32 sA = cornerSamples[ edgesProducingPolys[e][0] ];
+                    f32 sB = cornerSamples[ edgesProducingPolys[e][1] ];
 
                     if( Sign( sA ) != Sign( sB ) )
                     {
@@ -1272,17 +1272,17 @@ STRUCT_ENUM(ContouringTechnique, VALUES)
 struct Metaball
 {
     v3 pCenter;
-    r32 radiusMeters;
+    f32 radiusMeters;
 };
 
 ISO_SURFACE_FUNC(SampleMetaballs)
 {
     const Array<Metaball>& balls = *(const Array<Metaball>*)samplingData;
 
-    r32 minValue = R32MAX;
+    f32 minValue = F32MAX;
     for( int i = 0; i < balls.capacity; ++i )
     {
-        r32 value = DistanceSq( balls[i].pCenter, worldP.relativeP ) - balls[i].radiusMeters;
+        f32 value = DistanceSq( balls[i].pCenter, worldP.relativeP ) - balls[i].radiusMeters;
         if( value < minValue )
             minValue = value;
     }
@@ -1301,10 +1301,10 @@ TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSu
     {
         for( int i = 0; i < balls.count; ++i )
         {
-            //r32 x = RandomRange( -halfSideMeters, halfSideMeters );
-            //r32 y = RandomRange( -halfSideMeters, halfSideMeters );
-            //r32 z = RandomRange( -halfSideMeters, halfSideMeters );
-            r32 r = RandomRangeR32( 1.0f, 5.0f );
+            //f32 x = RandomRange( -halfSideMeters, halfSideMeters );
+            //f32 y = RandomRange( -halfSideMeters, halfSideMeters );
+            //f32 z = RandomRange( -halfSideMeters, halfSideMeters );
+            f32 r = RandomRangeF32( 1.0f, 5.0f );
             balls.Push( { V3Zero, r } );
         }
     }
@@ -1313,9 +1313,9 @@ TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSu
     for( int i = 0; i < balls.count; ++i )
     {
         Metaball& ball = balls[i];
-        r32 x = (i+1) / 2.0f * Cos( elapsedT - i );
-        r32 y = (i+2) / 2.0f * Sin( elapsedT + i );
-        r32 z = (i+3) / 2.0f * Sin( elapsedT - i );
+        f32 x = (i+1) / 2.0f * Cos( elapsedT - i );
+        f32 y = (i+2) / 2.0f * Sin( elapsedT + i );
+        f32 z = (i+3) / 2.0f * Sin( elapsedT - i );
 
         ball.pCenter = { x, y, z };
     }
@@ -1334,7 +1334,7 @@ ISO_SURFACE_FUNC( TorusSurfaceFunc )
     // NOTE We're axis aligned for now, so just translate
     v3 invWorldP = worldP.relativeP - V3Zero;
 
-    r32 result = SDFTorus( invWorldP, 70, 30 );
+    f32 result = SDFTorus( invWorldP, 70, 30 );
     return result;
 }
 
@@ -1343,7 +1343,7 @@ ISO_SURFACE_FUNC( BoxSurfaceFunc )
     // NOTE We're axis aligned for now, so just translate
     v3 invWorldP = worldP.relativeP - V3Zero;
 
-    r32 result = SDFBox( invWorldP, { 70, 70, 70 } );
+    f32 result = SDFBox( invWorldP, { 70, 70, 70 } );
     return result;
 }
 
@@ -1378,7 +1378,7 @@ ISO_SURFACE_FUNC( SimpleSurfaceFunc )
     // NOTE Don't care about translation
     v3 const& invWorldP = Transform( data->invWorldTransform, worldP.relativeP );
 
-    r32 result = R32INF;
+    f32 result = F32INF;
     switch( surfaceIndex )
     {
         case SimpleSurface::Torus().index:
@@ -1411,15 +1411,15 @@ ISO_SURFACE_FUNC( SimpleSurfaceFunc )
 
         case SimpleSurface::MechanicalPart().index:
         {
-            r32 b = SDFBox( invWorldP, { 50, 50, 50 } );
-            r32 c = SDFCylinder( invWorldP, 40 );
+            f32 b = SDFBox( invWorldP, { 50, 50, 50 } );
+            f32 c = SDFCylinder( invWorldP, 40 );
             result = SDFUnion( b, c );
 
             v3 yRotP = { invWorldP.z, invWorldP.y, invWorldP.x };
-            r32 c1 = SDFCylinder( yRotP, 30 );
+            f32 c1 = SDFCylinder( yRotP, 30 );
             result = SDFSubstraction( result, c1 );
             v3 zRotP = { -invWorldP.y, invWorldP.x, invWorldP.z };
-            r32 c2 = SDFCylinder( zRotP, 30 );
+            f32 c2 = SDFCylinder( zRotP, 30 );
             result = SDFSubstraction( result, c2 );
         } break;
     }
@@ -1433,18 +1433,18 @@ ISO_SURFACE_FUNC( SimpleSurfaceFunc )
 
 ///// MESH SIMPLIFICATION /////
 
-internal inline r64
-FQSVertexError( const m4Symmetric& q, r64 x, r64 y, r64 z )
+internal inline f64
+FQSVertexError( const m4Symmetric& q, f64 x, f64 y, f64 z )
 {
     // Error between vertex and quadric
-    r64 result = q.e[0]*x*x + 2*q.e[1]*x*y + 2*q.e[2]*x*z + 2*q.e[3]*x
+    f64 result = q.e[0]*x*x + 2*q.e[1]*x*y + 2*q.e[2]*x*z + 2*q.e[3]*x
                + q.e[4]*y*y + 2*q.e[5]*y*z + 2*q.e[6]*y
                + q.e[7]*z*z + 2*q.e[8]*z
                + q.e[9];
     return result;
 }
 
-internal r64
+internal f64
 FQSCalculateError( FQSMesh* mesh, int v1Idx, int v2Idx, v3* result )
 {
     FQSVertex& v1 = mesh->vertices[v1Idx];
@@ -1453,16 +1453,16 @@ FQSCalculateError( FQSMesh* mesh, int v1Idx, int v2Idx, v3* result )
     // Compute interpolated vertex
     m4Symmetric q = v1.q + v2.q;
     bool border = v1.border && v2.border;
-    r64 error = 0;
-    r64 det = Determinant3x3( q, 0, 1, 2, 1, 4, 5, 2, 5, 7 );
+    f64 error = 0;
+    f64 det = Determinant3x3( q, 0, 1, 2, 1, 4, 5, 2, 5, 7 );
 
     // TODO Epsilon?
     if( det != 0 && !border )
     {
         // Invertible
-        result->x = (r32)(-1 / det * Determinant3x3( q, 1, 2, 3, 4, 5, 6, 5, 7, 8 ));
-        result->y = (r32)( 1 / det * Determinant3x3( q, 0, 2, 3, 1, 5, 6, 2, 7, 8 ));
-        result->z = (r32)(-1 / det * Determinant3x3( q, 0, 1, 3, 1, 4, 6, 2, 5, 8 ));
+        result->x = (f32)(-1 / det * Determinant3x3( q, 1, 2, 3, 4, 5, 6, 5, 7, 8 ));
+        result->y = (f32)( 1 / det * Determinant3x3( q, 0, 2, 3, 1, 5, 6, 2, 7, 8 ));
+        result->z = (f32)(-1 / det * Determinant3x3( q, 0, 1, 3, 1, 4, 6, 2, 5, 8 ));
         error = FQSVertexError( q, result->x, result->y, result->z );
     }
     else
@@ -1471,9 +1471,9 @@ FQSCalculateError( FQSMesh* mesh, int v1Idx, int v2Idx, v3* result )
         v3 p1 = v1.p;
         v3 p2 = v2.p;
         v3 p3 = (p1 + p2) / 2;
-        r64 error1 = FQSVertexError( q, p1.x, p1.y, p1.z );
-        r64 error2 = FQSVertexError( q, p2.x, p2.y, p2.z );
-        r64 error3 = FQSVertexError( q, p3.x, p3.y, p3.z );
+        f64 error1 = FQSVertexError( q, p1.x, p1.y, p1.z );
+        f64 error2 = FQSVertexError( q, p2.x, p2.y, p2.z );
+        f64 error3 = FQSVertexError( q, p3.x, p3.y, p3.z );
         error = Min( error1, Min( error2, error3 ) );
 
         if( error1 == error )
@@ -1560,7 +1560,7 @@ FQSUpdateTriangles( int i0, const FQSVertex& v, const Array<bool>& deleted,
 // Also, see if we can find an ultra-fast method mostly for coplanar regions and have it applied always after contouring regardless of LOD
 // (or make one!)
 void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, const TemporaryMemory& tmpMemory,
-                          r32 agressiveness = 7 )
+                          f32 agressiveness = 7 )
 {
     int triangleCount = mesh->triangles.count;
     int deletedTriangleCount = 0;
@@ -1725,7 +1725,7 @@ void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, const TemporaryMemo
 
         // All triangles with edges below the threshold will be removed
         // NOTE The following numbers usually work. Adjust as needed
-        r64 threshold = 0.000000001 * PowR64( r64(iteration + 3), agressiveness );
+        f64 threshold = 0.000000001 * PowF64( f64(iteration + 3), agressiveness );
 
         if( iteration % 5 == 0 )
             LOG( "Iteration %d - tris %d  threshold %g", iteration, triangleCount - deletedTriangleCount, threshold );
@@ -2280,7 +2280,7 @@ void BunnyLODSimplify( Array<TexturedVertex>& srcVertices, Array<i32>& srcIndice
 struct Hit
 {
     v2i gridCoords;
-    r32 hitCoord;
+    f32 hitCoord;
 };
 
 internal void
@@ -2318,13 +2318,13 @@ FilterHits( const Array<Hit>& hits, const v2i& gridCoords, Array<Hit>* result )
     }
 }
 
-Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
+Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
                                MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands )
 {
     // Make bounds same length on all axes
     v3 centerP = Center( sourceMesh.bounds );
     v3 dim = Dim( sourceMesh.bounds );
-    r32 cubeSide = Max( dim.x, Max( dim.y, dim.z ) );
+    f32 cubeSide = Max( dim.x, Max( dim.y, dim.z ) );
 
     aabb box = AABBCenterDim( centerP, cubeSide );
     v3 const &gridOriginP = box.min;
@@ -2332,7 +2332,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int 
     ASSERT( samplingCache->cellsPerAxis.x == samplingCache->cellsPerAxis.y );
     int cellsPerAxis = samplingCache->cellsPerAxis.x;
     int gridLinesPerAxis = cellsPerAxis + 1;
-    r32 step = cubeSide / cellsPerAxis;
+    f32 step = cubeSide / cellsPerAxis;
 
     // We store all intersections with grid rays in a hashtable where encoded integer coords are the hash
     // For example, for X rays, the Y|Z coords are the hash, for Y rays, the X|Z coords, etc.
@@ -2375,7 +2375,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int 
         // Y rays
         for( int x = 0; x < gridLinesPerAxis; ++x )
         {
-            r32 xGrid = box.min.x + x * step;
+            f32 xGrid = box.min.x + x * step;
 
             if( triBounds.max.x < xGrid )
                 break;
@@ -2383,7 +2383,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int 
             {
                 for( int z = 0; z < gridLinesPerAxis; ++z )
                 {
-                    r32 zGrid = box.min.z + z * step;
+                    f32 zGrid = box.min.z + z * step;
 
                     if( triBounds.max.z < zGrid )
                         break;
@@ -2397,7 +2397,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int 
                         if( Intersects( r, t, &pI ) )
                         {
                             // Store intersection coords relative to grid
-                            r32 hitCoord = (pI - gridOriginP).y;
+                            f32 hitCoord = (pI - gridOriginP).y;
                             gridHits.Push( { V2i( x, z ), hitCoord } );
                         }
                     }
@@ -2411,8 +2411,8 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int 
 
     for( int k = 0; k < cellsPerAxis; ++k )
     {
-        r32* bottomSamples = samplingCache->bottomLayerSamples;
-        r32* topSamples = samplingCache->topLayerSamples;
+        f32* bottomSamples = samplingCache->bottomLayerSamples;
+        f32* topSamples = samplingCache->topLayerSamples;
 
         // Pre-sample top and bottom slices of values for each layer
         // so we only sample one corner per cube instead of 8
@@ -2421,8 +2421,8 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int 
             if( n == 0 && !firstLayer )
                 continue;
 
-            r32* sampledLayer = n ? topSamples : bottomSamples;
-            r32* sample = sampledLayer;
+            f32* sampledLayer = n ? topSamples : bottomSamples;
+            f32* sample = sampledLayer;
             for( int i = 0; i < gridLinesPerAxis; ++i )
             {
                 v2i vIK = n == 0 ? V2i( i, k ) : V2i( i, k+1 );
@@ -2438,14 +2438,14 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int 
                 int value = 1;
                 for( int j = 0; j < gridLinesPerAxis; ++j )
                 {
-                    r32 yGrid = j * step;
+                    f32 yGrid = j * step;
                     while( h < rayHits.count && rayHits[h].hitCoord < yGrid )
                     {
                         value *= -1;
                         h++;
                     }
 
-                    *sample++ = (r32)value;
+                    *sample++ = (f32)value;
                 }
             }
         }
@@ -2463,7 +2463,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, int 
                 if( displayedLayer == k )
                 {
                     u32 color = Pack01ToRGBA( 0, 1, 0, 1 );
-                    r32 value = samplingCache->bottomLayerSamples[i * gridLinesPerAxis + j];
+                    f32 value = samplingCache->bottomLayerSamples[i * gridLinesPerAxis + j];
                     //if( value < 0 )
                         //RenderBoundsAt( p, 0.005f * drawingDistance, color, renderCommands );
 
@@ -2501,17 +2501,17 @@ ISO_SURFACE_FUNC(SampleCuboid)
 
     // Calc distance to both aligned planes along dir
     // NOTE Max() means 'intersection'
-    r32 dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
-    r32 dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
+    f32 dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
+    f32 dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
  
-    r32 result = Max( dUp, dRight );
+    f32 result = Max( dUp, dRight );
 
     // Turns
     if( path->nextBasis )
     {
         // Cut with plane across motion dir
         // NOTE For now we're gonna assume that all turns take place at the area's center point
-        r32 d = 0; // path->areaSideMeters/2 - path->distanceToNextTurn;
+        f32 d = 0; // path->areaSideMeters/2 - path->distanceToNextTurn;
         result += Clamp0( Dot( vForward, p ) + d );
 
         vRight = GetBasisX( *path->nextBasis );
@@ -2521,7 +2521,7 @@ ISO_SURFACE_FUNC(SampleCuboid)
         dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
         dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
 
-        r32 newResult = Max( dUp, dRight );
+        f32 newResult = Max( dUp, dRight );
         // Cut with plane across motion dir (backwards)
         // NOTE For now we're gonna assume that all turns take place at the area's center point
         d = 0; // path->areaSideMeters/2 - path->distanceToNextTurn;
@@ -2541,10 +2541,10 @@ ISO_SURFACE_FUNC(SampleCuboid)
         dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
         dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
 
-        r32 newResult = Max( dUp, dRight );
+        f32 newResult = Max( dUp, dRight );
         // Cut with plane across motion dir (bakcwards)
         // NOTE For now we're gonna assume that all forks take place at the area's center point
-        r32 d = 0; // path->areaSideMeters/2 - path->distanceToNextFork;
+        f32 d = 0; // path->areaSideMeters/2 - path->distanceToNextFork;
         newResult += Clamp0( Dot( -vForward, p ) + d );
 
         // NOTE Min() means 'union'
@@ -2555,7 +2555,7 @@ ISO_SURFACE_FUNC(SampleCuboid)
     return result + 0.1f;
 }
 
-internal r32
+internal f32
 SampleCylinder( const void* samplingData, const v3& p )
 {
     MeshGeneratorPathData* path = (MeshGeneratorPathData*)samplingData;
@@ -2563,23 +2563,23 @@ SampleCylinder( const void* samplingData, const v3& p )
 
     v3 vP = p - path->pCenter;
     // l is the length of the projection of vP along the director line
-    r32 l = Dot( vForward, vP );
+    f32 l = Dot( vForward, vP );
     // Translate p the previous distance along vDir (backwards) to align it with pCenter
     v3 pPrime = p - vForward * l;
 
-    r32 result = DistanceSq( path->pCenter, pPrime ) - path->thicknessSq;
+    f32 result = DistanceSq( path->pCenter, pPrime ) - path->thicknessSq;
     return result;
 }
 
 u32
-GenerateOnePathStep( MeshGeneratorPathData* path, r32 resolutionMeters, bool advancePosition,
+GenerateOnePathStep( MeshGeneratorPathData* path, f32 resolutionMeters, bool advancePosition,
                      IsoSurfaceSamplingCache* samplingCache,
                      MeshPool* meshPool, Mesh** outMesh, MeshGeneratorPathData* nextFork )
 {
     bool turnInThisStep = path->distanceToNextTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToNextFork < path->areaSideMeters;
 
-    r32 pi2 = PI / 2;
+    f32 pi2 = PI / 2;
     m4 rotations[4] =
     {
         // Expressed as if +Y == 'forward'
@@ -2631,11 +2631,11 @@ GenerateOnePathStep( MeshGeneratorPathData* path, r32 resolutionMeters, bool adv
         if( turnInThisStep )
         {
             path->basis = nextBasis;
-            path->distanceToNextTurn = RandomRangeR32( path->minDistanceToTurn, path->maxDistanceToTurn );
+            path->distanceToNextTurn = RandomRangeF32( path->minDistanceToTurn, path->maxDistanceToTurn );
         }
         if( forkInThisStep )
         {
-            path->distanceToNextFork = RandomRangeR32( path->minDistanceToFork, path->maxDistanceToFork );
+            path->distanceToNextFork = RandomRangeF32( path->minDistanceToFork, path->maxDistanceToFork );
         }
 
         v3 vForward = GetBasisY( path->basis );
@@ -2655,7 +2655,7 @@ ISO_SURFACE_FUNC(SampleRoomBody)
 
     // Box
     v3 d = Abs( worldP.relativeP ) - roomData->dim * 0.5f;
-    r32 result = Max( Max( d.x, d.y ), d.z );
+    f32 result = Max( Max( d.x, d.y ), d.z );
     return result;
 }
 
@@ -2679,7 +2679,7 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
     v3 invWorldP = worldP.relativeP - roomData->worldP.relativeP;
 
     // Inflate the size a little
-    r32 result = SDFBox( invWorldP, roomData->halfSize + V3( VoxelSizeMeters * 0.5f ) );
+    f32 result = SDFBox( invWorldP, roomData->halfSize + V3( VoxelSizeMeters * 0.5f ) );
     return result;
 }
 

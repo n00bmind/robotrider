@@ -92,7 +92,7 @@ inline u32
 PatternHash( const Pattern& key, i32 entryCount )
 {
     // TODO Test! (could this be related to the obviously wrong frequency figures!?)
-    u32 result = Fletcher32( key.data, key.stride * key.stride );
+    u32 result = Fletchef32( key.data, key.stride * key.stride );
     return result;
 }
 
@@ -253,18 +253,18 @@ BuildPatternsIndex( const int N, Input* input, MemoryArena* arena )
 internal void
 AllocSnapshot( Snapshot* result, int waveLength, int patternCount, MemoryArena* arena )
 {
-    int patternGroupCount = I32( Ceil( (r32)patternCount / 64.f ) );
+    int patternGroupCount = I32( Ceil( (f32)patternCount / 64.f ) );
     result->wave = Array2<u64>( arena, waveLength, patternGroupCount );
     result->adjacencyCounters = Array2<u64>( arena, waveLength, patternCount );
     result->compatiblesCount = Array<i32>( arena, waveLength );
     result->compatiblesCount.ResizeToCapacity();
-    result->sumFrequencies = Array<r64>( arena, waveLength );
+    result->sumFrequencies = Array<f64>( arena, waveLength );
     result->sumFrequencies.ResizeToCapacity();
-    result->sumWeights = Array<r64>( arena, waveLength );
+    result->sumWeights = Array<f64>( arena, waveLength );
     result->sumWeights.ResizeToCapacity();
-    result->entropies = Array<r64>( arena, waveLength );
+    result->entropies = Array<f64>( arena, waveLength );
     result->entropies.ResizeToCapacity();
-    result->distribution = Array<r32>( arena, patternCount );
+    result->distribution = Array<f32>( arena, patternCount );
     result->distribution.ResizeToCapacity();
 }
 
@@ -601,7 +601,7 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
     const int patternCount = input.patterns.count;
     const int propagationStackSize = waveLength * 5;                            // Increase as needed
     state->propagationStack = Array<BannedTuple>( arena, propagationStackSize );
-    state->distributionTemp = Array<r32>( arena, patternCount );
+    state->distributionTemp = Array<f32>( arena, patternCount );
     state->distributionTemp.ResizeToCapacity();
     state->backtrackedCellIndices = RingBuffer<i32>( arena, BacktrackedCellsCacheCount );
 
@@ -615,7 +615,7 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
     // The size of the snapshot stack content (barring the stack struct itself) would be x = n * s, where n is the number of snapshots
     // Conversely, n = (A - x) / S
     // So if we substitute x and solve for n we have:
-    int maxSnapshotCount = I32( (r32)A / (S + s) );
+    int maxSnapshotCount = I32( (f32)A / (S + s) );
     ASSERT( maxSnapshotCount * s + maxSnapshotCount * S < A );
 
     // Truncate at 64, since having more does actually seem less effective
@@ -679,23 +679,23 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
 }
 
 internal bool
-RandomSelect( const Array<r32>& distribution, Array<r32>* temp, int* selection )
+RandomSelect( const Array<f32>& distribution, Array<f32>* temp, int* selection )
 {
     bool result = false;
 
-    r32 sum = 0.f;
+    f32 sum = 0.f;
     for( int i = 0; i < distribution.count; ++i )
         sum += distribution[i];
 
-    r32* d = temp->data;
-    r32 r = RandomNormalizedR32();
+    f32* d = temp->data;
+    f32 r = RandomNormalizedF32();
     if( sum != 0.f )
     {
         for( int i = 0; i < distribution.count; ++i )
             d[i] = distribution[i] / sum;
 
         int i = 0;
-        r32 x = 0.f;
+        f32 x = 0.f;
 
         while( i < distribution.count )
         {
@@ -743,12 +743,12 @@ NeedSnapshot( State* state, int totalObservationCount )
 {
     int value = state->observationCount;
     
-    r32 x = (r32)state->snapshotStack.count;
-    r32 SC = (r32)state->snapshotStack.capacity;
+    f32 x = (f32)state->snapshotStack.count;
+    f32 SC = (f32)state->snapshotStack.capacity;
 
     // Using a n-th degree parabola, calc the observations count corresponding to the next snapshot
-    r32 n = ObservationCountParabolaDegree;
-    r32 targetValue = ((r32)totalObservationCount / Pow( SC, n )) * Pow( x, n );
+    f32 n = ObservationCountParabolaDegree;
+    f32 targetValue = ((f32)totalObservationCount / Pow( SC, n )) * Pow( x, n );
 
     return value >= targetValue;
 }
@@ -762,7 +762,7 @@ Observe( const Spec& spec, const Input& input, State* state, MemoryArena* arena 
     Snapshot* snapshot = state->currentSnapshot;
 
     int observedCellIndex = 0;
-    r64 minEntropy = R64INF;
+    f64 minEntropy = F64INF;
 
     int observations = 0;
     for( int i = 0; i < snapshot->wave.rows; ++i )
@@ -779,10 +779,10 @@ Observe( const Spec& spec, const Input& input, State* state, MemoryArena* arena 
         }
         else
         {
-            r64 entropy = snapshot->entropies[i];
+            f64 entropy = snapshot->entropies[i];
             if( entropy <= minEntropy && !state->backtrackedCellIndices.Contains( i ) )
             {
-                r64 noise = 1E-6 * RandomNormalizedR64();
+                f64 noise = 1E-6 * RandomNormalizedF64();
                 if( entropy + noise < minEntropy )
                 {
                     minEntropy = entropy + noise;
@@ -795,7 +795,7 @@ Observe( const Spec& spec, const Input& input, State* state, MemoryArena* arena 
 
     if( result == InProgress )
     {
-        if( minEntropy == R64INF )
+        if( minEntropy == F64INF )
         {
             // We're done
             result = Done;
@@ -1084,7 +1084,7 @@ GlobalState* StartWFCAsync( const Spec& spec, const v2i& pStartChunk, MemoryAren
 
         input.frequencies = input.patternsHash.Values( wfcArena );
         ASSERT( input.frequencies.count == patternCount );
-        input.weights = Array<r64>( wfcArena, patternCount );
+        input.weights = Array<f64>( wfcArena, patternCount );
         input.weights.ResizeToCapacity();
         // Calc initial entropy, counters, etc.
         input.sumFrequencies = 0;                                                     // sumOfWeights
@@ -1448,7 +1448,7 @@ DrawFileSelectorPopup( const Array<Spec>& specs, int currentSpecIndex )
 }
 
 internal int
-CountNonZero( const Array<r32>& distribution )
+CountNonZero( const Array<f32>& distribution )
 {
     int result = 0;
     for( int i = 0; i < distribution.count; ++i )
@@ -1482,8 +1482,8 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
     int selectedIndex = -1;
     const Spec& spec = specs[displayState->currentSpecIndex];
 
-    const r32 outputScale = 4.f;
-    const r32 patternScale = outputScale * 2;
+    const f32 outputScale = 4.f;
+    const f32 patternScale = outputScale * 2;
 
     ImGui::SetNextWindowPos( displayP, ImGuiCond_Always );
     ImGui::SetNextWindowSize( displayDim, ImGuiCond_Always );
@@ -1494,7 +1494,7 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
 
     ImGui::BeginChild( "child_wfc_left", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.1f, 0 ), false, 0 );
     // TODO Draw indexed & de-indexed image to help detect errors
-    ImVec2 buttonDim = ImVec2( (r32)spec.source.width * outputScale, (r32)spec.source.height * outputScale );
+    ImVec2 buttonDim = ImVec2( (f32)spec.source.width * outputScale, (f32)spec.source.height * outputScale );
     if( ImGui::ImageButton( spec.source.handle, buttonDim ) )
         ImGui::OpenPopup( "popup_file_selector" );
 
@@ -1526,7 +1526,7 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
     ImGui::SameLine();
 
     const int patternsCount = globalState->input.patterns.count;
-    const int patternsCountSqrt = (int)Round( Sqrt( (r32)patternsCount ) );
+    const int patternsCountSqrt = (int)Round( Sqrt( (f32)patternsCount ) );
     const v3i waveDim = GetWaveDim( spec );
     const int waveLength = waveDim.x * waveDim.y;
 
@@ -1577,7 +1577,7 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
                     ImGui::Spacing();
 
                     const int maxLines = 50;
-                    //r32 step = (r32)maxLines / state->snapshotStack.buffer.maxCount;
+                    //f32 step = (f32)maxLines / state->snapshotStack.buffer.maxCount;
                     for( int i = 0; i < state->snapshotStack.count; ++i )
                     {
                         const Snapshot& s = state->snapshotStack[i];
@@ -1646,7 +1646,7 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
 
                 ImGui::Text( "%u.", i );
                 ImGui::SameLine();
-                ImGui::Image( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) );
+                ImGui::Image( t.handle, ImVec2( (f32)t.width * patternScale, (f32)t.height * patternScale ) );
                 ImGui::SameLine();
                 ImGui::Text( "x %u", globalState->input.frequencies[i] );
 
@@ -1677,7 +1677,7 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
                 if( !t.handle )
                     t = CreatePatternTexture( p, globalState->input.palette, wfcDisplayArena );
 
-                if( ImGui::ImageButton( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) ) )
+                if( ImGui::ImageButton( t.handle, ImVec2( (f32)t.width * patternScale, (f32)t.height * patternScale ) ) )
                     displayState->currentIndexEntry = i;
                 ImGui::Spacing();
             }
@@ -1702,7 +1702,7 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
                         if( i == 1 && j == 1 )
                         {
                             Texture& t = displayState->patternTextures[displayState->currentIndexEntry];
-                            ImGui::Image( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) );
+                            ImGui::Image( t.handle, ImVec2( (f32)t.width * patternScale, (f32)t.height * patternScale ) );
                         }
                         else if( i == 0 && j == 1 )
                             d = (int)Adjacency::Left;
@@ -1727,7 +1727,7 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
                                 const Pattern& p = globalState->input.patterns[m];
                                 Texture& t = displayState->patternTextures[m];
 
-                                ImGui::Image( t.handle, ImVec2( (r32)t.width * patternScale, (r32)t.height * patternScale ) );
+                                ImGui::Image( t.handle, ImVec2( (f32)t.width * patternScale, (f32)t.height * patternScale ) );
 
                                 row++;
                                 if( row < patternsCountSqrt )

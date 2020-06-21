@@ -4,7 +4,8 @@
 
 
 NEXT
-- Modify the room generation algorithm so it uses the clusters as the voxels in the algorithm, generating rooms for a chunk of clusters at a time (superclusters)
+- Modify the room generation algorithm so it uses the clusters as the voxels in the algorithm, generating rooms for a chunk of clusters at a time (superclusters).
+  Doing this at all the scale levels up to universe-sized would be a way to generate cluster connectivity for the whole universe, where 'empty' clusters would have no rooms at all, and 'full' clusters would be connected.
 - Sample the isosurface for every cluster in the exterior of each room/hall created, with a different resolution depending on distance
 - Create a little 'mesh LOD' system that keeps a cache of dynamic mesh LODs that are resampled when necessary according to distance
 - Generate several of these 'superclusters' and connect neighbouring
@@ -14,8 +15,10 @@ NEXT
 WORLDGEN
 - Space Volumes partitioning using BSP at various scale levels
 - Procedural generation of some kind of infinite pipe-like world structure
-- Unify all mesh pools and put them behind a ticket mutex so they can be shared by threads. Remember to _first_ do the mesh generation
-  in the thread, then copying it to the mesh pool _afterwards_
+- Unify all mesh pools and put them behind a ticket mutex so they can be shared by threads. In general, think about how to minimize synchronization between workers and the main thread.
+
+INPUT
+- Rotating the camera with the mouse looks jittery
 
 EDITOR
 - Hot reloading doesn't seem to work here? (was testing editor camera params)
@@ -60,21 +63,18 @@ ENGINE
   · Memory ownership is explicit
   · Null-termination and interoperability with C apis is handled better
 - Add a separate arena per thread so we don't have to keep thinking where to put per-thread work memory
-- Separate physics & input thread running at a high framerate
-- Compare Fletcher against MurmurHash and maybe switch (https://github.com/aappleby/smhasher/wiki)
+- Separate physics & input thread running at a high framerate? (investigate)
+- Switch Fletcher to MurmurHash (https://github.com/aappleby/smhasher/wiki)
 
 DEBUGGING
 - Make sure out-of-frame counters are handled and shown correctly so we can properly profile multithreaded code
 - Hot reloading seems to be broken for ImGui elements
 - Memory stats for arenas and pools
-- Profiler
-- Live editable 'switches' data file (reloadable asset) that can overwrite generic game & platform variables
+- Profiler (have a look at the ImGui plot libraries as a starting point for the UI)
+- Live editable 'switches' data file (reloadable asset) that can overwrite generic game & platform variables (similar to what Blow did for Sokoban)
 - Command completion & history navigation in the console
 - Really dump game state to disk (asynchronously) and study how hard it would be to make it loadable across evolving game state revisions (this would need a proper serialization system)
 - Add a command line switch & ingame command to load a recorded input block from disk
-- Simple static analysis:
-  - Detect usage of 'internal' functions outside of the file where they're defined (in case we wanna ever have non-Unity builds)
-- Have a look at the ImGui plot libraries as a starting point for the profiler(s) UI
 
 TESTING
 - Basic data types

@@ -55,11 +55,11 @@ enum class RenderSwitchType
 struct Camera
 {
     m4 worldToCamera;
-    r32 fovYDeg;
+    f32 fovYDeg;
 };
 
 inline Camera
-DefaultCamera( r32 fovYDeg = 60 )
+DefaultCamera( f32 fovYDeg = 60 )
 {
     Camera result = { M4Identity, fovYDeg };
     return result;
@@ -392,10 +392,10 @@ void RenderSetMaterial( Material* material, RenderCommands* commands );
 void RenderSwitch( RenderSwitchType renderSwitch, bool enable, RenderCommands* commands );
 void RenderMesh( const Mesh& mesh, RenderCommands *commands );
 void RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands );
-void RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands );
-void RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands );
-void RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands );
-void RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands );
+void RenderBoundsAt( const v3& p, f32 size, u32 color, RenderCommands* renderCommands );
+void RenderBoxAt( const v3& p, f32 size, u32 color, RenderCommands* renderCommands );
+void RenderFloorGrid( f32 areaSizeMeters, f32 resolutionMeters, RenderCommands* renderCommands );
+void RenderCubicGrid( const aabb& boundingBox, f32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands );
 void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands );
 void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands );
 

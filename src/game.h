@@ -69,12 +69,12 @@ struct GameAudioBuffer
 struct GameStickState
 {
     // -1.0 to 1.0 range (negative is left/down, positive is up/right)
-    r32 startX;
-    r32 startY;
-    r32 avgX;
-    r32 avgY;
-    r32 endX;
-    r32 endY;
+    f32 startX;
+    f32 startY;
+    f32 avgX;
+    f32 avgY;
+    f32 endX;
+    f32 endY;
 };
 
 struct GameButtonState
@@ -92,8 +92,8 @@ struct GameControllerInput
     GameStickState rightStick;
 
     // TODO Left/right triggers (Win)
-    r32 leftTriggerValue;               // 0 to 1 range
-    r32 rightTriggerValue;
+    f32 leftTriggerValue;               // 0 to 1 range
+    f32 rightTriggerValue;
 
     union
     {
@@ -264,7 +264,7 @@ struct KeyMouseInput
     i32 mouseX, mouseY, mouseZ;
     // Raw mouse data as obtained from the platform
     i32 mouseRawXDelta, mouseRawYDelta;
-    r32 mouseRawZDelta;
+    f32 mouseRawZDelta;
     GameButtonState mouseButtons[5];
 
     // Platform-agnostic key codes
@@ -274,8 +274,8 @@ struct KeyMouseInput
 struct GameInput
 {
     bool gameCodeReloaded;
-    r32 frameElapsedSeconds;
-    r32 totalElapsedSeconds;
+    f32 frameElapsedSeconds;
+    f32 totalElapsedSeconds;
     u32 frameCounter;
 
     GameControllerInput _controllers[5];
@@ -346,10 +346,10 @@ typedef GAME_LOG_CALLBACK(GameLogCallbackFunc);
 
 struct DebugFrameInfo
 {
-    r32 inputProcessedSeconds;
-    r32 gameUpdatedSeconds;
-    r32 audioUpdatedSeconds;
-    r32 endOfFrameSeconds;
+    f32 inputProcessedSeconds;
+    f32 gameUpdatedSeconds;
+    f32 audioUpdatedSeconds;
+    f32 endOfFrameSeconds;
 };
 
 #define DEBUG_GAME_FRAME_END(name) void name( GameMemory* memory, const DebugFrameInfo* frameInfo )

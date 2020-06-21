@@ -22,9 +22,9 @@ struct EditorInput
     bool camBackwards;
     bool camUp;
     bool camDown;
-    r32 camPitchDelta;
-    r32 camYawDelta;
-    r32 camZDelta;
+    f32 camPitchDelta;
+    f32 camYawDelta;
+    f32 camZDelta;
     bool camLookAt;
     bool camOrbit;
 };
@@ -39,9 +39,9 @@ struct EditorTestsState
         IsoSurfaceSamplingCache mcSamplingCache;
         bool mcInterpolate;
 
-        r64 contourTimeMillis;
-        r64 simplifyTimeMillis;
-        r32 nextRebuildTimeSeconds;
+        f64 contourTimeMillis;
+        f64 simplifyTimeMillis;
+        f32 nextRebuildTimeSeconds;
         v3 surfaceRotDegrees;
         int currentSurfaceIndex;
         int currentTechniqueIndex;
@@ -67,7 +67,7 @@ struct EditorTestsState
         Mesh sampledMesh;
         Mesh* testIsoSurfaceMesh;
         EditorEntity testEditorEntity;
-        r32 drawingDistance;
+        f32 drawingDistance;
         i32 displayedLayer;
 
         bool initialized;

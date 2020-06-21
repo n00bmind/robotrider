@@ -800,7 +800,7 @@ OpenGLNewFrame( const RenderCommands &commands, OpenGLState* gl )
     // don't have to check whether there's a 'valid' texture or not
     glBindTexture( GL_TEXTURE_2D, 0 );
 
-    m4 projectViewM = M4Perspective( (r32)viewportWidth / viewportHeight, commands.camera.fovYDeg )
+    m4 projectViewM = M4Perspective( (f32)viewportWidth / viewportHeight, commands.camera.fovYDeg )
         * commands.camera.worldToCamera;
 
     gl->currentProjectViewM = projectViewM;

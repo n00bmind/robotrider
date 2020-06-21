@@ -102,11 +102,11 @@ struct LiveEntity
 };
 
 // NOTE Everything related to maze generation and connectivity is measured in voxel units
-const r32 VoxelSizeMeters = 1.f;
+const f32 VoxelSizeMeters = 1.f;
 const i32 VoxelsPerClusterAxis = 256;
 
-const r32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;
-static_assert( (r32)(u32)(VoxelsPerClusterAxis * VoxelSizeMeters) == ClusterSizeMeters, "FAIL" );
+const f32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;
+static_assert( (f32)(u32)(VoxelsPerClusterAxis * VoxelSizeMeters) == ClusterSizeMeters, "FAIL" );
 
 typedef Grid3D<u8> ClusterVoxelGrid;
 
@@ -178,8 +178,8 @@ enum MeshGeneratorType
 struct World
 {
     v3 pPlayer;
-    r32 playerPitch;
-    r32 playerYaw;
+    f32 playerPitch;
+    f32 playerYaw;
 
     Player *player;
 
@@ -222,13 +222,13 @@ struct World
 
 struct SectorParams
 {
-    r32 minVolumeRatio;
-    r32 maxVolumeRatio;
-    r32 minRoomSizeRatio;
-    r32 maxRoomSizeRatio;
+    f32 minVolumeRatio;
+    f32 maxVolumeRatio;
+    f32 minRoomSizeRatio;
+    f32 maxRoomSizeRatio;
     i32 volumeSafeMarginSize;
     // Probability of keeping partitioning a volume once all its dimensions are smaller that the max size
-    r32 volumeExtraPartitioningProbability;
+    f32 volumeExtraPartitioningProbability;
 };
 
 SectorParams

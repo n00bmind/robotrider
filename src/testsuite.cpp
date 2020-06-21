@@ -42,7 +42,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "util.cpp"
 
 
-internal r64 globalCounterFreqSecs = 0.0;
+internal f64 globalCounterFreqSecs = 0.0;
 internal i64 globalCounterStart;
 
 u64 __rdtsc_start;
@@ -104,20 +104,20 @@ StartCounter()
     globalCounterStart = li.QuadPart;
 }
 
-inline r64
+inline f64
 GetCounterMs()
 {
     LARGE_INTEGER li;
     QueryPerformanceCounter( &li );
-    return r64(li.QuadPart - globalCounterStart) / globalCounterFreqSecs * 1000.0;
+    return f64(li.QuadPart - globalCounterStart) / globalCounterFreqSecs * 1000.0;
 }
 
-inline r64
+inline f64
 GetCounterUs()
 {
     LARGE_INTEGER li;
     QueryPerformanceCounter( &li );
-    return r64(li.QuadPart - globalCounterStart) / globalCounterFreqSecs * 1000000.0;
+    return f64(li.QuadPart - globalCounterStart) / globalCounterFreqSecs * 1000000.0;
 }
 
 
@@ -133,9 +133,9 @@ struct SortingBenchmark
     Array<i32> duplicated;
     Array<i32> allEqual;
     Array<i32> smallish;
-    Array<r32> randomFloat;
+    Array<f32> randomFloat;
     Array<i64> randomLong;
-    Array<r64> randomDouble;
+    Array<f64> randomDouble;
     Array<KeyIndex64> randomStruct;
 
     struct Timings
@@ -143,25 +143,25 @@ struct SortingBenchmark
         const char* name;
 
         Array<u64> sortedTimes;
-        Array<r64> sortedMillis;
+        Array<f64> sortedMillis;
         Array<u64> reversedTimes;
-        Array<r64> reversedMillis;
+        Array<f64> reversedMillis;
         Array<u64> randomTimes;
-        Array<r64> randomMillis;
+        Array<f64> randomMillis;
         Array<u64> duplicatedTimes;
-        Array<r64> duplicatedMillis;
+        Array<f64> duplicatedMillis;
         Array<u64> allEqualTimes;
-        Array<r64> allEqualMillis;
+        Array<f64> allEqualMillis;
         Array<u64> smallishTimes;
-        Array<r64> smallishMillis;
+        Array<f64> smallishMillis;
         Array<u64> randomFloatTimes;
-        Array<r64> randomFloatMillis;
+        Array<f64> randomFloatMillis;
         Array<u64> randomLongTimes;
-        Array<r64> randomLongMillis;
+        Array<f64> randomLongMillis;
         Array<u64> randomDoubleTimes;
-        Array<r64> randomDoubleMillis;
+        Array<f64> randomDoubleMillis;
         Array<u64> randomStructTimes;
-        Array<r64> randomStructMillis;
+        Array<f64> randomStructMillis;
     };
 };
 
@@ -181,13 +181,13 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
         for( int i = 0; i < result.sorted.capacity; ++i )
         {
             i32 deviation = 0;
-            r32 p = RandomNormalizedR32();
+            f32 p = RandomNormalizedF32();
             if( p < 0.25f )
                 deviation = RandomI32();
 
             result.sorted[i] = currentValue + deviation;
 
-            p = RandomNormalizedR32();
+            p = RandomNormalizedF32();
             if( p < 0.1f )
                 continue;
             else
@@ -208,13 +208,13 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
         for( int i = 0; i < result.reversed.capacity; ++i )
         {
             i32 deviation = 0;
-            r32 p = RandomNormalizedR32();
+            f32 p = RandomNormalizedF32();
             if( p < 0.25f )
                 deviation = RandomI32();
 
             result.reversed[i] = currentValue + deviation;
 
-            p = RandomNormalizedR32();
+            p = RandomNormalizedF32();
             if( p < 0.1f )
                 continue;
             else
@@ -239,7 +239,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
         result.duplicated = NewArray<i32>( N );
         PZERO( result.duplicated.data, N * sizeof(i32) );
 
-        int duplicateCount = (int)(N * RandomRangeR32( 0.5f, 0.75f ));
+        int duplicateCount = (int)(N * RandomRangeF32( 0.5f, 0.75f ));
         int nextSwitch = RandomRangeI32( (int)(duplicateCount * 0.1f), duplicateCount );
         i32 value = RandomI32();
         for( int d = 0; d < duplicateCount; ++d )
@@ -278,10 +278,10 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
 
     {
         // Random float
-        result.randomFloat = NewArray<r32>( N );
+        result.randomFloat = NewArray<f32>( N );
         for( int i = 0; i < result.randomFloat.capacity; ++i )
         {
-            result.randomFloat[i] = RandomRangeR32( -10000, 10000 );
+            result.randomFloat[i] = RandomRangeF32( -10000, 10000 );
         }
     }
 
@@ -296,10 +296,10 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
 
     {
         // Random double
-        result.randomDouble = NewArray<r64>( N );
+        result.randomDouble = NewArray<f64>( N );
         for( int i = 0; i < result.randomDouble.capacity; ++i )
         {
-            result.randomDouble[i] = RandomRangeR64( -1000000000, 100000000000 );
+            result.randomDouble[i] = RandomRangeF64( -1000000000, 100000000000 );
         }
     }
 
@@ -350,16 +350,16 @@ InitTimings( const char* name, int passes )
     result.randomDoubleTimes = NewArray<u64>( passes );
     result.randomStructTimes = NewArray<u64>( passes );
 
-    result.sortedMillis = NewArray<r64>( passes );
-    result.reversedMillis = NewArray<r64>( passes );
-    result.randomMillis = NewArray<r64>( passes );
-    result.duplicatedMillis = NewArray<r64>( passes );
-    result.allEqualMillis = NewArray<r64>( passes );
-    result.smallishMillis = NewArray<r64>( passes );
-    result.randomFloatMillis = NewArray<r64>( passes );
-    result.randomLongMillis = NewArray<r64>( passes );
-    result.randomDoubleMillis = NewArray<r64>( passes );
-    result.randomStructMillis = NewArray<r64>( passes );
+    result.sortedMillis = NewArray<f64>( passes );
+    result.reversedMillis = NewArray<f64>( passes );
+    result.randomMillis = NewArray<f64>( passes );
+    result.duplicatedMillis = NewArray<f64>( passes );
+    result.allEqualMillis = NewArray<f64>( passes );
+    result.smallishMillis = NewArray<f64>( passes );
+    result.randomFloatMillis = NewArray<f64>( passes );
+    result.randomLongMillis = NewArray<f64>( passes );
+    result.randomDoubleMillis = NewArray<f64>( passes );
+    result.randomStructMillis = NewArray<f64>( passes );
 
     return result;
 }
@@ -526,7 +526,7 @@ TestSortingBenchmark( SortingBenchmark* benchmark, int passes )
         EXPECT_TRUE( VerifySorted( smallish, ascending ) );
 
         ClearArena( benchmark->tmpArena );
-        Array<r32> randomFloat = CopyArray( benchmark->randomFloat );
+        Array<f32> randomFloat = CopyArray( benchmark->randomFloat );
         StartCounter();
         radixSort.randomFloatTimes[i] = TIME( RadixSort( &randomFloat, ascending, benchmark->tmpArena ) );
         radixSort.randomFloatMillis[i] = GetCounterUs();
@@ -540,7 +540,7 @@ TestSortingBenchmark( SortingBenchmark* benchmark, int passes )
         EXPECT_TRUE( VerifySorted( randomLong, ascending ) );
 
         ClearArena( benchmark->tmpArena );
-        Array<r64> randomDouble = CopyArray( benchmark->randomDouble );
+        Array<f64> randomDouble = CopyArray( benchmark->randomDouble );
         StartCounter();
         radixSort.randomDoubleTimes[i] = TIME( RadixSort( &randomDouble, ascending, benchmark->tmpArena ) );
         radixSort.randomDoubleMillis[i] = GetCounterUs();
@@ -615,7 +615,7 @@ TestSortingBenchmark( SortingBenchmark* benchmark, int passes )
         EXPECT_TRUE( VerifySorted( smallish, ascending ) );
 
         ClearArena( benchmark->tmpArena );
-        Array<r32> randomFloat = CopyArray( benchmark->randomFloat );
+        Array<f32> randomFloat = CopyArray( benchmark->randomFloat );
         StartCounter();
         radixSort11.randomFloatTimes[i] = TIME( RadixSort11( &randomFloat, ascending, benchmark->tmpArena ) );
         radixSort11.randomFloatMillis[i] = GetCounterUs();
@@ -645,7 +645,7 @@ main( int argC, char** argV )
 
     LARGE_INTEGER li;
     ASSERT_TRUE( QueryPerformanceFrequency( &li ) );
-    globalCounterFreqSecs = r64(li.QuadPart);
+    globalCounterFreqSecs = f64(li.QuadPart);
 
     MemoryArena tmpArena;
     u32 memorySize = 16*1024*1024;

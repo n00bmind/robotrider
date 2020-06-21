@@ -151,7 +151,7 @@ typedef DEBUG_PLATFORM_JOIN_PATHS(DebugPlatformJoinPathsFunc);
 typedef DEBUG_PLATFORM_GET_PARENT_PATH(DebugPlatformGetParentPathFunc);
 
 
-#define DEBUG_PLATFORM_CURRENT_TIME_MILLIS(name) r64 name()
+#define DEBUG_PLATFORM_CURRENT_TIME_MILLIS(name) f64 name()
 typedef DEBUG_PLATFORM_CURRENT_TIME_MILLIS(DebugPlatformCurrentTimeMillis);
 
 

@@ -316,13 +316,13 @@ void RenderBounds( const aabb& box, u32 color, RenderCommands* commands )
     RenderLine( V3( box.max.x, box.min.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ), color, commands );
 }
 
-void RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* commands )
+void RenderBoundsAt( const v3& p, f32 size, u32 color, RenderCommands* commands )
 {
     aabb bounds = AABBCenterDim( p, size );
     RenderBounds( bounds, color, commands );
 }
 
-void RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* commands )
+void RenderBoxAt( const v3& p, f32 size, u32 color, RenderCommands* commands )
 {
     float halfSize = size * 0.5f;
     v3 p1, p2, p3, p4, p5, p6, p7, p8;
@@ -355,48 +355,48 @@ void RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* commands )
     RenderQuad( p7, p3, p2, p6, color, commands );
 }
 
-void RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* commands )
+void RenderFloorGrid( f32 areaSizeMeters, f32 resolutionMeters, RenderCommands* commands )
 {
-    const r32 areaHalf = areaSizeMeters / 2;
+    const f32 areaHalf = areaSizeMeters / 2;
 
     u32 semiBlack = Pack01ToRGBA( 0, 0, 0, 0.1f );
     v3 off = V3Zero;
 
-    r32 yStart = -areaHalf;
-    r32 yEnd = areaHalf;
+    f32 yStart = -areaHalf;
+    f32 yEnd = areaHalf;
     for( float x = -areaHalf; x <= areaHalf; x += resolutionMeters )
     {
         RenderLine( V3( x, yStart, 0.f ) + off, V3( x, yEnd, 0.f ) + off, semiBlack, commands );
     }
-    r32 xStart = -areaHalf;
-    r32 xEnd = areaHalf;
+    f32 xStart = -areaHalf;
+    f32 xEnd = areaHalf;
     for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
     {
         RenderLine( V3( xStart, y, 0.f ) + off, V3( xEnd, y, 0.f ) + off, semiBlack, commands );
     }
 }
 
-void RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* commands )
+void RenderCubicGrid( const aabb& boundingBox, f32 step, u32 color, bool drawZAxis, RenderCommands* commands )
 {
     ASSERT( step > 0.f );
 
     v3 const& min = boundingBox.min;
     v3 const& max = boundingBox.max;
 
-    for( r32 z = min.z; z <= max.z; z += step )
+    for( f32 z = min.z; z <= max.z; z += step )
     {
-        for( r32 y = min.y; y <= max.y; y += step )
+        for( f32 y = min.y; y <= max.y; y += step )
             RenderLine( { min.x, y, z }, { max.x, y, z }, color, commands );
 
-        for( r32 x = min.x; x <= max.x; x += step )
+        for( f32 x = min.x; x <= max.x; x += step )
             RenderLine( { x, min.y, z }, { x, max.y, z }, color, commands );
     }
 
     if( drawZAxis )
     {
-        for( r32 y = min.y; y <= max.y; y += step )
+        for( f32 y = min.y; y <= max.y; y += step )
         {
-            for( r32 x = min.x; x <= max.x; x += step )
+            for( f32 x = min.x; x <= max.x; x += step )
                 RenderLine( { x, y, min.z }, { x, y, max.z }, color, commands );
         }
     }
@@ -452,7 +452,7 @@ void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffset
                     u8 voxelData = *grid++;
                     if( voxelData > 1 )
                     {
-                        data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k ) * VoxelSizeMeters;
+                        data.worldOffset = clusterOffsetP + V3( (f32)i, (f32)j, (f32)k ) * VoxelSizeMeters;
                         data.color = voxelData == 2 ? Pack01ToRGBA( 1, 0, 1, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
                         PushInstanceData( data, commands );
 
@@ -569,7 +569,7 @@ void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 
                     u8 voxelData = *grid++;
                     if( voxelData > 1 )
                     {
-                        data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k ) * VoxelSizeMeters;
+                        data.worldOffset = clusterOffsetP + V3( (f32)i, (f32)j, (f32)k ) * VoxelSizeMeters;
                         data.color = voxelData == 2 ? Pack01ToRGBA( 0.99f, 0.9f, 0.7f, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
                         PushInstanceData( data, commands );
 
@@ -591,7 +591,7 @@ void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 
                             || (k == roomMinP.z || k == roomMaxP.z);
                         if( atBorder )
                         {
-                            data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k ) * VoxelSizeMeters;
+                            data.worldOffset = clusterOffsetP + V3( (f32)i, (f32)j, (f32)k ) * VoxelSizeMeters;
                             data.color = Pack01ToRGBA( 0.99f, 0.9f, 0.7f, 1 );
                             PushInstanceData( data, commands );
 
