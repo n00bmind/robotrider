@@ -323,7 +323,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
 
 internal Room*
 CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v3i const& clusterP,
-             IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool, World* world )
+             IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
     if( v->leftChild || v->rightChild )
     {
@@ -331,9 +331,9 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
         Room* rightRoom = nullptr;
 
         if( v->leftChild )
-            leftRoom = CreateRooms( v->leftChild, genParams, cluster, clusterP, samplingCache, meshPool, world );
+            leftRoom = CreateRooms( v->leftChild, genParams, cluster, clusterP, samplingCache, meshPool, world, arena, tempArena );
         if( v->rightChild )
-            rightRoom = CreateRooms( v->rightChild, genParams, cluster, clusterP, samplingCache, meshPool, world ); 
+            rightRoom = CreateRooms( v->rightChild, genParams, cluster, clusterP, samplingCache, meshPool, world, arena, tempArena ); 
 
         if( leftRoom && rightRoom )
             CreateHall( v, *leftRoom, *rightRoom, cluster );
@@ -394,16 +394,17 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
         ASSERT( samplingCache->cellsPerAxis.x >= voxelsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= voxelsPerSliceAxis.y );
 
         // TODO Do all this in jobs in LoadEntitiesInCluster
-        ClearScratchBuffers( meshPool );
+        // TODO Would be interesting to study how we could sample _all rooms in the cluster at once_ slice by slice,
+        // while keeping their meshes separate. Not sure if that'd be faster or not
 
         // TODO Super sample the volume shell?
         // TODO Skip interior!
+
+#if 0
+        ClearScratchBuffers( meshPool );
         bool firstSlice = true;
         for( int k = 0; k < roomExtSize.z; ++k )
         {
-            // TODO Would be interesting to study how we could sample _all rooms in the cluster at once_ slice by slice,
-            // while keeping their meshes separate
-
             // Pre-sample bottom and top corners of cubes for the first slice, only the top ones for the rest
             for( int n = 0; n < 2; ++n )
             {
@@ -450,6 +451,19 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
 
         // Write output mesh
         v->room.mesh = AllocateMeshFromScratchBuffers( meshPool );
+#else
+        DCSettings settings;
+        settings.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
+        settings.sigmaN = 0.02f;
+        settings.sigmaNDouble = 0.01f;
+        BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
+        BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
+
+        DCVolume( v->room.worldP, V3( roomExtSize ), VoxelSizeMeters, RoomSurfaceFunc, roomSamplingData,
+                  &tmpVertices, &tmpIndices, tempArena, settings );
+        v->room.meshStore = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+        v->room.mesh = &v->room.meshStore;
+#endif
         // Set offset index based on cluster
         v3i clusterRelativeP = clusterP - world->originClusterP;
         v->room.mesh->simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
@@ -478,7 +492,7 @@ IsInSimRegion( const v3i& clusterP, const v3i& worldOriginClusterP )
 }
 
 internal void
-CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, MemoryArena* arena )
+CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
     // Partition cluster space
     SectorParams genParams = CollectSectorParams( clusterP );
@@ -528,7 +542,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     v3 clusterGridWorldP = GetClusterOffsetFromOrigin( clusterP, world->originClusterP ) - V3( ClusterSizeMeters * 0.5f );
     // Create a room in each volume
     // TODO Add a certain chance for empty volumes
-    CreateRooms( rootVolume, genParams, cluster, clusterP, world->samplingCache, &world->meshPools[0], world );
+    CreateRooms( rootVolume, genParams, cluster, clusterP, world->samplingCache, &world->meshPools[0], world, arena, tempArena );
 }
 
 inline MeshGeneratorJob*
@@ -591,7 +605,7 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 }
 
 internal void
-LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
+LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
     TIMED_BLOCK;
 
@@ -609,7 +623,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
 
     if( !cluster->populated )
     {
-        CreateEntitiesInCluster( cluster, clusterP, world, arena );
+        CreateEntitiesInCluster( cluster, clusterP, world, arena, tempArena );
         cluster->populated = true;
     }
 
@@ -724,7 +738,7 @@ RestartWorldGeneration( World* world )
 }
 
 internal void
-UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
+UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
     TIMED_BLOCK;
 
@@ -794,7 +808,7 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena )
                     // and put them in the live entities list
                     if( !IsInSimRegion( clusterP, world->lastOriginClusterP ) )
                     {
-                        LoadEntitiesInCluster( clusterP, world, arena );
+                        LoadEntitiesInCluster( clusterP, world, arena, tempArena );
                     }
                 }
             }
@@ -911,7 +925,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     }
 
 
-    //UpdateWorldGeneration( input, world, &gameState->worldArena );
+    UpdateWorldGeneration( input, world, &gameState->worldArena, &gameState->transientArena);
 
 
 
@@ -971,13 +985,16 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
 #endif
     }
 
-    if( !gameMemory->DEBUGglobalEditing )
+    //if( !gameMemory->DEBUGglobalEditing )
     {
+        RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
         RenderSetMaterial( world->player->mesh.material, renderCommands );
         RenderMesh( world->player->mesh, renderCommands );
+
+#if 1
+        RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
         RenderSetMaterial( nullptr, renderCommands );
 
-#if 0
         Cluster* currentCluster = world->clusterTable.Find( world->originClusterP );
         f32 clusterHalfSize = ClusterSizeMeters * 0.5f;
         u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );
@@ -1001,6 +1018,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
                 }
             }
         }
+#endif
 
         RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
 
@@ -1021,7 +1039,6 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
                 }
             }
         }
-#endif
     }
 
     {

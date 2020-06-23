@@ -288,7 +288,18 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
     {
         int indexStartOffset = entry->runningVertexCount;
 
+#if 0
         PushVertices( mesh.vertices.data, mesh.vertices.count, commands );
+#else
+        for( int i = 0; i < mesh.vertices.count; ++i )
+        {
+            TexturedVertex const& v = mesh.vertices[i];
+            // Transform to world coordinates so this can all be rendered in big chunks
+            // FIXME We should be using a TBO and do the transform in the VS
+            PushVertex( mesh.mTransform * v.p, v.color, v.uv, commands );
+        }
+#endif
+
         entry->runningVertexCount += mesh.vertices.count;
         PushIndices( mesh.indices.data, mesh.indices.count, commands );
 

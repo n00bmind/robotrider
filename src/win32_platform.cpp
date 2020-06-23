@@ -1288,7 +1288,7 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                 bool ctrlKeyDown = lControlDown || rControlDown;
                 bool altKeyDown = lAltDown || rAltDown;
 
-                // Set controller button states (only for up/down transitions)
+                // Set controller button states (for both up/down transitions)
                 // (don't ever send keys to game if ImGui is handling them)
                 if( isDown != wasDown && !imGuiIO.WantCaptureKeyboard )
                 {
@@ -1356,8 +1356,8 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                     }
                 }
 
-                // Respond to keyboard input
-                if( isDown )
+                // Exit & debug/edit modes
+                if( isDown && !imGuiIO.WantCaptureKeyboard )
                 {
                     if( vkCode == VK_F4 && altKeyDown )
                     {
@@ -1375,18 +1375,18 @@ Win32ProcessPendingMessages( Win32State *platformState, GameMemory *gameMemory,
                             Win32EndInputPlayback( platformState );
                             Win32ResetController( keyMouseController );
                         }
-                        //else if( gameMemory->DEBUGglobalDebugging )
-                        //{
-                            //Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
-                        //}
-                        //else if( gameMemory->DEBUGglobalEditing )
-                        //{
-                            //gameMemory->DEBUGglobalEditing = false;
-                        //}
-                        //else
-                        //{
-                            //globalRunning = false;
-                        //}
+                        else if( gameMemory->DEBUGglobalDebugging )
+                        {
+                            Win32ToggleGlobalDebugging( gameMemory, platformState->mainWindow );
+                        }
+                        else if( gameMemory->DEBUGglobalEditing )
+                        {
+                            gameMemory->DEBUGglobalEditing = false;
+                        }
+                        else
+                        {
+                            globalRunning = false;
+                        }
                     }
 
                     // @Test The "key above TAB"

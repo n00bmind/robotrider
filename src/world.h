@@ -120,6 +120,7 @@ struct Room
     WorldCoords worldP;
     v3 halfSize;
 
+    Mesh meshStore;
     Mesh* mesh;
 };
 
