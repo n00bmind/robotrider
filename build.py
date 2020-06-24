@@ -23,7 +23,7 @@
 
 
 
-import os, sys, subprocess, atexit, random, argparse
+import os, sys, subprocess, atexit, random, argparse, shutil
 from collections import namedtuple
 
 
@@ -155,6 +155,7 @@ if __name__ == '__main__':
     config_group.add_argument('-d', '--debug', help='Create Debug build', action='store_true')
     config_group.add_argument('--dev', help='Create Develop build', action='store_true')
     config_group.add_argument('-r', '--release', help='Create Release build', action='store_true')
+    parser.add_argument('-c', '--clean', help='Delete contents of the bin folder before building', action='store_true')
     parser.add_argument('-v', '--verbose', help='Increase verbosity', action='store_true')
     in_args = parser.parse_args()
 
@@ -177,6 +178,18 @@ if __name__ == '__main__':
                 except WindowsError:
                     # print('Couldn\'t remove {} (probably in use)'.format(pdbpath))
                     pass
+
+    if in_args.clean:
+        print(f'Removing contents of \'{binpath}\'..')
+        for f in os.listdir(binpath):
+            path = os.path.join(binpath, f)
+            try:
+                if os.path.isfile(path) or os.path.islink(path):
+                    os.unlink(path)
+                elif os.path.isdir(path):
+                    shutil.rmtree(path)
+            except Exception as e:
+                print(f'Couldn\'t delete \'{path}\' ({e})')
 
     # TODO Determine platform/config
     platform = default_platform
