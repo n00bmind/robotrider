@@ -169,7 +169,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         // FIXME
         auxArena = &gameState->worldArena;
 
-#if !RELEASE
+#if 0 //!RELEASE
         memory->DEBUGglobalEditing = false;
         InitEditor( { width, height }, gameState, &gameState->DEBUGeditorState, transientState,
                     &gameState->worldArena, &gameState->transientArena );

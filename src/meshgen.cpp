@@ -830,6 +830,8 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cell
 
 
 // TODO Clean up asserts
+// TODO Clean up asserts
+// TODO Clean up asserts
 void
 DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
           BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* tempArena, DCSettings const& settings )
@@ -1030,7 +1032,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
 
                             ASSERT( edgeP != V3Undefined );
                             if( pointCount )
-                                ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
+                                ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f * VoxelSizeMeters );
 
                             // Find normal vector by sampling near the intersection point we found
                             p.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };

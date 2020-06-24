@@ -102,6 +102,7 @@ struct LiveEntity
 };
 
 // NOTE Everything related to maze generation and connectivity is measured in voxel units
+// Also, all integer voxel coords are relative to the "lower left" corner of the grid (cluster)
 const f32 VoxelSizeMeters = 1.f;
 const i32 VoxelsPerClusterAxis = 256;
 
@@ -128,7 +129,7 @@ struct Hall
 {
     v3i startP;
     v3i endP;
-    // Encoded as 2 bits per axis, first axis is LSB
+    // Encoded as 2 bits per axis (X == 0, Y == 1, Z == 2), first axis is LSB
     u8 axisOrder;
 };
 
@@ -137,6 +138,7 @@ struct BinaryVolume
     BinaryVolume* leftChild;
     BinaryVolume* rightChild;
 
+    // Only leaf volumes have rooms, only non-leaf volumes have connecting halls
     union
     {
         Room room;

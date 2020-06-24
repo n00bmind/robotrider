@@ -325,6 +325,7 @@ internal Room*
 CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v3i const& clusterP,
              IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
+    // Non-leaf, recurse
     if( v->leftChild || v->rightChild )
     {
         Room* leftRoom = nullptr;
@@ -340,6 +341,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
 
         return RandomNormalizedF32() < 0.5f ? leftRoom : rightRoom;
     }
+    // Leaf, create a room
     else
     {
         v3i const& vSize = v->sizeVoxels;
