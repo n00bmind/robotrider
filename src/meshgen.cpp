@@ -1066,7 +1066,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                             edgeNormals[pointCount] = cellData( neighbourCoords ).edgeCrossingsN[locator.storeIndex];
 
                             if( pointCount )
-                                ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
+                                ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f * VoxelSizeMeters );
                         }
 
                         edges[pointCount] = { indexA, indexB };

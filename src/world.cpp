@@ -360,17 +360,20 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
             RandomRangeI32( genParams.volumeSafeMarginSize, vSize.z - roomSizeVoxels.z - genParams.volumeSafeMarginSize ),
         };
 
-        const v3 clusterHalfSizeMeters = V3( ClusterSizeMeters * 0.5f );
-
         v3i roomIntMinP = v->voxelP + roomOffset;
-        v3i roomIntMaxP = roomIntMinP + roomSizeVoxels - V3iOne;
-
         v->room.voxelP = roomIntMinP;
         v->room.sizeVoxels = roomSizeVoxels;
-        v->room.worldP = { -clusterHalfSizeMeters + (V3( roomIntMinP ) + V3( roomSizeVoxels ) * 0.5f) * VoxelSizeMeters, clusterP };
-        v->room.halfSize = V3( roomSizeVoxels ) * 0.5f * VoxelSizeMeters;
+
+        const v3 clusterHalfSizeMeters = V3( ClusterSizeMeters * 0.5f );
+        v3 roomHalfSize = V3( roomSizeVoxels ) * VoxelSizeMeters * 0.5f;
+        v->room.worldP = { -clusterHalfSizeMeters + V3( roomIntMinP ) * VoxelSizeMeters + roomHalfSize, clusterP };
+        v->room.halfSize = roomHalfSize;
 
 #if 0
+        // Inclusive
+        v3i roomIntMaxP = roomIntMinP + roomSizeVoxels - V3iOne;
+
+        // Fill voxel grid with room markers
         for( int k = roomIntMinP.z; k <= roomIntMaxP.z; ++k )
             for( int j = roomIntMinP.y; j <= roomIntMaxP.y; ++j )
                 for( int i = roomIntMinP.x; i <= roomIntMaxP.x; ++i )
@@ -380,20 +383,16 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
                         || (k == roomIntMinP.z || k == roomIntMaxP.z);
                     cluster->voxelGrid( i, j, k ) = atBorder ? 2 : 1;
                 }
-#else
-        // FIXME Account for sample volume thickness during room volume calculations
-        int volumeShellThickness = 3;
-        v3i roomExtP = roomIntMinP - V3i( volumeShellThickness );
+#endif
+
+        // FIXME Account for this extra sample volume thickness during room volume calculations
+        const int volumeShellThickness = 3;
+        v3i roomExtMinP = roomIntMinP - V3i( volumeShellThickness );
         v3i roomExtSize = roomSizeVoxels + V3i( 2 * volumeShellThickness );
+        v3 sampleVolumeSizeMeters = V3( roomExtSize ) * VoxelSizeMeters;
 
-        v2i voxelsPerSliceAxis = roomExtSize.xy;
-        v2i gridEdgesPerSliceAxis = voxelsPerSliceAxis + V2iOne;
-
-        WorldCoords worldP = { V3Zero, clusterP };
         // Just pass the room data for now
         void* const roomSamplingData = &v->room;
-
-        ASSERT( samplingCache->cellsPerAxis.x >= voxelsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= voxelsPerSliceAxis.y );
 
         // TODO Do all this in jobs in LoadEntitiesInCluster
         // TODO Would be interesting to study how we could sample _all rooms in the cluster at once_ slice by slice,
@@ -402,9 +401,28 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
         // TODO Super sample the volume shell?
         // TODO Skip interior!
 
-#if 0
+#if 1
+        DCSettings settings;
+        settings.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
+        settings.sigmaN = 0.02f;
+        settings.sigmaNDouble = 0.01f;
+        BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
+        BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
+
+        DCVolume( v->room.worldP, sampleVolumeSizeMeters, VoxelSizeMeters, RoomSurfaceFunc, roomSamplingData,
+                  &tmpVertices, &tmpIndices, tempArena, settings );
+        v->room.meshStore = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+        v->room.mesh = &v->room.meshStore;
+#else
+        v2i voxelsPerSliceAxis = roomExtSize.xy;
+        v2i gridEdgesPerSliceAxis = voxelsPerSliceAxis + V2iOne;
+
+        ASSERT( samplingCache->cellsPerAxis.x >= voxelsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= voxelsPerSliceAxis.y );
+
         ClearScratchBuffers( meshPool );
+        WorldCoords worldP = { V3Zero, clusterP };
         bool firstSlice = true;
+
         for( int k = 0; k < roomExtSize.z; ++k )
         {
             // Pre-sample bottom and top corners of cubes for the first slice, only the top ones for the rest
@@ -413,7 +431,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
                 if( n == 0 && !firstSlice )
                     continue;
 
-                worldP.relativeP = -clusterHalfSizeMeters + V3( roomExtP + V3i( 0, 0, k + n ) ) * VoxelSizeMeters;
+                worldP.relativeP = -clusterHalfSizeMeters + V3( roomExtMinP + V3i( 0, 0, k + n ) ) * VoxelSizeMeters;
 
                 f32* sample = n ? samplingCache->topLayerSamples : samplingCache->bottomLayerSamples;
                 // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
@@ -433,7 +451,7 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
             // Keep a cache of already calculated vertices to eliminate duplication
             ClearVertexCaches( samplingCache, firstSlice );
 
-            worldP.relativeP = -clusterHalfSizeMeters + V3( roomExtP + V3i( 0, 0, k ) ) * VoxelSizeMeters;
+            worldP.relativeP = -clusterHalfSizeMeters + V3( roomExtMinP + V3i( 0, 0, k ) ) * VoxelSizeMeters;
             for( int j = 0; j < voxelsPerSliceAxis.y; ++j )
             {
                 v3 pAtRowStart = worldP.relativeP;
@@ -453,23 +471,10 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
 
         // Write output mesh
         v->room.mesh = AllocateMeshFromScratchBuffers( meshPool );
-#else
-        DCSettings settings;
-        settings.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
-        settings.sigmaN = 0.02f;
-        settings.sigmaNDouble = 0.01f;
-        BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
-        BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
-
-        DCVolume( v->room.worldP, V3( roomExtSize ), VoxelSizeMeters, RoomSurfaceFunc, roomSamplingData,
-                  &tmpVertices, &tmpIndices, tempArena, settings );
-        v->room.meshStore = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
-        v->room.mesh = &v->room.meshStore;
 #endif
         // Set offset index based on cluster
         v3i clusterRelativeP = clusterP - world->originClusterP;
         v->room.mesh->simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
-#endif
 
         cluster->rooms.Push( v->room );
         return &v->room;
@@ -541,7 +546,6 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     // TODO Make it sparse! (octree)
     cluster->voxelGrid = ClusterVoxelGrid( arena, V3i( VoxelsPerClusterAxis ) );
 
-    v3 clusterGridWorldP = GetClusterOffsetFromOrigin( clusterP, world->originClusterP ) - V3( ClusterSizeMeters * 0.5f );
     // Create a room in each volume
     // TODO Add a certain chance for empty volumes
     CreateRooms( rootVolume, genParams, cluster, clusterP, world->samplingCache, &world->meshPools[0], world, arena, tempArena );

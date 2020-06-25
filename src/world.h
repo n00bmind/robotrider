@@ -103,7 +103,7 @@ struct LiveEntity
 
 // NOTE Everything related to maze generation and connectivity is measured in voxel units
 // Also, all integer voxel coords are relative to the "lower left" corner of the grid (cluster)
-const f32 VoxelSizeMeters = 1.f;
+const f32 VoxelSizeMeters = 2.f;
 const i32 VoxelsPerClusterAxis = 256;
 
 const f32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;

@@ -352,7 +352,7 @@ TickSurfaceContouringTest( const GameInput& input, EditorState* state, RenderCom
 
         start = globalPlatform.DEBUGCurrentTimeMillis();
 
-#if 1
+#if 0
         // Simplify mesh
         TemporaryMemory tempMemory = BeginTemporaryMemory( tempArena );
 
@@ -387,7 +387,7 @@ TickSurfaceContouringTest( const GameInput& input, EditorState* state, RenderCom
     ImGui::Text( "Verts: %u", state->tests.testMesh.vertices.count );
     ImGui::Dummy( { 0, 20 } );
     ImGui::Text( "Extracted in: %g millis.", currentSettings.contourTimeMillis );
-    //ImGui::Text( "Simplified in: %g millis.", state->tests.simplifyTimeMillis );
+    ImGui::Text( "Simplified in: %g millis.", currentSettings.simplifyTimeMillis );
     ImGui::End();
 
     RenderSwitch( RenderSwitchType::Culling, false, renderCommands );
