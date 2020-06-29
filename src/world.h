@@ -108,29 +108,54 @@ const i32 VoxelsPerClusterAxis = 256;
 
 const f32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;
 static_assert( (f32)(u32)(VoxelsPerClusterAxis * VoxelSizeMeters) == ClusterSizeMeters, "FAIL" );
+const v3 ClusterHalfSize = V3( ClusterSizeMeters * 0.5f );
+
+const int SampledRoomShellThickness = 3;
 
 typedef Grid3D<u8> ClusterVoxelGrid;
 
 
+struct Box
+{
+    v3 centerP;
+    v3 halfSize;
+};
+
+// TODO Most of this will be in the stored entity when we turn rooms into that
 struct Room
 {
     v3i voxelP;
     v3i sizeVoxels;
-    // TODO This will be in the stored entity when we turn rooms into that
     // TODO Make sure everything in the pipeline uses these right up until we send the meshes for rendering
-    WorldCoords worldP;
+    WorldCoords worldCenterP;
     v3 halfSize;
-
-    Mesh meshStore;
-    Mesh* mesh;
 };
 
 struct Hall
 {
+    // TODO It seems more and more pointless to have to compute and maintain both voxel and real world coords for everything
+    Box sectionBoxes[3];
+
     v3i startP;
     v3i endP;
     // Encoded as 2 bits per axis (X == 0, Y == 1, Z == 2), first axis is LSB
     u8 axisOrder;
+};
+
+// TODO Pack minimal 8 byte coords for rooms and halls inline into this struct so everything is in contiguous memory and fast
+struct ClusterSamplingData
+{
+    Array<Room> const& rooms;
+    Array<Hall> const& halls;
+    // Room index when sampling rooms, hall index for halls
+    i32 sampledVolumeIndex;
+};
+
+enum VolumeFlags : u32
+{
+    VF_None = 0,
+    HasRoom = 0x1,
+    HasHall = 0x2,
 };
 
 struct BinaryVolume
@@ -138,6 +163,7 @@ struct BinaryVolume
     BinaryVolume* leftChild;
     BinaryVolume* rightChild;
 
+    // Used only as temporary storage during the partitioning
     // Only leaf volumes have rooms, only non-leaf volumes have connecting halls
     union
     {
@@ -147,6 +173,7 @@ struct BinaryVolume
 
     v3i voxelP;
     v3i sizeVoxels;
+    u32 flags;
 };
 
 struct Cluster
@@ -154,11 +181,18 @@ struct Cluster
     // TODO Determine what the bucket size should be so we have just one bucket most of the time
     BucketArray<StoredEntity> entityStorage;
 
-    // @Remove Just for visualization
-    Array<BinaryVolume> volumes;
-
-    Array<Room> rooms;
     ClusterVoxelGrid voxelGrid;
+    // TODO These should be actual entities (maybe just keep a minimal cache-friendly version here for fast iteration)
+    Array<Room> rooms;
+    Array<Hall> halls;
+
+#if !RELEASE
+    // Just for visualization
+    BucketArray<aabb> debugVolumes;
+#endif
+
+    // TODO This probably go in a global mesh pool
+    Array<Mesh> meshStore;
 
     bool populated;
 };

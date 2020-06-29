@@ -2672,19 +2672,6 @@ MESH_GENERATOR_FUNC(MeshGeneratorRoomFunc)
 }
 #endif
 
-ISO_SURFACE_FUNC(RoomSurfaceFunc)
-{
-    TIMED_BLOCK;
-
-    Room* roomData = (Room*)samplingData;
-    // NOTE We're axis aligned for now, so just translate
-    v3 invWorldP = worldP.relativeP - roomData->worldP.relativeP;
-
-    // Inflate the size a little
-    f32 result = SDFBox( invWorldP, roomData->halfSize + V3( VoxelSizeMeters * 0.5f ) );
-    return result;
-}
-
 
 
 ///// MARCHING CUBES LUTs /////
