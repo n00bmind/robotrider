@@ -1717,79 +1717,72 @@ Tri( const v3& v0, const v3& v1, const v3& v2, bool findNormal = false )
 
 struct aabb
 {
-    v3 min;
-    v3 max;
+    v3 center;
+    v3 halfSize;
 };
 
 inline aabb
-AABB( v3 const& min, v3 const& max )
+AABBMinMax( v3 const& min, v3 const& max )
 {
-    aabb result = { min, max };
+    ASSERT( max.x >= min.x && max.y >= min.y && max.z >= min.z );
+
+    v3 halfSize = (max - min) * 0.5f;
+    aabb result = { min + halfSize, halfSize };
     return result;
 }
 
 inline aabb
-AABB( const v3& min, f32 size )
+AABBMinSize( const v3& min, f32 size )
 {
-    aabb result =
-    {
-        min,
-        { min.x + size, min.y + size, min.z + size, }
-    };
+    v3 halfSize = V3( size * 0.5f );
+    aabb result = { min + halfSize, halfSize };
     return result;
 }
 
 inline aabb
-AABBCenterDim( const v3& p, f32 size )
+AABBCenterSize( const v3& p, f32 size )
 {
-    f32 halfSize = size * 0.5f;
-    aabb result =
-    {
-        { p.x - halfSize, p.y - halfSize, p.z - halfSize, },
-        { p.x + halfSize, p.y + halfSize, p.z + halfSize, }
-    };
+    v3 halfSize = V3( size * 0.5f );
+    aabb result = { p, halfSize };
     return result;
 }
 
 inline aabb
-AABBCenterDim( const v3& p, const v3& dim )
+AABBCenterSize( const v3& p, const v3& size )
 {
-    v3 halfDim = dim * 0.5f;
-    aabb result =
-    {
-        { p.x - halfDim.x, p.y - halfDim.y, p.z - halfDim.z, },
-        { p.x + halfDim.x, p.y + halfDim.y, p.z + halfDim.z, }
-    };
+    v3 halfSize = size * 0.5f;
+    aabb result = { p, halfSize };
     return result;
 }
 
 inline v3
 Dim( aabb const& b )
 {
-    return b.max - b.min;
+    return b.halfSize * 2.f;
 }
 
-inline v3
-Center( const aabb& b )
+inline void
+MinMax( aabb const& b, v3* min, v3* max )
 {
-    v3 result = b.min + (b.max - b.min) * 0.5f;
-    return result;
+    *min = b.center - b.halfSize;
+    *max = b.center + b.halfSize;
 }
 
 inline bool
 Contains( aabb const& b, v3 const& p )
 {
-    return (b.min.x < p.x && p.x < b.max.x)
-        && (b.min.y < p.y && p.y < b.max.y)
-        && (b.min.z < p.z && p.z < b.max.z);
+    v3 dist = Abs( p - b.center );
+    return dist.x < b.halfSize.x && dist.y < b.halfSize.y && dist.z < b.halfSize.z;
 }
 
 inline void
 Clamp( v3* v, aabb const& b )
 {
-    Clamp( &v->x, b.min.x, b.max.x );
-    Clamp( &v->y, b.min.y, b.max.y );
-    Clamp( &v->z, b.min.z, b.max.z );
+    v3 min, max;
+    MinMax( b, &min, &max );
+    Clamp( &v->x, min.x, max.x );
+    Clamp( &v->y, min.y, max.y );
+    Clamp( &v->z, min.z, max.z );
 }
 
 // Ray

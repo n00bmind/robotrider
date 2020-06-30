@@ -265,15 +265,15 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
 
         if( Contains( room, hall.startP ) )
         {
-            invWorldP = worldP.relativeP - hall.sectionBoxes[0].centerP;
-            f32 hallSDF = SDFBox( invWorldP, hall.sectionBoxes[0].halfSize );
+            invWorldP = worldP.relativeP - hall.sectionBounds[0].center;
+            f32 hallSDF = SDFBox( invWorldP, hall.sectionBounds[0].halfSize );
 
             result = SDFUnion( result, hallSDF );
         }
         else if( Contains( room, hall.endP ) )
         {
-            invWorldP = worldP.relativeP - hall.sectionBoxes[2].centerP;
-            f32 hallSDF = SDFBox( invWorldP, hall.sectionBoxes[2].halfSize );
+            invWorldP = worldP.relativeP - hall.sectionBounds[2].center;
+            f32 hallSDF = SDFBox( invWorldP, hall.sectionBounds[2].halfSize );
 
             result = SDFUnion( result, hallSDF );
         }
@@ -290,9 +290,9 @@ ISO_SURFACE_FUNC(HallSurfaceFunc)
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
     Hall const& hall = clusterData->halls[clusterData->sampledVolumeIndex];
 
-    f32 result = SDFBox( worldP.relativeP - hall.sectionBoxes[0].centerP, hall.sectionBoxes[0].halfSize );
-    result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBoxes[1].centerP, hall.sectionBoxes[1].halfSize ) );
-    result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBoxes[2].centerP, hall.sectionBoxes[2].halfSize ) );
+    f32 result = SDFBox( worldP.relativeP - hall.sectionBounds[0].center, hall.sectionBounds[0].halfSize );
+    result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBounds[1].center, hall.sectionBounds[1].halfSize ) );
+    result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBounds[2].center, hall.sectionBounds[2].halfSize ) );
 
     return result;
 }
@@ -338,7 +338,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
             continue;
         else
         {
-            Box& box = v->hall.sectionBoxes[currentSectionIndex++];
+            aabb& bounds = v->hall.sectionBounds[currentSectionIndex++];
 
             int& next = nextAxis[index];
             switch( next )
@@ -354,8 +354,8 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                         cluster->voxelGrid( i, j, k ) = 3;
 
                     v3i hallSizeVoxels = { end - start + 1, hallThickness, hallThickness };
-                    box.halfSize = V3( hallSizeVoxels ) * VoxelSizeMeters * 0.5f;
-                    box.centerP = -clusterHalfSizeMeters + V3( start, currentP.y, currentP.z ) * VoxelSizeMeters + box.halfSize;
+                    bounds.halfSize = V3( hallSizeVoxels ) * VoxelSizeMeters * 0.5f;
+                    bounds.center = -clusterHalfSizeMeters + V3( start, currentP.y, currentP.z ) * VoxelSizeMeters + bounds.halfSize;
 
                     currentP.x = endP.x;
                 } break;
@@ -370,8 +370,8 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                         cluster->voxelGrid( i, j, k ) = 3;
 
                     v3i hallSizeVoxels = { hallThickness, end - start + 1, hallThickness };
-                    box.halfSize = V3( hallSizeVoxels ) * VoxelSizeMeters * 0.5f;
-                    box.centerP = -clusterHalfSizeMeters + V3( currentP.x, start, currentP.z ) * VoxelSizeMeters + box.halfSize;
+                    bounds.halfSize = V3( hallSizeVoxels ) * VoxelSizeMeters * 0.5f;
+                    bounds.center = -clusterHalfSizeMeters + V3( currentP.x, start, currentP.z ) * VoxelSizeMeters + bounds.halfSize;
 
                     currentP.y = endP.y;
                 } break;
@@ -386,15 +386,15 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                         cluster->voxelGrid( i, j, k ) = 3;
 
                     v3i hallSizeVoxels = { hallThickness, hallThickness, end - start + 1 };
-                    box.halfSize = V3( hallSizeVoxels ) * VoxelSizeMeters * 0.5f;
-                    box.centerP = -clusterHalfSizeMeters + V3( currentP.x, currentP.y, start ) * VoxelSizeMeters + box.halfSize;
+                    bounds.halfSize = V3( hallSizeVoxels ) * VoxelSizeMeters * 0.5f;
+                    bounds.center = -clusterHalfSizeMeters + V3( currentP.x, currentP.y, start ) * VoxelSizeMeters + bounds.halfSize;
 
                     currentP.z = endP.z;
                 } break;
                 INVALID_DEFAULT_CASE
             }
 
-            cluster->debugVolumes.Push( AABBCenterDim( box.centerP, box.halfSize * 2.f ) );
+            cluster->debugVolumes.Push( bounds );
 
             // Record which way we went
             int bitOffset = (3 - remainingAxes) * 2;
@@ -647,8 +647,7 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     v3i clusterRelativeP = clusterP - world->originClusterP;
     result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
 
-    cluster->debugVolumes.Push( { sampledVolumeCenterP - sampledVolumeSizeMeters * 0.5f,
-                                sampledVolumeCenterP + sampledVolumeSizeMeters * 0.5f } );
+    cluster->debugVolumes.Push( { sampledVolumeCenterP, sampledVolumeSizeMeters * 0.5f } );
 
     return result;
 }
@@ -1172,7 +1171,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             if( entity.state == EntityState::Active )
             {
                 v3 entityP = GetLiveEntityWorldP( entity.stored.worldP, world->originClusterP );
-                aabb entityBounds = AABBCenterDim( entityP, entity.stored.dim );
+                aabb entityBounds = AABBCenterSize( entityP, entity.stored.dim );
                 RenderBounds( entityBounds, black, renderCommands );
             }
 

@@ -115,12 +115,6 @@ const int SampledRoomShellThickness = 3;
 typedef Grid3D<u8> ClusterVoxelGrid;
 
 
-struct Box
-{
-    v3 centerP;
-    v3 halfSize;
-};
-
 // TODO Most of this will be in the stored entity when we turn rooms into that
 struct Room
 {
@@ -134,7 +128,7 @@ struct Room
 struct Hall
 {
     // TODO It seems more and more pointless to have to compute and maintain both voxel and real world coords for everything
-    Box sectionBoxes[3];
+    aabb sectionBounds[3];
 
     v3i startP;
     v3i endP;

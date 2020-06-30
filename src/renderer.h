@@ -142,29 +142,29 @@ CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<
 inline void
 CalcBounds( Mesh* mesh )
 {
-    aabb result = { V3Inf, -V3Inf };
+    v3 min = V3Inf, max = -V3Inf;
 
     for( int i = 0; i < mesh->vertices.count; ++i )
     {
         v3& p = mesh->vertices[i].p;
 
-        if( result.min.x > p.x )
-            result.min.x = p.x;
-        if( result.max.x < p.x )
-            result.max.x = p.x;
+        if( min.x > p.x )
+            min.x = p.x;
+        if( max.x < p.x )
+            max.x = p.x;
 
-        if( result.min.y > p.y )
-            result.min.y = p.y;
-        if( result.max.y < p.y )
-            result.max.y = p.y;
+        if( min.y > p.y )
+            min.y = p.y;
+        if( max.y < p.y )
+            max.y = p.y;
 
-        if( result.min.z > p.z )
-            result.min.z = p.z;
-        if( result.max.z < p.z )
-            result.max.z = p.z;
+        if( min.z > p.z )
+            min.z = p.z;
+        if( max.z < p.z )
+            max.z = p.z;
     }
 
-    mesh->bounds = result;
+    mesh->bounds = AABBMinMax( min, max );
 }
 
 

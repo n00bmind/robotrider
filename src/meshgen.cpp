@@ -909,9 +909,9 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
             {
                 v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
 
-                f32 boundsTolerance = 0.5f;
-                aabb cellBounds = AABB( cellP - V3( cellSizeMeters + boundsTolerance ),
-                                        cellP + V3( boundsTolerance ) );
+                //f32 boundsTolerance = 0.5f;
+                v3 cellBoundsMin = cellP - V3( cellSizeMeters );
+                v3 cellBoundsMax = cellP;
 
                 u32 caseMask = 0;
                 f32 cornerSamples[8] = {};
@@ -1115,34 +1115,34 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                     // (also check https://github.com/BorisTheBrave/mc-dc/blob/a165b326849d8814fb03c963ad33a9faf6cc6dea/qef.py#L146)
 
                     //Clamp( &cellVertex, cellBounds );
-                    if( cellVertex.x < cellBounds.min.x )
+                    if( cellVertex.x < cellBoundsMin.x )
                     {
-                        cellVertex.x = cellBounds.min.x;
+                        cellVertex.x = cellBoundsMin.x;
                         clamped = true;
                     }
-                    if( cellVertex.x > cellBounds.max.x )
+                    if( cellVertex.x > cellBoundsMax.x )
                     {
-                        cellVertex.x = cellBounds.max.x;
+                        cellVertex.x = cellBoundsMax.x;
                         clamped = true;
                     }
-                    if( cellVertex.y < cellBounds.min.y )
+                    if( cellVertex.y < cellBoundsMin.y )
                     {
-                        cellVertex.y = cellBounds.min.y;
+                        cellVertex.y = cellBoundsMin.y;
                         clamped = true;
                     }
-                    if( cellVertex.y > cellBounds.max.y )
+                    if( cellVertex.y > cellBoundsMax.y )
                     {
-                        cellVertex.y = cellBounds.max.y;
+                        cellVertex.y = cellBoundsMax.y;
                         clamped = true;
                     }
-                    if( cellVertex.z < cellBounds.min.z )
+                    if( cellVertex.z < cellBoundsMin.z )
                     {
-                        cellVertex.z = cellBounds.min.z;
+                        cellVertex.z = cellBoundsMin.z;
                         clamped = true;
                     }
-                    if( cellVertex.z > cellBounds.max.z )
+                    if( cellVertex.z > cellBoundsMax.z )
                     {
-                        cellVertex.z = cellBounds.max.z;
+                        cellVertex.z = cellBoundsMax.z;
                         clamped = true;
                     }
                 }
@@ -2324,12 +2324,13 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int 
                                MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands )
 {
     // Make bounds same length on all axes
-    v3 centerP = Center( sourceMesh.bounds );
+    v3 const& centerP = sourceMesh.bounds.center;
     v3 dim = Dim( sourceMesh.bounds );
     f32 cubeSide = Max( dim.x, Max( dim.y, dim.z ) );
 
-    aabb box = AABBCenterDim( centerP, cubeSide );
-    v3 const &gridOriginP = box.min;
+    aabb bounds = AABBCenterSize( centerP, cubeSide );
+    v3 boundsMin, boundsMax;
+    MinMax( bounds, &boundsMin, &boundsMax );
 
     ASSERT( samplingCache->cellsPerAxis.x == samplingCache->cellsPerAxis.y );
     int cellsPerAxis = samplingCache->cellsPerAxis.x;
@@ -2357,18 +2358,17 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int 
         TexturedVertex const& v2 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
         tri t = { v0.p, v1.p, v2.p };
 
-        aabb triBounds =
+        v3 triBoundsMin =
         {
-            {
-                Min( v0.p.x, Min( v1.p.x, v2.p.x ) ),
-                Min( v0.p.y, Min( v1.p.y, v2.p.y ) ),
-                Min( v0.p.z, Min( v1.p.z, v2.p.z ) ),
-            },
-            {
-                Max( v0.p.x, Max( v1.p.x, v2.p.x ) ),
-                Max( v0.p.y, Max( v1.p.y, v2.p.y ) ),
-                Max( v0.p.z, Max( v1.p.z, v2.p.z ) ),
-            }
+            Min( v0.p.x, Min( v1.p.x, v2.p.x ) ),
+            Min( v0.p.y, Min( v1.p.y, v2.p.y ) ),
+            Min( v0.p.z, Min( v1.p.z, v2.p.z ) ),
+        };
+        v3 triBoundsMax = 
+        {
+            Max( v0.p.x, Max( v1.p.x, v2.p.x ) ),
+            Max( v0.p.y, Max( v1.p.y, v2.p.y ) ),
+            Max( v0.p.z, Max( v1.p.z, v2.p.z ) ),
         };
 
         // Test each tri for intersection against all marching grid rays (early out using bounds first)
@@ -2377,21 +2377,21 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int 
         // Y rays
         for( int x = 0; x < gridLinesPerAxis; ++x )
         {
-            f32 xGrid = box.min.x + x * step;
+            f32 xGrid = boundsMin.x + x * step;
 
-            if( triBounds.max.x < xGrid )
+            if( triBoundsMax.x < xGrid )
                 break;
-            if( xGrid >= triBounds.min.x )
+            if( xGrid >= triBoundsMin.x )
             {
                 for( int z = 0; z < gridLinesPerAxis; ++z )
                 {
-                    f32 zGrid = box.min.z + z * step;
+                    f32 zGrid = boundsMin.z + z * step;
 
-                    if( triBounds.max.z < zGrid )
+                    if( triBoundsMax.z < zGrid )
                         break;
-                    if( zGrid >= triBounds.min.z )
+                    if( zGrid >= triBoundsMin.z )
                     {
-                        ray r = { { xGrid, box.min.y, zGrid }, { 0, 1, 0 } };
+                        ray r = { { xGrid, boundsMin.y, zGrid }, { 0, 1, 0 } };
                         v3 pI = V3Zero;
 
                         // NOTE Rays intersecting at the very edges of tris can be a problem at finer resolutions
@@ -2399,7 +2399,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int 
                         if( Intersects( r, t, &pI ) )
                         {
                             // Store intersection coords relative to grid
-                            f32 hitCoord = (pI - gridOriginP).y;
+                            f32 hitCoord = (pI - boundsMin).y;
                             gridHits.Push( { V2i( x, z ), hitCoord } );
                         }
                     }
@@ -2459,7 +2459,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int 
         {
             for( int j = 0; j < cellsPerAxis; ++j )
             {
-                v3 p = gridOriginP + V3i( i, j, k ) * step;
+                v3 p = boundsMin + V3i( i, j, k ) * step;
 
 #if 1
                 if( displayedLayer == k )
@@ -2485,7 +2485,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int 
     }
 
     Mesh* result = AllocateMeshFromScratchBuffers( meshPool );
-    result->bounds = box;
+    result->bounds = bounds;
     return result;
 }
 

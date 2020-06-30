@@ -311,25 +311,28 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
 
 void RenderBounds( const aabb& box, u32 color, RenderCommands* commands )
 {
-    RenderLine( V3( box.min.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.min.z ), color, commands );
-    RenderLine( V3( box.min.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ), color, commands );
-    RenderLine( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.max.y, box.min.z ), color, commands );
-    RenderLine( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ), color, commands );
+    v3 min, max;
+    MinMax( box, &min, &max );
 
-    RenderLine( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.min.y, box.max.z ), color, commands );
-    RenderLine( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.max.z ), color, commands );
-    RenderLine( V3( box.min.x, box.max.y, box.min.z ), V3( box.min.x, box.max.y, box.max.z ), color, commands );
-    RenderLine( V3( box.max.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.max.z ), color, commands );
+    RenderLine( V3( min.x, min.y, min.z ), V3( max.x, min.y, min.z ), color, commands );
+    RenderLine( V3( min.x, max.y, min.z ), V3( max.x, max.y, min.z ), color, commands );
+    RenderLine( V3( min.x, min.y, min.z ), V3( min.x, max.y, min.z ), color, commands );
+    RenderLine( V3( max.x, min.y, min.z ), V3( max.x, max.y, min.z ), color, commands );
 
-    RenderLine( V3( box.min.x, box.min.y, box.max.z ), V3( box.max.x, box.min.y, box.max.z ), color, commands );
-    RenderLine( V3( box.min.x, box.max.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ), color, commands );
-    RenderLine( V3( box.min.x, box.min.y, box.max.z ), V3( box.min.x, box.max.y, box.max.z ), color, commands );
-    RenderLine( V3( box.max.x, box.min.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ), color, commands );
+    RenderLine( V3( min.x, min.y, min.z ), V3( min.x, min.y, max.z ), color, commands );
+    RenderLine( V3( max.x, min.y, min.z ), V3( max.x, min.y, max.z ), color, commands );
+    RenderLine( V3( min.x, max.y, min.z ), V3( min.x, max.y, max.z ), color, commands );
+    RenderLine( V3( max.x, max.y, min.z ), V3( max.x, max.y, max.z ), color, commands );
+
+    RenderLine( V3( min.x, min.y, max.z ), V3( max.x, min.y, max.z ), color, commands );
+    RenderLine( V3( min.x, max.y, max.z ), V3( max.x, max.y, max.z ), color, commands );
+    RenderLine( V3( min.x, min.y, max.z ), V3( min.x, max.y, max.z ), color, commands );
+    RenderLine( V3( max.x, min.y, max.z ), V3( max.x, max.y, max.z ), color, commands );
 }
 
 void RenderBoundsAt( const v3& p, f32 size, u32 color, RenderCommands* commands )
 {
-    aabb bounds = AABBCenterDim( p, size );
+    aabb bounds = AABBCenterSize( p, size );
     RenderBounds( bounds, color, commands );
 }
 
@@ -391,8 +394,8 @@ void RenderCubicGrid( const aabb& boundingBox, f32 step, u32 color, bool drawZAx
 {
     ASSERT( step > 0.f );
 
-    v3 const& min = boundingBox.min;
-    v3 const& max = boundingBox.max;
+    v3 min, max;
+    MinMax( boundingBox, &min, &max );
 
     for( f32 z = min.z; z <= max.z; z += step )
     {
@@ -426,27 +429,28 @@ void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffset
         entry->instanceBufferOffset = commands->instanceBuffer.size;
 
         // Common instance data
-        aabb box = AABBCenterDim( V3Zero, VoxelSizeMeters );
+        v3 min = V3Zero - V3( VoxelSizeMeters * 0.5f );
+        v3 max = V3Zero + V3( VoxelSizeMeters * 0.5f );
 
         // TODO Only send the lines actually visible from the current lookAt vector of the camera (as a strip if possible!)
 #define PUSH_LINE( p1, p2 )                                \
         PushVertex( p1, color, { 0, 0 }, commands ); \
         PushVertex( p2, color, { 0, 0 }, commands ); \
 
-        PUSH_LINE( V3( box.min.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.min.z ) );
-        PUSH_LINE( V3( box.min.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ) );
-        PUSH_LINE( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.max.y, box.min.z ) );
-        PUSH_LINE( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ) );
+        PUSH_LINE( V3( min.x, min.y, min.z ), V3( max.x, min.y, min.z ) );
+        PUSH_LINE( V3( min.x, max.y, min.z ), V3( max.x, max.y, min.z ) );
+        PUSH_LINE( V3( min.x, min.y, min.z ), V3( min.x, max.y, min.z ) );
+        PUSH_LINE( V3( max.x, min.y, min.z ), V3( max.x, max.y, min.z ) );
 
-        PUSH_LINE( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.min.y, box.max.z ) );
-        PUSH_LINE( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.max.z ) );
-        PUSH_LINE( V3( box.min.x, box.max.y, box.min.z ), V3( box.min.x, box.max.y, box.max.z ) );
-        PUSH_LINE( V3( box.max.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.max.z ) );
+        PUSH_LINE( V3( min.x, min.y, min.z ), V3( min.x, min.y, max.z ) );
+        PUSH_LINE( V3( max.x, min.y, min.z ), V3( max.x, min.y, max.z ) );
+        PUSH_LINE( V3( min.x, max.y, min.z ), V3( min.x, max.y, max.z ) );
+        PUSH_LINE( V3( max.x, max.y, min.z ), V3( max.x, max.y, max.z ) );
 
-        PUSH_LINE( V3( box.min.x, box.min.y, box.max.z ), V3( box.max.x, box.min.y, box.max.z ) );
-        PUSH_LINE( V3( box.min.x, box.max.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ) );
-        PUSH_LINE( V3( box.min.x, box.min.y, box.max.z ), V3( box.min.x, box.max.y, box.max.z ) );
-        PUSH_LINE( V3( box.max.x, box.min.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ) );
+        PUSH_LINE( V3( min.x, min.y, max.z ), V3( max.x, min.y, max.z ) );
+        PUSH_LINE( V3( min.x, max.y, max.z ), V3( max.x, max.y, max.z ) );
+        PUSH_LINE( V3( min.x, min.y, max.z ), V3( min.x, max.y, max.z ) );
+        PUSH_LINE( V3( max.x, min.y, max.z ), V3( max.x, max.y, max.z ) );
 #undef PUSH_LINE
 
 
