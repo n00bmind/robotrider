@@ -291,8 +291,8 @@ ISO_SURFACE_FUNC(HallSurfaceFunc)
     Hall const& hall = clusterData->halls[clusterData->sampledVolumeIndex];
 
     f32 result = SDFBox( worldP.relativeP - hall.sectionBoxes[0].centerP, hall.sectionBoxes[0].halfSize );
-    result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBoxes[0].centerP, hall.sectionBoxes[0].halfSize ) );
-    result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBoxes[0].centerP, hall.sectionBoxes[0].halfSize ) );
+    result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBoxes[1].centerP, hall.sectionBoxes[1].halfSize ) );
+    result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBoxes[2].centerP, hall.sectionBoxes[2].halfSize ) );
 
     return result;
 }
@@ -533,8 +533,11 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
                 &tmpVertices, &tmpIndices, tempArena, settings );
     result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
 
+#if 0
     cluster->debugVolumes.Push( { room.worldCenterP.relativeP - sampledVolumeSizeMeters * 0.5f,
-                               room.worldCenterP.relativeP + sampledVolumeSizeMeters * 0.5f } );
+                                room.worldCenterP.relativeP + sampledVolumeSizeMeters * 0.5f } );
+#endif
+
 #else
     v2i voxelsPerSliceAxis = roomExtSize.xy;
     v2i gridEdgesPerSliceAxis = voxelsPerSliceAxis + V2iOne;
@@ -643,6 +646,9 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     // FIXME This must be done again everytime we switch the origin cluster
     v3i clusterRelativeP = clusterP - world->originClusterP;
     result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
+
+    cluster->debugVolumes.Push( { sampledVolumeCenterP - sampledVolumeSizeMeters * 0.5f,
+                                sampledVolumeCenterP + sampledVolumeSizeMeters * 0.5f } );
 
     return result;
 }
@@ -1183,7 +1189,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         RenderSetMaterial( world->player->mesh.material, renderCommands );
         RenderMesh( world->player->mesh, renderCommands );
 
-#if 0
+#if 1
         RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
         RenderSetMaterial( nullptr, renderCommands );
 

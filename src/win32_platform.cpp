@@ -2461,7 +2461,7 @@ main( int argC, char **argV )
         DebugCounterLog &log = debugState->counterLogs[i];
         if( log.totalHitCount > 0 )
         {
-            LOG( "%s@%u\t%llu tc  %u h  %u tc/h",
+            LOG( "%s@%u\t%llu tc  %u h  %llu tc/h",
                  log.function,
                  log.lineNumber,
                  log.totalCycleCount,
