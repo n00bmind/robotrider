@@ -78,9 +78,9 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     playerMaterial->diffuseMap = textureResult.handle;
     world->player->mesh.material = playerMaterial;
 
-    world->clusterTable = HashTable<v3i, Cluster, ClusterHash>( worldArena, 256*1024 );
-    world->liveEntities = BucketArray<LiveEntity>( worldArena, 256 );
-    world->entityRefs = HashTable<u32, StoredEntity *, EntityHash>( worldArena, 1024 );
+    INIT( &world->clusterTable ) HashTable<v3i, Cluster, ClusterHash>( worldArena, 256*1024 );
+    INIT( &world->liveEntities ) BucketArray<LiveEntity>( worldArena, 256 );
+    INIT( &world->entityRefs ) HashTable<u32, StoredEntity *, EntityHash>( worldArena, 1024 );
 
     world->originClusterP = V3iZero;
     world->lastOriginClusterP = INITIAL_CLUSTER_COORDS;
@@ -109,7 +109,7 @@ InitWorld( World* world, MemoryArena* worldArena, MemoryArena* transientArena )
     }
 
     // Pre-calc offsets to each simulated cluster to pass to shaders
-    world->simClusterOffsets = Array<v3>( worldArena, SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis + 1 );
+    INIT( &world->simClusterOffsets ) Array<v3>( worldArena, SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis + 1 );
     world->simClusterOffsets.Resize( SimRegionSizePerAxis * SimRegionSizePerAxis * SimRegionSizePerAxis + 1 );
 
     // Use slot 0 for no-offset too, so meshes that don't use this mechanism are not affected
@@ -675,7 +675,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
 
     // TODO Calc an upper bound given cluster size and minimum volume size
     const u32 maxSplits = 1024;
-    Array<BinaryVolume> volumes = Array<BinaryVolume>( tempArena, maxSplits, Temporary() );
+    Array<BinaryVolume> volumes( tempArena, maxSplits, Temporary() );
 
     BinaryVolume *rootVolume = volumes.PushEmpty();
     rootVolume->voxelP = V3iZero;
@@ -717,8 +717,8 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
                  &totalRoomsCount, &totalHallsCount);
 
     // Copy result to permanent storage
-    cluster->rooms = Array<Room>( arena, totalRoomsCount );
-    cluster->halls = Array<Hall>( arena, totalHallsCount );
+    INIT( &cluster->rooms ) Array<Room>( arena, totalRoomsCount );
+    INIT( &cluster->halls ) Array<Hall>( arena, totalHallsCount );
     StoreInCluster( *rootVolume, cluster );
 
     ASSERT( cluster->rooms.count == totalRoomsCount );
@@ -795,8 +795,8 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
     {
         cluster = world->clusterTable.InsertEmpty( clusterP );
         cluster->populated = false;
-        cluster->entityStorage = BucketArray<StoredEntity>( arena, 256 );
-        new( &cluster->debugVolumes ) BucketArray<aabb>( arena, 64 );
+        INIT( &cluster->entityStorage ) BucketArray<StoredEntity>( arena, 256 );
+        INIT( &cluster->debugVolumes ) BucketArray<aabb>( arena, 64 );
     }
 
     if( !cluster->populated )
@@ -808,7 +808,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
 
 #if 1
     int totalMeshCount = cluster->rooms.count + cluster->halls.count;
-    cluster->meshStore = Array<Mesh>( arena, totalMeshCount );
+    INIT( &cluster->meshStore ) Array<Mesh>( arena, totalMeshCount );
 
     for( int i = 0; i < cluster->rooms.count; ++i )
     {
@@ -1207,7 +1207,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
                 for( int k = -SimExteriorHalfSize; k <= SimExteriorHalfSize; ++k )
                 {
                     v3i clusterP = world->originClusterP + V3i( i, j, k );
-                    Cluster* cluster = world->clusterTable.Find( clusterP );
+                    Cluster const* cluster = world->clusterTable.Find( clusterP );
 
                     for( int m = 0; m < cluster->meshStore.count; ++m )
                     {

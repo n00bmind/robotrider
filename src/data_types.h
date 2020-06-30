@@ -145,7 +145,7 @@ struct Array
     // Deep copy
     Array<T> Copy( MemoryArena* arena ) const
     {
-        Array<T> result = Array<T>( arena, count );
+        Array<T> result( arena, count );
         PCOPY( data, result.data, count * sizeof(T) );
         result.count = count;
         return result;
@@ -558,7 +558,7 @@ struct HashTable
 
     // Disallow implicit copying
     HashTable( const HashTable& ) = delete;
-    //HashTable& operator =( const HashTable& ) = delete;
+    HashTable& operator =( const HashTable& ) = delete;
 
     void Clear()
     {
@@ -568,14 +568,7 @@ struct HashTable
         count = 0;
     }
 
-    int IndexFromKey( const K& key ) const
-    {
-        u32 hashValue = H( key, tableSize );
-        int result = I32( hashValue % tableSize );
-        return result;
-    }
-
-    const V* _Find( const K& key ) const
+    V* Find( const K& key )
     {
         int idx = IndexFromKey( key );
 
@@ -594,13 +587,9 @@ struct HashTable
         return nullptr;
     }
 
-    V* Find( const K& key )
-    {
-        return (V*)_Find( key );
-    }
     const V* Find( const K& key ) const
     {
-        return _Find( key );
+        return Find( key );
     }
 
 #if 0
@@ -696,6 +685,16 @@ struct HashTable
                 }
             }
         }
+        return result;
+    }
+
+private:
+
+    int IndexFromKey( const K& key ) const
+    {
+        u32 hashValue = H( key, tableSize );
+        // TODO Make tableSize a power of 2 and mask instead
+        int result = I32( hashValue % tableSize );
         return result;
     }
 };
@@ -1171,7 +1170,7 @@ struct BucketArray
 
     // Disallow implicit copying
     BucketArray( const BucketArray& ) = delete;
-    //BucketArray& operator =( const BucketArray& ) = delete;
+    BucketArray& operator =( const BucketArray& ) = delete;
 
     T* PushEmpty()
     {
@@ -1381,6 +1380,10 @@ struct LinkedList
         count = 0;
     }
 
+    // Disallow implicit copying
+    LinkedList( const LinkedList& ) = delete;
+    LinkedList& operator =( const LinkedList& ) = delete;
+
     void Remove( T* item )
     {
         ASSERT( count > 0 );
@@ -1436,12 +1439,6 @@ struct LinkedList
         }
         return result;
     }
-
-private:
-    
-    // Disallow implicit copying
-    LinkedList( const LinkedList& );
-    LinkedList& operator =( const LinkedList& );
 };
 
 
@@ -1548,8 +1545,8 @@ private:
 
 public:
     ResourcePool( MemoryArena* arena, u32 maxResourceCount )
+        : pool( arena, maxResourceCount )
     {
-        resourceBase = Array<T>( arena, maxResourceCount );
         locatorIndexMask = NextPowerOf2( maxResourceCount ) - 1;
     }
 

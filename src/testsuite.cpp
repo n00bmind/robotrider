@@ -61,7 +61,7 @@ ASSERT_HANDLER(DefaultAssertHandler)
 template <typename T>
 internal Array<T> NewArray( int n )
 {
-    Array<T> result = Array<T>( new T[Sz(n)], n );
+    Array<T> result( new T[Sz(n)], n );
     return result;
 }
 

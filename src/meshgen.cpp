@@ -78,8 +78,8 @@ void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache )
 void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size )
 {
     // TODO Measure whether it's faster to just have a really big contiguous array for these
-    pool->scratchVertices = BucketArray<TexturedVertex>( arena, 1024 );
-    pool->scratchIndices = BucketArray<i32>( arena, 1024 );
+    INIT( &pool->scratchVertices ) BucketArray<TexturedVertex>( arena, 1024 );
+    INIT( &pool->scratchIndices ) BucketArray<i32>( arena, 1024 );
 
     // Initialize empty sentinel
     pool->memorySentinel.prev = &pool->memorySentinel;
@@ -118,8 +118,8 @@ Mesh* AllocateMesh( MeshPool* pool, int vertexCount, int indexCount )
         u8* indexData = vertexData + vertexSize;
 
         InitMesh( result );
-        result->vertices = Array<TexturedVertex>( (TexturedVertex*)vertexData, vertexCount );
-        result->indices = Array<i32>( (i32*)indexData, indexCount );
+        INIT( &result->vertices ) Array<TexturedVertex>( (TexturedVertex*)vertexData, vertexCount );
+        INIT( &result->indices ) Array<i32>( (i32*)indexData, indexCount );
         result->ownerPool = pool;
 
         pool->meshCount++;
@@ -891,7 +891,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
     // One extra layer of cells in X,Y,Z (around the min grid corner) to store the edges and samples at the border
     v3i cellsPerAxis = V3iCeil( volumeSideMeters / cellSizeMeters ) + V3iOne;
 
-    Grid3D<CellData> cellData = Grid3D<CellData>( tempArena, cellsPerAxis, Temporary() );
+    Grid3D<CellData> cellData( tempArena, cellsPerAxis, Temporary() );
     PZERO( cellData.data, cellsPerAxis.x * cellsPerAxis.y * cellsPerAxis.z * sizeof(CellData) );
 
     v3 halfSideMeters = volumeSideMeters / 2;
@@ -1835,13 +1835,13 @@ void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, const TemporaryMemo
 FQSMesh CreateFQSMesh( Array<TexturedVertex> const& vertices, Array<i32> const& indices, TemporaryMemory const& tmpMemory )
 {
     FQSMesh result;
-    result.vertices = Array<FQSVertex>( tmpMemory.arena, vertices.count, Temporary() );
+    INIT( &result.vertices ) Array<FQSVertex>( tmpMemory.arena, vertices.count, Temporary() );
     result.vertices.ResizeToCapacity();
 
     for( int i = 0; i < result.vertices.count; ++i )
         result.vertices[i].p = vertices[i].p;
 
-    result.triangles = Array<FQSTriangle>( tmpMemory.arena, indices.count / 3, Temporary() );
+    INIT( &result.triangles ) Array<FQSTriangle>( tmpMemory.arena, indices.count / 3, Temporary() );
     result.triangles.Resize( result.triangles.capacity );
     for( int i = 0; i < result.triangles.count; ++i )
     {

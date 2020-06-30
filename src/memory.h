@@ -36,6 +36,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PUSH_ARRAY(arena, type, count, ...) (type *)_PushSize( arena, (count)*sizeof(type), ## __VA_ARGS__ )
 #define PUSH_SIZE(arena, size, ...) _PushSize( arena, size, ## __VA_ARGS__ )
 
+#define INIT(address) new (address)
+
 
 ///// STATIC MEMORY ARENA
 // Linear memory arena of a fixed initial size

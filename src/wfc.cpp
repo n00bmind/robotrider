@@ -143,7 +143,7 @@ BuildPatternsFromSource( const int N, const v2i& inputDim, Input* input, MemoryA
     u8* reflectedPatternData = PUSH_ARRAY( arena, u8, N * N );
 
     // NOTE Totally arbitrary number for the entry count
-    input->patternsHash = HashTable<Pattern, i32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
+    INIT( &input->patternsHash ) HashTable<Pattern, i32, PatternHash>( arena, inputDim.x * inputDim.y / 2 );
 
     // NOTE We assume 'periodicInput' to be true
     for( int j = 0; j < inputDim.y; ++j )
@@ -254,17 +254,17 @@ internal void
 AllocSnapshot( Snapshot* result, int waveLength, int patternCount, MemoryArena* arena )
 {
     int patternGroupCount = I32( Ceil( (f32)patternCount / 64.f ) );
-    result->wave = Array2<u64>( arena, waveLength, patternGroupCount );
-    result->adjacencyCounters = Array2<u64>( arena, waveLength, patternCount );
-    result->compatiblesCount = Array<i32>( arena, waveLength );
+    INIT( &result->wave ) Array2<u64>( arena, waveLength, patternGroupCount );
+    INIT( &result->adjacencyCounters ) Array2<u64>( arena, waveLength, patternCount );
+    INIT( &result->compatiblesCount ) Array<i32>( arena, waveLength );
     result->compatiblesCount.ResizeToCapacity();
-    result->sumFrequencies = Array<f64>( arena, waveLength );
+    INIT( &result->sumFrequencies ) Array<f64>( arena, waveLength );
     result->sumFrequencies.ResizeToCapacity();
-    result->sumWeights = Array<f64>( arena, waveLength );
+    INIT( &result->sumWeights ) Array<f64>( arena, waveLength );
     result->sumWeights.ResizeToCapacity();
-    result->entropies = Array<f64>( arena, waveLength );
+    INIT( &result->entropies ) Array<f64>( arena, waveLength );
     result->entropies.ResizeToCapacity();
-    result->distribution = Array<f32>( arena, patternCount );
+    INIT( &result->distribution ) Array<f32>( arena, patternCount );
     result->distribution.ResizeToCapacity();
 }
 
@@ -600,10 +600,10 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
     const int waveLength = waveDim.x * waveDim.y;
     const int patternCount = input.patterns.count;
     const int propagationStackSize = waveLength * 5;                            // Increase as needed
-    state->propagationStack = Array<BannedTuple>( arena, propagationStackSize );
-    state->distributionTemp = Array<f32>( arena, patternCount );
+    INIT( &state->propagationStack ) Array<BannedTuple>( arena, propagationStackSize );
+    INIT( &state->distributionTemp ) Array<f32>( arena, patternCount );
     state->distributionTemp.ResizeToCapacity();
-    state->backtrackedCellIndices = RingBuffer<i32>( arena, BacktrackedCellsCacheCount );
+    INIT( &state->backtrackedCellIndices ) RingBuffer<i32>( arena, BacktrackedCellsCacheCount );
 
     // Now we want to calculate the max number of snapshots that will fit in our arena,
     // but we still need to allocate the snapshot stack, whose size depends on the number of snapshots
@@ -624,7 +624,7 @@ Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State
     // @Incomplete Calc total arena waste here and do something about it!
 
     // We need to allocate the stack before any snapshot, so that rewinding snapshots will work properly
-    state->snapshotStack = Array<Snapshot>( arena, maxSnapshotCount );
+    INIT( &state->snapshotStack ) Array<Snapshot>( arena, maxSnapshotCount );
 
     // Create initial snapshot
     Snapshot snapshot0;
@@ -1066,11 +1066,11 @@ GlobalState* StartWFCAsync( const Spec& spec, const v2i& pStartChunk, MemoryAren
 
     GlobalState* result = PUSH_STRUCT( wfcArena, GlobalState );
     result->spec = spec;
-    result->jobs = Array<Job>( wfcArena, maxJobCount );
+    INIT( &result->jobs ) Array<Job>( wfcArena, maxJobCount );
     result->jobs.ResizeToCapacity();
-    result->jobMemoryChunks = Array<JobMemory>( wfcArena, maxJobCount );
+    INIT( &result->jobMemoryChunks ) Array<JobMemory>( wfcArena, maxJobCount );
     result->jobMemoryChunks.ResizeToCapacity();
-    result->outputChunks = Array2<ChunkInfo>( wfcArena, spec.outputChunkCount.y, spec.outputChunkCount.x );
+    INIT( &result->outputChunks ) Array2<ChunkInfo>( wfcArena, spec.outputChunkCount.y, spec.outputChunkCount.x );
     result->globalWFCArena = wfcArena;
 
     // Process global input data
@@ -1084,7 +1084,7 @@ GlobalState* StartWFCAsync( const Spec& spec, const v2i& pStartChunk, MemoryAren
 
         input.frequencies = input.patternsHash.Values( wfcArena );
         ASSERT( input.frequencies.count == patternCount );
-        input.weights = Array<f64>( wfcArena, patternCount );
+        INIT( &input.weights ) Array<f64>( wfcArena, patternCount );
         input.weights.ResizeToCapacity();
         // Calc initial entropy, counters, etc.
         input.sumFrequencies = 0;                                                     // sumOfWeights
@@ -1106,9 +1106,9 @@ GlobalState* StartWFCAsync( const Spec& spec, const v2i& pStartChunk, MemoryAren
     {
         ChunkInfo& info = result->outputChunks[i];
         info = {};
-        info.collapsedWave = Array<i32>( wfcArena, waveLength );
+        INIT( &info.collapsedWave ) Array<i32>( wfcArena, waveLength );
         info.collapsedWave.ResizeToCapacity();
-        info.outputSamples = Array2<u8>( wfcArena, spec.outputChunkDim.y, spec.outputChunkDim.x );
+        INIT( &info.outputSamples ) Array2<u8>( wfcArena, spec.outputChunkDim.y, spec.outputChunkDim.x );
         info.pChunk = result->outputChunks.XYForIndex( i );
     }
 
@@ -1630,7 +1630,7 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
         {
             if( !displayState->patternTextures )
             {
-                displayState->patternTextures = Array<Texture>( wfcDisplayArena, patternsCount );
+                INIT( &displayState->patternTextures ) Array<Texture>( wfcDisplayArena, patternsCount );
                 displayState->patternTextures.ResizeToCapacity();
             }
 
@@ -1664,7 +1664,7 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
         {
             if( !displayState->patternTextures )
             {
-                displayState->patternTextures = Array<Texture>( wfcDisplayArena, patternsCount );
+                INIT( &displayState->patternTextures ) Array<Texture>( wfcDisplayArena, patternsCount );
                 displayState->patternTextures.ResizeToCapacity();
             }
 

@@ -131,9 +131,9 @@ CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<
     Mesh result;
     InitMesh( &result );
 
-    result.vertices = Array<TexturedVertex>( arena, vertices.count );
+    INIT( &result.vertices ) Array<TexturedVertex>( arena, vertices.count );
     vertices.CopyTo( &result.vertices );
-    result.indices = Array<i32>( arena, indices.count );
+    INIT( &result.indices ) Array<i32>( arena, indices.count );
     indices.CopyTo( &result.indices );
 
     return result;

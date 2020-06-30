@@ -401,7 +401,7 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
 
                 // Try to fetch an existing vertex from the table
                 VertexKey key = { pIndex[i], uvIndex[i], nIndex[i] };
-                i32* cachedIndex = cachedVertices.Find( key );
+                i32 const* cachedIndex = cachedVertices.Find( key );
 
                 if( cachedIndex )
                 {
@@ -470,8 +470,8 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
 
     Mesh result;
     InitMesh( &result );
-    result.vertices = Array<TexturedVertex>( packedVertices.data, packedVertices.count );
-    result.indices = Array<i32>( indices.data, indices.count );
+    INIT( &result.vertices ) Array<TexturedVertex>( packedVertices.data, packedVertices.count );
+    INIT( &result.indices ) Array<i32>( indices.data, indices.count );
     CalcBounds( &result );
 
     return result;
