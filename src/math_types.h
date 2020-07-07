@@ -1785,6 +1785,27 @@ Clamp( v3* v, aabb const& b )
     Clamp( &v->z, min.z, max.z );
 }
 
+inline bool
+Intersect( aabb const& a, aabb const& b )
+{
+    return (Abs( a.center.x - b.center.x ) < (a.halfSize.x + b.halfSize.x))
+        && (Abs( a.center.y - b.center.y ) < (a.halfSize.y + b.halfSize.y))
+        && (Abs( a.center.z - b.center.z ) < (a.halfSize.z + b.halfSize.z));
+}
+
+inline aabb
+Enclose( aabb const& a, aabb const& b )
+{
+    v3 aMin = a.center - a.halfSize;
+    v3 aMax = a.center + a.halfSize;
+    v3 bMin = b.center - b.halfSize;
+    v3 bMax = b.center + b.halfSize;
+
+    aabb result = AABBMinMax( { Min( aMin.x, bMin.x ), Min( aMin.y, bMin.y ), Min( aMin.z, bMin.z ) },
+                              { Max( aMax.x, bMax.x ), Max( aMax.y, bMax.y ), Max( aMax.z, bMax.z ) } );
+    return result;
+}
+
 // Ray
 
 struct ray

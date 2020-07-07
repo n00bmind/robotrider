@@ -110,24 +110,22 @@ const f32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;
 static_assert( (f32)(u32)(VoxelsPerClusterAxis * VoxelSizeMeters) == ClusterSizeMeters, "FAIL" );
 const v3 ClusterHalfSize = V3( ClusterSizeMeters * 0.5f );
 
-const int SampledRoomShellThickness = 3;
-
 typedef Grid3D<u8> ClusterVoxelGrid;
 
 
 // TODO Most of this will be in the stored entity when we turn rooms into that
 struct Room
 {
+    aabb bounds;
+
     v3i voxelP;
     v3i sizeVoxels;
-    // TODO Make sure everything in the pipeline uses these right up until we send the meshes for rendering
-    WorldCoords worldCenterP;
-    v3 halfSize;
 };
 
 struct Hall
 {
     // TODO It seems more and more pointless to have to compute and maintain both voxel and real world coords for everything
+    aabb bounds;
     aabb sectionBounds[3];
 
     v3i startP;

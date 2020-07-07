@@ -69,7 +69,7 @@ template <typename T>
 internal Array<T> CopyArray( const Array<T>& source )
 {
     Array<T> result = source;
-    result.data = new T[Sz(source.capacity)];
+    result.data = new T[Sz(source.count)];
     PCOPY( source.data, result.data, source.count * sizeof(T) );
     return result;
 }
@@ -178,7 +178,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
 
         i32 currentValue = ascending ? I32MIN : I32MAX;
         i32 maxStep = ((i64)U32MAX / N) * (ascending ? 1 : -1);
-        for( int i = 0; i < result.sorted.capacity; ++i )
+        for( int i = 0; i < result.sorted.count; ++i )
         {
             i32 deviation = 0;
             f32 p = RandomNormalizedF32();
@@ -192,7 +192,9 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
                 continue;
             else
             {
-                i32 step = RandomRangeI32( 0, maxStep );
+                i32 min = Min( 0, maxStep );
+                i32 max = Max( 0, maxStep );
+                i32 step = RandomRangeI32( min, max );
                 currentValue += step;
             }
         }
@@ -205,7 +207,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
 
         i32 currentValue = ascending ? I32MIN : I32MAX;
         i32 maxStep = ((i64)U32MAX / N) * (ascending ? 1 : -1);
-        for( int i = 0; i < result.reversed.capacity; ++i )
+        for( int i = 0; i < result.reversed.count; ++i )
         {
             i32 deviation = 0;
             f32 p = RandomNormalizedF32();
@@ -219,7 +221,9 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
                 continue;
             else
             {
-                i32 step = RandomRangeI32( 0, maxStep );
+                i32 min = Min( 0, maxStep );
+                i32 max = Max( 0, maxStep );
+                i32 step = RandomRangeI32( min, max );
                 currentValue += step;
             }
         }
@@ -228,7 +232,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
     {
         // Random
         result.random = NewArray<i32>( N );
-        for( int i = 0; i < result.random.capacity; ++i )
+        for( int i = 0; i < result.random.count; ++i )
         {
             result.random[i] = RandomI32();
         }
@@ -244,7 +248,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
         i32 value = RandomI32();
         for( int d = 0; d < duplicateCount; ++d )
         {
-            int i = RandomRangeI32( 0, N );
+            int i = RandomRangeI32( 0, N - 1 );
             // NOTE We should check that the position hasn't already been asigned
             result.duplicated[i] = value;
 
@@ -253,7 +257,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
                 value = RandomI32();
             }
         }
-        for( int i = 0; i < result.duplicated.capacity; ++i )
+        for( int i = 0; i < result.duplicated.count; ++i )
         {
             if( !result.duplicated[i] )
                 result.duplicated[i] = RandomI32();
@@ -270,7 +274,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
     {
         // Only smallish-ish values
         result.smallish = NewArray<i32>( N );
-        for( int i = 0; i < result.smallish.capacity; ++i )
+        for( int i = 0; i < result.smallish.count; ++i )
         {
             result.smallish[i] = RandomI32() >> 11;
         }
@@ -279,7 +283,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
     {
         // Random float
         result.randomFloat = NewArray<f32>( N );
-        for( int i = 0; i < result.randomFloat.capacity; ++i )
+        for( int i = 0; i < result.randomFloat.count; ++i )
         {
             result.randomFloat[i] = RandomRangeF32( -10000, 10000 );
         }
@@ -288,7 +292,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
     {
         // Random long
         result.randomLong = NewArray<i64>( N );
-        for( int i = 0; i < result.randomLong.capacity; ++i )
+        for( int i = 0; i < result.randomLong.count; ++i )
         {
             result.randomLong[i] = RandomI64();
         }
@@ -297,7 +301,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
     {
         // Random double
         result.randomDouble = NewArray<f64>( N );
-        for( int i = 0; i < result.randomDouble.capacity; ++i )
+        for( int i = 0; i < result.randomDouble.count; ++i )
         {
             result.randomDouble[i] = RandomRangeF64( -1000000000, 100000000000 );
         }
@@ -306,7 +310,7 @@ SetUpSortingBenchmark( int N, bool ascending, MemoryArena* tmpArena )
     {
         // Random struct
         result.randomStruct = NewArray<KeyIndex64>( N );
-        for( int i = 0; i < result.randomStruct.capacity; ++i )
+        for( int i = 0; i < result.randomStruct.count; ++i )
         {
             result.randomStruct[i] = { RandomU64(), i };
         }

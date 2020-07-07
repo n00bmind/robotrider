@@ -72,7 +72,11 @@ DEBUGGING
 - Hot reloading seems to be broken for ImGui elements
 - Memory stats for arenas and pools
 - Profiler (have a look at the ImGui plot libraries as a starting point for the UI)
-  (Also have a look at how iprof - in Google Drive - handles callstack info, and tips to minimize overhead)
+  (Also have a look at how iprof - in Google Drive - handles hierarchical & callstack info, and tips to minimize overhead)
+  (One cool trick, f.e., is to just gather an rdtsc timestamp for each zone, and then in the frame tick/update, do a ratio of a single
+  QPC wall clock and an rdtsc delta for the whole frame, and scale all zones by that to get wall clocks for them much faster).
+  (It also seems to detect high variations of the QPC/cycles ratio to signal changes in processor clock, 'turbos' etc., would be cool
+  to display that ratio somewhere too).
 - Live editable 'switches' data file (reloadable asset) that can overwrite generic game & platform variables (similar to what Blow did for Sokoban)
 - Command completion & history navigation in the console
 - Really dump game state to disk (asynchronously) and study how hard it would be to make it loadable across evolving game state revisions (this would need a proper serialization system)
