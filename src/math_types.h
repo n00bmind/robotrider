@@ -1775,6 +1775,13 @@ Contains( aabb const& b, v3 const& p )
     return dist.x < b.halfSize.x && dist.y < b.halfSize.y && dist.z < b.halfSize.z;
 }
 
+inline bool
+ContainsOrTouches( aabb const& b, v3 const& p )
+{
+    v3 dist = Abs( p - b.center );
+    return dist.x <= b.halfSize.x && dist.y <= b.halfSize.y && dist.z <= b.halfSize.z;
+}
+
 inline void
 Clamp( v3* v, aabb const& b )
 {

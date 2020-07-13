@@ -232,16 +232,23 @@ INLINE f32 SDFRoom( WorldCoords const& worldP, Room const& room )
     v3 invWorldP = worldP.relativeP - room.bounds.center;
 
     // TODO For now just do a box almost at the volume edge
-    f32 result = SDFBox( invWorldP, room.bounds.halfSize - V3( VoxelSizeMeters * 0.5f ) );
+    f32 result = SDFBox( invWorldP, room.bounds.halfSize - V3( VoxelSizeMeters * 2.f ) );
+    // Carve the inside and give it a thickness
+    result = SDFOnion( result, 0.1f );
+
     return result;
 }
 
 INLINE f32 SDFHall( WorldCoords const& worldP, Hall const& hall )
 {
+    // TODO Do the actual path/sub-volumes calculation here, based on just the endpoints
     const v3 volumeBorder = V3( VoxelSizeMeters * 0.5f );
     f32 result = SDFBox( worldP.relativeP - hall.sectionBounds[0].center, hall.sectionBounds[0].halfSize - volumeBorder );
     result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBounds[1].center, hall.sectionBounds[1].halfSize - volumeBorder ) );
     result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBounds[2].center, hall.sectionBounds[2].halfSize - volumeBorder ) );
+
+    // Carve the inside and give it a thickness
+    //result = SDFOnion( result, 1.1f );
 
     return result;
 }
@@ -261,7 +268,7 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
     {
         Hall const& hall = clusterData->halls[i];
 
-        if( Intersect( room.bounds, hall.bounds ) )
+        if( ContainsOrTouches( hall.bounds, worldP.relativeP ) )
         {
             f32 hallSDF = SDFHall( worldP, hall );
             result = SDFUnion( result, hallSDF );
@@ -287,27 +294,54 @@ ISO_SURFACE_FUNC(HallSurfaceFunc)
     {
         Hall const& other = clusterData->halls[i];
 
-        if( Intersect( hall.bounds, other.bounds ) )
+        if( ContainsOrTouches( other.bounds, worldP.relativeP ) )
         {
             f32 hallSDF = SDFHall( worldP, other );
             result = SDFUnion( result, hallSDF );
         }
     }
 #endif
-#if 1
-    // Substract any rooms which intersect our volume
+#if 0
     for( int i = 0; i < clusterData->rooms.count; ++i )
     {
         Room const& room = clusterData->rooms[i];
 
-        if( Intersect( hall.bounds, room.bounds ) )
+        if( ContainsOrTouches( room.bounds, worldP.relativeP ) )
         {
             f32 roomSDF = SDFRoom( worldP, room );
-            result = SDFSubstraction( result, roomSDF );
-            //result = SDFUnion( result, roomSDF );
+            result = SDFUnion( result, roomSDF );
         }
     }
 #endif
+
+    return result;
+}
+
+ISO_SURFACE_FUNC(ClusterSurfaceFunc)
+{
+    TIMED_BLOCK;
+
+    f32 result = F32MAX;
+    ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
+
+    for( int i = 0; i < clusterData->rooms.count; ++i )
+    {
+        Room const& room = clusterData->rooms[i];
+        if( ContainsOrTouches( room.bounds, worldP.relativeP ) )
+        {
+            f32 roomSDF = SDFRoom( worldP, room );
+            result = SDFUnion( result, roomSDF );
+        }
+    }
+    for( int i = 0; i < clusterData->halls.count; ++i )
+    {
+        Hall const& hall = clusterData->halls[i];
+        if( ContainsOrTouches( hall.bounds, worldP.relativeP ) )
+        {
+            f32 hallSDF = SDFHall( worldP, hall );
+            result = SDFUnion( result, hallSDF );
+        }
+    }
 
     return result;
 }
@@ -326,27 +360,28 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
 
     // Find a random point inside each room
     RoomBoundsToMinMaxP( roomA, &minP, &maxP );
-    v->hall.startP =
+    v3i startP =
     {
         RandomRangeI32( minP.x, maxP.x ),
         RandomRangeI32( minP.y, maxP.y ),
         RandomRangeI32( minP.z, maxP.z ),
     };
     RoomBoundsToMinMaxP( roomB, &minP, &maxP );
-    v->hall.endP =
+    v3i endP =
     {
         RandomRangeI32( minP.x, maxP.x ),
         RandomRangeI32( minP.y, maxP.y ),
         RandomRangeI32( minP.z, maxP.z ),
     };
 
+    v->hall.startP = V3( startP ) + V3One * VoxelSizeMeters * 0.5f;
+    v->hall.endP = V3( endP ) + V3One * VoxelSizeMeters * 0.5f;
+
     // Walk along each axis in a random order
-    v3i& startP = v->hall.startP;
-    v3i& endP = v->hall.endP;
     v3i currentP = startP;
 
     const v3 clusterHalfSizeMeters = V3( ClusterSizeMeters * 0.5f );
-    const int hallThickness = 2;
+    const int hallThickness = 10;
 
     u8 axisOrder = 0, remainingAxes = 3;
     int nextAxis[] = { 0, 1, 2 };
@@ -417,7 +452,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                 INVALID_DEFAULT_CASE
             }
 
-            //cluster->debugVolumes.Push( sectionBounds );
+            cluster->debugVolumes.Push( sectionBounds );
             if( currentSectionIndex == 1 )
                 hallBounds = sectionBounds;
             else
@@ -433,7 +468,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
     }
 
     v->hall.bounds = hallBounds;
-    cluster->debugVolumes.Push( hallBounds );
+    //cluster->debugVolumes.Push( hallBounds );
 }
 
 internal Room*
@@ -537,7 +572,11 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     Room const& room = cluster->rooms[roomIndex];
 
     WorldCoords worldP = { room.bounds.center, clusterP };
-    ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls, roomIndex };
+    v3 sampledVolumeSize = room.bounds.halfSize * 2.0f;
+    ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls };
+    roomSamplingData.sampledVolumeIndex = roomIndex;
+    if( roomIndex == 0 )
+        roomSamplingData.debugCluster = cluster;
 
     // TODO Super sample the volume shell?
     // TODO Skip interior!
@@ -550,18 +589,18 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
     BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
 
-    DCVolume( worldP, room.bounds.halfSize * 2.f, VoxelSizeMeters, RoomSurfaceFunc, &roomSamplingData,
+    DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, RoomSurfaceFunc, &roomSamplingData,
                 &tmpVertices, &tmpIndices, tempArena, settings );
     result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
-
-#if 1
-    cluster->debugVolumes.Push( room.bounds );
-#endif
 
     // Set initial offset index based on cluster
     // FIXME This must be done again everytime we switch the origin cluster
     v3i clusterRelativeP = clusterP - world->originClusterP;
     result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
+
+#if 1
+    cluster->debugVolumes.Push( AABBCenterSize( room.bounds.center, sampledVolumeSize ) );
+#endif
 
     return result;
 }
@@ -573,7 +612,8 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     Hall const& hall = cluster->halls[hallIndex];
 
     WorldCoords worldP = { hall.bounds.center, clusterP };
-    ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls, hallIndex };
+    ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls };
+    roomSamplingData.sampledVolumeIndex = hallIndex;
 
     DCSettings settings;
     settings.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
@@ -584,6 +624,33 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
 
     DCVolume( worldP, hall.bounds.halfSize * 2.f, VoxelSizeMeters, HallSurfaceFunc, &roomSamplingData,
+              &tmpVertices, &tmpIndices, tempArena, settings );
+    result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+
+    // Set initial offset index based on cluster
+    // FIXME This must be done again everytime we switch the origin cluster
+    v3i clusterRelativeP = clusterP - world->originClusterP;
+    result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
+
+    return result;
+}
+
+internal Mesh
+CreateClusterMesh( Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
+{
+    Mesh result = {};
+    WorldCoords worldP = { V3Zero, clusterP };
+    ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls, 0 };
+
+    DCSettings settings;
+    settings.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
+    settings.sigmaN = 0.02f;
+    // FIXME Keep this as separate in the tests UI but get rid of it for generation
+    settings.sigmaNDouble = 0.01f;
+    BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
+    BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
+
+    DCVolume( worldP, V3( ClusterSizeMeters ), VoxelSizeMeters, ClusterSurfaceFunc, &roomSamplingData,
               &tmpVertices, &tmpIndices, tempArena, settings );
     result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
 
@@ -756,19 +823,31 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
 
     // TODO Do all this in jobs in LoadEntitiesInCluster
 #if 1
+
     int totalMeshCount = cluster->rooms.count + cluster->halls.count;
     INIT( &cluster->meshStore ) Array<Mesh>( arena, totalMeshCount );
 
-    for( int i = 0; i < cluster->rooms.count; ++i )
-    {
-        Mesh mesh = CreateRoomMesh( i, cluster, clusterP, world, arena, tempArena );
-        cluster->meshStore.Push( mesh );
-    }
+#if 1
+    // This is what we'd like to do, as most of the 3d volume is empty anyway and would save a huge amount of pointless iteration
+    // but it's tricky to make disjointly sampled volumes that behave well together
+
+    //for( int i = 0; i < cluster->rooms.count; ++i )
+    //{
+        //Mesh mesh = CreateRoomMesh( i, cluster, clusterP, world, arena, tempArena );
+        //cluster->meshStore.Push( mesh );
+    //}
     for( int i = 0; i < cluster->halls.count; ++i )
     {
         Mesh mesh = CreateHallMesh( i, cluster, clusterP, world, arena, tempArena );
         cluster->meshStore.Push( mesh );
     }
+#else
+    // This is what we may have to end up doing if creating a well behaved disjoint SDF ends up being too tricky, but it's slooooow
+
+    Mesh mesh = CreateClusterMesh( cluster, clusterP, world, arena, tempArena );
+    cluster->meshStore.Push( mesh );
+#endif
+
 #else
     {
         TIMED_BLOCK;

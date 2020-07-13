@@ -2243,6 +2243,9 @@ main( int argC, char **argV )
                             Win32UnloadGameCode( &globalPlatformState.gameCode );
 
                             WIN32_FILE_ATTRIBUTE_DATA data;
+                            // Check for a dll.lock file created by build.py, meaning the compiler hasn't finished executing yet
+                            // TODO Do something that doesnt require an external scheme.
+                            // Maybe just loop trying to read until we stop receiving a sharing violation
                             if( !GetFileAttributesEx( globalPlatformState.lockFilePath, GetFileExInfoStandard, &data ) )
                             {
                                 globalPlatformState.gameCode = Win32LoadGameCode( globalPlatformState.sourceDLLPath,

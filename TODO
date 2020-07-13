@@ -71,7 +71,7 @@ DEBUGGING
 - Make sure out-of-frame counters are handled and shown correctly so we can properly profile multithreaded code
 - Hot reloading seems to be broken for ImGui elements
 - Memory stats for arenas and pools
-- Profiler (have a look at the ImGui plot libraries as a starting point for the UI)
+- Profiler (have a look at the ImGui plot libraries as a starting point for the UI) (https://github.com/epezent/implot)
   (Also have a look at how iprof - in Google Drive - handles hierarchical & callstack info, and tips to minimize overhead)
   (One cool trick, f.e., is to just gather an rdtsc timestamp for each zone, and then in the frame tick/update, do a ratio of a single
   QPC wall clock and an rdtsc delta for the whole frame, and scale all zones by that to get wall clocks for them much faster).

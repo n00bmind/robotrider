@@ -128,8 +128,8 @@ struct Hall
     aabb bounds;
     aabb sectionBounds[3];
 
-    v3i startP;
-    v3i endP;
+    v3 startP;
+    v3 endP;
     // Encoded as 2 bits per axis (X == 0, Y == 1, Z == 2), first axis is LSB
     u8 axisOrder;
 };
@@ -139,6 +139,7 @@ struct ClusterSamplingData
 {
     Array<Room> const& rooms;
     Array<Hall> const& halls;
+    Cluster* debugCluster;
     // Room index when sampling rooms, hall index for halls
     i32 sampledVolumeIndex;
 };

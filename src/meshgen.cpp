@@ -848,6 +848,8 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
         i32 vertexIndex;
     };
 
+    // TODO Pack these LUTs so they use less cache
+
     // Relative to 'max' aabb point, also used to locate neighbour cells
     static const v3i dcCornerOffsets[8] =
     {
@@ -901,6 +903,10 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
     const f32 delta = 0.01f;
     const f32 deltaInv = 1.f / (2.f * delta);
 
+    ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
+    Cluster* debugCluster = clusterData->debugCluster;
+    const v3 debugSampleSize = V3( 0.03f );
+
     for( int k = 0; k < cellsPerAxis.z; ++k )
     {
         for( int j = 0; j < cellsPerAxis.y; ++j )
@@ -908,6 +914,9 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
             for( int i = 0; i < cellsPerAxis.x; ++i )
             {
                 v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
+
+                if( debugCluster && (i == 0 || j == 0 || k == 0 || i == cellsPerAxis.x-1 || j == cellsPerAxis.y-1 || k == cellsPerAxis.z-1) )
+                    debugCluster->debugVolumes.Push( { cellP, debugSampleSize } );
 
                 //f32 boundsTolerance = 0.5f;
                 v3 cellBoundsMin = cellP - V3( cellSizeMeters );
@@ -928,7 +937,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                     {
                         // Sample our own
                         // Cell at { 0, 0, 0 } (border) gets the sample at world position minGridP + { 0, 0, 0 }
-                        // Account for -0
+                        // Account for -0 by just adding +0 to the value
                         p.relativeP = cellP;
                         sample = sampleFunc( p, samplingData ) + 0.f;
                         cellData( i, j, k ).sampledValue = sample;
@@ -936,10 +945,14 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                     else
                     {
                         v3i cellOffset = V3i( i, j, k ) + dcCornerOffsets[s];
+                        // For corners outside the range, sample the SDF anyway so we at least have real values to determine crossings
                         if( cellOffset.x < 0 || cellOffset.y < 0 || cellOffset.z < 0 )
-                            continue;
-
-                        sample = cellData( cellOffset ).sampledValue;
+                        {
+                            p.relativeP = minGridP + V3( cellOffset ) * cellSizeMeters;
+                            sample = sampleFunc( p, samplingData ) + 0.f;
+                        }
+                        else
+                            sample = cellData( cellOffset ).sampledValue;
                     }
 
                     if( Sign( sample ) )
@@ -956,8 +969,8 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                 v3 edgeNormals[12];
                 int pointCount = 0;
 
-                // We only need to process 3 edges per cell (those containing the corner associated with each cell)
-                // Find edge intersections or get them from neighbours
+                // We only need to process 3 edges per cell (those containing the corner stored in each cell)
+                // Find edge intersections for those, get them from neighbours for the rest
                 for( int e = 0; e < 12; ++e )
                 {
                     EdgeLocator const& locator = dcEdgeLocators[e];
@@ -967,9 +980,14 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                     f32 sA = cornerSamples[ indexA ];
                     f32 sB = cornerSamples[ indexB ];
 
+                    // Is there a crossing at this edge
                     if( Sign( sA ) != Sign( sB ) )
                     {
-                        if( indexB == 7 || indexA == 7 )
+                        int neighbourIndex = locator.neighbourIndex;
+                        v3i neighbourCoords = V3i( i, j, k ) + dcCornerOffsets[neighbourIndex];
+                        bool atOuterEdge = neighbourCoords.z < 0 || neighbourCoords.y < 0 || neighbourCoords.x < 0;
+
+                        if( atOuterEdge || indexB == 7 || indexA == 7 )
                         {
                             // It's one of the edges stored in this cell, so find the intersection & normal
                             v3 pA = cellP + V3( dcCornerOffsets[indexA] ) * cellSizeMeters;
@@ -1027,8 +1045,9 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                                     ASSERT( searchSteps > 0 );
                                 }
                             }
-                            cellData( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
                             edgePoints[pointCount] = edgeP;
+                            if( !atOuterEdge )
+                                cellData( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
 
                             ASSERT( edgeP != V3Undefined );
                             if( pointCount )
@@ -1052,16 +1071,15 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
 
                             v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
                             Normalize( normal );
-                            cellData( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
                             edgeNormals[pointCount] = normal;
+                            if( !atOuterEdge )
+                                cellData( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
                         }
                         else
                         {
                             // This has already been calculated and stored in a neighbour cell so go get it
-                            int neighbourIndex = locator.neighbourIndex;
                             ASSERT( neighbourIndex != 7 );
 
-                            v3i neighbourCoords = V3i( i, j, k ) + dcCornerOffsets[neighbourIndex];
                             edgePoints[pointCount] = cellData( neighbourCoords ).edgeCrossingsP[locator.storeIndex];
                             edgeNormals[pointCount] = cellData( neighbourCoords ).edgeCrossingsN[locator.storeIndex];
 
@@ -1187,6 +1205,9 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                         {
                         case 0:     // Normal aligned to +/- X
                         {
+                            if( k == 0 || j == 0 )
+                                break;
+
                             if( sA < sB )
                             {
                                 indices->Push( vertexIndex );
@@ -1210,6 +1231,9 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                         } break;
                         case 1:     // Normal aligned to +/- Y
                         {
+                            if( k == 0 || i == 0 )
+                                break;
+
                             if( sA < sB )
                             {
                                 indices->Push( vertexIndex );
@@ -1233,6 +1257,9 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                         } break;
                         case 2:     // Normal aligned to +/- Z
                         {
+                            if( j == 0 || i == 0 )
+                                break;
+
                             if( sA < sB )
                             {
                                 indices->Push( vertexIndex );

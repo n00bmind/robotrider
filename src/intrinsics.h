@@ -226,6 +226,7 @@ Swap( i32* a, i32* b )
     *b = tmp;
 }
 
+// True if sign bit set
 inline bool
 Sign( f32 value )
 {

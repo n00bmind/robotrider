@@ -25,6 +25,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define __MATH_SDF_H__ 
 
 
+// Operations
+
 inline f32 SDFUnion( f32 d1, f32 d2 )
 {
     return Min( d1, d2 );
@@ -40,6 +42,13 @@ inline f32 SDFSubstraction( f32 d1, f32 d2 )
     return Max( d1, -d2  );
 }
 
+inline f32 SDFOnion( f32 d, f32 thickness )
+{
+    return Abs( d ) - thickness;
+}
+
+
+// Primitives
 
 inline f32 SDFBox( v3 const& p, v3 const& hdim, f32 r = 0.f )
 {
