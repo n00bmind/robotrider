@@ -125,20 +125,6 @@ Empty( Mesh const& mesh )
     return mesh.vertices.count == 0;
 }
 
-inline Mesh
-CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<i32> const& indices, MemoryArena* arena )
-{
-    Mesh result;
-    InitMesh( &result );
-
-    INIT( &result.vertices ) Array<TexturedVertex>( arena, vertices.count );
-    vertices.CopyTo( &result.vertices );
-    INIT( &result.indices ) Array<i32>( arena, indices.count );
-    indices.CopyTo( &result.indices );
-
-    return result;
-}
-
 inline void
 CalcBounds( Mesh* mesh )
 {

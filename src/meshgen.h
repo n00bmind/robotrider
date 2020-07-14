@@ -56,20 +56,21 @@ struct MeshPool
 
 struct FQSVertex
 {
+    TexturedVertex const* vertex;
+    m4Symmetric q;
     v3 p;
     i32 refStart;
     i32 refCount;     // How many tris share this vertex
-    m4Symmetric q;
     bool border;
 };
 
 struct FQSTriangle
 {
-    i32 v[3];
     f64 error[4];
+    i32 v[3];
+    v3 n;
     bool deleted;
     bool dirty;
-    v3 n;
 };
 
 // Back-references from vertices to the triangles they belong to

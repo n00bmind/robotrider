@@ -1081,9 +1081,8 @@ struct BucketArray
     struct Bucket
     {
         T* data;
-        i32 capacity;
-
         i32 count;
+        i32 capacity;
 
         Bucket *next;
         Bucket *prev;
@@ -1104,25 +1103,55 @@ struct BucketArray
         }
     };
 
+    // Stupid C++ shit to have both a const and non-const iterator without writing it twice
+    template <bool Flag, typename IsTrue, typename IsFalse>
+    struct Choose;
+
+    template <typename IsTrue, typename IsFalse>
+    struct Choose<true, IsTrue, IsFalse>
+    {
+        typedef IsTrue type;
+    };
+    template <typename IsTrue, typename IsFalse>
+    struct Choose<false, IsTrue, IsFalse>
+    {
+        typedef IsFalse type;
+    };
+
+    template<bool IsConst>
     struct Idx
     {
-        Bucket* base;
+        typedef typename Choose<IsConst, T const&, T&>::type ValueRef;
+        typedef typename Choose<IsConst, Bucket const*, Bucket*>::type BucketPtr;
+
+        BucketPtr base;
         i32 index;
+
+        Idx( BucketPtr base_, i32 index_ )
+            : base( base_ )
+            , index( index_ )
+        {}
 
         explicit operator bool() const
         {
             return IsValid();
         }
 
-        operator T&() const
+        bool IsValid() const
+        {
+            return base && index >= 0 && index < base->count;
+        }
+
+        operator ValueRef() const
         {
             ASSERT( IsValid() );
             return base->data[index];
         }
 
-        bool IsValid() const
+        ValueRef operator *() const
         {
-            return base && index >= 0 && index < base->count;
+            ASSERT( IsValid() );
+            return base->data[index];
         }
 
         void Next()
@@ -1136,6 +1165,14 @@ struct BucketArray
             }
         }
 
+        Idx operator ++( int _ )
+        {
+            Idx result(*this);
+            Next();
+
+            return result;
+        }
+
         void Prev()
         {
             if( index > 0 )
@@ -1145,6 +1182,14 @@ struct BucketArray
                 base = base->prev;
                 index = base ? base->count - 1 : 0;
             }
+        }
+
+        Idx operator --( int _ )
+        {
+            Idx result(*this);
+            Prev();
+
+            return result;
         }
     };
 
@@ -1188,7 +1233,7 @@ struct BucketArray
         return slot;
     }
 
-    T Remove( const Idx& index )
+    T Remove( const Idx<false>& index )
     {
         ASSERT( count > 0 );
         ASSERT( index.IsValid() );
@@ -1275,32 +1320,57 @@ struct BucketArray
         last = &first;
     }
 
-    Idx First()
+    Idx<false> First()
     {
         return { &first, 0 };
     }
 
-    Idx Last()
+    Idx<true> First() const
+    {
+        Idx<true> result( &first, 0 );
+        return result;
+    }
+
+    Idx<false> Last()
     {
         return { last, last->count - 1 };
     }
 
-    T& operator[]( const Idx& idx )
+    Idx<true> Last() const
+    {
+        return { last, last->count - 1 };
+    }
+
+    T& operator[]( const Idx<false>& idx )
     {
         ASSERT( idx.IsValid() );
         return (T&)idx;
     }
 
-    const T& operator[]( const Idx& idx ) const
+    const T& operator[]( const Idx<true>& idx ) const
     {
-        return (*this)[idx];
+        ASSERT( idx.IsValid() );
+        return (T const&)idx;
     }
 
     T& operator[]( int i )
     {
+        // My love for C++ grows and grows unbounded
+        return (T&)At( i );
+    }
+
+    T const& operator[]( int i ) const
+    {
+        return At( i );
+    }
+
+private:
+
+    T const& At( int i ) const
+    {
         ASSERT( i >= 0 && i < count );
 
-        Bucket* base = &first;
+        Bucket const* base = &first;
         int index = i;
 
         while( index >= base->count )
@@ -1312,13 +1382,6 @@ struct BucketArray
         return base->data[index];
     }
 
-    const T& operator[]( int i ) const
-    {
-        return (*this)[i];
-    }
-
-private:
-    
     void AddEmptyBucket()
     {
         Bucket* newBucket;

@@ -594,7 +594,11 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
 
     DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, RoomSurfaceFunc, &roomSamplingData,
                 &tmpVertices, &tmpIndices, tempArena, settings );
-    result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+
+    // Simplify mesh
+    FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tempArena );
+    FastQuadricSimplify( &fqsMesh, 1000, tempArena );
+    result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
 
     // Set initial offset index based on cluster
     // FIXME This must be done again everytime we switch the origin cluster
@@ -630,7 +634,11 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
 
     DCVolume( worldP, hall.bounds.halfSize * 2.f, VoxelSizeMeters, HallSurfaceFunc, &roomSamplingData,
               &tmpVertices, &tmpIndices, tempArena, settings );
-    result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+
+    // Simplify mesh
+    FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tempArena );
+    FastQuadricSimplify( &fqsMesh, 1000, tempArena );
+    result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
 
     // Set initial offset index based on cluster
     // FIXME This must be done again everytime we switch the origin cluster
@@ -832,20 +840,26 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
     int totalMeshCount = cluster->rooms.count + cluster->halls.count;
     INIT( &cluster->meshStore ) Array<Mesh>( arena, totalMeshCount );
 
+    TemporaryMemory tmpMemory = BeginTemporaryMemory( tempArena );
 #if 1
     // This is what we'd like to do, as most of the 3d space is empty and we would save a huge amount of pointless iteration
     // but it's tricky to make disjointly sampled volumes that behave well together
 
     // FIXME We still have some Z-fighting due to overlapping at the contact points
+    // NOTE Mesh simplification seems to make it worse!?
     for( int i = 0; i < cluster->rooms.count; ++i )
     {
+        TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tempArena );
         Mesh mesh = CreateRoomMesh( i, cluster, clusterP, world, arena, tempArena );
         cluster->meshStore.Push( mesh );
+        EndTemporaryMemory( tmpMeshMemory );
     }
     for( int i = 0; i < cluster->halls.count; ++i )
     {
+        TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tempArena );
         Mesh mesh = CreateHallMesh( i, cluster, clusterP, world, arena, tempArena );
         cluster->meshStore.Push( mesh );
+        EndTemporaryMemory( tmpMeshMemory );
     }
 
 #else
@@ -854,6 +868,8 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
     Mesh mesh = CreateClusterMesh( cluster, clusterP, world, arena, tempArena );
     cluster->meshStore.Push( mesh );
 #endif
+
+    EndTemporaryMemory( tmpMemory );
 
 #else
     {
@@ -923,7 +939,7 @@ StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
 
     f32 clusterHalfSize = ClusterSizeMeters  / 2.f;
 
-    BucketArray<LiveEntity>::Idx it = world->liveEntities.Last();
+    auto it = world->liveEntities.Last();
     while( it )
     {
         LiveEntity& liveEntity = ((LiveEntity&)it);

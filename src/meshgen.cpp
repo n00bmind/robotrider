@@ -30,6 +30,45 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 
+inline Mesh
+CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<i32> const& indices, MemoryArena* arena )
+{
+    Mesh result;
+    InitMesh( &result );
+
+    INIT( &result.vertices ) Array<TexturedVertex>( arena, vertices.count );
+    vertices.CopyTo( &result.vertices );
+    INIT( &result.indices ) Array<i32>( arena, indices.count );
+    indices.CopyTo( &result.indices );
+
+    return result;
+}
+
+inline Mesh
+CreateMeshFromFQSBuffers( Array<FQSVertex> const& vertices, Array<FQSTriangle> const& triangles, MemoryArena* arena )
+{
+    Mesh result;
+    InitMesh( &result );
+
+    INIT( &result.vertices ) Array<TexturedVertex>( arena, vertices.count );
+    result.vertices.ResizeToCapacity();
+    for( int i = 0; i < vertices.count; ++i )
+    {
+        result.vertices[i] = *vertices[i].vertex;
+        result.vertices[i].p = vertices[i].p;
+    }
+    INIT( &result.indices ) Array<i32>( arena, triangles.count * 3 );
+    result.indices.ResizeToCapacity();
+    for( int i = 0; i < triangles.count; ++i )
+    {
+        result.indices[ i*3 + 0 ] = triangles[i].v[0];
+        result.indices[ i*3 + 1 ] = triangles[i].v[1];
+        result.indices[ i*3 + 2 ] = triangles[i].v[2];
+    }
+
+    return result;
+}
+
 IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2i const& cellsPerAxis )
 {
     IsoSurfaceSamplingCache result;
@@ -1599,8 +1638,7 @@ FQSUpdateTriangles( int i0, const FQSVertex& v, const Array<bool>& deleted,
 // This would also have the advantage of being able to generate all LODs in a single pass.
 // Also, see if we can find an ultra-fast method mostly for coplanar regions and have it applied always after contouring regardless of LOD
 // (or make one!)
-void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, const TemporaryMemory& tmpMemory,
-                          f32 agressiveness = 7 )
+void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, MemoryArena* tmpArena, f32 agressiveness = 7 )
 {
     int triangleCount = mesh->triangles.count;
     int deletedTriangleCount = 0;
@@ -1609,7 +1647,7 @@ void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, const TemporaryMemo
         mesh->triangles[i].deleted = false;
 
     // Need extra space for FQSUpdateTriangles below
-    Array<FQSVertexRef> refs( tmpMemory.arena, triangleCount * 3 * 3, Temporary() );
+    Array<FQSVertexRef> refs( tmpArena, triangleCount * 3 * 3, Temporary() );
     for( int iteration = 0; iteration < 100; ++iteration )
     {
         if( triangleCount - deletedTriangleCount <= targetTriCount )
@@ -1712,8 +1750,8 @@ void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, const TemporaryMemo
             // Identify boundary vertices
             if( iteration == 0 )
             {
-                Array<i32> vCount( tmpMemory.arena, 1000, Temporary() );
-                Array<i32> vIds( tmpMemory.arena, 1000, Temporary() );
+                Array<i32> vCount( tmpArena, 1000, Temporary() );
+                Array<i32> vIds( tmpArena, 1000, Temporary() );
 
                 for( int i = 0; i < mesh->vertices.count; ++i )
                     mesh->vertices[i].border = false;
@@ -1780,8 +1818,8 @@ void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, const TemporaryMemo
             {
                 if( tri.error[j] < threshold )
                 {
-                    Array<bool> deleted0( tmpMemory.arena, 1000, Temporary() );
-                    Array<bool> deleted1( tmpMemory.arena, 1000, Temporary() );
+                    Array<bool> deleted0( tmpArena, 1000, Temporary() );
+                    Array<bool> deleted1( tmpArena, 1000, Temporary() );
 
                     int i0 = tri.v[j];          FQSVertex& v0 = mesh->vertices[i0];
                     int i1 = tri.v[(j+1)%3];    FQSVertex& v1 = mesh->vertices[i1];
@@ -1854,6 +1892,7 @@ void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, const TemporaryMemo
             if( v.refCount )
             {
                 v.refStart = dst;
+                mesh->vertices[dst].vertex = v.vertex;
                 mesh->vertices[dst].p = v.p;
                 dst++;
             }
@@ -1870,18 +1909,48 @@ void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, const TemporaryMemo
 }
 
 
-FQSMesh CreateFQSMesh( Array<TexturedVertex> const& vertices, Array<i32> const& indices, TemporaryMemory const& tmpMemory )
+FQSMesh CreateFQSMesh( Array<TexturedVertex> const& vertices, Array<i32> const& indices, MemoryArena* tmpArena )
 {
     FQSMesh result;
-    INIT( &result.vertices ) Array<FQSVertex>( tmpMemory.arena, vertices.count, Temporary() );
+    INIT( &result.vertices ) Array<FQSVertex>( tmpArena, vertices.count, Temporary() );
     result.vertices.ResizeToCapacity();
 
     for( int i = 0; i < result.vertices.count; ++i )
+    {
+        result.vertices[i].vertex = &vertices[i];
         result.vertices[i].p = vertices[i].p;
+    }
 
-    INIT( &result.triangles ) Array<FQSTriangle>( tmpMemory.arena, indices.count / 3, Temporary() );
+    INIT( &result.triangles ) Array<FQSTriangle>( tmpArena, indices.count / 3, Temporary() );
     result.triangles.Resize( result.triangles.capacity );
     for( int i = 0; i < result.triangles.count; ++i )
+    {
+        result.triangles[i].v[0] = indices[ i*3 + 0 ];
+        result.triangles[i].v[1] = indices[ i*3 + 1 ];
+        result.triangles[i].v[2] = indices[ i*3 + 2 ];
+    }
+
+    return result;
+}
+
+FQSMesh CreateFQSMesh( BucketArray<TexturedVertex> const& vertices, BucketArray<i32> const& indices, MemoryArena* tmpArena )
+{
+    FQSMesh result;
+    INIT( &result.vertices ) Array<FQSVertex>( tmpArena, vertices.count, Temporary() );
+    result.vertices.ResizeToCapacity();
+
+    int i = 0;
+    auto vIt = vertices.First();
+    while( vIt )
+    {
+        result.vertices[i].vertex = &(*vIt);
+        result.vertices[i++].p = (*vIt).p;
+        vIt++;
+    }
+
+    INIT( &result.triangles ) Array<FQSTriangle>( tmpArena, indices.count / 3, Temporary() );
+    result.triangles.Resize( result.triangles.capacity );
+    for( i = 0; i < result.triangles.count; ++i )
     {
         result.triangles[i].v[0] = indices[ i*3 + 0 ];
         result.triangles[i].v[1] = indices[ i*3 + 1 ];
