@@ -849,6 +849,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
     };
 
     // TODO Pack these LUTs so they use less cache
+    // ALSO align properly!
 
     // Relative to 'max' aabb point, also used to locate neighbour cells
     static const v3i dcCornerOffsets[8] =
@@ -906,6 +907,8 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
     Cluster* debugCluster = clusterData->debugCluster;
     const v3 debugSampleSize = V3( 0.03f );
+    const v4 inColor = { 1, 0, 0, 0 };
+    const v4 outColor = { 0, 0, 1, 0 };
 
     for( int k = 0; k < cellsPerAxis.z; ++k )
     {
@@ -914,9 +917,6 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
             for( int i = 0; i < cellsPerAxis.x; ++i )
             {
                 v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
-
-                if( debugCluster && (i == 0 || j == 0 || k == 0 || i == cellsPerAxis.x-1 || j == cellsPerAxis.y-1 || k == cellsPerAxis.z-1) )
-                    debugCluster->debugVolumes.Push( { cellP, debugSampleSize } );
 
                 //f32 boundsTolerance = 0.5f;
                 v3 cellBoundsMin = cellP - V3( cellSizeMeters );
@@ -941,6 +941,17 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                         p.relativeP = cellP;
                         sample = sampleFunc( p, samplingData ) + 0.f;
                         cellData( i, j, k ).sampledValue = sample;
+
+                        // TODO Use instancing and just draw three crossing axis lines at each point to make this viable
+#if 0 //!RELEASE
+                        if( debugCluster ) //&& (i == 0 || j == 0 || k == 0 || i == cellsPerAxis.x-1 || j == cellsPerAxis.y-1 || k == cellsPerAxis.z-1) )
+                        {
+                            v4 color = sample >= 0.f ? outColor : inColor;
+                            color.a = Clamp01( 1.f - Abs( sample ) / 5.f );
+                            debugCluster->debugVolumes.Push( { { cellP, debugSampleSize }, color } );
+                        }
+#endif
+
                     }
                     else
                     {

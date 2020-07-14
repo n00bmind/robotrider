@@ -782,6 +782,10 @@ union v4
     f32 e[4];
 };
 
+
+const v4 V4Zero = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+
 inline v4
 V4( f32 x, f32 y, f32 z, f32 w )
 {
@@ -794,6 +798,18 @@ V4( const v3 &v, f32 w )
 {
     v4 result = { v.x, v.y, v.z, w };
     return result;
+}
+
+inline bool
+operator ==( const v4 &a, const v4 &b )
+{
+    return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+}
+
+inline bool
+operator !=( const v4 &a, const v4 &b )
+{
+    return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
 }
 
 inline v4

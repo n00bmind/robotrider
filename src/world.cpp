@@ -232,9 +232,7 @@ INLINE f32 SDFRoom( WorldCoords const& worldP, Room const& room )
     v3 invWorldP = worldP.relativeP - room.bounds.center;
 
     // TODO For now just do a box almost at the volume edge
-    f32 result = SDFBox( invWorldP, room.bounds.halfSize - V3( VoxelSizeMeters * 2.f ) );
-    // Carve the inside and give it a thickness
-    result = SDFOnion( result, 0.1f );
+    f32 result = SDFBox( invWorldP, room.bounds.halfSize - V3( VoxelSizeMeters * 1.51f ) );
 
     return result;
 }
@@ -242,13 +240,10 @@ INLINE f32 SDFRoom( WorldCoords const& worldP, Room const& room )
 INLINE f32 SDFHall( WorldCoords const& worldP, Hall const& hall )
 {
     // TODO Do the actual path/sub-volumes calculation here, based on just the endpoints
-    const v3 volumeBorder = V3( VoxelSizeMeters * 0.5f );
+    const v3 volumeBorder = V3( VoxelSizeMeters * 0.51f );
     f32 result = SDFBox( worldP.relativeP - hall.sectionBounds[0].center, hall.sectionBounds[0].halfSize - volumeBorder );
     result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBounds[1].center, hall.sectionBounds[1].halfSize - volumeBorder ) );
     result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBounds[2].center, hall.sectionBounds[2].halfSize - volumeBorder ) );
-
-    // Carve the inside and give it a thickness
-    //result = SDFOnion( result, 1.1f );
 
     return result;
 }
@@ -274,6 +269,9 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
             result = SDFUnion( result, hallSDF );
         }
     }
+
+    // Carve the inside and give it a thickness
+    result = SDFOnion( result, VoxelSizeMeters * 0.5f );
 
     return result;
 #endif
@@ -301,7 +299,11 @@ ISO_SURFACE_FUNC(HallSurfaceFunc)
         }
     }
 #endif
-#if 0
+
+    // Carve the inside and give it a thickness
+    result = SDFOnion( result, VoxelSizeMeters * 0.5f );
+
+#if 1
     for( int i = 0; i < clusterData->rooms.count; ++i )
     {
         Room const& room = clusterData->rooms[i];
@@ -309,7 +311,8 @@ ISO_SURFACE_FUNC(HallSurfaceFunc)
         if( ContainsOrTouches( room.bounds, worldP.relativeP ) )
         {
             f32 roomSDF = SDFRoom( worldP, room );
-            result = SDFUnion( result, roomSDF );
+            //result = SDFUnion( result, roomSDF );
+            result = SDFSubstraction( result, roomSDF );
         }
     }
 #endif
@@ -381,7 +384,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
     v3i currentP = startP;
 
     const v3 clusterHalfSizeMeters = V3( ClusterSizeMeters * 0.5f );
-    const int hallThickness = 10;
+    const int hallThickness = 25;
 
     u8 axisOrder = 0, remainingAxes = 3;
     int nextAxis[] = { 0, 1, 2 };
@@ -411,7 +414,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                     for( int i = start; i <= end; ++i)
                         cluster->voxelGrid( i, j, k ) = 3;
 
-                    v3i hallSizeVoxels = { end - start + 1, hallThickness, hallThickness };
+                    v3i hallSizeVoxels = { end - start + hallThickness + 1, hallThickness, hallThickness };
                     sectionBounds.halfSize = V3( hallSizeVoxels ) * VoxelSizeMeters * 0.5f;
                     sectionBounds.center = -clusterHalfSizeMeters + V3( start, currentP.y, currentP.z ) * VoxelSizeMeters + sectionBounds.halfSize;
 
@@ -427,7 +430,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                     for( int j = start; j <= end; ++j)
                         cluster->voxelGrid( i, j, k ) = 3;
 
-                    v3i hallSizeVoxels = { hallThickness, end - start + 1, hallThickness };
+                    v3i hallSizeVoxels = { hallThickness, end - start + hallThickness + 1, hallThickness };
                     sectionBounds.halfSize = V3( hallSizeVoxels ) * VoxelSizeMeters * 0.5f;
                     sectionBounds.center = -clusterHalfSizeMeters + V3( currentP.x, start, currentP.z ) * VoxelSizeMeters + sectionBounds.halfSize;
 
@@ -443,7 +446,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                     for( int k = start; k <= end; ++k)
                         cluster->voxelGrid( i, j, k ) = 3;
 
-                    v3i hallSizeVoxels = { hallThickness, hallThickness, end - start + 1 };
+                    v3i hallSizeVoxels = { hallThickness, hallThickness, end - start + hallThickness + 1 };
                     sectionBounds.halfSize = V3( hallSizeVoxels ) * VoxelSizeMeters * 0.5f;
                     sectionBounds.center = -clusterHalfSizeMeters + V3( currentP.x, currentP.y, start ) * VoxelSizeMeters + sectionBounds.halfSize;
 
@@ -452,7 +455,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
                 INVALID_DEFAULT_CASE
             }
 
-            cluster->debugVolumes.Push( sectionBounds );
+            cluster->debugVolumes.Push( { sectionBounds, { 1, 0, 0, 0.2f }, } );
             if( currentSectionIndex == 1 )
                 hallBounds = sectionBounds;
             else
@@ -468,7 +471,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
     }
 
     v->hall.bounds = hallBounds;
-    //cluster->debugVolumes.Push( hallBounds );
+    //cluster->debugVolumes.Push( { hallBounds, { 1, 0, 0, 0.5f }, } );
 }
 
 internal Room*
@@ -599,7 +602,7 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
 
 #if 1
-    cluster->debugVolumes.Push( AABBCenterSize( room.bounds.center, sampledVolumeSize ) );
+    cluster->debugVolumes.Push( { AABBCenterSize( room.bounds.center, sampledVolumeSize ), { 1, 0, 0, 0.5f }, } );
 #endif
 
     return result;
@@ -614,6 +617,8 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     WorldCoords worldP = { hall.bounds.center, clusterP };
     ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls };
     roomSamplingData.sampledVolumeIndex = hallIndex;
+    if( hallIndex == 0 )
+        roomSamplingData.debugCluster = cluster;
 
     DCSettings settings;
     settings.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
@@ -811,7 +816,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
         cluster = world->clusterTable.InsertEmpty( clusterP );
         cluster->populated = false;
         INIT( &cluster->entityStorage ) BucketArray<StoredEntity>( arena, 256 );
-        INIT( &cluster->debugVolumes ) BucketArray<aabb>( arena, 64 );
+        INIT( &cluster->debugVolumes ) BucketArray<DebugVolume>( arena, 64 );
     }
 
     if( !cluster->populated )
@@ -828,19 +833,21 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
     INIT( &cluster->meshStore ) Array<Mesh>( arena, totalMeshCount );
 
 #if 1
-    // This is what we'd like to do, as most of the 3d volume is empty anyway and would save a huge amount of pointless iteration
+    // This is what we'd like to do, as most of the 3d space is empty and we would save a huge amount of pointless iteration
     // but it's tricky to make disjointly sampled volumes that behave well together
 
-    //for( int i = 0; i < cluster->rooms.count; ++i )
-    //{
-        //Mesh mesh = CreateRoomMesh( i, cluster, clusterP, world, arena, tempArena );
-        //cluster->meshStore.Push( mesh );
-    //}
+    // FIXME We still have some Z-fighting due to overlapping at the contact points
+    for( int i = 0; i < cluster->rooms.count; ++i )
+    {
+        Mesh mesh = CreateRoomMesh( i, cluster, clusterP, world, arena, tempArena );
+        cluster->meshStore.Push( mesh );
+    }
     for( int i = 0; i < cluster->halls.count; ++i )
     {
         Mesh mesh = CreateHallMesh( i, cluster, clusterP, world, arena, tempArena );
         cluster->meshStore.Push( mesh );
     }
+
 #else
     // This is what we may have to end up doing if creating a well behaved disjoint SDF ends up being too tricky, but it's slooooow
 
@@ -1216,13 +1223,14 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         RenderSetMaterial( nullptr, renderCommands );
 
         Cluster* currentCluster = world->clusterTable.Find( world->originClusterP );
-        u32 halfRed = Pack01ToRGBA( 1, 0, 0, 0.2f );
-
         // Render debug volumes
         for( int i = 0; i < currentCluster->debugVolumes.count; ++i )
         {
-            aabb& b = currentCluster->debugVolumes[i];
-            RenderBounds( b, halfRed, renderCommands );
+            DebugVolume& v = currentCluster->debugVolumes[i];
+            v4 color = v.color;
+            if( color == V4Zero )
+                color = { 1, 0, 1, 0.5f };
+            RenderBounds( v.bounds, Pack01ToRGBA( color ), renderCommands );
         }
 #endif
 

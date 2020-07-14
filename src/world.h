@@ -169,6 +169,12 @@ struct BinaryVolume
     u32 flags;
 };
 
+struct DebugVolume
+{
+    aabb bounds;
+    v4 color;
+};
+
 struct Cluster
 {
     // TODO Determine what the bucket size should be so we have just one bucket most of the time
@@ -181,7 +187,7 @@ struct Cluster
 
 #if !RELEASE
     // Just for visualization
-    BucketArray<aabb> debugVolumes;
+    BucketArray<DebugVolume> debugVolumes;
 #endif
 
     // TODO This probably go in a global mesh pool
