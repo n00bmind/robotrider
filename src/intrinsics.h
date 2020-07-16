@@ -402,4 +402,10 @@ ReadCycles()
     return __rdtsc();
 }
 
+inline u64
+Rdtsc()
+{
+    return __rdtsc();
+}
+
 #endif /* __INTRINSICS_H__ */

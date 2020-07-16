@@ -260,7 +260,7 @@ void RenderSwitch( RenderSwitchType renderSwitch, bool enable, RenderCommands* c
 
 void RenderMesh( const Mesh& mesh, RenderCommands *commands )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
 #if 0
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
@@ -418,7 +418,7 @@ void RenderCubicGrid( const aabb& boundingBox, f32 step, u32 color, bool drawZAx
 
 void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* commands )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     RenderSetShader( ShaderProgramName::PlainColorVoxel, commands );
 
@@ -485,7 +485,7 @@ void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffset
 
 void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 color, RenderCommands* commands )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     RenderSetShader( ShaderProgramName::PlainColorVoxel, commands );
 

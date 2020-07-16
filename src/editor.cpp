@@ -88,7 +88,7 @@ InitMeshSamplerTest( EditorState* state, MemoryArena* editorArena, MemoryArena* 
 
 internal void
 TickMeshSamplerTest( EditorState* state, MeshPool* meshPoolArray, MemoryArena* editorArena, MemoryArena* transientArena,
-                     const TemporaryMemory& frameMemory, f32 elapsedT, RenderCommands* renderCommands )
+                     f32 elapsedT, RenderCommands* renderCommands )
 {
     if( !state->tests.resampling.initialized )
     {
@@ -106,7 +106,7 @@ TickMeshSamplerTest( EditorState* state, MeshPool* meshPoolArray, MemoryArena* e
             ReleaseMesh( &state->tests.resampling.testIsoSurfaceMesh );
         state->tests.resampling.testIsoSurfaceMesh =
             ConvertToIsoSurfaceMesh( state->tests.resampling.sampledMesh, state->tests.resampling.drawingDistance, state->tests.resampling.displayedLayer,
-                                     &state->tests.resampling.samplingCache, meshPoolArray, frameMemory, renderCommands );
+                                     &state->tests.resampling.samplingCache, meshPoolArray, transientArena, renderCommands );
     }
 
     RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
@@ -138,7 +138,7 @@ InitWFCTest( EditorState* state, MemoryArena* editorArena, MemoryArena* transien
 
 internal void
 TickWFCTest( EditorState* state, DebugState* debugState, MemoryArena* editorArena, MemoryArena* transientArena,
-             const TemporaryMemory& frameMemory, RenderCommands* renderCommands )
+             RenderCommands* renderCommands )
 {
     if( !state->tests.wfc.initialized )
     {
@@ -165,7 +165,7 @@ TickWFCTest( EditorState* state, DebugState* debugState, MemoryArena* editorAren
 
         int selectedSpecIndex = WFC::DrawTest( state->tests.wfc.specs, state->tests.wfc.globalState,
                                                &state->tests.wfc.displayState, displayP, displayDim, debugState,
-                                               &state->tests.wfc.displayArena, frameMemory );
+                                               &state->tests.wfc.displayArena, transientArena );
 
         if( selectedSpecIndex != -1 )
         {
@@ -436,7 +436,7 @@ InitEditor( const v2i screenDim, GameState* gameState, EditorState* editorState,
 void
 UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientState* transientState, 
                        DebugState* debugState, RenderCommands *renderCommands, const char* statsText, 
-                       MemoryArena* editorArena, MemoryArena* transientArena, const TemporaryMemory& frameMemory )
+                       MemoryArena* editorArena, MemoryArena* transientArena )
 {
     float dT = input.frameElapsedSeconds;
     float elapsedT = input.totalElapsedSeconds;
@@ -552,14 +552,14 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
     switch( editorState->selectedTest.index )
     {
         case EditorTest::Contouring().index:
-            TickSurfaceContouringTest( input, editorState, renderCommands, editorArena, frameMemory.arena );
+            TickSurfaceContouringTest( input, editorState, renderCommands, editorArena, transientArena );
             break;
         case EditorTest::WaveFunctionCollapse().index:
-            TickWFCTest( editorState, debugState, editorArena, transientArena, frameMemory, renderCommands );
+            TickWFCTest( editorState, debugState, editorArena, transientArena, renderCommands );
             break;
         case EditorTest::MeshResampling().index:
             // Resampling meshes using marching cubes
-            TickMeshSamplerTest( editorState, &world->meshPools[0], editorArena, transientArena, frameMemory, elapsedT, renderCommands );
+            TickMeshSamplerTest( editorState, &world->meshPools[0], editorArena, transientArena, elapsedT, renderCommands );
             break;
 #if 0
         case EditorTest::MeshDecimation().index:

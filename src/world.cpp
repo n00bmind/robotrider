@@ -251,7 +251,7 @@ INLINE f32 SDFHall( WorldCoords const& worldP, Hall const& hall )
 ISO_SURFACE_FUNC(RoomSurfaceFunc)
 {
 #if 1
-    TIMED_BLOCK;
+    TIMED_FUNC_WITH_TOTALS;
 
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
     Room const& room = clusterData->rooms[clusterData->sampledVolumeIndex];
@@ -279,7 +279,7 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
 
 ISO_SURFACE_FUNC(HallSurfaceFunc)
 {
-    TIMED_BLOCK;
+    TIMED_FUNC_WITH_TOTALS;
 
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
     Hall const& hall = clusterData->halls[clusterData->sampledVolumeIndex];
@@ -322,7 +322,7 @@ ISO_SURFACE_FUNC(HallSurfaceFunc)
 
 ISO_SURFACE_FUNC(ClusterSurfaceFunc)
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     f32 result = F32MAX;
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
@@ -571,6 +571,8 @@ StoreInCluster( BinaryVolume const& volume, Cluster* cluster )
 internal Mesh
 CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
+    TIMED_FUNC_WITH_TOTALS;
+
     Mesh result = {};
     Room const& room = cluster->rooms[roomIndex];
 
@@ -595,10 +597,18 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, RoomSurfaceFunc, &roomSamplingData,
                 &tmpVertices, &tmpIndices, tempArena, settings );
 
-    // Simplify mesh
-    FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tempArena );
-    FastQuadricSimplify( &fqsMesh, 1000, tempArena );
-    result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
+#if 0
+    {
+        TIMED_SCOPE_WITH_TOTALS( "Simplify rooms" );
+
+        // Simplify mesh
+        FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tempArena );
+        FastQuadricSimplify( &fqsMesh, 1000, tempArena );
+        result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
+    }
+#else
+    result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+#endif
 
     // Set initial offset index based on cluster
     // FIXME This must be done again everytime we switch the origin cluster
@@ -615,6 +625,8 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
 internal Mesh
 CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
+    TIMED_FUNC_WITH_TOTALS;
+
     Mesh result = {};
     Hall const& hall = cluster->halls[hallIndex];
 
@@ -635,10 +647,18 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     DCVolume( worldP, hall.bounds.halfSize * 2.f, VoxelSizeMeters, HallSurfaceFunc, &roomSamplingData,
               &tmpVertices, &tmpIndices, tempArena, settings );
 
-    // Simplify mesh
-    FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tempArena );
-    FastQuadricSimplify( &fqsMesh, 1000, tempArena );
-    result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
+#if 0
+    {
+        TIMED_SCOPE_WITH_TOTALS( "Simplify halls" );
+
+        // Simplify mesh
+        FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tempArena );
+        FastQuadricSimplify( &fqsMesh, 1000, tempArena );
+        result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
+    }
+#else
+    result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+#endif
 
     // Set initial offset index based on cluster
     // FIXME This must be done again everytime we switch the origin cluster
@@ -651,6 +671,8 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
 internal Mesh
 CreateClusterMesh( Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
+    TIMED_FUNC_WITH_TOTALS;
+
     Mesh result = {};
     WorldCoords worldP = { V3Zero, clusterP };
     ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls, 0 };
@@ -696,6 +718,8 @@ IsInSimRegion( const v3i& clusterP, const v3i& worldOriginClusterP )
 internal void
 CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
+    TIMED_FUNC;
+
     // Partition cluster space
     SectorParams genParams = CollectSectorParams( clusterP );
     const int minVolumeSize = (int)(genParams.minVolumeRatio * (f32)VoxelsPerClusterAxis);
@@ -815,7 +839,7 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 internal void
 LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC_WITH_TOTALS;
 
     Cluster* cluster = world->clusterTable.Find( clusterP );
 
@@ -923,7 +947,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
 internal void
 StoreEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     Cluster* cluster = world->clusterTable.Find( clusterP );
 
@@ -983,7 +1007,7 @@ RestartWorldGeneration( World* world )
 internal void
 UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena, MemoryArena* tempArena )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     // TODO Make an infinite connected 'cosmic grid structure'
     // so we can test for a good cluster size, evaluate current generation speeds,
@@ -1061,7 +1085,7 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena, Memor
 
 
     {
-        TIMED_BLOCK;
+        TIMED_SCOPE( "Translate live entities" );
 
         // Constantly monitor live entities array for inactive entities
         auto it = world->liveEntities.First();
@@ -1094,7 +1118,7 @@ GetLiveEntityWorldP( const WorldCoords& coords, const v3i& worldOriginClusterP )
 void
 UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *renderCommands )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     GameState *gameState = (GameState*)gameMemory->permanentStorage;
 
@@ -1192,7 +1216,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         auto it = world->liveEntities.First();
         while( it )
         {
-            TIMED_BLOCK;
+            TIMED_SCOPE( "Render live entities" );
 
             LiveEntity& entity = (LiveEntity&)it;
             if( entity.state == EntityState::Active )
@@ -1211,8 +1235,6 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         it = world->liveEntities.First();
         while( it )
         {
-            TIMED_BLOCK;
-
             LiveEntity& entity = (LiveEntity&)it;
             if( entity.state == EntityState::Active )
             {

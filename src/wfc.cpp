@@ -295,7 +295,7 @@ SetAdjacencyAt( int cellIndex, int patternIndex, int dirIndex, Snapshot* snapsho
 inline bool
 DecreaseAdjacencyAndTestZeroAt( int cellIndex, int patternIndex, int dirIndex, Snapshot* snapshot )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     int exp = dirIndex * BitsPerAxis;
     u64 one = 1ULL << exp;
@@ -370,7 +370,7 @@ ResetWaveAt( Array2<u64>* wave, int cellIndex, int totalPatternCount )
 internal bool
 BanPatternAtCell( int cellIndex, int patternIndex, State* state, const Input& input )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     bool result = true;
     Snapshot* snapshot = state->currentSnapshot;
@@ -514,7 +514,7 @@ GetCellIndexAtAdjacencyBorder( int adjacencyIndex, int borderCellCounter, const 
 internal bool
 ApplyObservedPatternAt( int observedCellIndex, int observedPatternIndex, State* state, const Input& input )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     Snapshot* snapshot = state->currentSnapshot;
     bool compatiblesRemaining = true;
@@ -555,7 +555,7 @@ Propagate( const Spec& spec, const Input& input, State* state )
 
     while( result == InProgress && state->propagationStack.count > 0 )
     {
-        TIMED_BLOCK;
+        TIMED_SCOPE( "WFC::Propagate loop" );
 
         BannedTuple ban = state->propagationStack.Pop();
         v2i pCell = PositionFromIndex( ban.cellIndex, width );
@@ -591,7 +591,7 @@ Propagate( const Spec& spec, const Input& input, State* state )
 internal bool
 Init( const Spec& spec, const Input& input, const ChunkInitInfo& initInfo, State* state, MemoryArena* arena )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     bool result = false;
     state->arena = arena;
@@ -756,7 +756,7 @@ NeedSnapshot( State* state, int totalObservationCount )
 internal Result
 Observe( const Spec& spec, const Input& input, State* state, MemoryArena* arena )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     Result result = InProgress;
     Snapshot* snapshot = state->currentSnapshot;
@@ -829,7 +829,7 @@ Observe( const Spec& spec, const Input& input, State* state, MemoryArena* arena 
 internal Result
 RewindSnapshot( State* state, const Input& input )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     Result result = Contradiction;
     Snapshot* snapshot = state->currentSnapshot;
@@ -939,7 +939,7 @@ DoWFC( Job* job )
 
     while( !IsFinished( *state ) )
     {
-        TIMED_BLOCK;
+        TIMED_SCOPE( "WFC::DoWFC loop" );
 
         if( job->cancellationRequested )
             state->currentResult = Cancelled;
@@ -1477,7 +1477,7 @@ JobsInProgress( const GlobalState* globalState )
 
 int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState* displayState,
               const v2& displayP, const v2& displayDim, const DebugState* debugState, MemoryArena* wfcDisplayArena,
-              const TemporaryMemory& tmpMemory )
+              MemoryArena* tmpArena )
 {
     int selectedIndex = -1;
     const Spec& spec = specs[displayState->currentSpecIndex];
@@ -1620,7 +1620,7 @@ int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayS
             ImGui::BeginChild( "child_debug", ImVec2( 0, 0 ) );
             if( debugState )
             {
-                DrawPerformanceCounters( debugState, tmpMemory );
+                DrawPerformanceCounters( debugState, tmpArena );
             }
             ImGui::EndChild();
 

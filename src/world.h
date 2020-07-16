@@ -201,7 +201,7 @@ inline u32 EntityHash( const u32& key, i32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
-const int SimExteriorHalfSize = 1;
+const int SimExteriorHalfSize = 0;
 const int SimRegionSizePerAxis = 2 * SimExteriorHalfSize + 1;
 
 enum MeshGeneratorType
@@ -213,16 +213,12 @@ enum MeshGeneratorType
 
 struct World
 {
+    Player *player;
+
     v3 pPlayer;
     f32 playerPitch;
     f32 playerYaw;
 
-    Player *player;
-
-#if 0
-    Array<Mesh> hullMeshes;
-    Array<MeshGeneratorPath> pathsBuffer;
-#endif
 
     // 'REAL' stuff
     //

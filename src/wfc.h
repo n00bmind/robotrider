@@ -301,7 +301,7 @@ namespace WFC
     void UpdateWFCAsync( GlobalState* globalState );
     int DrawTest( const Array<Spec>& specs, const GlobalState* globalState, DisplayState* displayState,
                   const v2& pDisplay, const v2& displayDim, const DebugState* debugState, MemoryArena* wfcDisplayArena,
-                  const TemporaryMemory& tmpMemory );
+                  MemoryArena* tmpArena );
 
 
 } // namespace WFC

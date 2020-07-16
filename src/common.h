@@ -92,6 +92,8 @@ typedef size_t sz;
 #define F32MIN FLT_MIN
 #define F32INF INFINITY
 #define F32NAN NAN
+#define F64MAX DBL_MAX
+#define F64MIN DBL_MIN
 #define F64INF (f64)INFINITY
 
 

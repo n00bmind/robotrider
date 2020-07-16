@@ -990,8 +990,7 @@ Win32ProcessXInputControllers( GameInput* oldInput, GameInput* newInput, GameCon
 }
 
 internal void
-Win32PrepareInputData( GameInput** oldInput, GameInput** newInput,
-                       float elapsedSeconds, float totalSeconds, u32 frameCounter )
+Win32PrepareInputData( GameInput** oldInput, GameInput** newInput, float elapsedSeconds, float totalSeconds, u32 frameCounter )
 {
     // Swap pointers
     GameInput *temp = *newInput;
@@ -1199,6 +1198,7 @@ void
 Win32ToggleGlobalDebugging( GameMemory *gameMemory, HWND window )
 {
     gameMemory->DEBUGglobalDebugging = !gameMemory->DEBUGglobalDebugging;
+#if 0
     SetCursor( gameMemory->DEBUGglobalDebugging ? DEBUGglobalCursor : 0 );
 
     LONG_PTR curStyle = GetWindowLongPtr( window,
@@ -1212,6 +1212,7 @@ Win32ToggleGlobalDebugging( GameMemory *gameMemory, HWND window )
     SetWindowPos( window, gameMemory->DEBUGglobalDebugging
                   ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
                   SWP_NOMOVE | SWP_NOSIZE );
+#endif
 }
 #endif
 
@@ -2182,25 +2183,9 @@ main( int argC, char **argV )
                 {
                     LOG( ".Allocated game memory with base address: %p", baseAddress );
 
-                    GameInput input[2] = {};
-                    GameInput *newInput = &input[0];
-                    GameInput *oldInput = &input[1];
-
-                    f32 targetElapsedPerFrameSecs = 1.0f / videoTargetFramerateHz;
-                    // Assume our target for the first frame
-                    f32 lastDeltaTimeSecs = targetElapsedPerFrameSecs;
-
-                    globalRunning = true;
-
-                    HRESULT audioStarted = globalAudioClient->Start();
-                    ASSERT( audioStarted == S_OK );
-
-                    LARGE_INTEGER firstCounter = Win32GetWallClock();
-                    LARGE_INTEGER lastCounter = firstCounter;
-                    u64 lastCycleCounter = __rdtsc();
-
                     globalPlatformState.gameCode
                         = Win32LoadGameCode( globalPlatformState.sourceDLLPath, globalPlatformState.tempDLLPath, &gameMemory );
+                    ASSERT( globalPlatformState.gameCode.isValid );
 
                     Win32AssetUpdateListener assetListeners[] =
                     {
@@ -2210,24 +2195,40 @@ main( int argC, char **argV )
                     globalPlatformState.assetListenerCount = ARRAYCOUNT(assetListeners);
                     Win32SetupAssetUpdateListeners( &globalPlatformState );
 
+                    HRESULT audioStarted = globalAudioClient->Start();
+                    ASSERT( audioStarted == S_OK );
+
+                    GameInput input[2] = {};
+                    GameInput *newInput = &input[0];
+                    GameInput *oldInput = &input[1];
+
+                    LARGE_INTEGER firstClock = Win32GetWallClock();
+                    LARGE_INTEGER lastClock = firstClock;
+                    u64 lastCycleCounter = Rdtsc();
+
+                    f32 targetElapsedPerFrameSecs = 1.0f / videoTargetFramerateHz;
+                    // Assume our target for the first frame
+                    f32 frameElapsedSeconds = targetElapsedPerFrameSecs;
+
+                    globalRunning = true;
+
                     // Main loop
                     while( globalRunning )
                     {
 #if !RELEASE
-                        DebugFrameInfo DEBUGframeInfo = {};
+                        DebugFrameInfo debugFrameInfo = {};
                         
                         // Prevent huge skips in physics etc. while debugging
-                        if( lastDeltaTimeSecs > 1.f )
+                        if( frameElapsedSeconds > 1.f )
                         {
-                            lastDeltaTimeSecs = targetElapsedPerFrameSecs;
-                            totalElapsedSeconds += lastDeltaTimeSecs;
+                            frameElapsedSeconds = targetElapsedPerFrameSecs;
+                            totalElapsedSeconds += frameElapsedSeconds;
                         }
                         else
 #endif
-                            totalElapsedSeconds = Win32GetSecondsElapsed( firstCounter, lastCounter );
+                            totalElapsedSeconds = Win32GetSecondsElapsed( firstClock, lastClock );
 
-                        Win32PrepareInputData( &oldInput, &newInput,
-                                               lastDeltaTimeSecs, totalElapsedSeconds, runningFrameCounter );
+                        Win32PrepareInputData( &oldInput, &newInput, frameElapsedSeconds, totalElapsedSeconds, runningFrameCounter );
                         if( runningFrameCounter == 0 )
                             newInput->gameCodeReloaded = true;
 
@@ -2279,7 +2280,7 @@ main( int argC, char **argV )
                         Win32ProcessXInputControllers( oldInput, newInput, newKeyMouseController );
 
 #if !RELEASE
-                        DEBUGframeInfo.inputProcessedSeconds = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
+                        debugFrameInfo.inputProcessedCycles = Rdtsc() - lastCycleCounter;
 
                         if( gameMemory.DEBUGglobalDebugging )
                         {
@@ -2299,7 +2300,7 @@ main( int argC, char **argV )
 
                         // Setup remaining stuff for the ImGui frame
                         ImGuiIO &io = ImGui::GetIO();
-                        io.DeltaTime = lastDeltaTimeSecs;
+                        io.DeltaTime = frameElapsedSeconds;
                         io.DisplaySize.x = (f32)windowDim.width;
                         io.DisplaySize.y = (f32)windowDim.height;
                         io.KeyCtrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
@@ -2332,18 +2333,18 @@ main( int argC, char **argV )
                         globalPlatformState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
 
 #if !RELEASE
-                        DEBUGframeInfo.gameUpdatedSeconds = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
+                        debugFrameInfo.gameUpdatedCycles = Rdtsc() - lastCycleCounter;
 #endif
 
                         // Blit audio buffer to output
                         Win32BlitAudioBuffer( &audioBuffer, audioFramesToWrite, &audioOutput );
 
 #if !RELEASE
-                        DEBUGframeInfo.audioUpdatedSeconds = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
+                        debugFrameInfo.audioUpdatedCycles = Rdtsc() - lastCycleCounter;
 #endif
 
 #if 0
-                        i64 endCycleCounter = __rdtsc();
+                        i64 endCycleCounter = Rdtsc();
                         u64 cyclesElapsed = endCycleCounter - lastCycleCounter;
                         u32 kCyclesElapsed = (u32)(cyclesElapsed / 1000);
 
@@ -2352,8 +2353,8 @@ main( int argC, char **argV )
                         targetElapsedPerFrameSecs = (1.0f / videoTargetFramerateHz) + ((f32)r / 1000.0f);
 #endif
 #if 0
-                        LARGE_INTEGER endCounter = Win32GetWallClock();
-                        f32 frameElapsedSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
+                        LARGE_INTEGER endClock = Win32GetWallClock();
+                        f32 frameElapsedSecs = Win32GetSecondsElapsed( lastClock, endClock );
 
                         // Wait till the target frame time
                         f32 elapsedSecs = frameElapsedSecs;
@@ -2369,7 +2370,7 @@ main( int argC, char **argV )
                             }
                             while( elapsedSecs < targetElapsedPerFrameSecs )
                             {
-                                elapsedSecs = Win32GetSecondsElapsed( lastCounter, Win32GetWallClock() );
+                                elapsedSecs = Win32GetSecondsElapsed( lastClock, Win32GetWallClock() );
                             }
                         }
                         else
@@ -2382,48 +2383,29 @@ main( int argC, char **argV )
                         Win32DisplayInWindow( globalPlatformState, renderCommands, deviceContext,
                                               windowDim.width, windowDim.height, &gameMemory );
 
-                        LARGE_INTEGER endCounter = Win32GetWallClock();
-                        lastDeltaTimeSecs = Win32GetSecondsElapsed( lastCounter, endCounter );
-                        lastCounter = endCounter;
+                        LARGE_INTEGER endClock = Win32GetWallClock();
+                        frameElapsedSeconds = Win32GetSecondsElapsed( lastClock, endClock );
+                        lastClock = endClock;
+
+                        u64 endCycleCounter = Rdtsc();
+                        u64 totalFrameCycles = endCycleCounter - lastCycleCounter;
+                        lastCycleCounter = endCycleCounter;
+
+#if !RELEASE
+                        debugFrameInfo.totalFrameCycles = totalFrameCycles;
+                        debugFrameInfo.totalFrameSeconds = frameElapsedSeconds;
+
+                        if( globalPlatformState.gameCode.DebugFrameEnd )
+                            globalPlatformState.gameCode.DebugFrameEnd( debugFrameInfo, &gameMemory );
+#endif
 
                         ++runningFrameCounter;
 
-#if !RELEASE
-                        DEBUGframeInfo.endOfFrameSeconds = lastDeltaTimeSecs;
-
-                        if( globalPlatformState.gameCode.DebugFrameEnd )
-                            globalPlatformState.gameCode.DebugFrameEnd( &gameMemory, &DEBUGframeInfo );
-#endif
-
 #if 0
-                        lastCycleCounter = endCycleCounter;
                         {
-                            f32 fps = 1.0f / lastDeltaTimeSecs;
+                            f32 fps = 1.0f / frameElapsedSeconds;
                             LOG( "ms: %.02f - FPS: %.02f (%d Kcycles) - audio padding: %d\n",
-                                 1000.0f * lastDeltaTimeSecs, fps, kCyclesElapsed, audioPaddingFrames );
-                        }
-
-                        {
-                            // Print game debug statistics
-                            LOG( ":::Frame counters:" );
-                            for( int i = 0; i < DEBUGglobalStats->gameCountersCount; ++i )
-                            {
-                                DebugCycleCounter& c = DEBUGglobalStats->gameCounters[i];
-
-                                u32 frameHitCount = 0;
-                                u64 frameCycleCount = 0;
-                                UnpackAndResetFrameCounter( c, &frameCycleCount, &frameHitCount );
-
-                                if( frameHitCount > 0 )
-                                {
-                                    LOG( "%s@%u\t%llu fc  %u h  %u fc/h",
-                                         c.function,
-                                         c.lineNumber,
-                                         frameCycleCount,
-                                         frameHitCount,
-                                         frameCycleCount/frameHitCount );
-                                }
-                            }
+                                 1000.0f * frameElapsedSeconds, fps, kCyclesElapsed, audioPaddingFrames );
                         }
 #endif
 
@@ -2458,18 +2440,17 @@ main( int argC, char **argV )
 #if !RELEASE
     DebugState* debugState = (DebugState*)gameMemory.debugStorage;
 
-    LOG( ":::Global counters:" );
+    LOG( ":::Counter totals:" );
     for( int i = 0; i < debugState->counterLogsCount; ++i )
     {
         DebugCounterLog &log = debugState->counterLogs[i];
-        if( log.totalHitCount > 0 )
+        if( log.totalHits > 0 )
         {
-            LOG( "%s@%u\t%llu tc  %u h  %llu tc/h",
-                 log.function,
-                 log.lineNumber,
-                 log.totalCycleCount,
-                 log.totalHitCount,
-                 log.totalCycleCount/log.totalHitCount );
+            LOG( "%s\t%llu tc  %u h  %llu tc/h",
+                 log.name,
+                 log.totalCycles,
+                 log.totalHits,
+                 log.totalCycles / log.totalHits );
         }
     }
 #endif

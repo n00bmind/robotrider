@@ -317,9 +317,8 @@ struct GameMemory
     u64 debugStorageSize;
     void *debugStorage;             // NOTE Required to be cleared to zero at startup
 
-    // TODO Put these inside DebugState
-    // (and make the platform not modify them directly, just pass the relevant input so the game can do that!)
     bool DEBUGglobalDebugging;
+    bool DEBUGglobalWasDebugging;
     bool DEBUGglobalEditing;
 #endif
 
@@ -346,13 +345,15 @@ typedef GAME_LOG_CALLBACK(GameLogCallbackFunc);
 
 struct DebugFrameInfo
 {
-    f32 inputProcessedSeconds;
-    f32 gameUpdatedSeconds;
-    f32 audioUpdatedSeconds;
-    f32 endOfFrameSeconds;
+    // Cycles since the beginning of the frame
+    u64 inputProcessedCycles;
+    u64 gameUpdatedCycles;
+    u64 audioUpdatedCycles;
+    u64 totalFrameCycles;
+    f32 totalFrameSeconds;
 };
 
-#define DEBUG_GAME_FRAME_END(name) void name( GameMemory* memory, const DebugFrameInfo* frameInfo )
+#define DEBUG_GAME_FRAME_END(name) void name( const DebugFrameInfo& frameInfo, GameMemory* memory )
 typedef DEBUG_GAME_FRAME_END(DebugGameFrameEndFunc);
 
 #endif /* __GAME_H__ */

@@ -143,113 +143,171 @@ void DrawTextRightAligned( f32 cursorStartX, f32 rightPadding, const char* forma
     ImGui::Text( textBuffer );
 }
 
-void DrawPerformanceCounters( const DebugState* debugState, const TemporaryMemory& tmpMemory )
+void DrawPerformanceCounters( const DebugState* debugState, MemoryArena* tmpArena )
 {
     f32 windowHeight = ImGui::GetWindowHeight();
+    f32 contentWidth = ImGui::GetWindowContentRegionWidth();
 
-    ImGui::BeginChild( "child_perf_counters_frame", ImVec2( -16, windowHeight / 2 ) );
-    f32 contentWidth = ImGui::GetWindowWidth();
-    ImGui::Columns( 4, nullptr, true );
-
-    Array<DebugCounterLog> counterLogs( (DebugCounterLog*)debugState->counterLogs,
-                                                                 (u32)ARRAYCOUNT(debugState->counterLogs) );
-    counterLogs.count = debugState->counterLogsCount;
+    Array<DebugCounterLog> counterLogs( (DebugCounterLog*)debugState->counterLogs, (u32)ARRAYCOUNT(debugState->counterLogs) );
+    counterLogs.Resize( debugState->counterLogsCount );
 
     int snapshotIndex = debugState->counterSnapshotIndex;
-    Array<KeyIndex64> counterFrameKeys( tmpMemory.arena, counterLogs.count, Temporary() );
-    BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, snapshots[snapshotIndex].cycleCount),
+    Array<KeyIndex64> counterFrameKeys( tmpArena, counterLogs.count, Temporary() );
+    BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, snapshots[snapshotIndex].frameCycles),
                             &counterFrameKeys );
     // TODO Use RadixSort11 if this gets big
-    RadixSort( &counterFrameKeys, RadixKey::U64, false, tmpMemory.arena );
+    RadixSort( &counterFrameKeys, RadixKey::U64, false, tmpArena );
+
+    f32 col1Width = contentWidth * 0.4f;
+    f32 col2Width = contentWidth * 0.1f;
+    f32 col3Width = contentWidth * 0.1f;
+    f32 col4Width = contentWidth * 0.25f;
+    f32 col5Width = contentWidth * 0.15f;
+
+    ImGui::Columns( 5, nullptr, true );
+    ImGui::SetColumnWidth( -1, col1Width );
+    ImGui::Text( "Zone" );
+    ImGui::NextColumn();
+    ImGui::SetColumnWidth( -1, col2Width );
+    DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col2Width, 5, "Millis" );
+    ImGui::NextColumn();
+    ImGui::SetColumnWidth( -1, col3Width );
+    DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col3Width, 5, "Hits" );
+    ImGui::NextColumn();
+    ImGui::SetColumnWidth( -1, col4Width );
+    DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col4Width, 5, "Cycles" );
+    ImGui::NextColumn();
+    ImGui::SetColumnWidth( -1, col5Width );
+    DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col5Width, 5, "Cycles per hit" );
+    ImGui::NextColumn();
 
     // TODO Counter stats
+    // TODO Nested hierarchy
     for( int i = 0; i < counterFrameKeys.count; ++i )
     {
-        const DebugCounterLog &log = counterLogs[counterFrameKeys[i].index];
+        DebugCounterLog const& log = counterLogs[counterFrameKeys[i].index];
+        DebugCounterSnapshot const& snapshot = log.snapshots[snapshotIndex];
 
-        u32 frameHitCount = log.snapshots[snapshotIndex].hitCount;
-        u64 frameCycleCount = log.snapshots[snapshotIndex].cycleCount;
+        u32 hitCount = snapshot.frameHits;
+        u64 totalCycles = snapshot.frameCycles;
+        f32 totalMillis = snapshot.frameMillis;
 
-        if( frameHitCount > 0 )
+        if( hitCount > 0 )
         {
             // Distribute according to child region size
-            f32 currentWidth = contentWidth * 0.45f;
-            ImGui::SetColumnWidth( -1, currentWidth );
-            ImGui::Text( "%s @ %u", log.function, log.lineNumber );
+            ImGui::Text( "%s", log.name );
             ImGui::NextColumn();
 
-            currentWidth = contentWidth * 0.2f;
-            ImGui::SetColumnWidth( -1, currentWidth );
-            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + currentWidth, 5, "%llu fc", frameCycleCount );
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col2Width, 5, "%0.3f", totalMillis );
             ImGui::NextColumn();
 
-            currentWidth = contentWidth * 0.15f;
-            ImGui::SetColumnWidth( -1, currentWidth );
-            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + currentWidth, 5, "%u h", frameHitCount );
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col3Width, 5, "%u", hitCount );
             ImGui::NextColumn();
 
-            currentWidth = contentWidth * 0.2f;
-            ImGui::SetColumnWidth( -1, currentWidth );
-            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + currentWidth, 5, "%u fc/h", (u32)(frameCycleCount/frameHitCount) );
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col4Width, 5, "%llu", totalCycles );
+            ImGui::NextColumn();
+
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col5Width, 5, "%u", (u32)(totalCycles/hitCount) );
             ImGui::NextColumn();
         }
     }
-    ImGui::EndChild();
+}
 
-    // Span vertically for now
-    //ImGui::Dummy( V2( 0, 250 ) );
+void DrawPerformanceCountersTotals( const DebugState* debugState, MemoryArena* tmpArena )
+{
+    f32 contentWidth = ImGui::GetWindowContentRegionWidth();
 
-    ImGui::BeginChild( "child_perf_counters_total", ImVec2( -16, -16 ) );
-    contentWidth = ImGui::GetWindowWidth();
-    ImGui::Columns( 3, nullptr, true );
+    Array<DebugCounterLog> counterLogs( (DebugCounterLog*)debugState->counterLogs, (u32)ARRAYCOUNT(debugState->counterLogs) );
+    counterLogs.Resize( debugState->counterLogsCount );
 
-    Array<KeyIndex64> counterTotalKeys( tmpMemory.arena, counterLogs.count, Temporary() );
-    BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, totalCycleCount), &counterTotalKeys );
-    RadixSort( &counterTotalKeys, RadixKey::U64, false, tmpMemory.arena );
+    Array<KeyIndex64> counterTotalKeys( tmpArena, counterLogs.count, Temporary() );
+    BuildSortableKeysArray( counterLogs, OFFSETOF(DebugCounterLog, totalCycles), &counterTotalKeys );
+    RadixSort( &counterTotalKeys, RadixKey::U64, false, tmpArena );
+
+    f32 col1Width = contentWidth * 0.4f;
+    f32 col2Width = contentWidth * 0.1f;
+    f32 col3Width = contentWidth * 0.1f;
+    f32 col4Width = contentWidth * 0.25f;
+    f32 col5Width = contentWidth * 0.15f;
+
+    ImGui::Columns( 5, nullptr, true );
+    ImGui::SetColumnWidth( -1, col1Width );
+    ImGui::Text( "Zone" );
+    ImGui::NextColumn();
+    ImGui::SetColumnWidth( -1, col2Width );
+    DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col2Width, 5, "Millis (est.)" );
+    ImGui::NextColumn();
+    ImGui::SetColumnWidth( -1, col3Width );
+    DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col3Width, 5, "Hits" );
+    ImGui::NextColumn();
+    ImGui::SetColumnWidth( -1, col4Width );
+    DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col4Width, 5, "Cycles" );
+    ImGui::NextColumn();
+    ImGui::SetColumnWidth( -1, col5Width );
+    DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col5Width, 5, "Cycles per hit" );
+    ImGui::NextColumn();
 
     for( int i = 0; i < counterTotalKeys.count; ++i )
     {
         const DebugCounterLog &log = debugState->counterLogs[counterTotalKeys[i].index];
 
-        if( log.totalHitCount > 0 )
+        if( log.totalHits > 0 )
         {
-            f32 currentWidth = contentWidth * 0.5f;
-            ImGui::SetColumnWidth( -1, currentWidth );
-            ImGui::Text( "%s @ %u", log.function, log.lineNumber );
+            ImGui::Text( "%s", log.name );
             ImGui::NextColumn();
 
-            currentWidth = contentWidth * 0.25f;
-            ImGui::SetColumnWidth( -1, currentWidth );
-            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + currentWidth, 5, "%llu tc", log.totalCycleCount );
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col2Width, 5, "%0.3f", log.totalCycles / debugState->avgCyclesPerMillisecond );
             ImGui::NextColumn();
 
-            currentWidth = contentWidth * 0.25f;
-            ImGui::SetColumnWidth( -1, currentWidth );
-            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + currentWidth, 5, "%u th", log.totalHitCount );
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col3Width, 5, "%u", log.totalHits );
             ImGui::NextColumn();
+
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col4Width, 5, "%llu", log.totalCycles );
+            ImGui::NextColumn();
+
+            DrawTextRightAligned( ImGui::GetColumnOffset( -1 ) + col5Width, 5, "%llu", (u32)(log.totalCycles / log.totalHits) );
+            ImGui::NextColumn();
+
         }
     }
-    ImGui::EndChild();
 }
 
-void DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight, const TemporaryMemory& tmpMemory )
+void DrawPerformanceCountersWindow( const DebugState* debugState, u32 windowWidth, u32 windowHeight, MemoryArena* tmpArena )
 {
-    ImGui::SetNextWindowPos( ImVec2( 100.f, windowHeight * 0.25f + 100 ), ImGuiCond_Always );
-    ImGui::SetNextWindowSize( ImVec2( 500.f, windowHeight * 0.25f ), ImGuiCond_Always );
-    ImGui::SetNextWindowSizeConstraints( ImVec2( -1, 100 ), ImVec2( -1, FLT_MAX ) );
-    ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 3.f );
-    ImGui::PushStyleColor( ImGuiCol_WindowBg, UItoolWindowBgColor );
-    ImGui::Begin( "window_performance_counters", NULL,
-                  ImGuiWindowFlags_NoTitleBar |
-                  ImGuiWindowFlags_NoMove );
+    ImGui::SetNextWindowPos( ImVec2( 0.f, windowHeight * 0.25f ), ImGuiCond_Always );
+    ImGui::SetNextWindowSize( ImVec2( (f32)windowWidth, windowHeight * 0.5f ), ImGuiCond_Always );
+    //ImGui::SetNextWindowSizeConstraints( ImVec2( -1, 100 ), ImVec2( -1, FLT_MAX ) );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowRounding, 0.f );
+    //ImGui::PushStyleColor( ImGuiCol_WindowBg, UItoolWindowBgColor );
+    //ImGui::PushStyleColor( ImGuiCol_Text, UInormalTextColor );
 
-    ImGui::PushStyleColor( ImGuiCol_Text, UInormalTextColor );
+    ImGui::Begin( "window_middle_panel", NULL,
+                  ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize );
 
-    DrawPerformanceCounters( debugState, tmpMemory );
-    ImGui::PopStyleColor();        
+    ImGui::BeginChild( "child_middle_left", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.5f, -50.f ), true );
+    DrawPerformanceCounters( debugState, tmpArena );
+    ImGui::EndChild();
+
+    ImGui::SameLine();
+
+    ImGui::BeginChild( "child_middle_right", ImVec2( 0.f, -50.f ), true );
+    DrawPerformanceCountersTotals( debugState, tmpArena );
+    ImGui::EndChild();
+
+    // Buttons row
+    ImGui::BeginChild( "child_buttons_left", ImVec2( ImGui::GetWindowContentRegionWidth() * 0.5f, 0.f ), false );
+    ImGui::Button( "Counters" );
+    ImGui::EndChild();
+    ImGui::SameLine();
+    ImGui::BeginChild( "child_buttons_right", ImVec2( 0.f, 0.f ), false );
+    ImGui::Button( "Totals" );
+    ImGui::EndChild();
+
+
 
     ImGui::End();
-    ImGui::PopStyleColor();
+    //ImGui::PopStyleColor();        
+    //ImGui::PopStyleColor();
     ImGui::PopStyleVar();
 }
 

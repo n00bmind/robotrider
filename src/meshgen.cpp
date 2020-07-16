@@ -683,7 +683,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cel
                 IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices,
                 const bool interpolate /*= true*/ )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     // Cache layers contain one sample per _edge_
     v2i layerStepsPerAxis = cellsPerAxis + V2iOne;
@@ -795,7 +795,7 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cell
                  const void* samplingData, IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices,
                  BucketArray<i32>* indices, const bool interpolate = true )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     vertices->Clear();
     indices->Clear();
@@ -2428,7 +2428,7 @@ FilterHits( const Array<Hit>& hits, const v2i& gridCoords, Array<Hit>* result )
 }
 
 Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
-                               MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands )
+                               MeshPool* meshPool, MemoryArena* tmpArena, RenderCommands* renderCommands )
 {
     // Make bounds same length on all axes
     v3 const& centerP = sourceMesh.bounds.center;
@@ -2448,7 +2448,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int 
     // For example, for X rays, the Y|Z coords are the hash, for Y rays, the X|Z coords, etc.
     // NOTE This can be heavily compressed if needed by using a more compact hash, since most entries will be empty anyway
     int rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
-    Array<Hit> gridHits( tmpMemory.arena, 100000, Temporary() );
+    Array<Hit> gridHits( tmpArena, 100000, Temporary() );
 
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );
@@ -2758,7 +2758,7 @@ GenerateOnePathStep( MeshGeneratorPathData* path, f32 resolutionMeters, bool adv
 
 ISO_SURFACE_FUNC(SampleRoomBody)
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     MeshGeneratorRoomData* roomData = (MeshGeneratorRoomData*)samplingData;
 

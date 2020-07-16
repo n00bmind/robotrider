@@ -135,7 +135,7 @@ ConsoleInputCallback( ImGuiTextEditCallbackData *data )     // TODO Deprecated
 }
 
 void
-DrawConsole( GameConsole *console, u16 screenWidth, u16 screenHeight, const char *statsText )
+DrawConsole( GameConsole *console, u16 screenWidth, u16 screenHeight, bool focusInputBox = false )
 {
     ImGui::SetNextWindowPos( ImVec2( 0.f, 0.f ), ImGuiCond_FirstUseEver );
     ImGui::SetNextWindowSize( ImVec2( screenWidth, screenHeight * 0.25f ), ImGuiCond_Appearing );
@@ -145,10 +145,6 @@ DrawConsole( GameConsole *console, u16 screenWidth, u16 screenHeight, const char
     ImGui::Begin( "window_console", NULL,
                   ImGuiWindowFlags_NoTitleBar |
                   ImGuiWindowFlags_NoMove );
-
-    ImGui::TextColored( UInormalTextColor, statsText );
-    ImGui::Spacing();
-    ImGui::Separator();
 
     // Reserve space for a separator and one line of text input
     float footerHeight = ImGui::GetItemsLineHeightWithSpacing();
@@ -205,8 +201,7 @@ DrawConsole( GameConsole *console, u16 screenWidth, u16 screenHeight, const char
         console->inputBuffer[0] = '\0';
     }
 
-    // Keep auto focus on the input box
-    if( ImGui::IsItemHovered() || (ImGui::IsRootWindowOrAnyChildFocused() && !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)) )
+    if( focusInputBox )
         ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
 
     ImGui::End();

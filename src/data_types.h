@@ -1353,6 +1353,7 @@ struct BucketArray
         return (T const&)idx;
     }
 
+    // TODO Remove (use above?)
     T& operator[]( int i )
     {
         // My love for C++ grows and grows unbounded

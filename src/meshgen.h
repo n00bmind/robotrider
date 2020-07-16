@@ -200,7 +200,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cel
                 IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices,
                 const bool interpolate = true );
 Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
-                               MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands );
+                               MeshPool* meshPool, MemoryArena* tmpArena, RenderCommands* renderCommands );
 
 
 #define ISO_SURFACE_FUNC(name) float name( WorldCoords const& worldP, void const* samplingData )
