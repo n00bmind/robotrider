@@ -343,6 +343,21 @@ operator -( const v3i &a, const v3i &b )
 }
 
 inline v3i
+operator /( const v3i& v, i32 s )
+{
+    v3i result = { v.x / s, v.y / s, v.z / s };
+    return result;
+}
+
+inline void
+operator /=( v3i& v, i32 s )
+{
+    v.x /= s;
+    v.y /= s;
+    v.z /= s;
+}
+
+inline v3i
 Hadamard( const v3i& a, const v3i& b )
 {
     v3i result = { a.x * b.x, a.y * b.y, a.z * b.z };
@@ -513,9 +528,9 @@ V3( const v3i& v )
 }
 
 inline v3i
-V3iCeil( v3 const& v )
+V3iRound( v3 const& v )
 {
-    v3i result = { I32( Ceil( v.x ) ), I32( Ceil( v.y ) ), I32( Ceil( v.z ) ) };
+    v3i result = { I32Round( v.x ), I32Round( v.y ), I32Round( v.z ) };
     return result;
 }
 

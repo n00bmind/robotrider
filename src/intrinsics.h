@@ -63,6 +63,12 @@ Round( f64 value )
     return round( value );
 }
 
+inline i32
+I32Round( f32 value )
+{
+    return I32( Round( value ) );
+};
+
 inline f32
 Sin( f32 angleRads )
 {

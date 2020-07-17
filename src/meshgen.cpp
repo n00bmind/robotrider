@@ -497,8 +497,8 @@ v3 QEFMinimizePlanesClassic( v3 const* positions, v3 const* normals, int count, 
 
 // New probabilistic quadric error minimizer
 // Adapted from https://www.graphics.rwth-aachen.de/publication/03308/
-// (inlined everything, replaced with plain types, got 100% speed increase!)
-// TODO Estimate error
+// (inlined everything, replaced with plain types, reduced time taken by 50%! Zero cost abstractions right!?)
+// TODO Estimate error using equation 1 in https://www.cse.wustl.edu/~taoju/research/dualContour.pdf
 // TODO SIMD
 v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int count, float stdDevP, float stdDevN )
 {
@@ -873,7 +873,8 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cell
 // TODO Clean up asserts
 void
 DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
-          BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* tempArena, DCSettings const& settings )
+          BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* arena, MemoryArena* tmpArena,
+          DCSettings const& settings, Array<TexturedVertex>* outVertices, Array<i32>* outIndices )
 {
     struct CellData
     {
@@ -885,6 +886,15 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
         // Only one sample per cell (the 'max' corner of the aabb)
         f32 sampledValue;
         i32 vertexIndex;
+    };
+
+    struct MergeData
+    {
+        v3 points[8]; // Unused
+        v3 normals[8];
+        i32 indices[8];
+        i32 count;
+        bool excluded; // Can no longer be merged
     };
 
     // TODO Pack these LUTs so they use less cache
@@ -931,10 +941,10 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
     indices->Clear();
 
     // One extra layer of cells in X,Y,Z (around the min grid corner) to store the edges and samples at the border
-    v3i cellsPerAxis = V3iCeil( volumeSideMeters / cellSizeMeters ) + V3iOne;
-
-    Grid3D<CellData> cellData( tempArena, cellsPerAxis, Temporary() );
-    PZERO( cellData.data, cellsPerAxis.x * cellsPerAxis.y * cellsPerAxis.z * sizeof(CellData) );
+    v3i cellsPerAxis = V3iRound( volumeSideMeters / cellSizeMeters ) + V3iOne;
+    Grid3D<CellData> cellData( tmpArena, cellsPerAxis, Temporary() );
+    v3i mergeCellsPerAxis = cellsPerAxis / 2 + V3iOne;
+    Grid3D<MergeData> mergeData( tmpArena, mergeCellsPerAxis, Temporary() );
 
     v3 halfSideMeters = volumeSideMeters / 2;
     v3 minGridP = worldP.relativeP - halfSideMeters;
@@ -949,6 +959,12 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
     const v4 inColor = { 1, 0, 0, 0 };
     const v4 outColor = { 0, 0, 1, 0 };
 
+    // Do everything in a single pass by:
+    // - Storing the surface sample at the 'max' corner for each cell
+    // - Adding an extra layer of cells on each axis, along the 'min' bounds of the volume, which don't generate triangles,
+    //   but store their corresponding sample and compute their minimizing point so non-edge neighbours can use that
+    // - Once we're past this extra 'dummy' layer, compute the quads that cross each edge containing the 'min' corner of each cell,
+    //   as we know all vertices on adjacent cells in each edge have already been computed
     for( int k = 0; k < cellsPerAxis.z; ++k )
     {
         for( int j = 0; j < cellsPerAxis.y; ++j )
@@ -975,7 +991,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                     if( s == 7 )
                     {
                         // Sample our own
-                        // Cell at { 0, 0, 0 } (border) gets the sample at world position minGridP + { 0, 0, 0 }
+                        // Cell at { 0, 0, 0 } (extra border) gets the sample at world position minGridP + { 0, 0, 0 }
                         // Account for -0 by just adding +0 to the value
                         p.relativeP = cellP;
                         sample = sampleFunc( p, samplingData ) + 0.f;
@@ -995,7 +1011,8 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                     else
                     {
                         v3i cellOffset = V3i( i, j, k ) + dcCornerOffsets[s];
-                        // For corners outside the range, sample the SDF anyway so we at least have real values to determine crossings
+                        // For corners outside the extra border itself, sample the SDF anyway
+                        // so we at least have real values to determine crossings
                         if( cellOffset.x < 0 || cellOffset.y < 0 || cellOffset.z < 0 )
                         {
                             p.relativeP = minGridP + V3( cellOffset ) * cellSizeMeters;
@@ -1019,7 +1036,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                 v3 edgeNormals[12];
                 int pointCount = 0;
 
-                // We only need to process 3 edges per cell (those containing the corner stored in each cell)
+                // We only process 3 edges per cell (those containing the corner stored in each cell)
                 // Find edge intersections for those, get them from neighbours for the rest
                 for( int e = 0; e < 12; ++e )
                 {
@@ -1224,16 +1241,21 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                 v.p = cellVertex;
                 v.color = clamped ? Pack01ToRGBA( 1, 0, 0, 1 ) : Pack01ToRGBA( 1, 1, 1, 1 );
                 vertices->Push( v );
-
                 cellData( i, j, k ).vertexIndex = vertexIndex;
-#if 0
-                v3 avgNormal = V3Zero;
-                for( int p = 0; p < pointCount; ++p )
-                    avgNormal += edgeNormals[p];
-                avgNormal /= pointCount;
-                cellData( i, j, k ).n = avgNormal;
-#endif
 
+                v3 avgNormal = V3Zero;
+                for( int n = 0; n < pointCount; ++n )
+                    avgNormal += edgeNormals[n];
+                // NOTE We should normalize instead if we ever want to use this as a true normal. Not needed for now though!
+                avgNormal /= (f32)pointCount;
+                //cellData( i, j, k ).n = avgNormal;
+
+                // Store point and normal in the merge information
+                MergeData& mergeCell = mergeData( i >> 1, j >> 1, k >> 1 );
+                mergeCell.points[mergeCell.count] = cellVertex;
+                mergeCell.normals[mergeCell.count] = avgNormal;
+                mergeCell.indices[mergeCell.count] = vertexIndex;
+                mergeCell.count++;
 
                 // Now we look 'backwards' and create at most 3 quads corresponding to the edges that include the 'min' corner instead,
                 // as we know those vertices will be ready by now
@@ -1249,6 +1271,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                     f32 sA = cornerSamples[ edgesProducingPolys[e][0] ];
                     f32 sB = cornerSamples[ edgesProducingPolys[e][1] ];
 
+                    // This edge crosses the surface, so we need a quad here
                     if( Sign( sA ) != Sign( sB ) )
                     {
                         switch( e )
@@ -1335,6 +1358,172 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                     }
                 }
             }
+        }
+    }
+
+    {
+        // Code below is not part of the original DC algorithm
+        // This is just a crude vertex clustering algorithm to quickly discard coplanar vertices,
+        // in the same spirit as http://www.andrewwillmott.com/papers/rsmam/RSMAM-Final.pdf but simpler
+
+        MemoryParams params = {};
+        params.flags = MemoryFlags_TemporaryMemory;
+
+        // Actual vertex attributes
+        struct Vert
+        {
+            TexturedVertex* attrs;
+            i32 refs;
+        };
+        Array<Vert> vertexArray( tmpArena, vertices->count, params );
+        vertexArray.ResizeToCapacity();
+        int dst = 0;
+        auto idx = vertices->First();
+        while( idx )
+        {
+            Vert& v = vertexArray[dst++];
+            v.attrs = &(*idx);
+            v.refs = -1;
+
+            idx.Next();
+        }
+        // Indices to previous array
+        Array<i32> vertexIndices( tmpArena, vertices->count, params );
+        vertexIndices.ResizeToCapacity();
+        for( int i = 0; i < vertexIndices.count; ++i )
+            vertexIndices.data[i] = i;
+        // Triangle indices point to the indices array above
+        struct Tri
+        {
+            i32 indices[3];
+            i32 discarded;
+        };
+        // TODO Build list of triangles directly
+        Array<i32> indexArray( tmpArena, indices->count, params );
+        indices->CopyTo( &indexArray );
+        Array<Tri> triangles( tmpArena, indexArray.count / 3, params );
+        triangles.ResizeToCapacity();
+        for( int i = 0; i < triangles.count; ++i )
+        {
+            Tri& tri = triangles[i];
+            tri.indices[0] = indexArray[i*3 + 0];
+            tri.indices[1] = indexArray[i*3 + 1];
+            tri.indices[2] = indexArray[i*3 + 2];
+            tri.discarded = false;
+        }
+
+
+        for( int k = 0; k < mergeCellsPerAxis.z; ++k )
+        {
+            for( int j = 0; j < mergeCellsPerAxis.y; ++j )
+            {
+                for( int i = 0; i < mergeCellsPerAxis.x; ++i )
+                {
+                    MergeData& cell = mergeData( i, j ,k );
+                    if( cell.count > 1 )
+                    {
+                        v3& normal0 = cell.normals[0];
+                        bool aligned = (!AlmostZero( normal0.x ) && AlmostZero( normal0.y ) && AlmostZero( normal0.z ))
+                            || (AlmostZero( normal0.x ) && !AlmostZero( normal0.y ) && AlmostZero( normal0.z ))
+                            || (AlmostZero( normal0.x ) && AlmostZero( normal0.y ) && !AlmostZero( normal0.z ));
+
+                        if( aligned )
+                        {
+                            // Are all normals mostly the same?
+                            for( int n = 1; n < cell.count; ++n )
+                            {
+                                //if( AlmostEqual( Dot( normal0, cell.normals[n] ), 1.f, 0.001f ) )
+                                if( !AlmostEqual( normal0, cell.normals[n], 0.001f ) )
+                                {
+                                    cell.excluded = true;
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                            cell.excluded = true;
+
+                        if( cell.excluded )
+                            continue;
+
+                        // TODO Make sure all points are actually coplanar?
+
+                        // Substitute all indices to point to the first one in the cell
+                        i32 index0 = cell.indices[0];
+                        for( int n = 1; n < 8; ++n )
+                            vertexIndices[ cell.indices[n] ] = index0;
+                    }
+                }
+            }
+        }
+
+        // Discard degenerate tris
+        for( int i = 0; i < triangles.count; ++i )
+        {
+            Tri& tri = triangles[i];
+            if( vertexIndices[ tri.indices[0] ] == vertexIndices[ tri.indices[1] ] ||
+                vertexIndices[ tri.indices[0] ] == vertexIndices[ tri.indices[2] ] )
+                tri.discarded = true;
+        }
+
+        // Compact
+        // TODO Do this in the same pass above
+        dst = 0;
+        for( int i = 0; i < triangles.count; ++i )
+        {
+            Tri& tri = triangles[i];
+            if( !tri.discarded )
+            {
+                for( int j = 0; j < 3; ++j )
+                {
+                    // Reference vertex attributes array directly
+                    int v = vertexIndices[ tri.indices[j] ];
+                    tri.indices[j] = v;
+                    vertexArray[v].refs = 1;
+                }
+                triangles[dst++] = tri;
+            }
+        }
+        triangles.count = dst;
+
+        dst = 0;
+        for( int i = 0; i < vertexArray.count; ++i )
+        {
+            Vert& v = vertexArray[i];
+            if( v.refs > 0 )
+            {
+                v.refs = dst;
+                // Pack at the front
+                ASSERT( v.attrs );
+                vertexArray[dst].attrs = v.attrs;
+                dst++;
+            }
+        }
+
+        for( int i = 0; i < triangles.count; ++i )
+        {
+            Tri& tri = triangles[i];
+            for( int j = 0; j < 3; ++j )
+                tri.indices[j] = vertexArray[ tri.indices[j] ].refs;
+        }
+        vertexArray.count = dst;
+
+
+        INIT( outVertices ) Array<TexturedVertex>( arena, vertexArray.count, NoClear() );
+        outVertices->ResizeToCapacity();
+        for( int i = 0; i < vertexArray.count; ++i )
+        {
+            outVertices->data[i] = *vertexArray[i].attrs;
+        }
+
+        INIT( outIndices ) Array<i32>( arena, triangles.count * 3, NoClear() );
+        outIndices->ResizeToCapacity();
+        for( int i = 0; i < triangles.count; ++i )
+        {
+            Tri& tri = triangles[i];
+            outIndices->data[i*3 + 0] = tri.indices[0];
+            outIndices->data[i*3 + 1] = tri.indices[1];
+            outIndices->data[i*3 + 2] = tri.indices[2];
         }
     }
 }

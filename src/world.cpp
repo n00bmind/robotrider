@@ -593,9 +593,11 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     settings.sigmaNDouble = 0.01f;
     BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
     BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
+    Array<TexturedVertex> outVertices;
+    Array<i32> outIndices;
 
     DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, RoomSurfaceFunc, &roomSamplingData,
-                &tmpVertices, &tmpIndices, tempArena, settings );
+              &tmpVertices, &tmpIndices, arena, tempArena, settings, &outVertices, &outIndices );
 
 #if 0
     {
@@ -607,7 +609,15 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
         result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
     }
 #else
+
+#if 0
     result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+#else
+    InitMesh( &result );
+    result.vertices = outVertices;
+    result.indices = outIndices;
+#endif
+
 #endif
 
     // Set initial offset index based on cluster
@@ -643,9 +653,12 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     settings.sigmaNDouble = 0.01f;
     BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
     BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
+    Array<TexturedVertex> outVertices;
+    Array<i32> outIndices;
 
     DCVolume( worldP, hall.bounds.halfSize * 2.f, VoxelSizeMeters, HallSurfaceFunc, &roomSamplingData,
-              &tmpVertices, &tmpIndices, tempArena, settings );
+              &tmpVertices, &tmpIndices, arena, tempArena, settings, &outVertices, &outIndices );
+    // TODO 
 
 #if 0
     {
@@ -684,9 +697,12 @@ CreateClusterMesh( Cluster* cluster, v3i const& clusterP, World* world, MemoryAr
     settings.sigmaNDouble = 0.01f;
     BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
     BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
+    Array<TexturedVertex> outVertices;
+    Array<i32> outIndices;
 
     DCVolume( worldP, V3( ClusterSizeMeters ), VoxelSizeMeters, ClusterSurfaceFunc, &roomSamplingData,
-              &tmpVertices, &tmpIndices, tempArena, settings );
+              &tmpVertices, &tmpIndices, arena, tempArena, settings, &outVertices, &outIndices );
+    // TODO 
     result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
 
     // Set initial offset index based on cluster

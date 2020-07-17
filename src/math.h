@@ -53,6 +53,12 @@ AlmostEqual( f32 a, f32 b, f32 absoluteEpsilon /*= 0*/ )
 }
 
 inline bool
+AlmostZero( f32 v, f32 absoluteEpsilon = 0.001f )
+{
+    return Abs( v ) <= absoluteEpsilon;
+}
+
+inline bool
 GreaterOrAlmostEqual( f32 a, f32 b, f32 absoluteEpsilon /*= 0*/ )
 {
     return a > b || AlmostEqual( a, b, absoluteEpsilon );
