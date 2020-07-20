@@ -82,7 +82,7 @@ void main()
     outColor = mix( vec4( 0.95, 0.95, 0.95, 1 ), diffuseLight, tFog );
 #else
     // NOTE Apparently gl_FrontFacing doesn't have good support
-    outColor = vec4( (gl_FrontFacing ? diffuseLight.xyz : vec3( 0.2, 0.2, 0.2 ) ) * wireMul, 1 );
+    outColor = vec4( (gl_FrontFacing ? diffuseLight.xyz : _in.color.xyz * 0.5) * wireMul, 1 );
 #endif
 }
 

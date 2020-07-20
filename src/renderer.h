@@ -65,15 +65,23 @@ DefaultCamera( f32 fovYDeg = 60 )
     return result;
 }
 
+enum class VertexTag : u16
+{
+    None = 0,
+    Inner,
+    Outer,
+};
+
 // TODO Test different layouts and investigate alignment etc here
 struct TexturedVertex
 {
     v3 p;
     u32 color;
-    // TODO Should we just ignore these and do it all in the GS based on what shading we want?
-    // TODO In any case, create a separate vertex format for all the debug stuff etc. that will never need this
-    v3 n;
     v2 uv;
+    // TODO Decide whether we'll need this for lighting, or we're fine with shader-generated face normals
+    v3 n;
+    VertexTag tag;
+    u16 flags;
 };
 
 struct Texture

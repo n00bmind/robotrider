@@ -232,7 +232,7 @@ INLINE f32 SDFRoom( WorldCoords const& worldP, Room const& room )
     v3 invWorldP = worldP.relativeP - room.bounds.center;
 
     // TODO For now just do a box almost at the volume edge
-    f32 result = SDFBox( invWorldP, room.bounds.halfSize - V3( VoxelSizeMeters * 1.51f ) );
+    f32 result = SDFBox( invWorldP, room.bounds.halfSize - V3( VoxelSizeMeters * 1.01f ) );
 
     return result;
 }
@@ -240,7 +240,7 @@ INLINE f32 SDFRoom( WorldCoords const& worldP, Room const& room )
 INLINE f32 SDFHall( WorldCoords const& worldP, Hall const& hall )
 {
     // TODO Do the actual path/sub-volumes calculation here, based on just the endpoints
-    const v3 volumeBorder = V3( VoxelSizeMeters * 0.51f );
+    const v3 volumeBorder = V3( VoxelSizeMeters * 1.01f );
     f32 result = SDFBox( worldP.relativeP - hall.sectionBounds[0].center, hall.sectionBounds[0].halfSize - volumeBorder );
     result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBounds[1].center, hall.sectionBounds[1].halfSize - volumeBorder ) );
     result = SDFUnion( result, SDFBox( worldP.relativeP - hall.sectionBounds[2].center, hall.sectionBounds[2].halfSize - volumeBorder ) );
@@ -270,8 +270,11 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
         }
     }
 
-    // Carve the inside and give it a thickness
-    result = SDFOnion( result, VoxelSizeMeters * 0.5f );
+    if( !clusterData->zeroThickness )
+    {
+        // Carve the inside and give it a thickness
+        result = SDFOnion( result, VoxelSizeMeters * 0.5f );
+    }
 
     return result;
 #endif
@@ -300,8 +303,11 @@ ISO_SURFACE_FUNC(HallSurfaceFunc)
     }
 #endif
 
-    // Carve the inside and give it a thickness
-    result = SDFOnion( result, VoxelSizeMeters * 0.5f );
+    if( !clusterData->zeroThickness )
+    {
+        // Carve the inside and give it a thickness
+        result = SDFOnion( result, VoxelSizeMeters * 0.5f );
+    }
 
 #if 1
     for( int i = 0; i < clusterData->rooms.count; ++i )
@@ -476,7 +482,7 @@ CreateHall( BinaryVolume* v, Room const& roomA, Room const& roomB, Cluster* clus
 
 internal Room*
 CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v3i const& clusterP,
-             IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool, World* world, MemoryArena* arena, MemoryArena* tempArena,
+             IsoSurfaceSamplingCache* samplingCache, MeshPool* meshPool, World* world, MemoryArena* arena, MemoryArena* tmpArena,
              i32* totalRoomsCount, i32* totalHallsCount )
 {
     // Non-leaf, recurse
@@ -486,10 +492,10 @@ CreateRooms( BinaryVolume* v, SectorParams const& genParams, Cluster* cluster, v
         Room* rightRoom = nullptr;
 
         if( v->leftChild )
-            leftRoom = CreateRooms( v->leftChild, genParams, cluster, clusterP, samplingCache, meshPool, world, arena, tempArena,
+            leftRoom = CreateRooms( v->leftChild, genParams, cluster, clusterP, samplingCache, meshPool, world, arena, tmpArena,
                                     totalRoomsCount, totalHallsCount );
         if( v->rightChild )
-            rightRoom = CreateRooms( v->rightChild, genParams, cluster, clusterP, samplingCache, meshPool, world, arena, tempArena,
+            rightRoom = CreateRooms( v->rightChild, genParams, cluster, clusterP, samplingCache, meshPool, world, arena, tmpArena,
                                      totalRoomsCount, totalHallsCount ); 
 
         if( leftRoom && rightRoom )
@@ -569,7 +575,7 @@ StoreInCluster( BinaryVolume const& volume, Cluster* cluster )
 
 
 internal Mesh
-CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
+CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tmpArena )
 {
     TIMED_FUNC_WITH_TOTALS;
 
@@ -591,21 +597,19 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     settings.sigmaN = 0.02f;
     // FIXME Keep this as separate in the tests UI but get rid of it for generation
     settings.sigmaNDouble = 0.01f;
-    BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
-    BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
-    Array<TexturedVertex> outVertices;
-    Array<i32> outIndices;
+    BucketArray<TexturedVertex> tmpVertices( tmpArena, 1024, Temporary() );
+    BucketArray<i32> tmpIndices( tmpArena, 1024, Temporary() );
 
     DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, RoomSurfaceFunc, &roomSamplingData,
-              &tmpVertices, &tmpIndices, arena, tempArena, settings, &outVertices, &outIndices );
+              &tmpVertices, &tmpIndices, arena, tmpArena, settings );
 
 #if 0
     {
         TIMED_SCOPE_WITH_TOTALS( "Simplify rooms" );
 
         // Simplify mesh
-        FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tempArena );
-        FastQuadricSimplify( &fqsMesh, 1000, tempArena );
+        FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tmpArena );
+        FastQuadricSimplify( &fqsMesh, 1000, tmpArena );
         result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
     }
 #else
@@ -614,8 +618,8 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
 #else
     InitMesh( &result );
-    result.vertices = outVertices;
-    result.indices = outIndices;
+    FastDecimate( tmpVertices, tmpIndices, room.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::Outer,
+                  arena, tmpArena, &result.vertices, &result.indices );
 #endif
 
 #endif
@@ -633,7 +637,7 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
 }
 
 internal Mesh
-CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
+CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tmpArena )
 {
     TIMED_FUNC_WITH_TOTALS;
 
@@ -643,21 +647,21 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     WorldCoords worldP = { hall.bounds.center, clusterP };
     ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls };
     roomSamplingData.sampledVolumeIndex = hallIndex;
+    roomSamplingData.zeroThickness = false;
     if( hallIndex == 0 )
         roomSamplingData.debugCluster = cluster;
+    v3 sampledVolumeSize = hall.bounds.halfSize * 2.f;
 
     DCSettings settings;
     settings.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
     settings.sigmaN = 0.02f;
     // FIXME Keep this as separate in the tests UI but get rid of it for generation
     settings.sigmaNDouble = 0.01f;
-    BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
-    BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
-    Array<TexturedVertex> outVertices;
-    Array<i32> outIndices;
+    BucketArray<TexturedVertex> tmpVertices( tmpArena, 1024, Temporary() );
+    BucketArray<i32> tmpIndices( tmpArena, 1024, Temporary() );
 
-    DCVolume( worldP, hall.bounds.halfSize * 2.f, VoxelSizeMeters, HallSurfaceFunc, &roomSamplingData,
-              &tmpVertices, &tmpIndices, arena, tempArena, settings, &outVertices, &outIndices );
+    DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, HallSurfaceFunc, &roomSamplingData,
+              &tmpVertices, &tmpIndices, arena, tmpArena, settings );
     // TODO 
 
 #if 0
@@ -665,12 +669,20 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
         TIMED_SCOPE_WITH_TOTALS( "Simplify halls" );
 
         // Simplify mesh
-        FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tempArena );
-        FastQuadricSimplify( &fqsMesh, 1000, tempArena );
+        FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tmpArena );
+        FastQuadricSimplify( &fqsMesh, 1000, tmpArena );
         result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
     }
 #else
-    result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+
+#if 0
+    //result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+#else
+    //InitMesh( &result );
+    //FastDecimate( tmpVertices, tmpIndices, hall.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::None,
+                  //arena, tmpArena, &result.vertices, &result.indices );
+#endif
+
 #endif
 
     // Set initial offset index based on cluster
@@ -682,27 +694,25 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
 }
 
 internal Mesh
-CreateClusterMesh( Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
+CreateClusterMesh( Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tmpArena )
 {
     TIMED_FUNC_WITH_TOTALS;
 
     Mesh result = {};
     WorldCoords worldP = { V3Zero, clusterP };
     ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls, 0 };
+    roomSamplingData.zeroThickness = false;
 
     DCSettings settings;
     settings.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
     settings.sigmaN = 0.02f;
     // FIXME Keep this as separate in the tests UI but get rid of it for generation
     settings.sigmaNDouble = 0.01f;
-    BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
-    BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
-    Array<TexturedVertex> outVertices;
-    Array<i32> outIndices;
+    BucketArray<TexturedVertex> tmpVertices( tmpArena, 1024, Temporary() );
+    BucketArray<i32> tmpIndices( tmpArena, 1024, Temporary() );
 
     DCVolume( worldP, V3( ClusterSizeMeters ), VoxelSizeMeters, ClusterSurfaceFunc, &roomSamplingData,
-              &tmpVertices, &tmpIndices, arena, tempArena, settings, &outVertices, &outIndices );
-    // TODO 
+              &tmpVertices, &tmpIndices, arena, tmpArena, settings );
     result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
 
     // Set initial offset index based on cluster
@@ -732,7 +742,7 @@ IsInSimRegion( const v3i& clusterP, const v3i& worldOriginClusterP )
 }
 
 internal void
-CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
+CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, MemoryArena* arena, MemoryArena* tmpArena )
 {
     TIMED_FUNC;
 
@@ -743,7 +753,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
 
     // TODO Calc an upper bound given cluster size and minimum volume size
     const u32 maxSplits = 1024;
-    Array<BinaryVolume> volumes( tempArena, maxSplits, Temporary() );
+    Array<BinaryVolume> volumes( tmpArena, maxSplits, Temporary() );
 
     BinaryVolume *rootVolume = volumes.PushEmpty();
     rootVolume->voxelP = V3iZero;
@@ -781,7 +791,7 @@ CreateEntitiesInCluster( Cluster* cluster, const v3i& clusterP, World* world, Me
     // Create a room in each leaf volume and connect with halls
     // TODO Add a certain chance for empty volumes
     i32 totalRoomsCount = 0, totalHallsCount = 0;
-    CreateRooms( rootVolume, genParams, cluster, clusterP, world->samplingCache, &world->meshPools[0], world, arena, tempArena,
+    CreateRooms( rootVolume, genParams, cluster, clusterP, world->samplingCache, &world->meshPools[0], world, arena, tmpArena,
                  &totalRoomsCount, &totalHallsCount);
 
     // Copy result to permanent storage
@@ -853,7 +863,7 @@ PLATFORM_JOBQUEUE_CALLBACK(GenerateOneEntity)
 }
 
 internal void
-LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, MemoryArena* tempArena )
+LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, MemoryArena* tmpArena )
 {
     TIMED_FUNC_WITH_TOTALS;
 
@@ -869,7 +879,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
 
     if( !cluster->populated )
     {
-        CreateEntitiesInCluster( cluster, clusterP, world, arena, tempArena );
+        CreateEntitiesInCluster( cluster, clusterP, world, arena, tmpArena );
         cluster->populated = true;
     }
 
@@ -880,7 +890,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
     int totalMeshCount = cluster->rooms.count + cluster->halls.count;
     INIT( &cluster->meshStore ) Array<Mesh>( arena, totalMeshCount );
 
-    TemporaryMemory tmpMemory = BeginTemporaryMemory( tempArena );
+    TemporaryMemory tmpMemory = BeginTemporaryMemory( tmpArena );
 #if 1
     // This is what we'd like to do, as most of the 3d space is empty and we would save a huge amount of pointless iteration
     // but it's tricky to make disjointly sampled volumes that behave well together
@@ -889,15 +899,15 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
     // NOTE Mesh simplification seems to make it worse!?
     for( int i = 0; i < cluster->rooms.count; ++i )
     {
-        TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tempArena );
-        Mesh mesh = CreateRoomMesh( i, cluster, clusterP, world, arena, tempArena );
+        TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tmpArena );
+        Mesh mesh = CreateRoomMesh( i, cluster, clusterP, world, arena, tmpArena );
         cluster->meshStore.Push( mesh );
         EndTemporaryMemory( tmpMeshMemory );
     }
     for( int i = 0; i < cluster->halls.count; ++i )
     {
-        TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tempArena );
-        Mesh mesh = CreateHallMesh( i, cluster, clusterP, world, arena, tempArena );
+        TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tmpArena );
+        Mesh mesh = CreateHallMesh( i, cluster, clusterP, world, arena, tmpArena );
         cluster->meshStore.Push( mesh );
         EndTemporaryMemory( tmpMeshMemory );
     }
@@ -905,7 +915,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
 #else
     // This is what we may have to end up doing if creating a well behaved disjoint SDF ends up being too tricky, but it's slooooow
 
-    Mesh mesh = CreateClusterMesh( cluster, clusterP, world, arena, tempArena );
+    Mesh mesh = CreateClusterMesh( cluster, clusterP, world, arena, tmpArena );
     cluster->meshStore.Push( mesh );
 #endif
 
@@ -1021,7 +1031,7 @@ RestartWorldGeneration( World* world )
 }
 
 internal void
-UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena, MemoryArena* tempArena )
+UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena, MemoryArena* tmpArena )
 {
     TIMED_FUNC;
 
@@ -1091,7 +1101,7 @@ UpdateWorldGeneration( GameInput* input, World* world, MemoryArena* arena, Memor
                     // and put them in the live entities list
                     if( !IsInSimRegion( clusterP, world->lastOriginClusterP ) )
                     {
-                        LoadEntitiesInCluster( clusterP, world, arena, tempArena );
+                        LoadEntitiesInCluster( clusterP, world, arena, tmpArena );
                     }
                 }
             }

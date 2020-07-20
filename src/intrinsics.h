@@ -39,219 +39,231 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // for all supported compilers & platforms
 // TODO Examine disassemblies for all compilers and compare!
 
-inline f32
+INLINE f32
 Ceil( f32 value )
 {
     return ceilf( value );
 }
 
-inline f64
+INLINE f64
 Ceil( f64 value )
 {
     return ceil( value );
 }
 
-inline f32
+INLINE f32
 Round( f32 value )
 {
     return roundf( value );
 }
 
-inline f64
+INLINE f64
 Round( f64 value )
 {
     return round( value );
 }
 
-inline i32
+INLINE i32
 I32Round( f32 value )
 {
     return I32( Round( value ) );
 };
 
-inline f32
+INLINE f32
 Sin( f32 angleRads )
 {
     f32 result = sinf( angleRads );
     return result;
 }
 
-inline f32
+INLINE f32
 Cos( f32 angleRads )
 {
     f32 result = cosf( angleRads );
     return result;
 }
 
-inline f32
+INLINE f32
 ACos( f32 angleRads )
 {
     f32 result = acosf( angleRads );
     return result;
 }
 
-inline f32
+// Approximate 1.f / x
+INLINE f32
+RcpFast( f32 value )
+{   
+    return _mm_cvtss_f32( _mm_rcp_ss( _mm_set_ps1( value ) ) );
+}
+
+INLINE f32
 Sqr( f32 value )
 {
     return value * value;
 }
 
-inline f32
+INLINE f32
 Sqrt( f32 value )
 {
     f32 result = sqrtf( value );
     return result;
 }
 
-inline f32
+// Approximate 1.f / sqrt(x)
+INLINE f32
+RcpSqrt( f32 value )
+{
+    f32 result = _mm_cvtss_f32( _mm_rsqrt_ss( _mm_set_ps1( value ) ) );
+#if 1
+    // Newton-Rhapson iteration
+    // Allegedly increases precision quite a bit without slowing it much
+    result = result * (1.5f - value * 0.5f * result * result);
+#endif
+    return result;
+}
+
+INLINE f32
 Min( f32 a, f32 b )
 {
     return a < b ? a : b;
 }
 
-inline f64
+INLINE f64
 Min( f64 a, f64 b )
 {
     return a < b ? a : b;
 }
 
-inline i32
+INLINE i32
 Min( i32 a, i32 b )
 {
     return a < b ? a : b;
 }
 
-inline u32
+INLINE u32
 Min( u32 a, u32 b )
 {
     return a < b ? a : b;
 }
 
-inline u64
+INLINE u64
 Min( u64 a, u64 b )
 {
     return a < b ? a : b;
 }
 
-inline i32
+INLINE i32
 Max( i32 a, i32 b )
 {
     return a > b ? a : b;
 }
 
-inline u32
+INLINE u32
 Max( u32 a, u32 b )
 {
     return a > b ? a : b;
 }
 
-inline f32
+INLINE f32
 Max( f32 a, f32 b )
 {
     return a > b ? a : b;
 }
 
-inline f64
+INLINE f64
 Max( f64 a, f64 b )
 {
     return a > b ? a : b;
 }
 
-inline i32
+INLINE i32
 Median( i32 a, i32 b, i32 c )
 {
     i32 result = Max( Min( a, b ), Min( Max( a, b ), c ) );
     return result;
 }
 
-inline void
+INLINE void
 Clamp( i32* value, i32 min, i32 max )
 {
     *value = Min( Max( *value, min ), max );
 }
 
-inline void
+INLINE void
 Clamp( f32* value, f32 min, f32 max )
 {
     *value = Min( Max( *value, min ), max );
 }
 
-inline f32
+INLINE f32
 Clamp0( f32 value )
 {
     return Max( 0.f, value );
 }
 
-inline f32
+INLINE f32
 Clamp01( f32 value )
 {
     return Min( Max( 0.f, value ), 1.f );
 }
 
-inline i32
+INLINE i32
 Square( i32 value )
 {
     return value * value;
 }
 
-inline f32
+INLINE f32
 Pow( f32 b, f32 exp )
 {
     return powf( b, exp );
 }
 
-inline f64
+INLINE f64
 PowF64( f64 b, f64 exp )
 {
     return pow( b, exp );
 }
 
-inline f64
+INLINE f64
 Log( f64 value )
 {
     return log( value );
 }
 
-inline f32
+INLINE f32
 Abs( f32 value )
 {
     return value >= 0.f ? value : -value;
 }
 
-inline f64
+INLINE f64
 Abs( f64 value )
 {
     return value >= 0.0 ? value : -value;
 }
 
-inline void
-Swap( i32* a, i32* b )
-{
-    i32 tmp = *a;
-    *a = *b;
-    *b = tmp;
-}
-
 // True if sign bit set
-inline bool
+INLINE bool
 Sign( f32 value )
 {
     return (*(int*)&value) & 0x80000000;
 }
 
-inline bool
+INLINE bool
 IsPowerOf2( u64 value )
 {
     return value > 0 && (value & (value - 1)) == 0;
 }
 
-inline bool
+INLINE bool
 IsPowerOf2( i64 value )
 {
     return value > 0 && (value & (value - 1)) == 0;
 }
 
-inline sz
+INLINE sz
 Align( sz size, sz alignment )
 {
     ASSERT( IsPowerOf2( alignment ) );
@@ -259,7 +271,7 @@ Align( sz size, sz alignment )
     return result;
 }
 
-inline void*
+INLINE void*
 Align( const void* address, sz alignment )
 {
     ASSERT( IsPowerOf2( alignment ) );
@@ -268,7 +280,7 @@ Align( const void* address, sz alignment )
 }
 
 // TODO What if the value already is a power of two?
-inline u32
+INLINE u32
 NextPowerOf2( u32 value )
 {
     u32 result = 0;
@@ -291,7 +303,7 @@ NextPowerOf2( u32 value )
 }
 
 // TODO Rewrite this stuff enforcing sizes with templates
-inline u32
+INLINE u32
 AtomicCompareExchange( volatile u32* value, u32 newValue, u32 expectedValue )
 {
     u32 previousValue = 0;
@@ -306,7 +318,7 @@ AtomicCompareExchange( volatile u32* value, u32 newValue, u32 expectedValue )
     return previousValue;
 }
 
-inline u32
+INLINE u32
 AtomicExchange( volatile u32* value, u32 newValue )
 {
     u32 previousValue = 0;
@@ -319,7 +331,7 @@ AtomicExchange( volatile u32* value, u32 newValue )
     return previousValue;
 }
 
-inline u64
+INLINE u64
 AtomicExchange( volatile u64* value, u64 newValue )
 {
     u64 previousValue = 0;
@@ -332,7 +344,7 @@ AtomicExchange( volatile u64* value, u64 newValue )
     return previousValue;
 }
 
-inline bool
+INLINE bool
 AtomicExchange( volatile bool* value, bool newValue )
 {
     ASSERT( sizeof(bool) == sizeof(u8) );
@@ -346,7 +358,7 @@ AtomicExchange( volatile bool* value, bool newValue )
     return previousValue;
 }
 
-inline u32
+INLINE u32
 AtomicLoad( volatile u32* value )
 {
     u32 result = 0;
@@ -359,7 +371,7 @@ AtomicLoad( volatile u32* value )
     return result;
 }
 
-inline bool
+INLINE bool
 AtomicLoad( volatile bool* value )
 {
     ASSERT( sizeof(bool) == sizeof(u8) );
@@ -373,7 +385,7 @@ AtomicLoad( volatile bool* value )
     return result;
 }
 
-inline u32
+INLINE u32
 AtomicAdd( volatile u32* value, u32 addend )
 {
     u32 previousValue = 0;
@@ -386,7 +398,7 @@ AtomicAdd( volatile u32* value, u32 addend )
     return previousValue;
 }
 
-inline u64
+INLINE u64
 AtomicAdd( volatile u64* value, u64 addend )
 {
     u64 previousValue = 0;
@@ -399,7 +411,7 @@ AtomicAdd( volatile u64* value, u64 addend )
     return previousValue;
 }
 
-inline u64
+INLINE u64
 ReadCycles()
 {
     // Flush the pipeline
@@ -408,7 +420,7 @@ ReadCycles()
     return __rdtsc();
 }
 
-inline u64
+INLINE u64
 Rdtsc()
 {
     return __rdtsc();

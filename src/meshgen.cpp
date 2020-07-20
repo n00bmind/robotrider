@@ -872,9 +872,9 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cell
 // TODO Clean up asserts
 // TODO Clean up asserts
 void
-DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
+DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
           BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* arena, MemoryArena* tmpArena,
-          DCSettings const& settings, Array<TexturedVertex>* outVertices, Array<i32>* outIndices )
+          DCSettings const& settings )
 {
     struct CellData
     {
@@ -886,15 +886,6 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
         // Only one sample per cell (the 'max' corner of the aabb)
         f32 sampledValue;
         i32 vertexIndex;
-    };
-
-    struct MergeData
-    {
-        v3 points[8]; // Unused
-        v3 normals[8];
-        i32 indices[8];
-        i32 count;
-        bool excluded; // Can no longer be merged
     };
 
     // TODO Pack these LUTs so they use less cache
@@ -941,13 +932,11 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
     indices->Clear();
 
     // One extra layer of cells in X,Y,Z (around the min grid corner) to store the edges and samples at the border
-    v3i cellsPerAxis = V3iRound( volumeSideMeters / cellSizeMeters ) + V3iOne;
+    v3i cellsPerAxis = V3iRound( volumeSizeMeters / cellSizeMeters ) + V3iOne;
     Grid3D<CellData> cellData( tmpArena, cellsPerAxis, Temporary() );
-    v3i mergeCellsPerAxis = cellsPerAxis / 2 + V3iOne;
-    Grid3D<MergeData> mergeData( tmpArena, mergeCellsPerAxis, Temporary() );
 
-    v3 halfSideMeters = volumeSideMeters / 2;
-    v3 minGridP = worldP.relativeP - halfSideMeters;
+    v3 halfSizeMeters = volumeSizeMeters / 2;
+    v3 minGridP = worldP.relativeP - halfSizeMeters;
     WorldCoords p = worldP;
 
     const f32 delta = 0.01f;
@@ -958,6 +947,8 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
     const v3 debugSampleSize = V3( 0.03f );
     const v4 inColor = { 1, 0, 0, 0 };
     const v4 outColor = { 0, 0, 1, 0 };
+
+    bool thicknessSetting = clusterData->zeroThickness;
 
     // Do everything in a single pass by:
     // - Storing the surface sample at the 'max' corner for each cell
@@ -972,6 +963,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
             for( int i = 0; i < cellsPerAxis.x; ++i )
             {
                 v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
+                clusterData->zeroThickness = thicknessSetting;
 
                 //f32 boundsTolerance = 0.5f;
                 v3 cellBoundsMin = cellP - V3( cellSizeMeters );
@@ -994,7 +986,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                         // Cell at { 0, 0, 0 } (extra border) gets the sample at world position minGridP + { 0, 0, 0 }
                         // Account for -0 by just adding +0 to the value
                         p.relativeP = cellP;
-                        sample = sampleFunc( p, samplingData ) + 0.f;
+                        sample = sampleFunc( p, clusterData ) + 0.f;
                         cellData( i, j, k ).sampledValue = sample;
 
                         // TODO Use instancing and just draw three crossing axis lines at each point to make this viable
@@ -1016,7 +1008,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                         if( cellOffset.x < 0 || cellOffset.y < 0 || cellOffset.z < 0 )
                         {
                             p.relativeP = minGridP + V3( cellOffset ) * cellSizeMeters;
-                            sample = sampleFunc( p, samplingData ) + 0.f;
+                            sample = sampleFunc( p, clusterData ) + 0.f;
                         }
                         else
                             sample = cellData( cellOffset ).sampledValue;
@@ -1094,7 +1086,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                                         }
                                         lastP = p.relativeP;
                                             
-                                        edgeSample = sampleFunc( p, samplingData );
+                                        edgeSample = sampleFunc( p, clusterData );
 
                                         if( AlmostEqual( edgeSample, 0.f, epsilon ) )
                                         {
@@ -1122,19 +1114,19 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
 
                             // Find normal vector by sampling near the intersection point we found
                             p.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };
-                            f32 xPSample = sampleFunc( p, samplingData );
+                            f32 xPSample = sampleFunc( p, clusterData );
                             p.relativeP = { edgeP.x - delta, edgeP.y, edgeP.z };
-                            f32 xNSample = sampleFunc( p, samplingData );
+                            f32 xNSample = sampleFunc( p, clusterData );
 
                             p.relativeP = { edgeP.x, edgeP.y + delta, edgeP.z };
-                            f32 yPSample = sampleFunc( p, samplingData );
+                            f32 yPSample = sampleFunc( p, clusterData );
                             p.relativeP = { edgeP.x, edgeP.y - delta, edgeP.z };
-                            f32 yNSample = sampleFunc( p, samplingData );
+                            f32 yNSample = sampleFunc( p, clusterData );
 
                             p.relativeP = { edgeP.x, edgeP.y, edgeP.z + delta };
-                            f32 zPSample = sampleFunc( p, samplingData );
+                            f32 zPSample = sampleFunc( p, clusterData );
                             p.relativeP = { edgeP.x, edgeP.y, edgeP.z - delta };
-                            f32 zNSample = sampleFunc( p, samplingData );
+                            f32 zNSample = sampleFunc( p, clusterData );
 
                             v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
                             Normalize( normal );
@@ -1236,26 +1228,29 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                     //ASSERT( Contains( cellBounds, cellVertex ) );
                 }
 
-                int vertexIndex = vertices->count;
-                TexturedVertex v = {};
-                v.p = cellVertex;
-                v.color = clamped ? Pack01ToRGBA( 1, 0, 0, 1 ) : Pack01ToRGBA( 1, 1, 1, 1 );
-                vertices->Push( v );
-                cellData( i, j, k ).vertexIndex = vertexIndex;
-
                 v3 avgNormal = V3Zero;
                 for( int n = 0; n < pointCount; ++n )
                     avgNormal += edgeNormals[n];
-                // NOTE We should normalize instead if we ever want to use this as a true normal. Not needed for now though!
-                avgNormal /= (f32)pointCount;
+                Normalize( avgNormal );
                 //cellData( i, j, k ).n = avgNormal;
+                // TODO Generalize this into a 'tagger' function callback?
+                p.relativeP = cellVertex + avgNormal * 0.1f;
+                clusterData->zeroThickness = true;
+                bool inside = sampleFunc( p, clusterData ) < 0.f;
 
-                // Store point and normal in the merge information
-                MergeData& mergeCell = mergeData( i >> 1, j >> 1, k >> 1 );
-                mergeCell.points[mergeCell.count] = cellVertex;
-                mergeCell.normals[mergeCell.count] = avgNormal;
-                mergeCell.indices[mergeCell.count] = vertexIndex;
-                mergeCell.count++;
+                //if( inside )
+                    //continue;
+
+                int vertexIndex = vertices->count;
+                TexturedVertex v = {};
+                v.p = cellVertex;
+                v.n = avgNormal;
+                //v.color = clamped ? Pack01ToRGBA( 1, 0, 0, 1 ) : Pack01ToRGBA( 1, 1, 1, 1 );
+                v.color = inside ? Pack01ToRGBA( 0, 1, 0, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
+                v.tag = inside ? VertexTag::Inner : VertexTag::Outer;
+                vertices->Push( v );
+                cellData( i, j, k ).vertexIndex = vertexIndex;
+
 
                 // Now we look 'backwards' and create at most 3 quads corresponding to the edges that include the 'min' corner instead,
                 // as we know those vertices will be ready by now
@@ -1360,72 +1355,161 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
             }
         }
     }
+}
 
+#define VALUES(x)     \
+    x(DualContouring) \
+    x(MarchingCubes)  \
+
+STRUCT_ENUM(ContouringTechnique, VALUES)
+#undef VALUES
+
+
+// This is just a crude vertex clustering algorithm to quickly discard coplanar vertices,
+// in the same spirit as http://www.andrewwillmott.com/papers/rsmam/RSMAM-Final.pdf but simpler
+// NOTE Given cell size should be at most double the size at which the volume was sampled (assuming one vertex per cell)
+// This is because we currently merge at most 8 vertices per cell!
+// FIXME FIX BUGS
+// - Disappearing vertices / tris
+// - Crazy elongated tris popping up
+// - Tris changing winding direction due to extreme vertex movement
+void FastDecimate( BucketArray<TexturedVertex> const& vertices, BucketArray<i32> const& indices, v3 const& volumeCenterP,
+                   v3 const& volumeSizeMeters, f32 cellSizeMeters, VertexTag filterTag, MemoryArena* arena, MemoryArena* tmpArena,
+                   Array<TexturedVertex>* outVertices, Array<i32>* outIndices )
+{
+    struct Vert
     {
-        // Code below is not part of the original DC algorithm
-        // This is just a crude vertex clustering algorithm to quickly discard coplanar vertices,
-        // in the same spirit as http://www.andrewwillmott.com/papers/rsmam/RSMAM-Final.pdf but simpler
+        TexturedVertex const* attrs;
+        i32 refs;
+    };
 
-        MemoryParams params = {};
-        params.flags = MemoryFlags_TemporaryMemory;
+    struct ClusteringData
+    {
+        v3 normals[8];
+        v3 points[8];
+        i32 indices[8];
+        i32 count;
+        bool excluded; // Can no longer be merged
+    };
 
-        // Actual vertex attributes
-        struct Vert
+
+    v3i cellsPerAxis = V3iRound( volumeSizeMeters / cellSizeMeters ) + V3iOne;
+    Grid3D<ClusteringData> cellData( tmpArena, cellsPerAxis, Temporary() );
+    v3 halfSizeMeters = volumeSizeMeters * 0.5f;
+    v3 minVolumeP = volumeCenterP - halfSizeMeters;
+
+    MemoryParams params = {};
+    params.flags &= ~MemoryFlags_ClearToZero;
+    params.flags = MemoryFlags_TemporaryMemory;
+
+    Array<Vert> vertexArray( tmpArena, vertices.count, params );
+    vertexArray.ResizeToCapacity();
+    int dst = 0;
+    int droppedVertices = 0;
+    auto idx = vertices.First();
+    while( idx )
+    {
+        // We copy them regardless of filtering so as to not break the indices, they'll be discarded on exit as they'll get no references
+        Vert& v = vertexArray[dst];
+        v.attrs = &(*idx);
+        v.refs = -1;
+
+        if( filterTag == VertexTag::None || filterTag == (*idx).tag )
         {
-            TexturedVertex* attrs;
-            i32 refs;
-        };
-        Array<Vert> vertexArray( tmpArena, vertices->count, params );
-        vertexArray.ResizeToCapacity();
-        int dst = 0;
-        auto idx = vertices->First();
-        while( idx )
-        {
-            Vert& v = vertexArray[dst++];
-            v.attrs = &(*idx);
-            v.refs = -1;
-
-            idx.Next();
+            v3 offsetP = (v.attrs->p - minVolumeP);
+            v3 cellPReal = offsetP / cellSizeMeters;
+            v3i cellP = V3i( cellPReal );
+            //v3i cellP = V3i( (v.attrs->p - minVolumeP) / cellSizeMeters );
+            ClusteringData& cell = cellData( cellP );
+            // FIXME Something is obviously busted here
+            //ASSERT( cell.count < ARRAYCOUNT(ClusteringData::indices) );
+            if( cell.count < ARRAYCOUNT(ClusteringData::indices) )
+            {
+                cell.normals[cell.count] = v.attrs->n;
+                cell.points[cell.count] = v.attrs->p;
+                cell.indices[cell.count] = dst;
+                cell.count++;
+            }
+            else
+                droppedVertices++;
         }
-        // Indices to previous array
-        Array<i32> vertexIndices( tmpArena, vertices->count, params );
-        vertexIndices.ResizeToCapacity();
-        for( int i = 0; i < vertexIndices.count; ++i )
-            vertexIndices.data[i] = i;
-        // Triangle indices point to the indices array above
-        struct Tri
+        idx.Next();
+        dst++;
+    }
+    if( droppedVertices )
+        // FIXME 
+        LOG( "WARN :: %d vertices discarded in FastDecimate", droppedVertices );
+
+    // Indices to previous array
+    Array<i32> vertexIndices( tmpArena, vertexArray.count, params );
+    vertexIndices.ResizeToCapacity();
+    for( int i = 0; i < vertexIndices.count; ++i )
+        vertexIndices.data[i] = i;
+
+    // Triangle indices point to the intermediate indices array above
+    struct Tri
+    {
+        i32 indices[3];
+        i32 discarded;
+    };
+    // TODO Build list of triangles directly
+    Array<i32> indexArray( tmpArena, indices.count, params );
+    indices.CopyTo( &indexArray );
+    Array<Tri> triangles( tmpArena, indexArray.count / 3, params );
+    triangles.ResizeToCapacity();
+    dst = 0;
+    for( int i = 0; i < triangles.count; ++i )
+    {
+        i32 ind0 = indexArray[i*3 + 0]; 
+        i32 ind1 = indexArray[i*3 + 1]; 
+        i32 ind2 = indexArray[i*3 + 2]; 
+        VertexTag tag0 = vertexArray[ind0].attrs->tag;
+        VertexTag tag1 = vertexArray[ind1].attrs->tag;
+        VertexTag tag2 = vertexArray[ind2].attrs->tag;
+        ASSERT( tag0 == tag1 && tag0 == tag2 );
+        if( filterTag == VertexTag::None || filterTag == tag0 )
         {
-            i32 indices[3];
-            i32 discarded;
-        };
-        // TODO Build list of triangles directly
-        Array<i32> indexArray( tmpArena, indices->count, params );
-        indices->CopyTo( &indexArray );
-        Array<Tri> triangles( tmpArena, indexArray.count / 3, params );
-        triangles.ResizeToCapacity();
-        for( int i = 0; i < triangles.count; ++i )
-        {
-            Tri& tri = triangles[i];
-            tri.indices[0] = indexArray[i*3 + 0];
-            tri.indices[1] = indexArray[i*3 + 1];
-            tri.indices[2] = indexArray[i*3 + 2];
+            Tri& tri = triangles[dst++];
+            tri.indices[0] = ind0;
+            tri.indices[1] = ind1;
+            tri.indices[2] = ind2;
             tri.discarded = false;
         }
+    }
+    triangles.count = dst;
 
 
-        for( int k = 0; k < mergeCellsPerAxis.z; ++k )
+// FIXME FIX BUGS
+// - Disappearing vertices / tris
+// - Crazy elongated tris popping up
+// - Tris changing winding direction due to extreme vertex movement
+    int clustered = 0;
+    bool firstPass = true;
+    //while( firstPass || clustered > 0 && !AnyZero( cellsPerAxis ) )
+    {
+        Grid3D<ClusteringData> parentCellData = {};
+
+        v3i parentCellsPerAxis = cellsPerAxis / 2 + V3iOne;
+        INIT( &parentCellData ) Grid3D<ClusteringData>( tmpArena, parentCellsPerAxis, Temporary() );
+
+        clustered = 0;
+        for( int k = 0; k < cellsPerAxis.z; ++k )
         {
-            for( int j = 0; j < mergeCellsPerAxis.y; ++j )
+            for( int j = 0; j < cellsPerAxis.y; ++j )
             {
-                for( int i = 0; i < mergeCellsPerAxis.x; ++i )
+                for( int i = 0; i < cellsPerAxis.x; ++i )
                 {
-                    MergeData& cell = mergeData( i, j ,k );
-                    if( cell.count > 1 )
+                    ClusteringData& cell = cellData( i, j ,k );
+                    if( !cell.excluded && cell.count > 1 )
                     {
+                        // TODO We could be much more aggresive clustering by finding new safe heuristics that we can add here
                         v3& normal0 = cell.normals[0];
-                        bool aligned = (!AlmostZero( normal0.x ) && AlmostZero( normal0.y ) && AlmostZero( normal0.z ))
-                            || (AlmostZero( normal0.x ) && !AlmostZero( normal0.y ) && AlmostZero( normal0.z ))
-                            || (AlmostZero( normal0.x ) && AlmostZero( normal0.y ) && !AlmostZero( normal0.z ));
+                        v3& point0 = cell.points[0];
+
+                        //bool aligned = (!AlmostZero( normal0.x ) && AlmostZero( normal0.y ) && AlmostZero( normal0.z ))
+                        //|| (AlmostZero( normal0.x ) && !AlmostZero( normal0.y ) && AlmostZero( normal0.z ))
+                        //|| (AlmostZero( normal0.x ) && AlmostZero( normal0.y ) && !AlmostZero( normal0.z ));
+                        bool aligned = true;
 
                         if( aligned )
                         {
@@ -1443,97 +1527,140 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMet
                         else
                             cell.excluded = true;
 
+                        if( !cell.excluded )
+                        {
+                            // Are all points coplanar?
+                            const f32 dCoeff = Dot( normal0, point0 );
+                            for( int n = 1; n < cell.count; ++n )
+                            {
+                                f32 dist = Dot( normal0, cell.points[n] ) - dCoeff;
+                                if( !AlmostZero( dist, 0.001f ) )
+                                {
+                                    cell.excluded = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        ClusteringData& parentCell = parentCellData( i >> 1, j >> 1, k >> 1 );
+
                         if( cell.excluded )
+                        {
+                            parentCell.excluded = true;
                             continue;
+                        }
 
-                        // TODO Make sure all points are actually coplanar?
-
-                        // Substitute all indices to point to the first one in the cell
+                        // We're good. Substitute all indices to point to the first one in the cell
                         i32 index0 = cell.indices[0];
                         for( int n = 1; n < 8; ++n )
                             vertexIndices[ cell.indices[n] ] = index0;
+                        clustered++;
+
+                        // Add surviving point to next coarser grid for next iteration
+                        ASSERT( parentCell.count < ARRAYCOUNT(ClusteringData::indices) );
+                        //if( parentCell.count < ARRAYCOUNT(ClusteringData::indices) )
+                        {
+                            parentCell.normals[parentCell.count] = normal0;
+                            parentCell.points[parentCell.count] = point0;
+                            parentCell.indices[parentCell.count] = cell.indices[0];
+                            parentCell.count++;
+                        }
                     }
                 }
             }
         }
 
-        // Discard degenerate tris
+        // Discard degenerate tris and fix all others to stop pointing to vertices that have been clustered
         for( int i = 0; i < triangles.count; ++i )
         {
             Tri& tri = triangles[i];
-            if( vertexIndices[ tri.indices[0] ] == vertexIndices[ tri.indices[1] ] ||
-                vertexIndices[ tri.indices[0] ] == vertexIndices[ tri.indices[2] ] )
+            if( tri.discarded )
+                continue;
+
+            i32& ind0 = tri.indices[0];
+            i32& ind1 = tri.indices[1];
+            i32& ind2 = tri.indices[2];
+            i32& vertex0 = vertexIndices[ind0];
+            i32& vertex1 = vertexIndices[ind1];
+            i32& vertex2 = vertexIndices[ind2];
+
+            if( vertex0 == vertex1 || vertex0 == vertex2 )
                 tri.discarded = true;
-        }
-
-        // Compact
-        // TODO Do this in the same pass above
-        dst = 0;
-        for( int i = 0; i < triangles.count; ++i )
-        {
-            Tri& tri = triangles[i];
-            if( !tri.discarded )
+            else
             {
-                for( int j = 0; j < 3; ++j )
-                {
-                    // Reference vertex attributes array directly
-                    int v = vertexIndices[ tri.indices[j] ];
-                    tri.indices[j] = v;
-                    vertexArray[v].refs = 1;
-                }
-                triangles[dst++] = tri;
-            }
-        }
-        triangles.count = dst;
-
-        dst = 0;
-        for( int i = 0; i < vertexArray.count; ++i )
-        {
-            Vert& v = vertexArray[i];
-            if( v.refs > 0 )
-            {
-                v.refs = dst;
-                // Pack at the front
-                ASSERT( v.attrs );
-                vertexArray[dst].attrs = v.attrs;
-                dst++;
+                ind0 = vertex0;
+                ind1 = vertex1;
+                ind2 = vertex2;
             }
         }
 
-        for( int i = 0; i < triangles.count; ++i )
+        cellData = parentCellData;
+        cellsPerAxis = parentCellsPerAxis;
+
+        firstPass = false;
+    }
+
+    // Compact
+    // TODO Do this in the same pass above
+    dst = 0;
+    for( int i = 0; i < triangles.count; ++i )
+    {
+        Tri& tri = triangles[i];
+        if( !tri.discarded )
         {
-            Tri& tri = triangles[i];
             for( int j = 0; j < 3; ++j )
-                tri.indices[j] = vertexArray[ tri.indices[j] ].refs;
+            {
+                // Reference vertex attributes array directly
+                int v = vertexIndices[ tri.indices[j] ];
+                tri.indices[j] = v;
+                vertexArray[v].refs = 1;
+            }
+            triangles[dst++] = tri;
         }
-        vertexArray.count = dst;
+    }
+    triangles.count = dst;
 
-
-        INIT( outVertices ) Array<TexturedVertex>( arena, vertexArray.count, NoClear() );
-        outVertices->ResizeToCapacity();
-        for( int i = 0; i < vertexArray.count; ++i )
+    dst = 0;
+    for( int i = 0; i < vertexArray.count; ++i )
+    {
+        Vert& v = vertexArray[i];
+        if( v.refs > 0 )
         {
-            outVertices->data[i] = *vertexArray[i].attrs;
+            v.refs = dst;
+            // Pack at the front
+            ASSERT( v.attrs );
+            vertexArray[dst].attrs = v.attrs;
+            dst++;
         }
+    }
 
-        INIT( outIndices ) Array<i32>( arena, triangles.count * 3, NoClear() );
-        outIndices->ResizeToCapacity();
-        for( int i = 0; i < triangles.count; ++i )
-        {
-            Tri& tri = triangles[i];
-            outIndices->data[i*3 + 0] = tri.indices[0];
-            outIndices->data[i*3 + 1] = tri.indices[1];
-            outIndices->data[i*3 + 2] = tri.indices[2];
-        }
+    for( int i = 0; i < triangles.count; ++i )
+    {
+        Tri& tri = triangles[i];
+        for( int j = 0; j < 3; ++j )
+            tri.indices[j] = vertexArray[ tri.indices[j] ].refs;
+    }
+    vertexArray.count = dst;
+
+
+    INIT( outVertices ) Array<TexturedVertex>( arena, vertexArray.count, NoClear() );
+    outVertices->ResizeToCapacity();
+    for( int i = 0; i < vertexArray.count; ++i )
+    {
+        outVertices->data[i] = *vertexArray[i].attrs;
+    }
+
+    INIT( outIndices ) Array<i32>( arena, triangles.count * 3, NoClear() );
+    outIndices->ResizeToCapacity();
+    for( int i = 0; i < triangles.count; ++i )
+    {
+        Tri& tri = triangles[i];
+        outIndices->data[i*3 + 0] = tri.indices[0];
+        outIndices->data[i*3 + 1] = tri.indices[1];
+        outIndices->data[i*3 + 2] = tri.indices[2];
     }
 }
 
-#define VALUES(x) \
-    x(DualContouring) \
-    x(MarchingCubes) \
-
-STRUCT_ENUM(ContouringTechnique, VALUES)
-#undef VALUES
 
 
 

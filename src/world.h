@@ -142,6 +142,7 @@ struct ClusterSamplingData
     Cluster* debugCluster;
     // Room index when sampling rooms, hall index for halls
     i32 sampledVolumeIndex;
+    bool zeroThickness; 
 };
 
 enum VolumeFlags : u32

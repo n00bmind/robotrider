@@ -332,8 +332,6 @@ TickSurfaceContouringTest( const GameInput& input, EditorState* state, RenderCom
     {
         BucketArray<TexturedVertex> tmpVertices( tempArena, 1024, Temporary() );
         BucketArray<i32> tmpIndices( tempArena, 1024, Temporary() );
-        Array<TexturedVertex> outVertices;
-        Array<i32> outIndices;
 
         f64 start = globalPlatform.DEBUGCurrentTimeMillis();
 
@@ -348,8 +346,7 @@ TickSurfaceContouringTest( const GameInput& input, EditorState* state, RenderCom
             case ContouringTechnique::DualContouring().index:
             {
                 DCVolume( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc, &samplingData,
-                          &tmpVertices, &tmpIndices, editorArena, tempArena, settings.dc, &outVertices, &outIndices );
-                // TODO 
+                          &tmpVertices, &tmpIndices, editorArena, tempArena, settings.dc );
 
             } break;
         }

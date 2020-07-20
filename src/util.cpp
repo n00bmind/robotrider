@@ -28,6 +28,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 
+inline void
+Swap( i32* a, i32* b )
+{
+    i32 tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
 void
 InsertSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
 {

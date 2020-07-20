@@ -364,6 +364,11 @@ Hadamard( const v3i& a, const v3i& b )
     return result;
 }
 
+inline bool
+AnyZero( v3i const& v )
+{
+    return v.x == 0 || v.y == 0 || v.z == 0;
+}
 
 // Vector 3 unsigned
 #if 0
@@ -524,6 +529,13 @@ inline v3
 V3( const v3i& v )
 {
     v3 result = { (f32)v.x, (f32)v.y, (f32)v.z };
+    return result;
+}
+
+inline v3i
+V3i( v3 const& v )
+{
+    v3i result = { I32( v.x ), I32( v.y ), I32( v.z ) };
     return result;
 }
 
@@ -721,6 +733,18 @@ Normalize( v3& v )
 
     if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
     {
+        f32 invL = RcpSqrt( lengthSq );
+        v *= invL;
+    }
+}
+
+inline void
+NormalizeSlow( v3& v )
+{
+    f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+
+    if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
+    {
         f32 invL = 1.0f / Sqrt( lengthSq );
         v *= invL;
     }
@@ -728,6 +752,20 @@ Normalize( v3& v )
 
 inline v3
 Normalized( const v3 &v )
+{
+    v3 result = v;
+
+    f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
+    {
+        f32 invL = RcpSqrt( lengthSq );
+        result = v * invL;
+    }
+    return result;
+}
+
+inline v3
+NormalizedSlow( const v3 &v )
 {
     v3 result = v;
 
