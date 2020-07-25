@@ -309,6 +309,13 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
 #endif
 }
 
+// TODO Visualize frustum culling in the editor (from outside the player camera) to assess how well it works
+void RenderMeshCulled( const Mesh& mesh, RenderCommands *commands )
+{
+    if( IsInFrustum( mesh.bounds, commands->camera.cachedFrustumPlanes ) )
+        RenderMesh( mesh, commands );
+}
+
 void RenderBounds( const aabb& box, u32 color, RenderCommands* commands )
 {
     v3 min, max;
@@ -621,4 +628,50 @@ void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 
     // https://stackoverflow.com/questions/22948068/opengl-rendering-lots-of-cubes
     // http://jojendersie.de/rendering-huge-amounts-of-voxels/
     }
+}
+
+void RenderCamera( m4 const& cameraFromWorld, RenderCommands* commands )
+{
+    Camera& camera = commands->camera;
+    camera = DefaultCamera();
+    camera.cameraFromWorld = cameraFromWorld;
+
+    // Use default projection
+    f32 viewportWidth = commands->width;
+    f32 viewportHeight = commands->height;
+    m4 projectFromCamera = M4Perspective( viewportWidth / viewportHeight, camera.fovYDeg );
+    m4 m = projectFromCamera * cameraFromWorld;
+    camera.projectFromWorld = m;
+
+    // Compute frustum planes
+    // Left
+    camera.cachedFrustumPlanes[0] =
+    {
+        m.r[3] + m.r[0]
+    };
+    // Right
+    camera.cachedFrustumPlanes[1] =
+    {
+        m.r[3] - m.r[0]
+    };
+    // Bottom
+    camera.cachedFrustumPlanes[2] =
+    {
+        m.r[3] + m.r[1]
+    };
+    // Top
+    camera.cachedFrustumPlanes[3] =
+    {
+        m.r[3] - m.r[1]
+    };
+    // Near
+    camera.cachedFrustumPlanes[4] =
+    {
+        m.r[3] + m.r[2]
+    };
+    // Far
+    camera.cachedFrustumPlanes[5] =
+    {
+        m.r[3] - m.r[2]
+    };
 }

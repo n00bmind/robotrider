@@ -91,7 +91,7 @@ inline void DrawAlignedQuadWithBasis( const v3& origin, const v3& xAxis, f32 xLe
 
 void DrawAxisGizmos( RenderCommands *renderCommands )
 {
-    const m4 &currentCamTransform = renderCommands->camera.worldToCamera;
+    const m4 &currentCamTransform = renderCommands->camera.cameraFromWorld;
     v3 vCamX = GetCameraBasisX( currentCamTransform );
     v3 vCamY = GetCameraBasisY( currentCamTransform );
     v3 vCamFwd = -GetCameraBasisZ( currentCamTransform );

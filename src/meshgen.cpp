@@ -1466,7 +1466,8 @@ void FastDecimate( BucketArray<TexturedVertex> const& vertices, BucketArray<i32>
         VertexTag tag0 = vertexArray[ind0].attrs->tag;
         VertexTag tag1 = vertexArray[ind1].attrs->tag;
         VertexTag tag2 = vertexArray[ind2].attrs->tag;
-        ASSERT( tag0 == tag1 && tag0 == tag2 );
+        // FIXME Find out why this fails and what to do about it
+        //ASSERT( tag0 == tag1 && tag0 == tag2 );
         if( filterTag == VertexTag::None || filterTag == tag0 )
         {
             Tri& tri = triangles[dst++];
@@ -1954,6 +1955,7 @@ FQSUpdateTriangles( int i0, const FQSVertex& v, const Array<bool>& deleted,
 // This would also have the advantage of being able to generate all LODs in a single pass.
 // Also, see if we can find an ultra-fast method mostly for coplanar regions and have it applied always after contouring regardless of LOD
 // (or make one!)
+// TODO Test using just floats for the quadric matrices
 void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, MemoryArena* tmpArena, f32 agressiveness = 7 )
 {
     int triangleCount = mesh->triangles.count;

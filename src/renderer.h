@@ -54,14 +54,20 @@ enum class RenderSwitchType
 
 struct Camera
 {
-    m4 worldToCamera;
+    m4 cameraFromWorld;
+    m4 projectFromWorld;
+    // Non-normalized, normals point to the INSIDE
+    v4 cachedFrustumPlanes[6];
     f32 fovYDeg;
 };
 
 inline Camera
 DefaultCamera( f32 fovYDeg = 60 )
 {
-    Camera result = { M4Identity, fovYDeg };
+    Camera result = {};
+    result.cameraFromWorld = M4Identity;
+    result.projectFromWorld = M4Identity;
+    result.fovYDeg = fovYDeg;
     return result;
 }
 
@@ -385,6 +391,7 @@ void RenderSetShader( ShaderProgramName programName, RenderCommands *commands );
 void RenderSetMaterial( Material* material, RenderCommands* commands );
 void RenderSwitch( RenderSwitchType renderSwitch, bool enable, RenderCommands* commands );
 void RenderMesh( const Mesh& mesh, RenderCommands *commands );
+void RenderMeshCulled( const Mesh& mesh, RenderCommands *commands );
 void RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands );
 void RenderBoundsAt( const v3& p, f32 size, u32 color, RenderCommands* renderCommands );
 void RenderBoxAt( const v3& p, f32 size, u32 color, RenderCommands* renderCommands );

@@ -191,7 +191,7 @@ struct Cluster
     BucketArray<DebugVolume> debugVolumes;
 #endif
 
-    // TODO This probably go in a global mesh pool
+    // TODO This probably should go in a global mesh pool
     Array<Mesh> meshStore;
 
     bool populated;
@@ -202,7 +202,7 @@ inline u32 EntityHash( const u32& key, i32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
-const int SimExteriorHalfSize = 0;
+const int SimExteriorHalfSize = 1;
 const int SimRegionSizePerAxis = 2 * SimExteriorHalfSize + 1;
 
 enum MeshGeneratorType

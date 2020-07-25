@@ -29,7 +29,7 @@ EDITOR
 
 GRAPHICS
 - Frustum culling
-- Decent chasing camera
+- Decent chasing camera + avoiding geometry (https://www.braynzarsoft.net/viewtutorial/q16390-31-sliding-camera-collision-detection)
 - Start working on surfaces & lighting
 - Edge detection shader
   From reddit: "If you have a deferred renderer and it can write triangle IDs to a texture, then you can render a wireframe
@@ -66,6 +66,12 @@ ENGINE
 - Add a separate arena per thread so we don't have to keep thinking where to put per-thread work memory
 - Separate physics & input thread running at a high framerate? (investigate)
 - Switch Fletcher to MurmurHash (https://github.com/aappleby/smhasher/wiki)
+- Implement a decent hashtable with probing and think of a resizing strategy
+  Before substituting the one we have, improve it by having a preallocated array for the chained entries next to the main one, as mentioned in
+  https://softwareengineering.stackexchange.com/a/361966, and also the comments in https://stackoverflow.com/a/23821940/2151254
+  For the new one, use Robin Hood strategy (https://www.sebastiansylvan.com/post/robin-hood-hashing-should-be-your-default-hash-table-implementation/
+  & https://www.sebastiansylvan.com/post/more-on-robin-hood-hashing-2/).
+  Then put them both through some kind of benchmark and compare (maybe have a way to switch between them at compile time with a template or something).
 
 DEBUGGING
 - Make sure out-of-frame counters are handled and shown correctly so we can properly profile multithreaded code

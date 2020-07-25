@@ -68,8 +68,8 @@ With time, I found some of these ideas I actually knew already, I had only be ta
  · Your dependencies will enslave you<br/>
  · Your turnaround is way too long<br/>
  · Dumb code is very easy to debug<br/>
- · Marrying data and behaviour is like marrying Heaven and Hell<br/>
- · C++ is just evil<br/>
+ · Data and code are fundamentally different, therefore OOP fundamentally sucks<br/>
+ · C++ sucks specially hard<br/>
  · When tempted to abstract away, think twice<br/>
  · When tempted to design for the future, don't<br/>
  · When in doubt, make it explicit<br/>

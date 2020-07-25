@@ -866,6 +866,18 @@ operator !=( const v4 &a, const v4 &b )
 }
 
 inline v4
+operator +( v4 const& a, v4 const& b )
+{
+    return { a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w };
+}
+
+inline v4
+operator -( v4 const& a, v4 const& b )
+{
+    return { a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
+}
+
+inline v4
 operator *( f32 f, const v4 &v )
 {
     v4 result = { f * v.x, f * v.y, f * v.z, f * v.w };
@@ -910,11 +922,12 @@ UnpackRGBAToV401( u32 c )
 }
 
 
-// Matrix 4x4
+// Matrix 4x4 (ROW major)
 
 union m4
 {
     f32 e[4][4];
+    v4 r[4];
 };
 
 const m4 M4Identity =
@@ -1434,7 +1447,7 @@ M4Symmetric( f64 a, f64 b, f64 c, f64 d )
                b * b, b * c, b * d,
                       c * c, c * d,
                              d * d,
-     }};
+    }};
 
     return result;
 }
@@ -1881,6 +1894,101 @@ Enclose( aabb const& a, aabb const& b )
                               { Max( aMax.x, bMax.x ), Max( aMax.y, bMax.y ), Max( aMax.z, bMax.z ) } );
     return result;
 }
+
+// Taken from https://gist.github.com/Kinwailo/d9a07f98d8511206182e50acda4fbc9b
+// (adapted tests as our plane normals point inwards)
+// FIXME Test & debug
+inline bool
+IsInFrustum( aabb const& b, v4 planes[6] )
+{
+    bool result = true;
+    v3 min = b.center - b.halfSize;
+    v3 max = b.center + b.halfSize;
+    v3 p, n;
+
+    for( int i = 0; i < 6; ++i )
+    {
+        // TODO Use a LUT & precalc min/max corners for all 6 planes as explained in http://www.cse.chalmers.se/~uffe/vfc.pdf page 11
+        v4& plane = planes[i];
+        if( plane.x < 0.f )
+        {
+            p.x = min.x;
+            n.x = max.x;
+        }
+        else
+        {
+            p.x = max.x;
+            n.x = min.x;
+        }
+
+        if( plane.y < 0.f )
+        {
+            p.y = min.y;
+            n.y = max.y;
+        }
+        else
+        {
+            p.y = max.y;
+            n.y = min.y;
+        }
+
+        if( plane.z < 0.f )
+        {
+            p.z = min.z;
+            n.z = max.z;
+        }
+        else
+        {
+            p.z = max.z;
+            n.z = min.z;
+        }
+
+        if( Dot( plane.xyz, p ) + plane.w < 0.f )
+            // Outside
+            return false;
+        //if( Dot( plane.xyz, n ) + plane.w <= 0.f )
+            //// Intersect
+            //result = true;
+    }
+
+    return result;
+}
+// TODO Also test against the code in Rustbuckets, which has no branches:
+// Test AABB against frustum
+// N.B. this will produce false positives when all the corners of the AABB are not behind any one plane, but it's still outside the frustum. 
+// To fix, test 8 corners of the frustum against the AABB planes
+#if 0
+inline bool AABBInFrustum( v3 aabb_min, v3 aabb_max, const v4* frustum )
+{
+    // TODO: Can SIMD this by doing 4 plane tests at once, with a bit of precalculation
+
+    // Convert to center/extent rep (ideally AABBs should use this rep to begin with)
+    v3 center = (aabb_min + aabb_max) * 0.5f;
+    v3 extent = (aabb_max - aabb_min) * 0.5f;
+
+    // Give the debug build a chance
+    float cx = center.getX();
+    float cy = center.getY();
+    float cz = center.getZ();
+    float ex = extent.getX();
+    float ey = extent.getY();
+    float ez = extent.getZ();
+
+    // Test each plane any that would classify as wholly outside the frustum
+    // Plane format: ax + by + cz + d = 0
+    for (int i = 0; i < 6; i++)
+    {
+        float* p = (float*)&frustum[i];
+        float d = p[0] * cx + p[1] * cy + p[2] * cz + p[3];
+        float r = fabs(p[0]) * ex + fabs(p[1]) * ey + fabs(p[2]) * ez;
+        if (d + r < 0)
+            return false;
+    }
+
+    return true;
+}
+#endif
+
 
 // Ray
 

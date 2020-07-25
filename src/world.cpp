@@ -574,12 +574,12 @@ StoreInCluster( BinaryVolume const& volume, Cluster* cluster )
 }
 
 
-internal Mesh
-CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tmpArena )
+internal void
+CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tmpArena,
+                Array<Mesh>* meshStore )
 {
     TIMED_FUNC_WITH_TOTALS;
 
-    Mesh result = {};
     Room const& room = cluster->rooms[roomIndex];
 
     WorldCoords worldP = { room.bounds.center, clusterP };
@@ -603,6 +603,14 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, RoomSurfaceFunc, &roomSamplingData,
               &tmpVertices, &tmpIndices, arena, tmpArena, settings );
 
+    Mesh result = {};
+    InitMesh( &result );
+    result.bounds = room.bounds;
+    // Set initial offset index based on cluster
+    // FIXME This must be done again everytime we switch the origin cluster
+    v3i clusterRelativeP = clusterP - world->originClusterP;
+    result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
+
 #if 0
     {
         TIMED_SCOPE_WITH_TOTALS( "Simplify rooms" );
@@ -617,31 +625,31 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
 #if 0
     result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
 #else
-    InitMesh( &result );
+    Mesh innerMesh = result;
+    FastDecimate( tmpVertices, tmpIndices, room.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::Inner,
+                  arena, tmpArena, &innerMesh.vertices, &innerMesh.indices );
+    meshStore->Push( innerMesh );
+
+    Mesh outerMesh = result;
     FastDecimate( tmpVertices, tmpIndices, room.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::Outer,
-                  arena, tmpArena, &result.vertices, &result.indices );
+                  arena, tmpArena, &outerMesh.vertices, &outerMesh.indices );
+    meshStore->Push( outerMesh );
 #endif
 
 #endif
 
-    // Set initial offset index based on cluster
-    // FIXME This must be done again everytime we switch the origin cluster
-    v3i clusterRelativeP = clusterP - world->originClusterP;
-    result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
 
 #if 1
     cluster->debugVolumes.Push( { AABBCenterSize( room.bounds.center, sampledVolumeSize ), { 1, 0, 0, 0.5f }, } );
 #endif
-
-    return result;
 }
 
-internal Mesh
-CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tmpArena )
+internal void
+CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* world, MemoryArena* arena, MemoryArena* tmpArena,
+                Array<Mesh>* meshStore )
 {
     TIMED_FUNC_WITH_TOTALS;
 
-    Mesh result = {};
     Hall const& hall = cluster->halls[hallIndex];
 
     WorldCoords worldP = { hall.bounds.center, clusterP };
@@ -664,6 +672,14 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
               &tmpVertices, &tmpIndices, arena, tmpArena, settings );
     // TODO 
 
+    Mesh result = {};
+    InitMesh( &result );
+    result.bounds = hall.bounds;
+    // Set initial offset index based on cluster
+    // FIXME This must be done again everytime we switch the origin cluster
+    v3i clusterRelativeP = clusterP - world->originClusterP;
+    result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
+
 #if 0
     {
         TIMED_SCOPE_WITH_TOTALS( "Simplify halls" );
@@ -678,19 +694,18 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
 #if 0
     //result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
 #else
-    //InitMesh( &result );
-    //FastDecimate( tmpVertices, tmpIndices, hall.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::None,
-                  //arena, tmpArena, &result.vertices, &result.indices );
+    Mesh innerMesh = result;
+    FastDecimate( tmpVertices, tmpIndices, hall.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::Inner,
+                  arena, tmpArena, &innerMesh.vertices, &innerMesh.indices );
+    meshStore->Push( innerMesh );
+
+    Mesh outerMesh = result;
+    FastDecimate( tmpVertices, tmpIndices, hall.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::Outer,
+                  arena, tmpArena, &outerMesh.vertices, &outerMesh.indices );
+    meshStore->Push( outerMesh );
 #endif
 
 #endif
-
-    // Set initial offset index based on cluster
-    // FIXME This must be done again everytime we switch the origin cluster
-    v3i clusterRelativeP = clusterP - world->originClusterP;
-    result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
-
-    return result;
 }
 
 internal Mesh
@@ -887,7 +902,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
     // TODO Do all this in jobs in LoadEntitiesInCluster
 #if 1
 
-    int totalMeshCount = cluster->rooms.count + cluster->halls.count;
+    int totalMeshCount = (cluster->rooms.count + cluster->halls.count) * 2;
     INIT( &cluster->meshStore ) Array<Mesh>( arena, totalMeshCount );
 
     TemporaryMemory tmpMemory = BeginTemporaryMemory( tmpArena );
@@ -900,15 +915,13 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
     for( int i = 0; i < cluster->rooms.count; ++i )
     {
         TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tmpArena );
-        Mesh mesh = CreateRoomMesh( i, cluster, clusterP, world, arena, tmpArena );
-        cluster->meshStore.Push( mesh );
+        CreateRoomMesh( i, cluster, clusterP, world, arena, tmpArena, &cluster->meshStore );
         EndTemporaryMemory( tmpMeshMemory );
     }
     for( int i = 0; i < cluster->halls.count; ++i )
     {
         TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tmpArena );
-        Mesh mesh = CreateHallMesh( i, cluster, clusterP, world, arena, tmpArena );
-        cluster->meshStore.Push( mesh );
+        CreateHallMesh( i, cluster, clusterP, world, arena, tmpArena, &cluster->meshStore );
         EndTemporaryMemory( tmpMeshMemory );
     }
 
@@ -1231,6 +1244,16 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
     renderCommands->simClusterOffsets = world->simClusterOffsets.data;
     renderCommands->simClusterCount = world->simClusterOffsets.count;
 
+    {
+        // Create a chasing camera
+        // TODO Use a PID controller
+        Mesh const& playerMesh = world->player->mesh;
+        v3 pCam = playerMesh.mTransform * V3( 0.f, -25.f, 10.f );
+        v3 pLookAt = playerMesh.mTransform * V3( 0.f, 1.f, 0.f );
+        v3 vUp = GetColumn( playerMesh.mTransform, 2 ).xyz;
+        RenderCamera( M4CameraLookAt( pCam, pLookAt, vUp ), renderCommands );
+    }    
+
 #if !RELEASE
     if( !gameMemory->DEBUGglobalEditing )
 #endif
@@ -1248,7 +1271,7 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
             if( entity.state == EntityState::Active )
             {
                 if( entity.mesh )
-                    RenderMesh( *entity.mesh, renderCommands );
+                    RenderMeshCulled( *entity.mesh, renderCommands );
             }
 
             it.Next();
@@ -1281,6 +1304,8 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         RenderSetShader( ShaderProgramName::FlatShading, renderCommands );
         RenderSetMaterial( world->player->mesh.material, renderCommands );
         RenderMesh( world->player->mesh, renderCommands );
+        // FIXME By using this on the player, we can easily see that something is borked with our frustum culling
+        //RenderMeshCulled( world->player->mesh, renderCommands );
 
 #if 1
         RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
@@ -1313,22 +1338,11 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
                     for( int m = 0; m < cluster->meshStore.count; ++m )
                     {
                         Mesh const& mesh = cluster->meshStore[m];
-                        RenderMesh( mesh, renderCommands );
+                        RenderMeshCulled( mesh, renderCommands );
                     }
                 }
             }
         }
         RenderSwitch( RenderSwitchType::Culling, true, renderCommands );
     }
-
-    {
-        // Create a chasing camera
-        // TODO Use a PID controller
-        Player *player = world->player;
-        v3 pCam = player->mesh.mTransform * V3( 0.f, -25.f, 10.f );
-        v3 pLookAt = player->mesh.mTransform * V3( 0.f, 1.f, 0.f );
-        v3 vUp = GetColumn( player->mesh.mTransform, 2 ).xyz;
-        renderCommands->camera = DefaultCamera();
-        renderCommands->camera.worldToCamera = M4CameraLookAt( pCam, pLookAt, vUp );
-    }    
 }
