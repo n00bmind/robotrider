@@ -58,6 +58,15 @@ ASSERT_HANDLER(DefaultAssertHandler)
 #define ASSERT_TRUE(expr) ((void)( (expr) || HALT()))
 
 
+void Log( char const* fmt, ... )
+{
+    va_list args;
+    va_start( args, fmt );
+    vprintf( fmt, args );
+    va_end( args );
+}
+
+
 template <typename T>
 internal Array<T> NewArray( int n )
 {
@@ -641,6 +650,86 @@ TestSortingBenchmark( SortingBenchmark* benchmark, int passes )
 
 
 
+void TestFastSqrt()
+{
+    f32 step = 1e-9f;
+    for( f32 x = 0.f; x <= 1e+9f; x += step )
+    {
+        f32 a = Sqrt( x );
+        f32 b = SqrtFast( x );
+
+        // ULP diff
+        int ulps = Abs( (*(int*)&a) - (*(int*)&b) );
+
+        Log( "x = %g \tSqrt(x) = %g\tSqrtFast(x) = %g\t\tULPs diff = %d\n", x, a, b, ulps );
+
+        ASSERT_TRUE( ulps <= 3 );
+
+        if( x >= step * 100.f )
+            step *= 10.f;
+    }
+}
+
+void TestFastSqrtSpeed( MemoryArena* tmpArena )
+{
+    Array<f32> results1( tmpArena, 1000000, Temporary() );
+    Array<f32> results2( tmpArena, 1000000, Temporary() );
+
+    StartCounter();
+    u64 startCycles = ReadCycles();
+
+    f32 step = 0.f;
+
+    int index1 = 0;
+    for( int i = 0; i < 1000; ++i )
+    {
+        index1 = 0;
+        step = 1e-9f;
+        for( f32 x = 0.f; x <= 1e+9f; x += step )
+        {
+            results1.data[index1++] = Sqrt( x );
+            //results.data[index1++] = SqrtFast( x );
+
+            if( x >= step * 100.f )
+                step *= 10.f;
+        }
+    }
+
+    u64 middleCycles = ReadCycles();
+
+    int index2 = 0;
+    for( int i = 0; i < 1000; ++i )
+    {
+        index2 = 0;
+        step = 1e-9f;
+        for( f32 x = 0.f; x <= 1e+9f; x += step )
+        {
+            results2.data[index2++] = SqrtFast( x );
+            //results.data[index2++] = Sqrt( x );
+
+            if( x >= step * 100.f )
+                step *= 10.f;
+        }
+    }
+
+    u64 endCycles = ReadCycles();
+    f64 totalUs = GetCounterUs();
+
+    ASSERT( index1 == index2 );
+
+    f64 cyclesPerUs = (endCycles - startCycles) / totalUs;
+    u64 sqrtCycles = middleCycles - startCycles;
+    f64 sqrtUs = sqrtCycles / cyclesPerUs;
+    u64 sqrtFastCycles = endCycles - middleCycles;
+    f64 sqrtFastUs = sqrtFastCycles / cyclesPerUs;
+
+    Log( "Sqrt():\t\t%0.3f us. / %llu cycles (%0.3f us. / %llu cycles per iteration)\n",
+         sqrtUs, sqrtCycles, sqrtUs / index1, sqrtCycles / index1 );
+    Log( "SqrtFast():\t%0.3f us. / %llu cycles (%0.3f us. / %llu cycles per iteration)\n",
+         sqrtFastUs, sqrtFastCycles, sqrtFastUs / index2, sqrtFastCycles / index2 );
+}
+
+
 
 void
 main( int argC, char** argV )
@@ -655,7 +744,14 @@ main( int argC, char** argV )
     u32 memorySize = 16*1024*1024;
     InitArena( &tmpArena, new u8[memorySize], memorySize );
 
-    bool testSortingBenchmark = true;
+
+    //TestFastSqrt();
+    TestFastSqrtSpeed( &tmpArena );
+
+
+
+    // TODO Add a cmdline argument 'bench' that allows executing among available benchmarks
+    bool testSortingBenchmark = false;
 
     if( testSortingBenchmark )
     {

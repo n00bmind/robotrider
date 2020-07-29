@@ -183,13 +183,18 @@ typedef PLATFORM_LOG(PlatformLogFunc);
 
 struct PlatformAPI
 {
+#if !RELEASE
     DebugPlatformReadEntireFileFunc* DEBUGReadEntireFile;
     DebugPlatformFreeFileMemoryFunc* DEBUGFreeFileMemory;
     DebugPlatformWriteEntireFileFunc* DEBUGWriteEntireFile;
     DebugPlatformListAllAssetsFunc* DEBUGListAllAssets;
     DebugPlatformJoinPathsFunc* DEBUGJoinPaths;
     DebugPlatformGetParentPathFunc* DEBUGGetParentPath;
+    // FIXME Remove. Replace with passed elapsed time in GameInput
     DebugPlatformCurrentTimeMillis* DEBUGCurrentTimeMillis;
+
+    bool DEBUGquit;
+#endif
 
     PlatformAddNewJobFunc* AddNewJob;
     PlatformCompleteAllJobsFunc* CompleteAllJobs;

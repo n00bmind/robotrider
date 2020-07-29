@@ -582,6 +582,14 @@ AlmostEqual( const v3& a, const v3& b, f32 absoluteEpsilon = 0 )
         && AlmostEqual( a.z, b.z, absoluteEpsilon );
 }
 
+inline bool
+AlmostZero( const v3& v, f32 absoluteEpsilon = 1e-6f )
+{
+    return AlmostZero( v.x, absoluteEpsilon )
+        && AlmostZero( v.y, absoluteEpsilon )
+        && AlmostZero( v.z, absoluteEpsilon );
+}
+
 inline v3
 operator -( const v3 &v )
 {
@@ -689,7 +697,14 @@ Abs( const v3& v )
 }
 
 inline f32
-Length( const v3& v )
+LengthFast( const v3& v )
+{
+    f32 result = SqrtFast( v.x * v.x + v.y * v.y + v.z * v.z );
+    return result;
+}
+
+inline f32
+LengthSlow( const v3& v )
 {
     f32 result = Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
     return result;
@@ -709,13 +724,20 @@ IsUnit( const v3& v, f32* outLengthSq = nullptr )
     if( outLengthSq )
         *outLengthSq = lengthSq;
 
-    return AlmostEqual( lengthSq, 1.f, 1e-05f );
+    return AlmostEqual( lengthSq, 1.f, 1e-03f );
 }
 
 inline f32
-Distance( const v3& a, const v3& b )
+DistanceFast( const v3& a, const v3& b )
 {
-    f32 result = Length(a - b);
+    f32 result = LengthFast(a - b);
+    return result;
+}
+
+inline f32
+DistanceSlow( const v3& a, const v3& b )
+{
+    f32 result = LengthSlow(a - b);
     return result;
 }
 
@@ -727,13 +749,13 @@ DistanceSq( const v3& a, const v3& b )
 }
 
 inline void
-Normalize( v3& v )
+NormalizeFast( v3& v )
 {
     f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
 
     if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
     {
-        f32 invL = RcpSqrt( lengthSq );
+        f32 invL = RcpSqrtFast( lengthSq );
         v *= invL;
     }
 }
@@ -751,14 +773,14 @@ NormalizeSlow( v3& v )
 }
 
 inline v3
-Normalized( const v3 &v )
+NormalizedFast( const v3 &v )
 {
     v3 result = v;
 
     f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
     if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
     {
-        f32 invL = RcpSqrt( lengthSq );
+        f32 invL = RcpSqrtFast( lengthSq );
         result = v * invL;
     }
     return result;
@@ -1240,8 +1262,8 @@ M4CameraTransform( const m4& rot, const v3& p )
 inline m4
 M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 {
-    v3 vUpN = Normalized( vUp );
-    v3 vZ = Normalized( -(pTgt - pSrc) );
+    v3 vUpN = NormalizedFast( vUp );
+    v3 vZ = NormalizedFast( -(pTgt - pSrc) );
     
     v3 vX = V3X;
     v3 vY = V3Y;
@@ -1251,8 +1273,8 @@ M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
         vY = -V3Y;
     else
     {
-        vX = Normalized( Cross( vUpN, vZ ) );
-        vY = Normalized( Cross( vZ, vX ) );
+        vX = NormalizedFast( Cross( vUpN, vZ ) );
+        vY = NormalizedFast( Cross( vZ, vX ) );
     }
 
     m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
@@ -1262,8 +1284,8 @@ M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 inline m4
 M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
 {
-    v3 vUpN = Normalized( vUp );
-    v3 vZ = Normalized( -vDir );
+    v3 vUpN = NormalizedFast( vUp );
+    v3 vZ = NormalizedFast( -vDir );
 
     v3 vX = V3X;
     v3 vY = V3Y;
@@ -1273,8 +1295,8 @@ M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
         vY = -V3Y;
     else
     {
-        vX = Normalized( Cross( vUpN, vZ ) );
-        vY = Normalized( Cross( vZ, vX ) );
+        vX = NormalizedFast( Cross( vUpN, vZ ) );
+        vY = NormalizedFast( Cross( vZ, vX ) );
     }
 
     m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
@@ -1551,7 +1573,7 @@ Normalize( qn& q )
 inline qn
 Qn( const v3& vAxis, f32 angleRads )
 {
-    v3 vAxisN = Normalized( vAxis );
+    v3 vAxisN = NormalizedFast( vAxis );
 
     f32 halfAngleRads = angleRads * 0.5f;
     f32 sinTheta = Sin( halfAngleRads );
@@ -1789,7 +1811,7 @@ Tri( const v3& v0, const v3& v1, const v3& v2, bool findNormal = false )
     tri result = { v0, v1, v2 };
 
     if( findNormal )
-        result.n = Normalized( Cross( v1 - v0, v2 - v0 ) );
+        result.n = NormalizedFast( Cross( v1 - v0, v2 - v0 ) );
 
     return result;
 }
@@ -2007,14 +2029,14 @@ Intersects( const ray& r, tri& t, v3* pI = nullptr, f32 absoluteEpsilon = 0 )
     v3 v = t.v2 - t.v0;
 
     if( t.n == V3Zero )
-        t.n = Normalized( Cross( u, v ) );
+        t.n = NormalizedFast( Cross( u, v ) );
     ASSERT( !AlmostEqual( t.n, V3Zero ) );
 
     f32 denom = Dot( t.n, r.dir );
     if( AlmostEqual( denom, 0 ) )
     {
         // Check if ray is coplanar
-        if( AlmostEqual( Distance( r.p, t.v0 ), 0 ) )
+        if( AlmostEqual( DistanceFast( r.p, t.v0 ), 0 ) )
         {
             if( pI )
                 *pI = V3Undefined;

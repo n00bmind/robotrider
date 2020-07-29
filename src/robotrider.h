@@ -84,4 +84,9 @@ struct TransientState
 
 };
 
+
+#if !RELEASE
+extern bool* DEBUGglobalQuit;
+#endif
+
 #endif /* __ROBOTRIDER_H__ */

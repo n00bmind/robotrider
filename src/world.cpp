@@ -934,6 +934,8 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
 
     EndTemporaryMemory( tmpMemory );
 
+    *DEBUGglobalQuit = true;
+
 #else
     {
         TIMED_BLOCK;

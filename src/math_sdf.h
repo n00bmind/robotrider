@@ -53,7 +53,8 @@ inline f32 SDFOnion( f32 d, f32 thickness )
 inline f32 SDFBox( v3 const& p, v3 const& hdim, f32 r = 0.f )
 {
     const v3 d = Abs( p ) - hdim;
-    return Length( { Max( d.x, 0.f ), Max( d.y, 0.f) , Max( d.z, 0.f ) } )
+    // NOTE In quick tests the fast version doesn't seem to be faster at all for scalar code, and in fact it seems always a bit slower
+    return LengthSlow( { Max( d.x, 0.f ), Max( d.y, 0.f) , Max( d.z, 0.f ) } )
         + Min( Max( d.x, Max( d.y, d.z ) ), 0.f )
         - r;
 }
@@ -71,7 +72,7 @@ inline f32 SDFTorus( v3 const& p, f32 r, f32 t )
 
 inline f32 SDFSphere( v3 const& p, f32 r )
 {
-    return Length( p ) - r;
+    return LengthFast( p ) - r;
 }
 
 inline f32 SDFHollowCube( v3 const& p )

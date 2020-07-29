@@ -1988,6 +1988,7 @@ main( int argC, char **argV )
     GetSystemInfo( &systemInfo );
 
     // Init global platform
+    globalPlatform = {};
     globalPlatform.Log = Win32Log;
     globalPlatform.DEBUGReadEntireFile = DEBUGWin32ReadEntireFile;
     globalPlatform.DEBUGFreeFileMemory = DEBUGWin32FreeFileMemory;
@@ -2333,6 +2334,9 @@ main( int argC, char **argV )
                         globalPlatformState.gameCode.UpdateAndRender( &gameMemory, newInput, &renderCommands, &audioBuffer );
 
 #if !RELEASE
+                        if( globalPlatform.DEBUGquit )
+                            globalRunning = false;
+
                         debugFrameInfo.gameUpdatedCycles = Rdtsc() - lastCycleCounter;
 #endif
 
@@ -2434,9 +2438,6 @@ main( int argC, char **argV )
     // FIXME This is causing a hang. Investigate!
     //Win32CompleteAllJobs( globalPlatform.hiPriorityQueue );
 
-    LOG( "\n\nFPS: %.1f imm. / %.1f avg.",
-         ImGui::GetIO().Framerate, (f32)runningFrameCounter / totalElapsedSeconds );
-
 #if !RELEASE
     DebugState* debugState = (DebugState*)gameMemory.debugStorage;
 
@@ -2446,10 +2447,11 @@ main( int argC, char **argV )
         DebugCounterLog &log = debugState->counterLogs[i];
         if( log.totalHits > 0 )
         {
-            LOG( "%s\t%llu tc  %u h  %llu tc/h",
+            LOG( "%s\t%0.3f ms. %u h  %llu tc %llu tc/h",
                  log.name,
-                 log.totalCycles,
+                 log.totalCycles / debugState->avgCyclesPerMillisecond,
                  log.totalHits,
+                 log.totalCycles,
                  log.totalCycles / log.totalHits );
         }
     }

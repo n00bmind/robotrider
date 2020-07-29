@@ -77,6 +77,9 @@ PlatformAPI globalPlatform;
 internal GameConsole *gameConsole;
 // TODO Remove
 internal MemoryArena* auxArena;
+#if !RELEASE
+bool* DEBUGglobalQuit;
+#endif
 
 
 // FIXME Put these in some kind of more general pool (similar to the MeshPool)
@@ -128,6 +131,9 @@ LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     globalPlatform = *memory->platformAPI;
+#if !RELEASE
+    DEBUGglobalQuit = &memory->platformAPI->DEBUGquit;
+#endif
 
     TIMED_FUNC;
 

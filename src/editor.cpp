@@ -99,7 +99,7 @@ TickMeshSamplerTest( EditorState* state, MeshPool* meshPoolArray, MemoryArena* e
     if( !state->tests.resampling.testIsoSurfaceMesh ) //|| input.gameCodeReloaded )
     {
         state->tests.resampling.displayedLayer = (state->tests.resampling.displayedLayer + 1) % state->tests.resampling.samplingCache.cellsPerAxis.x;
-        state->tests.resampling.drawingDistance = Distance( GetTranslation( state->tests.resampling.sampledMesh.mTransform ), state->cachedCameraWorldP );
+        state->tests.resampling.drawingDistance = DistanceFast( GetTranslation( state->tests.resampling.sampledMesh.mTransform ), state->cachedCameraWorldP );
         state->tests.resampling.displayedLayer = 172;
 
         if( state->tests.resampling.testIsoSurfaceMesh )

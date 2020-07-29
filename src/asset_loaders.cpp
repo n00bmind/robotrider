@@ -346,7 +346,7 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
             v3 n;
             int matches = line.Scan( "%f %f %f", &n.x, &n.y, &n.z );
             ASSERT( matches == 3 );
-            Normalize( n );
+            NormalizeFast( n );
             normals.Push( n );
         }
         else if( firstWord.IsEqual( "f" ) )

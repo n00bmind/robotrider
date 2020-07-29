@@ -1110,7 +1110,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
 
                             ASSERT( edgeP != V3Undefined );
                             if( pointCount )
-                                ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f * VoxelSizeMeters );
+                                ASSERT( DistanceFast( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f * VoxelSizeMeters );
 
                             // Find normal vector by sampling near the intersection point we found
                             p.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };
@@ -1129,7 +1129,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                             f32 zNSample = sampleFunc( p, clusterData );
 
                             v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
-                            Normalize( normal );
+                            NormalizeFast( normal );
                             edgeNormals[pointCount] = normal;
                             if( !atOuterEdge )
                                 cellData( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
@@ -1143,7 +1143,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                             edgeNormals[pointCount] = cellData( neighbourCoords ).edgeCrossingsN[locator.storeIndex];
 
                             if( pointCount )
-                                ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f * VoxelSizeMeters );
+                                ASSERT( DistanceFast( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f * VoxelSizeMeters );
                         }
 
                         edges[pointCount] = { indexA, indexB };
@@ -1228,10 +1228,12 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                     //ASSERT( Contains( cellBounds, cellVertex ) );
                 }
 
+                //ASSERT( !(isnan( cellVertex.x ) || isnan( cellVertex.y ) || isnan( cellVertex.z )) );
+
                 v3 avgNormal = V3Zero;
                 for( int n = 0; n < pointCount; ++n )
                     avgNormal += edgeNormals[n];
-                Normalize( avgNormal );
+                NormalizeFast( avgNormal );
                 //cellData( i, j, k ).n = avgNormal;
                 // TODO Generalize this into a 'tagger' function callback?
                 p.relativeP = cellVertex + avgNormal * 0.1f;
@@ -1903,12 +1905,12 @@ FQSFlipped( const FQSMesh& mesh, const Array<FQSVertexRef>& refs,
             continue;
         }
 
-        v3 d1 = Normalized( mesh.vertices[id1].p - p );
-        v3 d2 = Normalized( mesh.vertices[id2].p - p );
+        v3 d1 = NormalizedFast( mesh.vertices[id1].p - p );
+        v3 d2 = NormalizedFast( mesh.vertices[id2].p - p );
         if( Abs( Dot( d1, d2 ) ) > 0.999f )
             return true;
 
-        v3 n = Normalized( Cross( d1, d2 ) );
+        v3 n = NormalizedFast( Cross( d1, d2 ) );
         (*deleted)[k] = false;
 
         if( Dot( n, tri.n ) < 0.2f )
@@ -1991,7 +1993,7 @@ void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, MemoryArena* tmpAre
                         mesh->vertices[tri.v[2]].p
                     };
 
-                    v3 n = Normalized( Cross( p[1] - p[0], p[2] - p[0] ) );
+                    v3 n = NormalizedFast( Cross( p[1] - p[0], p[2] - p[0] ) );
                     tri.n = n;
 
                     for( int j = 0; j < 3; ++j )

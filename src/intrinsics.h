@@ -34,6 +34,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "common.h"
 #endif
 
+bool AlmostZero( f32 v, f32 absoluteEpsilon = 1e-6f );
+
 
 // TODO Convert all of these to the most platform-efficient versions
 // for all supported compilers & platforms
@@ -106,20 +108,33 @@ Sqr( f32 value )
 INLINE f32
 Sqrt( f32 value )
 {
-    f32 result = sqrtf( value );
+    f32 result = _mm_cvtss_f32( _mm_sqrt_ss( _mm_set_ps1( value ) ) );
     return result;
 }
 
 // Approximate 1.f / sqrt(x)
+// NOTE For doing 4 at a time for SIMD code see https://stackoverflow.com/questions/14752399/newton-raphson-with-sse2-can-someone-explain-me-these-3-lines
 INLINE f32
-RcpSqrt( f32 value )
+RcpSqrtFast( f32 value )
 {
     f32 result = _mm_cvtss_f32( _mm_rsqrt_ss( _mm_set_ps1( value ) ) );
 #if 1
-    // Newton-Rhapson iteration
-    // Allegedly increases precision quite a bit without slowing it much
+    // A single Newton-Rhapson iteration. Increases precision quite a bit
     result = result * (1.5f - value * 0.5f * result * result);
 #endif
+    return result;
+}
+
+// Approximate sqrt(x) (which equals x / sqrt(x))
+// NOTE In quick tests this doesn't seem to be faster at all for scalar code, and in fact it seems always a bit slower
+INLINE f32
+SqrtFast( f32 value )
+{
+    f32 result = 0.f;
+
+    if( value != 0.f )
+        result = value * RcpSqrtFast( value );
+
     return result;
 }
 
@@ -230,6 +245,12 @@ INLINE f64
 Log( f64 value )
 {
     return log( value );
+}
+
+INLINE i32
+Abs( i32 value )
+{
+    return value >= 0 ? value : -value;
 }
 
 INLINE f32
