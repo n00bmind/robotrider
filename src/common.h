@@ -91,111 +91,110 @@ typedef size_t sz;
 #define F32MAX FLT_MAX
 #define F32MIN FLT_MIN
 #define F32INF INFINITY
-#define F32NAN NAN
 #define F64MAX DBL_MAX
 #define F64MIN DBL_MIN
 #define F64INF (f64)INFINITY
 
 
-inline i32
+INLINE i32
 I32( sz value )
 {
     ASSERT( value <= I32MAX );
     return (i32)value;
 }
 
-inline i32
+INLINE i32
 I32( ptrdiff_t value )
 {
     ASSERT( I32MIN <= value && value <= I32MAX );
     return (i32)value;
 }
 
-inline i32
+INLINE i32
 I32( f32 value )
 {
     ASSERT( I32MIN <= value && value <= I32MAX );
     return (i32)value;
 }
 
-inline i32
+INLINE i32
 I32( f64 value )
 {
     ASSERT( I32MIN <= value && value <= I32MAX );
     return (i32)value;
 }
 
-inline i32
+INLINE i32
 I32( u32 value )
 {
     ASSERT( value <= (u32)I32MAX );
     return (i32)value;
 }
 
-inline i64
+INLINE i64
 I64( sz value )
 {
     ASSERT( value <= (sz)I64MAX );
     return (i64)value;
 }
 
-inline u32
+INLINE u32
 U32( i32 value )
 {
     ASSERT( value >= 0 );
     return (u32)value;
 }
 
-inline u32
+INLINE u32
 U32( u64 value )
 {
     ASSERT( value <= U32MAX );
     return (u32)value;
 }
 
-inline u32
+INLINE u32
 U32( f64 value )
 {
     ASSERT( 0 <= value && value <= U32MAX );
     return (u32)value;
 }
 
-inline u16
+INLINE u16
 U16( i64 value )
 {
     ASSERT( 0 <= value && value <= U16MAX );
     return (u16)value;
 }
 
-inline u16
+INLINE u16
 U16( f64 value )
 {
     ASSERT( 0 <= value && value <= U16MAX );
     return (u16)value;
 }
 
-inline u8
+INLINE u8
 U8( u32 value )
 {
     ASSERT( value <= U8MAX );
     return (u8)value;
 }
 
-inline u8
+INLINE u8
 U8( i32 value )
 {
     ASSERT( value >= 0 && value <= U8MAX );
     return (u8)value;
 }
 
-inline sz
+INLINE sz
 Sz( i32 value )
 {
     ASSERT( value >= 0 );
     return (sz)value;
 }
 
-inline sz
+INLINE sz
 Sz( i64 value )
 {
     ASSERT( value >= 0 );

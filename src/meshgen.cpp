@@ -888,6 +888,11 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
         i32 vertexIndex;
     };
 
+    struct MergingData
+    {
+        i32 count;
+    };
+
     // TODO Pack these LUTs so they use less cache
     // ALSO align properly!
 
@@ -935,6 +940,9 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
     v3i cellsPerAxis = V3iRound( volumeSizeMeters / cellSizeMeters ) + V3iOne;
     Grid3D<CellData> cellData( tmpArena, cellsPerAxis, Temporary() );
 
+    v3i groupsPerAxis = V3iRound( volumeSizeMeters / cellSizeMeters / 2.f ) + V3iOne;
+    Grid3D<MergingData> mergeData( tmpArena, groupsPerAxis, Temporary() );
+
     v3 halfSizeMeters = volumeSizeMeters / 2;
     v3 minGridP = worldP.relativeP - halfSizeMeters;
     WorldCoords p = worldP;
@@ -962,12 +970,21 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
         {
             for( int i = 0; i < cellsPerAxis.x; ++i )
             {
-                v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
                 clusterData->zeroThickness = thicknessSetting;
 
-                //f32 boundsTolerance = 0.5f;
-                v3 cellBoundsMin = cellP - V3( cellSizeMeters );
+#if 1
+                // Cell at { 0, 0, 0 } gets the sample at world position minGridP + { 1, 1, 1 } * cellSize
+                v3 minCellP = minGridP + V3( i, j, k ) * cellSizeMeters;
+                v3 cellBoundsMin = minCellP;
+                v3 cellBoundsMax = minCellP + V3( cellSizeMeters );
+                v3 cellP = cellBoundsMax;
+#else
+                // Cell at { 0, 0, 0 } gets the sample at world position minGridP
+                // (so it can generate a minimizing vertex which is outside the sampled bounds)
+                v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
                 v3 cellBoundsMax = cellP;
+                v3 cellBoundsMin = cellP - V3( cellSizeMeters );
+#endif
 
                 u32 caseMask = 0;
                 f32 cornerSamples[8] = {};
@@ -979,11 +996,10 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                     cornerSamples[s] = F32MAX;
                     v3i cornerOffset = dcCornerOffsets[s];
 
-                    f32 sample = F32NAN;
+                    f32 sample = F32INF;
                     if( s == 7 )
                     {
                         // Sample our own
-                        // Cell at { 0, 0, 0 } (extra border) gets the sample at world position minGridP + { 0, 0, 0 }
                         // Account for -0 by just adding +0 to the value
                         p.relativeP = cellP;
                         sample = sampleFunc( p, clusterData ) + 0.f;
@@ -991,7 +1007,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
 
                         // TODO Use instancing and just draw three crossing axis lines at each point to make this viable
 #if 0 //!RELEASE
-                        if( debugCluster ) //&& (i == 0 || j == 0 || k == 0 || i == cellsPerAxis.x-1 || j == cellsPerAxis.y-1 || k == cellsPerAxis.z-1) )
+                        if( debugCluster && (i == 0 || j == 0 || k == 0 || i == cellsPerAxis.x-1 || j == cellsPerAxis.y-1 || k == cellsPerAxis.z-1) )
                         {
                             v4 color = sample >= 0.f ? outColor : inColor;
                             color.a = Clamp01( 1.f - Abs( sample ) / 5.f );
@@ -1002,16 +1018,16 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                     }
                     else
                     {
-                        v3i cellOffset = V3i( i, j, k ) + dcCornerOffsets[s];
-                        // For corners outside the extra border itself, sample the SDF anyway
+                        v3i cellGridP = V3i( i, j, k ) + dcCornerOffsets[s];
+                        // For corners belonging to cells outside the grid, sample the SDF anyway
                         // so we at least have real values to determine crossings
-                        if( cellOffset.x < 0 || cellOffset.y < 0 || cellOffset.z < 0 )
+                        if( cellGridP.x < 0 || cellGridP.y < 0 || cellGridP.z < 0 )
                         {
-                            p.relativeP = minGridP + V3( cellOffset ) * cellSizeMeters;
+                            p.relativeP = cellP + V3( dcCornerOffsets[s] ) * cellSizeMeters;
                             sample = sampleFunc( p, clusterData ) + 0.f;
                         }
                         else
-                            sample = cellData( cellOffset ).sampledValue;
+                            sample = cellData( cellGridP ).sampledValue;
                     }
 
                     if( Sign( sample ) )
@@ -1023,7 +1039,6 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                 if( caseMask == 0u || caseMask == 0xFFu )
                     continue;
 
-                v2i edges[12];
                 v3 edgePoints[12];
                 v3 edgeNormals[12];
                 int pointCount = 0;
@@ -1054,11 +1069,11 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                             v3 edgeP = V3Undefined;
 
                             static const f32 epsilon = 0.01f;
-                            if( sB == F32MAX || AlmostEqual( sA, 0.f, epsilon ) )
-                                edgeP = pA;
-                            else if( sA == F32MAX || AlmostEqual( sB, 0.f, epsilon ) )
-                                edgeP = pB;
-                            else
+                            //if( sB == F32MAX || AlmostEqual( sA, 0.f, epsilon ) )
+                                //edgeP = pA;
+                            //else if( sA == F32MAX || AlmostEqual( sB, 0.f, epsilon ) )
+                                //edgeP = pB;
+                            //else
                             {
                                 if( settings.approximateEdgeIntersection )
                                 {
@@ -1104,6 +1119,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                                     ASSERT( searchSteps > 0 );
                                 }
                             }
+
                             edgePoints[pointCount] = edgeP;
                             if( !atOuterEdge )
                                 cellData( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
@@ -1146,7 +1162,6 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                                 ASSERT( DistanceFast( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f * VoxelSizeMeters );
                         }
 
-                        edges[pointCount] = { indexA, indexB };
                         pointCount++;
                     }
                 }
@@ -1186,6 +1201,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                         NOT_IMPLEMENTED;
                 }
 
+                // FIXME We're creating weird clamped vertices when compiling on Develop but not in Debug!?
                 if( settings.clampCellPoints )
                 {
                     // TODO Ideally we should do the solve with constrains as explained in https://www.mattkeeter.com/projects/qef/
@@ -1225,10 +1241,12 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                 }
                 else
                 {
-                    //ASSERT( Contains( cellBounds, cellVertex ) );
+                    f32 boundsTolerance = 0.1f;
+                    ASSERT( ContainsOrTouches( AABBMinMax( cellBoundsMin - V3One * boundsTolerance,
+                                                           cellBoundsMax + V3One * boundsTolerance ), cellVertex ) );
                 }
 
-                //ASSERT( !(isnan( cellVertex.x ) || isnan( cellVertex.y ) || isnan( cellVertex.z )) );
+                //ASSERT( !IsNan( cellVertex ) );
 
                 v3 avgNormal = V3Zero;
                 for( int n = 0; n < pointCount; ++n )
@@ -1247,11 +1265,13 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                 TexturedVertex v = {};
                 v.p = cellVertex;
                 v.n = avgNormal;
-                //v.color = clamped ? Pack01ToRGBA( 1, 0, 0, 1 ) : Pack01ToRGBA( 1, 1, 1, 1 );
-                v.color = inside ? Pack01ToRGBA( 0, 1, 0, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
+                v.color = clamped ? Pack01ToRGBA( 1, 0, 0, 1 ) : Pack01ToRGBA( 1, 1, 1, 1 );
+                //v.color = inside ? Pack01ToRGBA( 0, 1, 0, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
                 v.tag = inside ? VertexTag::Inner : VertexTag::Outer;
                 vertices->Push( v );
                 cellData( i, j, k ).vertexIndex = vertexIndex;
+
+                mergeData( i >> 1, j >> 1, k >> 1 ).count++;
 
 
                 // Now we look 'backwards' and create at most 3 quads corresponding to the edges that include the 'min' corner instead,
@@ -1374,7 +1394,7 @@ STRUCT_ENUM(ContouringTechnique, VALUES)
 // FIXME FIX BUGS
 // - Disappearing vertices / tris
 // - Crazy elongated tris popping up
-// - Tris changing winding direction due to extreme vertex movement
+// - Tris changing winding direction due to extreme vertex displacement
 void FastDecimate( BucketArray<TexturedVertex> const& vertices, BucketArray<i32> const& indices, v3 const& volumeCenterP,
                    v3 const& volumeSizeMeters, f32 cellSizeMeters, VertexTag filterTag, MemoryArena* arena, MemoryArena* tmpArena,
                    Array<TexturedVertex>* outVertices, Array<i32>* outIndices )

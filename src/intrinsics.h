@@ -447,4 +447,10 @@ Rdtsc()
     return __rdtsc();
 }
 
+INLINE bool
+IsNan( f32 value )
+{
+    return value != value;
+}
+
 #endif /* __INTRINSICS_H__ */

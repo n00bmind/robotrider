@@ -312,7 +312,7 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
 // TODO Visualize frustum culling in the editor (from outside the player camera) to assess how well it works
 void RenderMeshCulled( const Mesh& mesh, RenderCommands *commands )
 {
-    if( IsInFrustum( mesh.bounds, commands->camera.cachedFrustumPlanes ) )
+    //if( IsInFrustum( mesh.bounds, commands->camera.cachedFrustumPlanes ) )
         RenderMesh( mesh, commands );
 }
 

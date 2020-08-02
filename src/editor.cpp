@@ -463,7 +463,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
         Clamp( &editorState->translationSpeedStep, 0, 2 );
 
         f32 camMovementSpeed = Pow( 10, (f32)editorState->translationSpeedStep );
-        f32 camRotationSpeed = 1.f;
+        f32 camRotationSpeed = 0.05f;
 
         v3 camTranslationDelta = {};
         if( editorInput.camLeft )
@@ -489,15 +489,15 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
 
         m4& cameraFromWorld = editorState->camera.cameraFromWorld;
-        m4 cameraToWorld = Transposed( cameraFromWorld );
+        m4 worldFromCamera = Transposed( cameraFromWorld );
 
         // Find camera position in the world
-        v3 cameraWorldP = -(cameraToWorld * GetTranslation( cameraFromWorld ));
+        v3 cameraWorldP = -(worldFromCamera * GetTranslation( cameraFromWorld ));
 
         if( editorInput.camLookAt )
         {
             // Rotate around camera X axis
-            m4 localXRotation = cameraToWorld * M4XRotation( camPitchDelta );
+            m4 localXRotation = worldFromCamera * M4XRotation( camPitchDelta );
             cameraFromWorld = Transposed( localXRotation );
 
             // Rotate around world Z axis
@@ -510,7 +510,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
             {
                 v3 cameraTargetP = V3Zero; // For now
                 cameraFromWorld = M4CameraLookAt( cameraWorldP, cameraTargetP, V3Up );
-                cameraToWorld = Transposed( cameraFromWorld );
+                worldFromCamera = Transposed( cameraFromWorld );
             }
 
             // Orbit around world axes
@@ -527,6 +527,8 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
 
         editorState->cachedCameraWorldP = cameraWorldP;
         editorState->wasOrbiting = editorInput.camOrbit;
+
+        RenderCamera( cameraFromWorld, renderCommands );
     }
 
     // Menu bar

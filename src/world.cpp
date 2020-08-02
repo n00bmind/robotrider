@@ -250,7 +250,6 @@ INLINE f32 SDFHall( WorldCoords const& worldP, Hall const& hall )
 
 ISO_SURFACE_FUNC(RoomSurfaceFunc)
 {
-#if 1
     TIMED_FUNC_WITH_TOTALS;
 
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
@@ -277,7 +276,6 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
     }
 
     return result;
-#endif
 }
 
 ISO_SURFACE_FUNC(HallSurfaceFunc)
@@ -285,9 +283,13 @@ ISO_SURFACE_FUNC(HallSurfaceFunc)
     TIMED_FUNC_WITH_TOTALS;
 
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
+#if 0
     Hall const& hall = clusterData->halls[clusterData->sampledVolumeIndex];
 
     f32 result = SDFHall( worldP, hall );
+#else
+    f32 result = F32MAX;
+#endif
 
 #if 1
     // Union with any halls which intersect our volume
@@ -611,19 +613,9 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     v3i clusterRelativeP = clusterP - world->originClusterP;
     result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
 
-#if 0
-    {
-        TIMED_SCOPE_WITH_TOTALS( "Simplify rooms" );
-
-        // Simplify mesh
-        FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tmpArena );
-        FastQuadricSimplify( &fqsMesh, 1000, tmpArena );
-        result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
-    }
-#else
-
-#if 0
+#if 1
     result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+    meshStore->Push( result );
 #else
     Mesh innerMesh = result;
     FastDecimate( tmpVertices, tmpIndices, room.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::Inner,
@@ -634,8 +626,6 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     FastDecimate( tmpVertices, tmpIndices, room.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::Outer,
                   arena, tmpArena, &outerMesh.vertices, &outerMesh.indices );
     meshStore->Push( outerMesh );
-#endif
-
 #endif
 
 
@@ -656,12 +646,13 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls };
     roomSamplingData.sampledVolumeIndex = hallIndex;
     roomSamplingData.zeroThickness = false;
-    if( hallIndex == 0 )
+    if( hallIndex % 2 == 0 )
         roomSamplingData.debugCluster = cluster;
     v3 sampledVolumeSize = hall.bounds.halfSize * 2.f;
 
     DCSettings settings;
     settings.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
+    settings.clampCellPoints = true;
     settings.sigmaN = 0.02f;
     // FIXME Keep this as separate in the tests UI but get rid of it for generation
     settings.sigmaNDouble = 0.01f;
@@ -680,19 +671,9 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     v3i clusterRelativeP = clusterP - world->originClusterP;
     result.simClusterIndex = CalcSimClusterIndex( clusterRelativeP );
 
-#if 0
-    {
-        TIMED_SCOPE_WITH_TOTALS( "Simplify halls" );
-
-        // Simplify mesh
-        FQSMesh fqsMesh = CreateFQSMesh( tmpVertices, tmpIndices, tmpArena );
-        FastQuadricSimplify( &fqsMesh, 1000, tmpArena );
-        result = CreateMeshFromFQSBuffers( fqsMesh.vertices, fqsMesh.triangles, arena );
-    }
-#else
-
-#if 0
-    //result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+#if 1
+    result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
+    meshStore->Push( result );
 #else
     Mesh innerMesh = result;
     FastDecimate( tmpVertices, tmpIndices, hall.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::Inner,
@@ -703,8 +684,6 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     FastDecimate( tmpVertices, tmpIndices, hall.bounds.center, sampledVolumeSize, VoxelSizeMeters * 2.f, VertexTag::Outer,
                   arena, tmpArena, &outerMesh.vertices, &outerMesh.indices );
     meshStore->Push( outerMesh );
-#endif
-
 #endif
 }
 
@@ -912,12 +891,12 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
 
     // FIXME We still have some Z-fighting due to overlapping at the contact points
     // NOTE Mesh simplification seems to make it worse!?
-    for( int i = 0; i < cluster->rooms.count; ++i )
-    {
-        TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tmpArena );
-        CreateRoomMesh( i, cluster, clusterP, world, arena, tmpArena, &cluster->meshStore );
-        EndTemporaryMemory( tmpMeshMemory );
-    }
+    //for( int i = 0; i < cluster->rooms.count; ++i )
+    //{
+        //TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tmpArena );
+        //CreateRoomMesh( i, cluster, clusterP, world, arena, tmpArena, &cluster->meshStore );
+        //EndTemporaryMemory( tmpMeshMemory );
+    //}
     for( int i = 0; i < cluster->halls.count; ++i )
     {
         TemporaryMemory tmpMeshMemory = BeginTemporaryMemory( tmpArena );
@@ -934,7 +913,7 @@ LoadEntitiesInCluster( const v3i& clusterP, World* world, MemoryArena* arena, Me
 
     EndTemporaryMemory( tmpMemory );
 
-    *DEBUGglobalQuit = true;
+    //*DEBUGglobalQuit = true;
 
 #else
     {

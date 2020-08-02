@@ -485,7 +485,7 @@ union v3
 
 const v3 V3Zero = { 0.0f, 0.0f, 0.0f };
 const v3 V3One = { 1.f, 1.f, 1.f };
-const v3 V3Undefined = { F32NAN, F32NAN, F32NAN };
+const v3 V3Undefined = { -F32INF, F32INF, -F32INF };
 const v3 V3Inf = { F32INF, F32INF, F32INF };
 // Canonical world orientations
 // We define our right-handed game world as having the positive Z axis pointing up
@@ -805,6 +805,13 @@ Lerp( v3 const& a, v3 const& b, f32 t )
 {
     return a + (b - a) * t;
 }
+
+inline bool
+IsNan( v3 const& v )
+{
+    return IsNan( v.x ) || IsNan( v.y ) || IsNan( v.z );
+}
+
 
 // Vector 4
 
