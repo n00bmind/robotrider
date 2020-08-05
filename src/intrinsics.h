@@ -453,4 +453,38 @@ IsNan( f32 value )
     return value != value;
 }
 
+#define FLUSH_TO_ZERO_BIT (1 << 15)
+#define PRECISION_MASK (1 << 12)
+#define UNDERFLOW_MASK (1 << 11)
+#define OVERFLOW_MASK (1 << 10)
+#define DBZ_MASK (1 << 9)
+#define DENORMAL_OP_MASK (1 << 8)
+#define INVALID_OP_MASK (1 << 7)
+#define DENORMALS_ARE_ZERO (1 << 6)
+
+INLINE void
+SetDefaultFPBehaviour( u32* savedControlBits, bool enableExceptions = false )
+{
+    u32 newBits = FLUSH_TO_ZERO_BIT | DENORMALS_ARE_ZERO
+        | PRECISION_MASK | UNDERFLOW_MASK | DENORMAL_OP_MASK;
+
+    u32 newMask = 0;
+    if( enableExceptions )
+        newMask = OVERFLOW_MASK | DBZ_MASK | INVALID_OP_MASK;
+    else
+        newBits |= OVERFLOW_MASK | DBZ_MASK | INVALID_OP_MASK;
+
+    *savedControlBits = _mm_getcsr();
+    u32 newControlBits = (*savedControlBits & ~newMask) | newBits;
+    _mm_setcsr( newControlBits );
+}
+
+INLINE void
+RestoreFPBehaviour( u32 oldControlBits )
+{
+    u32 exceptionFlagsMask = 31;
+    // Assume we can restore the olds values and kill all flags in the same op
+    _mm_setcsr( oldControlBits & ~exceptionFlagsMask );
+}
+
 #endif /* __INTRINSICS_H__ */

@@ -44,6 +44,7 @@ platform_win = Platform(
             '-wd4200',          # Zero-sized array in struct
             '-wd4201',          # Nameless struct/union
             '-wd4312',          # Conversion from int to pointer
+            '-wd4426',          # Optimizations changed 
             '-wd4505',          # Unreferenced function
             '-wd4514',          # Unreferenced inline function removed
             '-wd4623',          # Default constructor implicitly deleted
@@ -94,7 +95,7 @@ config_win_develop = Config(
         name           = 'Develop',
         platform       = platform_win,
         cmdline_opts   = ['dev', 'develop'],
-        compiler_flags = ['-DDEVELOP=1', '-Z7', '-O2'],
+        compiler_flags = ['-DDEVELOP=1', '-Z7', '-O2',],
         linker_flags   = ['/debug:full']
 )
 config_win_release = Config(

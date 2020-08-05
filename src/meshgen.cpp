@@ -500,6 +500,7 @@ v3 QEFMinimizePlanesClassic( v3 const* positions, v3 const* normals, int count, 
 // (inlined everything, replaced with plain types, reduced time taken by 50%! Zero cost abstractions right!?)
 // TODO Estimate error using equation 1 in https://www.cse.wustl.edu/~taoju/research/dualContour.pdf
 // TODO SIMD
+//#pragma optimize( "g", off )
 v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int count, float stdDevP, float stdDevN )
 {
 	float A00 = 0.f;
@@ -572,6 +573,7 @@ v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int coun
 	v3 result = { nom0 * denom, nom1 * denom, nom2 * denom };
 	return result;
 }
+#pragma optimize( "", on )
 
 // TODO Estimate error
 // TODO SIMD
@@ -867,6 +869,260 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cell
 }
 
 
+struct EdgeLocator
+{
+    i32 cornerA;
+    i32 cornerB;
+    i32 neighbourIndex;
+    i32 storeIndex;
+};
+
+struct CellData
+{
+    // NOTE If we clamped the final SDF field, say -1 to 1, we could probably get away with much smaller fixed-point numbers
+    // 0, 1, 2 correspond to the edges aligned to X, Y, Z in each cell
+    v3 edgeCrossingsP[3];
+    v3 edgeCrossingsN[3];
+    // v3 n; // NOTE Unused for now
+    // Only one sample per cell (the 'max' corner of the aabb)
+    f32 sampledValue;
+    i32 vertexIndex;
+};
+
+
+
+internal void ComputeEdgeCrossings( int i, int j, int k, v3 const& cellP, f32 cellSizeMeters, WorldCoords worldP, IsoSurfaceFunc* sampleFunc,
+                                    ClusterSamplingData* clusterData, v3 edgePoints[12], v3 edgeNormals[12],
+                                    int* pointCount, const v3i dcCornerOffsets[8], const EdgeLocator dcEdgeLocators[12],
+                                    f32 cornerSamples[8], Grid3D<CellData> *cellData, bool approximateEdgeIntersection )
+{
+    static const f32 delta = 0.01f;
+    static const f32 deltaInv = 1.f / (2.f * delta);
+
+    for( int e = 0; e < 12; ++e )
+    {
+        EdgeLocator const& locator = dcEdgeLocators[e];
+
+        int indexA = locator.cornerA;
+        int indexB = locator.cornerB;
+        f32 sA = cornerSamples[ indexA ];
+        f32 sB = cornerSamples[ indexB ];
+
+        // Is there a crossing at this edge
+        if( Sign( sA ) != Sign( sB ) )
+        {
+            int neighbourIndex = locator.neighbourIndex;
+            v3i neighbourCoords = V3i( i, j, k ) + dcCornerOffsets[neighbourIndex];
+            bool atOuterEdge = neighbourCoords.z < 0 || neighbourCoords.y < 0 || neighbourCoords.x < 0;
+
+            if( atOuterEdge || indexB == 7 || indexA == 7 )
+            {
+                // It's one of the edges stored in this cell, so find the intersection & normal
+                v3 pA = cellP + V3( dcCornerOffsets[indexA] ) * cellSizeMeters;
+                v3 pB = cellP + V3( dcCornerOffsets[indexB] ) * cellSizeMeters;
+                v3 edgeP = V3Undefined;
+
+                static const f32 epsilon = 0.01f;
+                //if( sB == F32MAX || AlmostEqual( sA, 0.f, epsilon ) )
+                    //edgeP = pA;
+                //else if( sA == F32MAX || AlmostEqual( sB, 0.f, epsilon ) )
+                    //edgeP = pB;
+                //else
+                {
+                    if( approximateEdgeIntersection )
+                    {
+                        // Just interpolate along the edge
+                        f32 t = sA / (sA - sB);
+                        Clamp01( t );
+                        edgeP = Lerp( pA, pB, t );
+                    }
+                    else
+                    {
+                        // Do a binary search along the edge
+                        static const int maxSearchSteps = 100;
+                        int searchSteps = maxSearchSteps;
+                        f32 edgeSample = 0.f;
+                        v3 lastP = V3Undefined;
+
+                        while( --searchSteps )
+                        {
+                            worldP.relativeP = (pA + pB) * 0.5f;
+                            if( worldP.relativeP == lastP )
+                            {
+                                // Float precision is limited
+                                edgeP = lastP;
+                                break;
+                            }
+                            lastP = worldP.relativeP;
+                                
+                            edgeSample = sampleFunc( worldP, clusterData );
+
+                            if( AlmostEqual( edgeSample, 0.f, epsilon ) )
+                            {
+                                edgeP = lastP;
+                                break;
+                            }
+                            else
+                            {
+                                if( Sign( edgeSample ) == Sign( sA ) )
+                                    pA = lastP;
+                                else
+                                    pB = lastP;
+                            }
+                        }
+                        ASSERT( searchSteps > 0 );
+                    }
+                }
+
+                edgePoints[*pointCount] = edgeP;
+                if( !atOuterEdge )
+                    (*cellData)( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
+
+                ASSERT( edgeP != V3Undefined );
+                if( *pointCount )
+                    ASSERT( DistanceFast( edgePoints[*pointCount-1], edgePoints[*pointCount] ) < 3.f * VoxelSizeMeters );
+
+                // Find normal vector by sampling near the intersection point we found
+                worldP.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };
+                f32 xPSample = sampleFunc( worldP, clusterData );
+                worldP.relativeP = { edgeP.x - delta, edgeP.y, edgeP.z };
+                f32 xNSample = sampleFunc( worldP, clusterData );
+
+                worldP.relativeP = { edgeP.x, edgeP.y + delta, edgeP.z };
+                f32 yPSample = sampleFunc( worldP, clusterData );
+                worldP.relativeP = { edgeP.x, edgeP.y - delta, edgeP.z };
+                f32 yNSample = sampleFunc( worldP, clusterData );
+
+                worldP.relativeP = { edgeP.x, edgeP.y, edgeP.z + delta };
+                f32 zPSample = sampleFunc( worldP, clusterData );
+                worldP.relativeP = { edgeP.x, edgeP.y, edgeP.z - delta };
+                f32 zNSample = sampleFunc( worldP, clusterData );
+
+                v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
+                NormalizeFast( normal );
+                edgeNormals[*pointCount] = normal;
+                if( !atOuterEdge )
+                    (*cellData)( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
+            }
+            else
+            {
+                // This has already been calculated and stored in a neighbour cell so go get it
+                ASSERT( neighbourIndex != 7 );
+
+                edgePoints[*pointCount] = (*cellData)( neighbourCoords ).edgeCrossingsP[locator.storeIndex];
+                edgeNormals[*pointCount] = (*cellData)( neighbourCoords ).edgeCrossingsN[locator.storeIndex];
+
+                if( *pointCount )
+                    ASSERT( DistanceFast( edgePoints[*pointCount-1], edgePoints[*pointCount] ) < 3.f * VoxelSizeMeters );
+            }
+
+            (*pointCount)++;
+        }
+    }
+
+}
+
+// FIXME Enabling this (which disables /Og -global optimizations-) causes some vertices that are clamped with full optimizations to be
+// generated correctly. Ofc it makes everything run twice as slow, too!
+// NOTE The clamping doesn't happen either if we specify /Os next to /O2 in the build script.
+// NOTE It seems hot reloading affects it, if we compile with this disabled (thus with errors), then enable the pragma and recompile live,
+// the errors don't go away. Yet, simply closing and restarting will make them disappear!
+
+// TODO Keep narrowing down!
+
+#pragma optimize( "g", off )
+
+internal void ComputeCellPointAndNormal( v3 edgePoints[12], v3 edgeNormals[12], int pointCount, DCSettings const& settings,
+                                         v3 const& cellBoundsMin, v3 const& cellBoundsMax, v3* cellVertex, v3* cellNormal, bool* clamped )
+{
+    switch( settings.cellPointsComputationMethod )
+    {
+        case DCComputeMethod::Average:
+        {
+            v3 massPoint = V3Zero;
+            for( int pIndex = 0; pIndex < pointCount; ++pIndex )
+                massPoint += edgePoints[pIndex];
+            massPoint /= (f32)pointCount;
+
+            *cellVertex = massPoint;
+
+            // TODO When merging cells in the octree, we still need to do a part of the QEF computation, as stated in "The Secret Sauce":
+            // "In addition to the data already stored for the mass point, we also store the dimension of the mass point"
+        } break;
+        case DCComputeMethod::QEFClassic:
+        {
+            *cellVertex = QEFMinimizePlanesClassic( edgePoints, edgeNormals, pointCount );
+        } break;
+        case DCComputeMethod::QEFProbabilistic:
+        {
+            *cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 1.f, settings.sigmaN );
+        } break;
+        case DCComputeMethod::QEFProbabilisticDouble:
+        {
+            *cellVertex = QEFMinimizePlanesProbabilistic64( edgePoints, edgeNormals, pointCount, 1.f, settings.sigmaNDouble );
+        } break;
+
+        default:
+        NOT_IMPLEMENTED;
+    }
+
+    // FIXME We're creating weird clamped vertices when compiling on Develop but not in Debug!?
+    if( settings.clampCellPoints )
+    {
+        // TODO Ideally we should do the solve with constrains as explained in https://www.mattkeeter.com/projects/qef/
+        // (also check https://github.com/BorisTheBrave/mc-dc/blob/a165b326849d8814fb03c963ad33a9faf6cc6dea/qef.py#L146)
+
+        //Clamp( cellVertex, cellBounds );
+        if( cellVertex->x < cellBoundsMin.x )
+        {
+            cellVertex->x = cellBoundsMin.x;
+            *clamped = true;
+        }
+        if( cellVertex->x > cellBoundsMax.x )
+        {
+            cellVertex->x = cellBoundsMax.x;
+            *clamped = true;
+        }
+        if( cellVertex->y < cellBoundsMin.y )
+        {
+            cellVertex->y = cellBoundsMin.y;
+            *clamped = true;
+        }
+        if( cellVertex->y > cellBoundsMax.y )
+        {
+            cellVertex->y = cellBoundsMax.y;
+            *clamped = true;
+        }
+        if( cellVertex->z < cellBoundsMin.z )
+        {
+            cellVertex->z = cellBoundsMin.z;
+            *clamped = true;
+        }
+        if( cellVertex->z > cellBoundsMax.z )
+        {
+            cellVertex->z = cellBoundsMax.z;
+            *clamped = true;
+        }
+    }
+    else
+    {
+        f32 boundsTolerance = 0.1f;
+        ASSERT( ContainsOrTouches( AABBMinMax( cellBoundsMin - V3One * boundsTolerance,
+                                               cellBoundsMax + V3One * boundsTolerance ), *cellVertex ) );
+    }
+
+    //ASSERT( !IsNan( cellVertex ) );
+
+    v3 avgNormal = V3Zero;
+    for( int n = 0; n < pointCount; ++n )
+        avgNormal += edgeNormals[n];
+    NormalizeFast( avgNormal );
+    *cellNormal = avgNormal;
+}
+
+// Reset optimizations to the configuration set in the build
+#pragma optimize( "", on )
+
 
 // TODO Clean up asserts
 // TODO Clean up asserts
@@ -876,18 +1132,6 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
           BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* arena, MemoryArena* tmpArena,
           DCSettings const& settings )
 {
-    struct CellData
-    {
-        // NOTE If we clamped the final SDF field, say -1 to 1, we could probably get away with much smaller fixed-point numbers
-        // 0, 1, 2 correspond to the edges aligned to X, Y, Z in each cell
-        v3 edgeCrossingsP[3];
-        v3 edgeCrossingsN[3];
-        // v3 n; // NOTE Unused for now
-        // Only one sample per cell (the 'max' corner of the aabb)
-        f32 sampledValue;
-        i32 vertexIndex;
-    };
-
     struct MergingData
     {
         i32 count;
@@ -907,14 +1151,6 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
         V3i(  0, -1,  0 ),
         V3i( -1,  0,  0 ),
         V3i(  0,  0,  0 ),
-    };
-
-    struct EdgeLocator
-    {
-        i32 cornerA;
-        i32 cornerB;
-        i32 neighbourIndex;
-        i32 storeIndex;
     };
 
     static const EdgeLocator dcEdgeLocators[12] =
@@ -946,9 +1182,6 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
     v3 halfSizeMeters = volumeSizeMeters / 2;
     v3 minGridP = worldP.relativeP - halfSizeMeters;
     WorldCoords p = worldP;
-
-    const f32 delta = 0.01f;
-    const f32 deltaInv = 1.f / (2.f * delta);
 
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
     Cluster* debugCluster = clusterData->debugCluster;
@@ -1045,217 +1278,20 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
 
                 // We only process 3 edges per cell (those containing the corner stored in each cell)
                 // Find edge intersections for those, get them from neighbours for the rest
-                for( int e = 0; e < 12; ++e )
-                {
-                    EdgeLocator const& locator = dcEdgeLocators[e];
-
-                    int indexA = locator.cornerA;
-                    int indexB = locator.cornerB;
-                    f32 sA = cornerSamples[ indexA ];
-                    f32 sB = cornerSamples[ indexB ];
-
-                    // Is there a crossing at this edge
-                    if( Sign( sA ) != Sign( sB ) )
-                    {
-                        int neighbourIndex = locator.neighbourIndex;
-                        v3i neighbourCoords = V3i( i, j, k ) + dcCornerOffsets[neighbourIndex];
-                        bool atOuterEdge = neighbourCoords.z < 0 || neighbourCoords.y < 0 || neighbourCoords.x < 0;
-
-                        if( atOuterEdge || indexB == 7 || indexA == 7 )
-                        {
-                            // It's one of the edges stored in this cell, so find the intersection & normal
-                            v3 pA = cellP + V3( dcCornerOffsets[indexA] ) * cellSizeMeters;
-                            v3 pB = cellP + V3( dcCornerOffsets[indexB] ) * cellSizeMeters;
-                            v3 edgeP = V3Undefined;
-
-                            static const f32 epsilon = 0.01f;
-                            //if( sB == F32MAX || AlmostEqual( sA, 0.f, epsilon ) )
-                                //edgeP = pA;
-                            //else if( sA == F32MAX || AlmostEqual( sB, 0.f, epsilon ) )
-                                //edgeP = pB;
-                            //else
-                            {
-                                if( settings.approximateEdgeIntersection )
-                                {
-                                    // Just interpolate along the edge
-                                    f32 t = sA / (sA - sB);
-                                    Clamp01( t );
-                                    edgeP = Lerp( pA, pB, t );
-                                }
-                                else
-                                {
-                                    // Do a binary search along the edge
-                                    static const int maxSearchSteps = 100;
-                                    int searchSteps = maxSearchSteps;
-                                    f32 edgeSample = 0.f;
-                                    v3 lastP = V3Undefined;
-
-                                    while( --searchSteps )
-                                    {
-                                        p.relativeP = (pA + pB) * 0.5f;
-                                        if( p.relativeP == lastP )
-                                        {
-                                            // Float precision is limited
-                                            edgeP = lastP;
-                                            break;
-                                        }
-                                        lastP = p.relativeP;
-                                            
-                                        edgeSample = sampleFunc( p, clusterData );
-
-                                        if( AlmostEqual( edgeSample, 0.f, epsilon ) )
-                                        {
-                                            edgeP = lastP;
-                                            break;
-                                        }
-                                        else
-                                        {
-                                            if( Sign( edgeSample ) == Sign( sA ) )
-                                                pA = lastP;
-                                            else
-                                                pB = lastP;
-                                        }
-                                    }
-                                    ASSERT( searchSteps > 0 );
-                                }
-                            }
-
-                            edgePoints[pointCount] = edgeP;
-                            if( !atOuterEdge )
-                                cellData( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
-
-                            ASSERT( edgeP != V3Undefined );
-                            if( pointCount )
-                                ASSERT( DistanceFast( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f * VoxelSizeMeters );
-
-                            // Find normal vector by sampling near the intersection point we found
-                            p.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };
-                            f32 xPSample = sampleFunc( p, clusterData );
-                            p.relativeP = { edgeP.x - delta, edgeP.y, edgeP.z };
-                            f32 xNSample = sampleFunc( p, clusterData );
-
-                            p.relativeP = { edgeP.x, edgeP.y + delta, edgeP.z };
-                            f32 yPSample = sampleFunc( p, clusterData );
-                            p.relativeP = { edgeP.x, edgeP.y - delta, edgeP.z };
-                            f32 yNSample = sampleFunc( p, clusterData );
-
-                            p.relativeP = { edgeP.x, edgeP.y, edgeP.z + delta };
-                            f32 zPSample = sampleFunc( p, clusterData );
-                            p.relativeP = { edgeP.x, edgeP.y, edgeP.z - delta };
-                            f32 zNSample = sampleFunc( p, clusterData );
-
-                            v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
-                            NormalizeFast( normal );
-                            edgeNormals[pointCount] = normal;
-                            if( !atOuterEdge )
-                                cellData( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
-                        }
-                        else
-                        {
-                            // This has already been calculated and stored in a neighbour cell so go get it
-                            ASSERT( neighbourIndex != 7 );
-
-                            edgePoints[pointCount] = cellData( neighbourCoords ).edgeCrossingsP[locator.storeIndex];
-                            edgeNormals[pointCount] = cellData( neighbourCoords ).edgeCrossingsN[locator.storeIndex];
-
-                            if( pointCount )
-                                ASSERT( DistanceFast( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f * VoxelSizeMeters );
-                        }
-
-                        pointCount++;
-                    }
-                }
-
+                ComputeEdgeCrossings( i, j, k, cellP, cellSizeMeters, p, sampleFunc, clusterData, edgePoints, edgeNormals, &pointCount,
+                                      dcCornerOffsets, dcEdgeLocators, cornerSamples, &cellData, settings.approximateEdgeIntersection );
                 ASSERT( pointCount );
 
-                bool clamped = false;
                 v3 cellVertex = V3Undefined;
-                switch( settings.cellPointsComputationMethod )
-                {
-                    case DCComputeMethod::Average:
-                    {
-                        v3 massPoint = V3Zero;
-                        for( int pIndex = 0; pIndex < pointCount; ++pIndex )
-                            massPoint += edgePoints[pIndex];
-                        massPoint /= (f32)pointCount;
+                v3 cellNormal = V3Zero;
+                bool clamped = false;
+                ComputeCellPointAndNormal( edgePoints, edgeNormals, pointCount, settings, cellBoundsMin, cellBoundsMax,
+                                           &cellVertex, &cellNormal, &clamped );
 
-                        cellVertex = massPoint;
-
-                        // TODO When merging cells in the octree, we still need to do a part of the QEF computation, as stated in "The Secret Sauce":
-                        // "In addition to the data already stored for the mass point, we also store the dimension of the mass point"
-                    } break;
-                    case DCComputeMethod::QEFClassic:
-                    {
-                        cellVertex = QEFMinimizePlanesClassic( edgePoints, edgeNormals, pointCount );
-                    } break;
-                    case DCComputeMethod::QEFProbabilistic:
-                    {
-                        cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 1.f, settings.sigmaN );
-                    } break;
-                    case DCComputeMethod::QEFProbabilisticDouble:
-                    {
-                        cellVertex = QEFMinimizePlanesProbabilistic64( edgePoints, edgeNormals, pointCount, 1.f, settings.sigmaNDouble );
-                    } break;
-
-                    default:
-                        NOT_IMPLEMENTED;
-                }
-
-                // FIXME We're creating weird clamped vertices when compiling on Develop but not in Debug!?
-                if( settings.clampCellPoints )
-                {
-                    // TODO Ideally we should do the solve with constrains as explained in https://www.mattkeeter.com/projects/qef/
-                    // (also check https://github.com/BorisTheBrave/mc-dc/blob/a165b326849d8814fb03c963ad33a9faf6cc6dea/qef.py#L146)
-
-                    //Clamp( &cellVertex, cellBounds );
-                    if( cellVertex.x < cellBoundsMin.x )
-                    {
-                        cellVertex.x = cellBoundsMin.x;
-                        clamped = true;
-                    }
-                    if( cellVertex.x > cellBoundsMax.x )
-                    {
-                        cellVertex.x = cellBoundsMax.x;
-                        clamped = true;
-                    }
-                    if( cellVertex.y < cellBoundsMin.y )
-                    {
-                        cellVertex.y = cellBoundsMin.y;
-                        clamped = true;
-                    }
-                    if( cellVertex.y > cellBoundsMax.y )
-                    {
-                        cellVertex.y = cellBoundsMax.y;
-                        clamped = true;
-                    }
-                    if( cellVertex.z < cellBoundsMin.z )
-                    {
-                        cellVertex.z = cellBoundsMin.z;
-                        clamped = true;
-                    }
-                    if( cellVertex.z > cellBoundsMax.z )
-                    {
-                        cellVertex.z = cellBoundsMax.z;
-                        clamped = true;
-                    }
-                }
-                else
-                {
-                    f32 boundsTolerance = 0.1f;
-                    ASSERT( ContainsOrTouches( AABBMinMax( cellBoundsMin - V3One * boundsTolerance,
-                                                           cellBoundsMax + V3One * boundsTolerance ), cellVertex ) );
-                }
-
-                //ASSERT( !IsNan( cellVertex ) );
-
-                v3 avgNormal = V3Zero;
-                for( int n = 0; n < pointCount; ++n )
-                    avgNormal += edgeNormals[n];
-                NormalizeFast( avgNormal );
-                //cellData( i, j, k ).n = avgNormal;
-                // TODO Generalize this into a 'tagger' function callback?
-                p.relativeP = cellVertex + avgNormal * 0.1f;
+                //cellData( i, j, k ).n = cellNormal;
+                p.relativeP = cellVertex + cellNormal * 0.1f;
                 clusterData->zeroThickness = true;
+
                 bool inside = sampleFunc( p, clusterData ) < 0.f;
 
                 //if( inside )
@@ -1264,9 +1300,10 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                 int vertexIndex = vertices->count;
                 TexturedVertex v = {};
                 v.p = cellVertex;
-                v.n = avgNormal;
+                v.n = cellNormal;
                 v.color = clamped ? Pack01ToRGBA( 1, 0, 0, 1 ) : Pack01ToRGBA( 1, 1, 1, 1 );
                 //v.color = inside ? Pack01ToRGBA( 0, 1, 0, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
+                // TODO Generalize this into a 'tagger' function callback?
                 v.tag = inside ? VertexTag::Inner : VertexTag::Outer;
                 vertices->Push( v );
                 cellData( i, j, k ).vertexIndex = vertexIndex;
@@ -1378,6 +1415,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
         }
     }
 }
+
 
 #define VALUES(x)     \
     x(DualContouring) \

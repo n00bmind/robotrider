@@ -2216,7 +2216,9 @@ main( int argC, char **argV )
                     // Main loop
                     while( globalRunning )
                     {
+                        bool enableFPExceptions = false;
 #if !RELEASE
+                        enableFPExceptions = true;
                         DebugFrameInfo debugFrameInfo = {};
                         
                         // Prevent huge skips in physics etc. while debugging
@@ -2228,6 +2230,10 @@ main( int argC, char **argV )
                         else
 #endif
                             totalElapsedSeconds = Win32GetSecondsElapsed( firstClock, lastClock );
+
+                        // TODO Set this on every worker thread, as this is a per-thread setting
+                        static u32 oldFPControlBits;
+                        SetDefaultFPBehaviour( &oldFPControlBits, enableFPExceptions );
 
                         Win32PrepareInputData( &oldInput, &newInput, frameElapsedSeconds, totalElapsedSeconds, runningFrameCounter );
                         if( runningFrameCounter == 0 )

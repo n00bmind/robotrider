@@ -147,7 +147,7 @@ DrawConsole( GameConsole *console, u16 screenWidth, u16 screenHeight, bool focus
                   ImGuiWindowFlags_NoMove );
 
     // Reserve space for a separator and one line of text input
-    float footerHeight = ImGui::GetItemsLineHeightWithSpacing();
+    float footerHeight = ImGui::GetFrameHeightWithSpacing();
     ImGui:: BeginChild( "scroll_console", ImVec2( 0, -footerHeight), false,
                         ImGuiWindowFlags_AlwaysVerticalScrollbar |
                         ImGuiWindowFlags_HorizontalScrollbar );
