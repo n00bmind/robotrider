@@ -1,10 +1,10 @@
 <pre>
 
                                               
-                                   _         _         _    _           
-                         ___  ___ | |_  ___ | |_  ___ |_| _| | ___  ___ 
-                        |  _|| . || . || . ||  _||  _|| || . || -_||  _|
-                        |_|  |___||___||___||_|  |_|  |_||___||___||_|  
+                                       _         _         _    _           
+                             ___  ___ | |_  ___ | |_  ___ |_| _| | ___  ___ 
+                            |  _|| . || . || . ||  _||  _|| || . || -_||  _|
+                            |_|  |___||___||___||_|  |_|  |_||___||___||_|  
                                                 
 
                                                                         
@@ -62,7 +62,7 @@ With time, I found some of these ideas I actually knew already, I had only be ta
 
 <br/>
 
-######:: ZEN OF PROGRAMMING ::
+###### ZEN OF PROGRAMMING
 
  - Complexity is the enemy
  - Quality is a metric
