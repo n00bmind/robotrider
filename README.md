@@ -14,14 +14,14 @@ This is a (very work in progress) game engine & game where I get to experiment w
 
 ## Features
 
-· Totally isolated platform / renderer / game layers (only Windows platform & OpenGL for now, there's also a PS4 branch which is private for obvious reasons)<br/>
-· Hot code reloading (any change in the game layer code is immediately applied live)<br />
-· Looped live code editing a la Handmade Hero (press F1 and input will start recording, press F1 again and whatever was recorded will be played back in a loop.. you can still modify the code live as per the previous point!)<br />
-· Live shaders recompilation (a la ShaderToy)<br/>
-· Debug mode (tilde) & editor mode (Ctrl+tilde)<br/>
-· Infinite procedural world (WIP)<br/>
-· Minimal dependencies (only ImGui and stb_image so far)<br/>
-· Pure C++ without all the OOP crap (a.k.a. "C+")<br/>
+- Totally isolated platform / renderer / game layers (only Windows platform & OpenGL for now, there's also a PS4 branch which is private for obvious reasons)
+- Hot code reloading (any change in the game layer code is immediately applied live)
+- Looped live code editing a la Handmade Hero (press F1 and input will start recording, press F1 again and whatever was recorded will be played back in a loop.. you can still modify the code live as per the previous point!)
+- Live shaders recompilation (a la ShaderToy)
+- Debug mode (tilde) & editor mode (Ctrl+tilde)
+- Infinite procedural world (WIP)
+- Minimal dependencies (only ImGui and stb_image so far)
+- Pure C++ without all the OOP crap (a.k.a. "C+")
 
 
 ## References
