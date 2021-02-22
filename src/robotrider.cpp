@@ -179,6 +179,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         memory->DEBUGglobalEditing = false;
         InitEditor( { width, height }, gameState, &gameState->DEBUGeditorState, transientState,
                     &gameState->worldArena, &gameState->transientArena );
+#else
+        memory->DEBUGglobalEditing = true;
+        gameState->DEBUGeditorState.selectedTest.index = 1;
 #endif
     }
 

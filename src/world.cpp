@@ -1235,6 +1235,18 @@ UpdateAndRenderWorld( GameInput *input, GameMemory* gameMemory, RenderCommands *
         RenderCamera( M4CameraLookAt( pCam, pLookAt, vUp ), renderCommands );
     }    
 
+
+
+
+
+    bool inTest = gameMemory->DEBUGglobalEditing && gameState->DEBUGeditorState.selectedTest.index != 0;
+    if( inTest )
+        return;
+
+
+
+
+
 #if !RELEASE
     if( !gameMemory->DEBUGglobalEditing )
 #endif

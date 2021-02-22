@@ -1107,8 +1107,11 @@ internal void ComputeCellPointAndNormal( v3 edgePoints[12], v3 edgeNormals[12], 
     else
     {
         f32 boundsTolerance = 0.1f;
+        // FIXME 
+#if 0
         ASSERT( ContainsOrTouches( AABBMinMax( cellBoundsMin - V3One * boundsTolerance,
                                                cellBoundsMax + V3One * boundsTolerance ), *cellVertex ) );
+#endif
     }
 
     //ASSERT( !IsNan( cellVertex ) );

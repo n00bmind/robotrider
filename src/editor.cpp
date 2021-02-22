@@ -463,7 +463,7 @@ UpdateAndRenderEditor( const GameInput& input, GameState* gameState, TransientSt
         Clamp( &editorState->translationSpeedStep, 0, 2 );
 
         f32 camMovementSpeed = Pow( 10, (f32)editorState->translationSpeedStep );
-        f32 camRotationSpeed = 0.05f;
+        f32 camRotationSpeed = 0.5f;
 
         v3 camTranslationDelta = {};
         if( editorInput.camLeft )

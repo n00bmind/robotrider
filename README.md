@@ -62,7 +62,7 @@ With time, I found some of these ideas I actually knew already, I had only be ta
 
 <br/>
 
-######:: ZEN OF PROGRAMMING ::
+###### ZEN OF PROGRAMMING
 
  - Complexity is the enemy
  - Quality is a metric
