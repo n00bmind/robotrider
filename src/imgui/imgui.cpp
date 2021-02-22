@@ -3798,9 +3798,12 @@ void ImGui::NewFrame()
         window->Active = false;
         window->WriteAccessed = false;
 
+        // FIXME What's going on here?
+#if 0
         // Garbage collect transient buffers of recently unused windows
         if (!window->WasActive && !window->MemoryCompacted && window->LastTimeActive < memory_compact_start_time)
             GcCompactTransientWindowBuffers(window);
+#endif
     }
 
     // Closing the focused window restore focus to the first active root window in descending z-order
