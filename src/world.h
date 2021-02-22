@@ -137,13 +137,24 @@ struct Hall
 // TODO Pack minimal 8 byte coords for rooms and halls inline into this struct so everything is in contiguous memory and fast
 struct ClusterSamplingData
 {
+    SamplingData header;
+
     Array<Room> const& rooms;
     Array<Hall> const& halls;
+    // Show debug visualizations for this guy
     Cluster* debugCluster;
     // Room index when sampling rooms, hall index for halls
     i32 sampledVolumeIndex;
-    bool zeroThickness; 
 };
+
+ClusterSamplingData InitClusterSamplingData( Array<Room> const& rooms, Array<Hall> const& halls, int sampledVolumeIndex )
+{
+    SamplingData header = { SamplingDataType::ClusterData, true };
+    ClusterSamplingData result = { header, rooms, halls };
+    result.sampledVolumeIndex = sampledVolumeIndex;
+
+    return result;
+}
 
 enum VolumeFlags : u32
 {

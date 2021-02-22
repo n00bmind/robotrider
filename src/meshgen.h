@@ -169,6 +169,21 @@ struct MeshGeneratorPathData
 };
 #endif
 
+
+enum SamplingDataType
+{
+    ClusterData,
+    SimpleSurface,
+};
+
+struct SamplingData
+{
+    SamplingDataType type;
+    // TODO Turn this into flags
+    bool zeroThickness; 
+};
+
+
 enum class DCComputeMethod
 {
     Average,
@@ -203,7 +218,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int 
                                MeshPool* meshPool, MemoryArena* tmpArena, RenderCommands* renderCommands );
 
 
-#define ISO_SURFACE_FUNC(name) float name( WorldCoords const& worldP, void const* samplingData )
+#define ISO_SURFACE_FUNC(name) float name( WorldCoords const& worldP, SamplingData const* samplingData )
 typedef ISO_SURFACE_FUNC(IsoSurfaceFunc);
 
 ISO_SURFACE_FUNC(RoomSurfaceFunc);

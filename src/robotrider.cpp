@@ -234,7 +234,8 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
     memory->DEBUGglobalWasDebugging = memory->DEBUGglobalDebugging;
     
-    DrawStats( width, height, statsText );
+    if( !memory->DEBUGglobalEditing )
+        DrawStats( width, height, statsText );
 #endif
 
     EndTemporaryMemory( frameMemory );

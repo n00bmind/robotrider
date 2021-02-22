@@ -252,6 +252,8 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
 {
     TIMED_FUNC_WITH_TOTALS;
 
+    ASSERT( samplingData->type == SamplingDataType::ClusterData );
+
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
     Room const& room = clusterData->rooms[clusterData->sampledVolumeIndex];
 
@@ -269,7 +271,7 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
         }
     }
 
-    if( !clusterData->zeroThickness )
+    if( !samplingData->zeroThickness )
     {
         // Carve the inside and give it a thickness
         result = SDFOnion( result, VoxelSizeMeters * 0.5f );
@@ -281,6 +283,8 @@ ISO_SURFACE_FUNC(RoomSurfaceFunc)
 ISO_SURFACE_FUNC(HallSurfaceFunc)
 {
     TIMED_FUNC_WITH_TOTALS;
+
+    ASSERT( samplingData->type == SamplingDataType::ClusterData );
 
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
 #if 0
@@ -305,7 +309,7 @@ ISO_SURFACE_FUNC(HallSurfaceFunc)
     }
 #endif
 
-    if( !clusterData->zeroThickness )
+    if( !samplingData->zeroThickness )
     {
         // Carve the inside and give it a thickness
         result = SDFOnion( result, VoxelSizeMeters * 0.5f );
@@ -331,6 +335,8 @@ ISO_SURFACE_FUNC(HallSurfaceFunc)
 ISO_SURFACE_FUNC(ClusterSurfaceFunc)
 {
     TIMED_FUNC;
+
+    ASSERT( samplingData->type == SamplingDataType::ClusterData );
 
     f32 result = F32MAX;
     ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
@@ -586,8 +592,7 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
 
     WorldCoords worldP = { room.bounds.center, clusterP };
     v3 sampledVolumeSize = room.bounds.halfSize * 2.0f;
-    ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls };
-    roomSamplingData.sampledVolumeIndex = roomIndex;
+    ClusterSamplingData roomSamplingData = InitClusterSamplingData( cluster->rooms, cluster->halls, roomIndex );
     if( roomIndex == 0 )
         roomSamplingData.debugCluster = cluster;
 
@@ -602,7 +607,7 @@ CreateRoomMesh( i32 roomIndex, Cluster* cluster, v3i const& clusterP, World* wor
     BucketArray<TexturedVertex> tmpVertices( tmpArena, 1024, Temporary() );
     BucketArray<i32> tmpIndices( tmpArena, 1024, Temporary() );
 
-    DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, RoomSurfaceFunc, &roomSamplingData,
+    DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, RoomSurfaceFunc, (SamplingData*)&roomSamplingData,
               &tmpVertices, &tmpIndices, arena, tmpArena, settings );
 
     Mesh result = {};
@@ -643,9 +648,8 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     Hall const& hall = cluster->halls[hallIndex];
 
     WorldCoords worldP = { hall.bounds.center, clusterP };
-    ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls };
-    roomSamplingData.sampledVolumeIndex = hallIndex;
-    roomSamplingData.zeroThickness = false;
+    ClusterSamplingData roomSamplingData = InitClusterSamplingData( cluster->rooms, cluster->halls, hallIndex );
+    roomSamplingData.header.zeroThickness = false;
     if( hallIndex % 2 == 0 )
         roomSamplingData.debugCluster = cluster;
     v3 sampledVolumeSize = hall.bounds.halfSize * 2.f;
@@ -659,7 +663,7 @@ CreateHallMesh( i32 hallIndex, Cluster* cluster, v3i const& clusterP, World* wor
     BucketArray<TexturedVertex> tmpVertices( tmpArena, 1024, Temporary() );
     BucketArray<i32> tmpIndices( tmpArena, 1024, Temporary() );
 
-    DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, HallSurfaceFunc, &roomSamplingData,
+    DCVolume( worldP, sampledVolumeSize, VoxelSizeMeters, HallSurfaceFunc, (SamplingData*)&roomSamplingData,
               &tmpVertices, &tmpIndices, arena, tmpArena, settings );
     // TODO 
 
@@ -694,8 +698,8 @@ CreateClusterMesh( Cluster* cluster, v3i const& clusterP, World* world, MemoryAr
 
     Mesh result = {};
     WorldCoords worldP = { V3Zero, clusterP };
-    ClusterSamplingData roomSamplingData = { cluster->rooms, cluster->halls, 0 };
-    roomSamplingData.zeroThickness = false;
+    ClusterSamplingData roomSamplingData = InitClusterSamplingData( cluster->rooms, cluster->halls, 0 );
+    roomSamplingData.header.zeroThickness = false;
 
     DCSettings settings;
     settings.cellPointsComputationMethod = DCComputeMethod::QEFProbabilistic;
@@ -705,7 +709,7 @@ CreateClusterMesh( Cluster* cluster, v3i const& clusterP, World* world, MemoryAr
     BucketArray<TexturedVertex> tmpVertices( tmpArena, 1024, Temporary() );
     BucketArray<i32> tmpIndices( tmpArena, 1024, Temporary() );
 
-    DCVolume( worldP, V3( ClusterSizeMeters ), VoxelSizeMeters, ClusterSurfaceFunc, &roomSamplingData,
+    DCVolume( worldP, V3( ClusterSizeMeters ), VoxelSizeMeters, ClusterSurfaceFunc, (SamplingData*)&roomSamplingData,
               &tmpVertices, &tmpIndices, arena, tmpArena, settings );
     result = CreateMeshFromBuffers( tmpVertices, tmpIndices, arena );
 

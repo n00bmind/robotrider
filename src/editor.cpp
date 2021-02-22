@@ -255,7 +255,7 @@ TickSurfaceContouringTest( const GameInput& input, EditorState* state, RenderCom
     v2 displayDim = { renderDim.x * 0.2f, renderDim.y * 0.5f };
     v2 displayP = { 100, 100 };
 
-    SamplingData samplingData = {};
+    SimpleSurfaceData samplingData = InitSimpleSurfaceData();
 
     EditorTestsState::ContouringSettings& currentSettings = state->tests.contouring;
     if( !currentSettings.initialized )
@@ -339,13 +339,13 @@ TickSurfaceContouringTest( const GameInput& input, EditorState* state, RenderCom
         {
             case ContouringTechnique::MarchingCubes().index:
             {
-                MarchVolumeFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc, &samplingData,
+                MarchVolumeFast( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc, (SamplingData*)&samplingData,
                                  &currentSettings.mcSamplingCache, &tmpVertices, &tmpIndices, settings.mcInterpolate );
                
             } break;
             case ContouringTechnique::DualContouring().index:
             {
-                DCVolume( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc, &samplingData,
+                DCVolume( { V3Zero, V3iZero }, V3( ClusterSizeMeters ), VoxelSizeMeters, SimpleSurfaceFunc, (SamplingData*)&samplingData,
                           &tmpVertices, &tmpIndices, editorArena, tempArena, settings.dc );
 
             } break;

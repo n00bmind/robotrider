@@ -794,7 +794,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cel
 
 void
 MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
-                 const void* samplingData, IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices,
+                 SamplingData const* samplingData, IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices,
                  BucketArray<i32>* indices, const bool interpolate = true )
 {
     TIMED_FUNC;
@@ -892,8 +892,8 @@ struct CellData
 
 
 internal void ComputeEdgeCrossings( int i, int j, int k, v3 const& cellP, f32 cellSizeMeters, WorldCoords worldP, IsoSurfaceFunc* sampleFunc,
-                                    ClusterSamplingData* clusterData, v3 edgePoints[12], v3 edgeNormals[12],
-                                    int* pointCount, const v3i dcCornerOffsets[8], const EdgeLocator dcEdgeLocators[12],
+                                    SamplingData* samplingData, v3 edgePoints[12], v3 edgeNormals[12], int* pointCount,
+                                    const v3i dcCornerOffsets[8], const EdgeLocator dcEdgeLocators[12],
                                     f32 cornerSamples[8], Grid3D<CellData> *cellData, bool approximateEdgeIntersection )
 {
     static const f32 delta = 0.01f;
@@ -955,7 +955,7 @@ internal void ComputeEdgeCrossings( int i, int j, int k, v3 const& cellP, f32 ce
                             }
                             lastP = worldP.relativeP;
                                 
-                            edgeSample = sampleFunc( worldP, clusterData );
+                            edgeSample = sampleFunc( worldP, samplingData );
 
                             if( AlmostEqual( edgeSample, 0.f, epsilon ) )
                             {
@@ -984,19 +984,19 @@ internal void ComputeEdgeCrossings( int i, int j, int k, v3 const& cellP, f32 ce
 
                 // Find normal vector by sampling near the intersection point we found
                 worldP.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };
-                f32 xPSample = sampleFunc( worldP, clusterData );
+                f32 xPSample = sampleFunc( worldP, samplingData );
                 worldP.relativeP = { edgeP.x - delta, edgeP.y, edgeP.z };
-                f32 xNSample = sampleFunc( worldP, clusterData );
+                f32 xNSample = sampleFunc( worldP, samplingData );
 
                 worldP.relativeP = { edgeP.x, edgeP.y + delta, edgeP.z };
-                f32 yPSample = sampleFunc( worldP, clusterData );
+                f32 yPSample = sampleFunc( worldP, samplingData );
                 worldP.relativeP = { edgeP.x, edgeP.y - delta, edgeP.z };
-                f32 yNSample = sampleFunc( worldP, clusterData );
+                f32 yNSample = sampleFunc( worldP, samplingData );
 
                 worldP.relativeP = { edgeP.x, edgeP.y, edgeP.z + delta };
-                f32 zPSample = sampleFunc( worldP, clusterData );
+                f32 zPSample = sampleFunc( worldP, samplingData );
                 worldP.relativeP = { edgeP.x, edgeP.y, edgeP.z - delta };
-                f32 zNSample = sampleFunc( worldP, clusterData );
+                f32 zNSample = sampleFunc( worldP, samplingData );
 
                 v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
                 NormalizeFast( normal );
@@ -1131,9 +1131,8 @@ internal void ComputeCellPointAndNormal( v3 edgePoints[12], v3 edgeNormals[12], 
 // TODO Clean up asserts
 // TODO Clean up asserts
 void
-DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
-          BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* arena, MemoryArena* tmpArena,
-          DCSettings const& settings )
+DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, SamplingData* samplingData,
+          BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* arena, MemoryArena* tmpArena, DCSettings const& settings )
 {
     struct MergingData
     {
@@ -1186,13 +1185,18 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
     v3 minGridP = worldP.relativeP - halfSizeMeters;
     WorldCoords p = worldP;
 
-    ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
-    Cluster* debugCluster = clusterData->debugCluster;
+    Cluster* debugCluster = nullptr;
+    if( samplingData->type == SamplingDataType::ClusterData )
+    {
+        ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
+        debugCluster = clusterData->debugCluster;
+    }
+
     const v3 debugSampleSize = V3( 0.03f );
     const v4 inColor = { 1, 0, 0, 0 };
     const v4 outColor = { 0, 0, 1, 0 };
 
-    bool thicknessSetting = clusterData->zeroThickness;
+    bool thicknessSetting = samplingData->zeroThickness;
 
     // Do everything in a single pass by:
     // - Storing the surface sample at the 'max' corner for each cell
@@ -1206,7 +1210,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
         {
             for( int i = 0; i < cellsPerAxis.x; ++i )
             {
-                clusterData->zeroThickness = thicknessSetting;
+                samplingData->zeroThickness = thicknessSetting;
 
 #if 1
                 // Cell at { 0, 0, 0 } gets the sample at world position minGridP + { 1, 1, 1 } * cellSize
@@ -1238,7 +1242,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                         // Sample our own
                         // Account for -0 by just adding +0 to the value
                         p.relativeP = cellP;
-                        sample = sampleFunc( p, clusterData ) + 0.f;
+                        sample = sampleFunc( p, samplingData ) + 0.f;
                         cellData( i, j, k ).sampledValue = sample;
 
                         // TODO Use instancing and just draw three crossing axis lines at each point to make this viable
@@ -1260,7 +1264,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
                         if( cellGridP.x < 0 || cellGridP.y < 0 || cellGridP.z < 0 )
                         {
                             p.relativeP = cellP + V3( dcCornerOffsets[s] ) * cellSizeMeters;
-                            sample = sampleFunc( p, clusterData ) + 0.f;
+                            sample = sampleFunc( p, samplingData ) + 0.f;
                         }
                         else
                             sample = cellData( cellGridP ).sampledValue;
@@ -1281,7 +1285,7 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
 
                 // We only process 3 edges per cell (those containing the corner stored in each cell)
                 // Find edge intersections for those, get them from neighbours for the rest
-                ComputeEdgeCrossings( i, j, k, cellP, cellSizeMeters, p, sampleFunc, clusterData, edgePoints, edgeNormals, &pointCount,
+                ComputeEdgeCrossings( i, j, k, cellP, cellSizeMeters, p, sampleFunc, samplingData, edgePoints, edgeNormals, &pointCount,
                                       dcCornerOffsets, dcEdgeLocators, cornerSamples, &cellData, settings.approximateEdgeIntersection );
                 ASSERT( pointCount );
 
@@ -1293,9 +1297,9 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
 
                 //cellData( i, j, k ).n = cellNormal;
                 p.relativeP = cellVertex + cellNormal * 0.1f;
-                clusterData->zeroThickness = true;
+                samplingData->zeroThickness = true;
 
-                bool inside = sampleFunc( p, clusterData ) < 0.f;
+                bool inside = sampleFunc( p, samplingData ) < 0.f;
 
                 //if( inside )
                     //continue;
@@ -1736,6 +1740,7 @@ struct Metaball
 
 ISO_SURFACE_FUNC(SampleMetaballs)
 {
+    ASSERT( !"Need a new samplingData type for this stuff!" );
     const Array<Metaball>& balls = *(const Array<Metaball>*)samplingData;
 
     f32 minValue = F32MAX;
@@ -1813,8 +1818,9 @@ ISO_SURFACE_FUNC( BoxSurfaceFunc )
     x(Devil)            \
     x(QuarticCylinder)  \
     x(TangleCube)       \
-    x(TrefoilKnot)      \
     x(Genus2)           \
+
+    //x(TrefoilKnot)      \   // FIXME
     //x(Cone)            \
     //x(LinkedTorii)      \
 
@@ -1822,16 +1828,27 @@ STRUCT_ENUM(SimpleSurface, SURFACE_LIST);
 #undef SURFACE_LIST
 
 
-struct SamplingData
+struct SimpleSurfaceData
 {
+    SamplingData header;
+
     m4 invWorldTransform;
     i32 surfaceType;
 };
 
+SimpleSurfaceData InitSimpleSurfaceData()
+{
+    SamplingData header = { SamplingDataType::SimpleSurface, true };
+    SimpleSurfaceData result = { header };
+    return result;
+}
+
 
 ISO_SURFACE_FUNC( SimpleSurfaceFunc )
 {
-    SamplingData* data = (SamplingData*)samplingData;
+    ASSERT( samplingData->type == SamplingDataType::SimpleSurface );
+
+    SimpleSurfaceData* data = (SimpleSurfaceData*)samplingData;
     int surfaceIndex = data->surfaceType;
 
     // NOTE Don't care about translation
@@ -1861,9 +1878,9 @@ ISO_SURFACE_FUNC( SimpleSurfaceFunc )
         case SimpleSurface::TangleCube().index:
             result = SDFTangleCube( invWorldP );
             break;
-        case SimpleSurface::TrefoilKnot().index:
-            result = SDFTrefoilKnot( invWorldP );
-            break;
+        //case SimpleSurface::TrefoilKnot().index:
+            //result = SDFTrefoilKnot( invWorldP );
+            //break;
         case SimpleSurface::Genus2().index:
             result = SDFGenus2( invWorldP );
             break;
@@ -2984,6 +3001,8 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int 
 
 ISO_SURFACE_FUNC(SampleCuboid)
 {
+    ASSERT( false, "Need a new sampling data type!" );
+
     MeshGeneratorPathData* path = (MeshGeneratorPathData*)samplingData;
     v3 vRight = GetBasisX( path->basis );
     v3 vForward = GetBasisY( path->basis );
@@ -3141,6 +3160,7 @@ ISO_SURFACE_FUNC(SampleRoomBody)
 {
     TIMED_FUNC;
 
+    ASSERT( !"Need a new sampling data type!" );
     MeshGeneratorRoomData* roomData = (MeshGeneratorRoomData*)samplingData;
 
     // Box
