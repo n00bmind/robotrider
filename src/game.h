@@ -324,6 +324,8 @@ struct GameMemory
 
     PlatformAPI* platformAPI;
     ImGuiContext* imGuiContext;
+    void* (*imGuiAllocFunc)(size_t size, void* user_data);
+    void  (*imGuiFreeFunc)(void* ptr, void* user_data);
 };
 
 

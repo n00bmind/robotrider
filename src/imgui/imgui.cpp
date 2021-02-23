@@ -3221,6 +3221,16 @@ void ImGui::SetAllocatorFunctions(void* (*alloc_func)(size_t sz, void* user_data
     GImAllocatorUserData = user_data;
 }
 
+// ::n00bmind::
+void ImGui::GetAllocatorFunctions( void* (**alloc_func)(size_t sz, void* user_data), void( **free_func )(void* ptr, void* user_data), void** user_data /*= NULL*/ )
+{
+    *alloc_func = GImAllocatorAllocFunc;
+    *free_func = GImAllocatorFreeFunc;
+    if( user_data )
+        *user_data = GImAllocatorUserData;
+}
+// ::n00bmind end::
+
 ImGuiContext* ImGui::CreateContext(ImFontAtlas* shared_font_atlas)
 {
     ImGuiContext* ctx = IM_NEW(ImGuiContext)(shared_font_atlas);
@@ -3798,12 +3808,9 @@ void ImGui::NewFrame()
         window->Active = false;
         window->WriteAccessed = false;
 
-        // FIXME What's going on here?
-#if 0
         // Garbage collect transient buffers of recently unused windows
         if (!window->WasActive && !window->MemoryCompacted && window->LastTimeActive < memory_compact_start_time)
             GcCompactTransientWindowBuffers(window);
-#endif
     }
 
     // Closing the focused window restore focus to the first active root window in descending z-order

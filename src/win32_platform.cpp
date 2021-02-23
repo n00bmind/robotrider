@@ -2179,6 +2179,7 @@ main( int argC, char **argV )
 #endif
 
                 gameMemory.imGuiContext = Win32InitImGui( window );
+                ImGui::GetAllocatorFunctions( &gameMemory.imGuiAllocFunc, &gameMemory.imGuiFreeFunc );
 
                 if( gameMemory.permanentStorage && renderCommands.isValid && soundSamples )
                 {

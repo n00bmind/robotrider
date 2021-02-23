@@ -169,8 +169,9 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         // TODO Check if these are all ok here so that we can remove GAME_SETUP_AFTER_RELOAD
         gameConsole = &gameState->gameConsole;
-        // Re-set platform's ImGui context
+        // Set platform's ImGui context (and allocators!)
         ImGui::SetCurrentContext( memory->imGuiContext );
+        ImGui::SetAllocatorFunctions( memory->imGuiAllocFunc, memory->imGuiFreeFunc );
 
         // FIXME
         auxArena = &gameState->worldArena;
