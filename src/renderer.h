@@ -399,6 +399,7 @@ void RenderFloorGrid( f32 areaSizeMeters, f32 resolutionMeters, RenderCommands* 
 void RenderCubicGrid( const aabb& boundingBox, f32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands );
 void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands );
 void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands );
+void RenderCamera( m4 const& cameraFromWorld, RenderCommands* commands );
 
 
 

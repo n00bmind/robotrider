@@ -795,7 +795,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cel
 void
 MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
                  SamplingData const* samplingData, IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices,
-                 BucketArray<i32>* indices, const bool interpolate = true )
+                 BucketArray<i32>* indices, const bool interpolate /*= true*/ )
 {
     TIMED_FUNC;
 
@@ -1424,13 +1424,6 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMet
 }
 
 
-#define VALUES(x)     \
-    x(DualContouring) \
-    x(MarchingCubes)  \
-
-STRUCT_ENUM(ContouringTechnique, VALUES)
-#undef VALUES
-
 
 // This is just a crude vertex clustering algorithm to quickly discard coplanar vertices,
 // in the same spirit as http://www.andrewwillmott.com/papers/rsmam/RSMAM-Final.pdf but simpler
@@ -1811,37 +1804,6 @@ ISO_SURFACE_FUNC( BoxSurfaceFunc )
     return result;
 }
 
-#define SURFACE_LIST(x) \
-    x(MechanicalPart)   \
-    x(Torus)            \
-    x(HollowCube)       \
-    x(Devil)            \
-    x(QuarticCylinder)  \
-    x(TangleCube)       \
-    x(Genus2)           \
-
-    //x(TrefoilKnot)      \   // FIXME
-    //x(Cone)            \
-    //x(LinkedTorii)      \
-
-STRUCT_ENUM(SimpleSurface, SURFACE_LIST);
-#undef SURFACE_LIST
-
-
-struct SimpleSurfaceData
-{
-    SamplingData header;
-
-    m4 invWorldTransform;
-    i32 surfaceType;
-};
-
-SimpleSurfaceData InitSimpleSurfaceData()
-{
-    SamplingData header = { SamplingDataType::SimpleSurface, true };
-    SimpleSurfaceData result = { header };
-    return result;
-}
 
 
 ISO_SURFACE_FUNC( SimpleSurfaceFunc )

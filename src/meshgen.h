@@ -183,6 +183,46 @@ struct SamplingData
     bool zeroThickness; 
 };
 
+struct SimpleSurfaceData
+{
+    SamplingData header;
+
+    m4 invWorldTransform;
+    i32 surfaceType;
+};
+
+SimpleSurfaceData InitSimpleSurfaceData()
+{
+    SamplingData header = { SamplingDataType::SimpleSurface, true };
+    SimpleSurfaceData result = { header };
+    return result;
+}
+
+
+#define SURFACE_LIST(x) \
+    x(MechanicalPart)   \
+    x(Torus)            \
+    x(HollowCube)       \
+    x(Devil)            \
+    x(QuarticCylinder)  \
+    x(TangleCube)       \
+    x(Genus2)           \
+
+    //x(TrefoilKnot)      \   // FIXME
+    //x(Cone)            \
+    //x(LinkedTorii)      \
+
+STRUCT_ENUM(SimpleSurface, SURFACE_LIST);
+#undef SURFACE_LIST
+
+
+#define VALUES(x)     \
+    x(DualContouring) \
+    x(MarchingCubes)  \
+
+STRUCT_ENUM(ContouringTechnique, VALUES)
+#undef VALUES
+
 
 enum class DCComputeMethod
 {
@@ -203,25 +243,37 @@ struct DCSettings
 
 
 
-IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2i const& cellsPerAxis );
-void ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottomLayer );
-void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache );
-void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size );
-Mesh* AllocateMesh( MeshPool* pool, int vertexCount, int indexCount );
-Mesh* AllocateMeshFromScratchBuffers( MeshPool* pool );
-void ClearScratchBuffers( MeshPool* pool );
-void ReleaseMesh( Mesh** mesh );
-void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cellsPerAxis, f32 cellSizeMeters,
-                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices,
-                const bool interpolate = true );
-Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
-                               MeshPool* meshPool, MemoryArena* tmpArena, RenderCommands* renderCommands );
-
-
 #define ISO_SURFACE_FUNC(name) float name( WorldCoords const& worldP, SamplingData const* samplingData )
 typedef ISO_SURFACE_FUNC(IsoSurfaceFunc);
 
 ISO_SURFACE_FUNC(RoomSurfaceFunc);
+ISO_SURFACE_FUNC( SimpleSurfaceFunc );
+
+
+void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size );
+Mesh* AllocateMesh( MeshPool* pool, int vertexCount, int indexCount );
+Mesh* AllocateMeshFromScratchBuffers( MeshPool* pool );
+void ClearScratchBuffers( MeshPool* pool );
+inline Mesh CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<i32> const& indices, MemoryArena* arena );
+void ReleaseMesh( Mesh** mesh );
+
+IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2i const& cellsPerAxis );
+void ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottomLayer );
+void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache );
+
+void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cellsPerAxis, f32 cellSizeMeters,
+                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices,
+                const bool interpolate = true );
+void MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
+                 SamplingData const* samplingData, IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices,
+                 BucketArray<i32>* indices, const bool interpolate = true );
+
+void DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, SamplingData* samplingData,
+          BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* arena, MemoryArena* tmpArena, DCSettings const& settings );
+
+Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
+                               MeshPool* meshPool, MemoryArena* tmpArena, RenderCommands* renderCommands );
+
 
 
 #endif /* __MESHGEN_H__ */

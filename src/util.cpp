@@ -125,6 +125,7 @@ QuickSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
 
 // NOTE May be faster than RadixSort11 for a small number of items (< 1000)
 // NOTE Modifies input array during sorting
+// TODO This has never been analyzed with VTune or similar, so there's probably still a good chunk of perf to squeeze from it
 void RadixSort( void* inOut, int count, sz offset, sz stride, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
 {
     u8* in = (u8*)inOut;

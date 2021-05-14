@@ -175,6 +175,13 @@ operator +( const v2i& a, const v2i& b )
     return result;
 }
 
+inline v2
+operator *( const v2i &v, f32 s )
+{
+    v2 result = V2( (f32)v.x * s, (f32)v.y * s );
+    return result;
+}
+
 inline v2i
 Hadamard( const v2i& a, const v2i& b )
 {

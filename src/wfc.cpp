@@ -5,6 +5,7 @@
 #include "wfc.h"
 #include "platform.h"
 #include "debugstats.h"
+#include "math_types.h"
 #endif
 
 namespace WFC

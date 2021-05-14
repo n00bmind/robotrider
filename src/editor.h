@@ -3,6 +3,8 @@
 
 #if NON_UNITY_BUILD
 #include "renderer.h"
+#include "meshgen.h"
+#include "wfc.h"
 #endif
 
 

@@ -34,6 +34,7 @@ EDITOR
 - Entity selection mode and showing debug data about them
 - Orbiting camera around selected entity (with progressive zoom)
 - A nice way to get nicely distributed debug colors https://martin.ankerl.com/2009/12/09/how-to-create-random-colors-programmatically/
+- ImGui theme https://github.com/ocornut/imgui/issues/1607#issuecomment-372554344
 
 GRAPHICS
 - Frustum culling

@@ -1055,6 +1055,7 @@ Win32BeginInputRecording( Win32State *platformState, int inputRecordingIndex )
 
         CopyMemory( replayBuffer->memoryBlock, platformState->gameMemoryBlock, platformState->gameMemorySize );
         // TODO Write state to disk asynchronously
+        // (think how to best serialize/deserialize pointers, we could 'tag' them by setting the unused upper bits of any pointers returned by any arena inside the block)
 
         LOG( "Started input recording at slot %d", inputRecordingIndex );
     }
@@ -2179,6 +2180,8 @@ main( int argC, char **argV )
 #endif
 
                 gameMemory.imGuiContext = Win32InitImGui( window );
+                // NOTE At the moment we require this hack so the DLL uses the same global default allocators used in the current address space
+                // I've now opened an issue at https://github.com/ocornut/imgui/issues/3836
                 ImGui::GetAllocatorFunctions( &gameMemory.imGuiAllocFunc, &gameMemory.imGuiFreeFunc );
 
                 if( gameMemory.permanentStorage && renderCommands.isValid && soundSamples )
