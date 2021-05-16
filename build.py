@@ -33,6 +33,7 @@ platform_win = Platform(
         name                  = 'win',
         compiler              = 'cl.exe',
         toolset               = 'CL',
+        #  TODO Add /GL to the compiler and /LTCG to the linker https://devblogs.microsoft.com/cppblog/quick-tips-on-using-whole-program-optimization/
         common_compiler_flags = [
             '-MTd', '-nologo', '-FC', '-W4', '-WX', '-Oi', '-GR-', '-EHa-',
             '-D_HAS_EXCEPTIONS=0', '-D_CRT_SECURE_NO_WARNINGS',

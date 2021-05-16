@@ -10,6 +10,14 @@ NEXT
 - Generate several of these 'superclusters' and connect neighbouring
 - Decent RNG and determinism
 
+  SIDE PROJECTS (for when you're tired of the above)
+- Actually separate the engine components into a separate project so it's possible to start doing very different ideas with it while keeping a coherent engine for all of them.
+- Use it for fast game-jam type game ideas.
+- My very own unsensible soccer.
+- Start creating music-synchronized music visualizations, using the ideas about expanding your typical 'lo-fi' semi-animated videos, as well as other more classic "demoscene-like" ideas.
+  Investigate whether to use a library or take the chance to learn about how to analyze a music stream to detect beats, signatures, phrases and moods. (something that will also be used for the game!)
+- Start a new project that uses the engine to restart the old idea of project 0nirika, using independent scriptable layers animated by tracks to composite visualizations (which could be demos, or..
+
 
 WORLDGEN
 - Space Volumes partitioning using BSP at various scale levels
