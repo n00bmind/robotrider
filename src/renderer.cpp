@@ -31,7 +31,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define PUSH_RENDER_ELEMENT(commands, type) (type *)_PushRenderElement( commands, sizeof(type), RenderEntryType::type )
 internal RenderEntry *
-_PushRenderElement( RenderCommands *commands, u32 size, RenderEntryType type )
+_PushRenderElement( RenderCommands *commands, int size, RenderEntryType type )
 {
     RenderEntry *result = 0;
     RenderBuffer &buffer = commands->renderBuffer;
@@ -39,7 +39,7 @@ _PushRenderElement( RenderCommands *commands, u32 size, RenderEntryType type )
     if( buffer.size + size < buffer.maxSize )
     {
         result = (RenderEntry *)(buffer.base + buffer.size);
-        PZERO( result, size );
+        PZERO( result, Sz( size ) );
         result->type = type;
         result->size = size;
         buffer.size += size;
@@ -135,7 +135,7 @@ PushVertex( const v3 &p, u32 color, const v2 &uv, RenderCommands *commands )
 }
 
 inline internal void
-PushVertices( TexturedVertex const* vertexBase, u32 vertexCount, RenderCommands* commands )
+PushVertices( TexturedVertex const* vertexBase, int vertexCount, RenderCommands* commands )
 {
     ASSERT( commands->vertexBuffer.count + vertexCount <= commands->vertexBuffer.maxCount );
 
@@ -144,31 +144,31 @@ PushVertices( TexturedVertex const* vertexBase, u32 vertexCount, RenderCommands*
 }
 
 inline internal void
-PushIndex( u32 value, RenderCommands* commands )
+PushIndex( i32 value, RenderCommands* commands )
 {
     //TIMED_BLOCK;
 
     ASSERT( commands->indexBuffer.count + 1 <= commands->indexBuffer.maxCount );
 
-    u32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
+    i32 *index = commands->indexBuffer.base + commands->indexBuffer.count;
     *index = value;
 
     commands->indexBuffer.count++;
 }
 
 inline internal void
-PushIndices( u32 const* indexBase, u32 indexCount, RenderCommands* commands )
+PushIndices( i32 const* indexBase, int indexCount, RenderCommands* commands )
 {
     ASSERT( commands->indexBuffer.count + indexCount <= commands->indexBuffer.maxCount );
 
-    PCOPY( indexBase, commands->indexBuffer.base + commands->indexBuffer.count, indexCount * sizeof(u32) );
+    PCOPY( indexBase, commands->indexBuffer.base + commands->indexBuffer.count, indexCount * sizeof(i32) );
     commands->indexBuffer.count += indexCount;
 }
 
 inline internal void
 PushInstanceData( InstanceData const& data, RenderCommands* commands )
 {
-    ASSERT( commands->instanceBuffer.size + sizeof(InstanceData) <= commands->instanceBuffer.maxSize );
+    ASSERT( commands->instanceBuffer.size + SIZE(InstanceData) <= commands->instanceBuffer.maxSize );
 
     InstanceData* dst = (InstanceData*)(commands->instanceBuffer.base + commands->instanceBuffer.size);
     *dst = data;
@@ -177,9 +177,9 @@ PushInstanceData( InstanceData const& data, RenderCommands* commands )
 }
 
 inline internal void
-PushMeshData( u32 vertexCount, u32 indexCount, u32 indexStartOffset, u32 simClusterIndex, RenderCommands* commands )
+PushMeshData( int vertexCount, int indexCount, int indexStartOffset, int simClusterIndex, RenderCommands* commands )
 {
-    ASSERT( commands->instanceBuffer.size + sizeof(MeshData) <= commands->instanceBuffer.maxSize );
+    ASSERT( commands->instanceBuffer.size + SIZE(MeshData) <= commands->instanceBuffer.maxSize );
 
     MeshData* data = (MeshData*)(commands->instanceBuffer.base + commands->instanceBuffer.size);
     data->vertexCount = vertexCount;
@@ -260,13 +260,13 @@ void RenderSwitch( RenderSwitchType renderSwitch, bool enable, RenderCommands* c
 
 void RenderMesh( const Mesh& mesh, RenderCommands *commands )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
 #if 0
     RenderEntryTexturedTris *entry = GetOrCreateCurrentTris( commands );
     if( entry )
     {
-        for( u32 i = 0; i < mesh.vertexCount; ++i )
+        for( int i = 0; i < mesh.vertexCount; ++i )
         {
             TexturedVertex& v = mesh.vertices[i];
 
@@ -276,7 +276,7 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
         int indexOffsetStart = entry->vertexCount;
         entry->vertexCount += mesh.vertexCount;
 
-        for( u32 i = 0; i < mesh.indexCount; ++i )
+        for( int i = 0; i < mesh.indexCount; ++i )
         {
             PushIndex( indexOffsetStart + mesh.indices[i], commands );
         }
@@ -286,9 +286,20 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
     RenderEntryMeshChunk* entry = GetOrCreateCurrentMeshChunk( commands );
     if( entry )
     {
-        u32 indexStartOffset = entry->runningVertexCount;
+        int indexStartOffset = entry->runningVertexCount;
 
+#if 0
         PushVertices( mesh.vertices.data, mesh.vertices.count, commands );
+#else
+        for( int i = 0; i < mesh.vertices.count; ++i )
+        {
+            TexturedVertex const& v = mesh.vertices[i];
+            // Transform to world coordinates so this can all be rendered in big chunks
+            // FIXME We should be using a TBO and do the transform in the VS
+            PushVertex( mesh.mTransform * v.p, v.color, v.uv, commands );
+        }
+#endif
+
         entry->runningVertexCount += mesh.vertices.count;
         PushIndices( mesh.indices.data, mesh.indices.count, commands );
 
@@ -298,31 +309,41 @@ void RenderMesh( const Mesh& mesh, RenderCommands *commands )
 #endif
 }
 
-void RenderBounds( const aabb& box, u32 color, RenderCommands* commands )
+// TODO Visualize frustum culling in the editor (from outside the player camera) to assess how well it works
+void RenderMeshCulled( const Mesh& mesh, RenderCommands *commands )
 {
-    RenderLine( V3( box.min.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.min.z ), color, commands );
-    RenderLine( V3( box.min.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ), color, commands );
-    RenderLine( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.max.y, box.min.z ), color, commands );
-    RenderLine( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ), color, commands );
-
-    RenderLine( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.min.y, box.max.z ), color, commands );
-    RenderLine( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.max.z ), color, commands );
-    RenderLine( V3( box.min.x, box.max.y, box.min.z ), V3( box.min.x, box.max.y, box.max.z ), color, commands );
-    RenderLine( V3( box.max.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.max.z ), color, commands );
-
-    RenderLine( V3( box.min.x, box.min.y, box.max.z ), V3( box.max.x, box.min.y, box.max.z ), color, commands );
-    RenderLine( V3( box.min.x, box.max.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ), color, commands );
-    RenderLine( V3( box.min.x, box.min.y, box.max.z ), V3( box.min.x, box.max.y, box.max.z ), color, commands );
-    RenderLine( V3( box.max.x, box.min.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ), color, commands );
+    //if( IsInFrustum( mesh.bounds, commands->camera.cachedFrustumPlanes ) )
+        RenderMesh( mesh, commands );
 }
 
-void RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* commands )
+void RenderBounds( const aabb& box, u32 color, RenderCommands* commands )
 {
-    aabb bounds = AABBCenterDim( p, size );
+    v3 min, max;
+    MinMax( box, &min, &max );
+
+    RenderLine( V3( min.x, min.y, min.z ), V3( max.x, min.y, min.z ), color, commands );
+    RenderLine( V3( min.x, max.y, min.z ), V3( max.x, max.y, min.z ), color, commands );
+    RenderLine( V3( min.x, min.y, min.z ), V3( min.x, max.y, min.z ), color, commands );
+    RenderLine( V3( max.x, min.y, min.z ), V3( max.x, max.y, min.z ), color, commands );
+
+    RenderLine( V3( min.x, min.y, min.z ), V3( min.x, min.y, max.z ), color, commands );
+    RenderLine( V3( max.x, min.y, min.z ), V3( max.x, min.y, max.z ), color, commands );
+    RenderLine( V3( min.x, max.y, min.z ), V3( min.x, max.y, max.z ), color, commands );
+    RenderLine( V3( max.x, max.y, min.z ), V3( max.x, max.y, max.z ), color, commands );
+
+    RenderLine( V3( min.x, min.y, max.z ), V3( max.x, min.y, max.z ), color, commands );
+    RenderLine( V3( min.x, max.y, max.z ), V3( max.x, max.y, max.z ), color, commands );
+    RenderLine( V3( min.x, min.y, max.z ), V3( min.x, max.y, max.z ), color, commands );
+    RenderLine( V3( max.x, min.y, max.z ), V3( max.x, max.y, max.z ), color, commands );
+}
+
+void RenderBoundsAt( const v3& p, f32 size, u32 color, RenderCommands* commands )
+{
+    aabb bounds = AABBCenterSize( p, size );
     RenderBounds( bounds, color, commands );
 }
 
-void RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* commands )
+void RenderBoxAt( const v3& p, f32 size, u32 color, RenderCommands* commands )
 {
     float halfSize = size * 0.5f;
     v3 p1, p2, p3, p4, p5, p6, p7, p8;
@@ -355,48 +376,48 @@ void RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* commands )
     RenderQuad( p7, p3, p2, p6, color, commands );
 }
 
-void RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* commands )
+void RenderFloorGrid( f32 areaSizeMeters, f32 resolutionMeters, RenderCommands* commands )
 {
-    const r32 areaHalf = areaSizeMeters / 2;
+    const f32 areaHalf = areaSizeMeters / 2;
 
     u32 semiBlack = Pack01ToRGBA( 0, 0, 0, 0.1f );
     v3 off = V3Zero;
 
-    r32 yStart = -areaHalf;
-    r32 yEnd = areaHalf;
+    f32 yStart = -areaHalf;
+    f32 yEnd = areaHalf;
     for( float x = -areaHalf; x <= areaHalf; x += resolutionMeters )
     {
-        RenderLine( V3( x, yStart, 0 ) + off, V3( x, yEnd, 0 ) + off, semiBlack, commands );
+        RenderLine( V3( x, yStart, 0.f ) + off, V3( x, yEnd, 0.f ) + off, semiBlack, commands );
     }
-    r32 xStart = -areaHalf;
-    r32 xEnd = areaHalf;
+    f32 xStart = -areaHalf;
+    f32 xEnd = areaHalf;
     for( float y = -areaHalf; y <= areaHalf; y += resolutionMeters )
     {
-        RenderLine( V3( xStart, y, 0 ) + off, V3( xEnd, y, 0 ) + off, semiBlack, commands );
+        RenderLine( V3( xStart, y, 0.f ) + off, V3( xEnd, y, 0.f ) + off, semiBlack, commands );
     }
 }
 
-void RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* commands )
+void RenderCubicGrid( const aabb& boundingBox, f32 step, u32 color, bool drawZAxis, RenderCommands* commands )
 {
     ASSERT( step > 0.f );
 
-    v3 const& min = boundingBox.min;
-    v3 const& max = boundingBox.max;
+    v3 min, max;
+    MinMax( boundingBox, &min, &max );
 
-    for( r32 z = min.z; z <= max.z; z += step )
+    for( f32 z = min.z; z <= max.z; z += step )
     {
-        for( r32 y = min.y; y <= max.y; y += step )
+        for( f32 y = min.y; y <= max.y; y += step )
             RenderLine( { min.x, y, z }, { max.x, y, z }, color, commands );
 
-        for( r32 x = min.x; x <= max.x; x += step )
+        for( f32 x = min.x; x <= max.x; x += step )
             RenderLine( { x, min.y, z }, { x, max.y, z }, color, commands );
     }
 
     if( drawZAxis )
     {
-        for( r32 y = min.y; y <= max.y; y += step )
+        for( f32 y = min.y; y <= max.y; y += step )
         {
-            for( r32 x = min.x; x <= max.x; x += step )
+            for( f32 x = min.x; x <= max.x; x += step )
                 RenderLine( { x, y, min.z }, { x, y, max.z }, color, commands );
         }
     }
@@ -404,7 +425,7 @@ void RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAx
 
 void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* commands )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     RenderSetShader( ShaderProgramName::PlainColorVoxel, commands );
 
@@ -415,33 +436,34 @@ void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffset
         entry->instanceBufferOffset = commands->instanceBuffer.size;
 
         // Common instance data
-        aabb box = AABBCenterDim( V3Zero, VoxelSizeMeters );
+        v3 min = V3Zero - V3( VoxelSizeMeters * 0.5f );
+        v3 max = V3Zero + V3( VoxelSizeMeters * 0.5f );
 
         // TODO Only send the lines actually visible from the current lookAt vector of the camera (as a strip if possible!)
 #define PUSH_LINE( p1, p2 )                                \
         PushVertex( p1, color, { 0, 0 }, commands ); \
         PushVertex( p2, color, { 0, 0 }, commands ); \
 
-        PUSH_LINE( V3( box.min.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.min.z ) );
-        PUSH_LINE( V3( box.min.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ) );
-        PUSH_LINE( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.max.y, box.min.z ) );
-        PUSH_LINE( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.max.y, box.min.z ) );
+        PUSH_LINE( V3( min.x, min.y, min.z ), V3( max.x, min.y, min.z ) );
+        PUSH_LINE( V3( min.x, max.y, min.z ), V3( max.x, max.y, min.z ) );
+        PUSH_LINE( V3( min.x, min.y, min.z ), V3( min.x, max.y, min.z ) );
+        PUSH_LINE( V3( max.x, min.y, min.z ), V3( max.x, max.y, min.z ) );
 
-        PUSH_LINE( V3( box.min.x, box.min.y, box.min.z ), V3( box.min.x, box.min.y, box.max.z ) );
-        PUSH_LINE( V3( box.max.x, box.min.y, box.min.z ), V3( box.max.x, box.min.y, box.max.z ) );
-        PUSH_LINE( V3( box.min.x, box.max.y, box.min.z ), V3( box.min.x, box.max.y, box.max.z ) );
-        PUSH_LINE( V3( box.max.x, box.max.y, box.min.z ), V3( box.max.x, box.max.y, box.max.z ) );
+        PUSH_LINE( V3( min.x, min.y, min.z ), V3( min.x, min.y, max.z ) );
+        PUSH_LINE( V3( max.x, min.y, min.z ), V3( max.x, min.y, max.z ) );
+        PUSH_LINE( V3( min.x, max.y, min.z ), V3( min.x, max.y, max.z ) );
+        PUSH_LINE( V3( max.x, max.y, min.z ), V3( max.x, max.y, max.z ) );
 
-        PUSH_LINE( V3( box.min.x, box.min.y, box.max.z ), V3( box.max.x, box.min.y, box.max.z ) );
-        PUSH_LINE( V3( box.min.x, box.max.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ) );
-        PUSH_LINE( V3( box.min.x, box.min.y, box.max.z ), V3( box.min.x, box.max.y, box.max.z ) );
-        PUSH_LINE( V3( box.max.x, box.min.y, box.max.z ), V3( box.max.x, box.max.y, box.max.z ) );
+        PUSH_LINE( V3( min.x, min.y, max.z ), V3( max.x, min.y, max.z ) );
+        PUSH_LINE( V3( min.x, max.y, max.z ), V3( max.x, max.y, max.z ) );
+        PUSH_LINE( V3( min.x, min.y, max.z ), V3( min.x, max.y, max.z ) );
+        PUSH_LINE( V3( max.x, min.y, max.z ), V3( max.x, max.y, max.z ) );
 #undef PUSH_LINE
 
 
         // Per instance data
         InstanceData data = {};
-        u32 instanceCount = 0;
+        int instanceCount = 0;
         u8 const* grid = voxelGrid.data;
 
         for( int k = 0; k < VoxelsPerClusterAxis; ++k )
@@ -452,7 +474,7 @@ void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffset
                     u8 voxelData = *grid++;
                     if( voxelData > 1 )
                     {
-                        data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k ) * VoxelSizeMeters;
+                        data.worldOffset = clusterOffsetP + V3( (f32)i, (f32)j, (f32)k ) * VoxelSizeMeters;
                         data.color = voxelData == 2 ? Pack01ToRGBA( 1, 0, 1, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
                         PushInstanceData( data, commands );
 
@@ -470,7 +492,7 @@ void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffset
 
 void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 color, RenderCommands* commands )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     RenderSetShader( ShaderProgramName::PlainColorVoxel, commands );
 
@@ -557,7 +579,7 @@ void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 
 
         // Per instance data
         InstanceData data = {};
-        u32 instanceCount = 0;
+        int instanceCount = 0;
 #if 0
         u8 const* grid = cluster.voxelGrid.data;
 
@@ -569,7 +591,7 @@ void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 
                     u8 voxelData = *grid++;
                     if( voxelData > 1 )
                     {
-                        data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k ) * VoxelSizeMeters;
+                        data.worldOffset = clusterOffsetP + V3( (f32)i, (f32)j, (f32)k ) * VoxelSizeMeters;
                         data.color = voxelData == 2 ? Pack01ToRGBA( 0.99f, 0.9f, 0.7f, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
                         PushInstanceData( data, commands );
 
@@ -577,21 +599,21 @@ void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 
                     }
                 }
 #else
-        for( u32 r = 0; r < cluster.rooms.count; ++r )
+        for( int r = 0; r < cluster.rooms.count; ++r )
         {
-            v3u roomMinP = cluster.rooms[r].voxelP;
-            v3u roomMaxP = roomMinP + cluster.rooms[r].sizeVoxels - V3uOne;
+            v3i roomMinP = cluster.rooms[r].voxelP;
+            v3i roomMaxP = roomMinP + cluster.rooms[r].sizeVoxels - V3iOne;
 
-            for( u32 k = roomMinP.z; k <= roomMaxP.z; ++k )
-                for( u32 j = roomMinP.y; j <= roomMaxP.y; ++j )
-                    for( u32 i = roomMinP.x; i <= roomMaxP.x; ++i )
+            for( int k = roomMinP.z; k <= roomMaxP.z; ++k )
+                for( int j = roomMinP.y; j <= roomMaxP.y; ++j )
+                    for( int i = roomMinP.x; i <= roomMaxP.x; ++i )
                     {
                         bool atBorder = (i == roomMinP.x || i == roomMaxP.x)
                             || (j == roomMinP.y || j == roomMaxP.y)
                             || (k == roomMinP.z || k == roomMaxP.z);
                         if( atBorder )
                         {
-                            data.worldOffset = clusterOffsetP + V3( (r32)i, (r32)j, (r32)k ) * VoxelSizeMeters;
+                            data.worldOffset = clusterOffsetP + V3( (f32)i, (f32)j, (f32)k ) * VoxelSizeMeters;
                             data.color = Pack01ToRGBA( 0.99f, 0.9f, 0.7f, 1 );
                             PushInstanceData( data, commands );
 
@@ -606,4 +628,50 @@ void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 
     // https://stackoverflow.com/questions/22948068/opengl-rendering-lots-of-cubes
     // http://jojendersie.de/rendering-huge-amounts-of-voxels/
     }
+}
+
+void RenderCamera( m4 const& cameraFromWorld, RenderCommands* commands )
+{
+    Camera& camera = commands->camera;
+    camera = DefaultCamera();
+    camera.cameraFromWorld = cameraFromWorld;
+
+    // Use default projection
+    f32 viewportWidth = commands->width;
+    f32 viewportHeight = commands->height;
+    m4 projectFromCamera = M4Perspective( viewportWidth / viewportHeight, camera.fovYDeg );
+    m4 m = projectFromCamera * cameraFromWorld;
+    camera.projectFromWorld = m;
+
+    // Compute frustum planes
+    // Left
+    camera.cachedFrustumPlanes[0] =
+    {
+        m.r[3] + m.r[0]
+    };
+    // Right
+    camera.cachedFrustumPlanes[1] =
+    {
+        m.r[3] - m.r[0]
+    };
+    // Bottom
+    camera.cachedFrustumPlanes[2] =
+    {
+        m.r[3] + m.r[1]
+    };
+    // Top
+    camera.cachedFrustumPlanes[3] =
+    {
+        m.r[3] - m.r[1]
+    };
+    // Near
+    camera.cachedFrustumPlanes[4] =
+    {
+        m.r[3] + m.r[2]
+    };
+    // Far
+    camera.cachedFrustumPlanes[5] =
+    {
+        m.r[3] - m.r[2]
+    };
 }

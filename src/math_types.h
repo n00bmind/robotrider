@@ -45,11 +45,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // TODO IMPORTANT Write a nice test suite for this whole file
 
-inline bool AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
-inline bool GreaterOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
-inline bool LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon = 0 );
-inline bool AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon = 0 );
-inline r32 Radians( r32 degrees );
+inline bool AlmostEqual( f32 a, f32 b, f32 absoluteEpsilon = 0 );
+inline bool GreaterOrAlmostEqual( f32 a, f32 b, f32 absoluteEpsilon = 0 );
+inline bool LessOrAlmostEqual( f32 a, f32 b, f32 absoluteEpsilon = 0 );
+inline bool AlmostEqual( f64 a, f64 b, f64 absoluteEpsilon = 0 );
+inline f32 Radians( f32 degrees );
 
 // Vector 2
 
@@ -57,23 +57,23 @@ union v2
 {
     struct
     {
-        r32 x, y;
+        f32 x, y;
     };
     struct
     {
-        r32 u, v;
+        f32 u, v;
     };
     struct
     {
-        r32 min, max;
+        f32 min, max;
     };
-    r32 e[2];
+    f32 e[2];
 };
 
 const v2 V2Zero = { 0, 0 };
 
 inline v2
-V2( r32 x, r32 y )
+V2( f32 x, f32 y )
 {
     v2 result = { x, y };
     return result;
@@ -93,30 +93,30 @@ operator -( const v2 &a, const v2 &b )
 }
 
 inline v2
-operator *( const v2 &v, r32 s )
+operator *( const v2 &v, f32 s )
 {
-    v2 result = { (r32)v.x * s, (r32)v.y * s };
+    v2 result = { (f32)v.x * s, (f32)v.y * s };
     return result;
 }
 
 inline v2
-operator /( const v2& v, r32 s )
+operator /( const v2& v, f32 s )
 {
     v2 result = { v.x / s, v.y / s };
     return result;
 }
 
-inline r32
+inline f32
 Length( const v2& v )
 {
-    r32 result = Sqrt( v.x * v.x + v.y * v.y );
+    f32 result = Sqrt( v.x * v.x + v.y * v.y );
     return result;
 }
 
-inline r32
+inline f32
 LengthSq( const v2 &v )
 {
-    r32 result = v.x * v.x + v.y * v.y;
+    f32 result = v.x * v.x + v.y * v.y;
     return result;
 }
 
@@ -132,6 +132,7 @@ union v2i
 };
 
 const v2i V2iZero = { 0, 0 };
+const v2i V2iOne = { 1, 1 };
 
 inline v2i
 V2i( i32 x, i32 y )
@@ -140,10 +141,24 @@ V2i( i32 x, i32 y )
     return result;
 }
 
+inline v2i
+V2i( i32 s )
+{
+    v2i result = { s, s };
+    return result;
+}
+
 inline v2
 V2( const v2i &v )
 {
-    v2 result = { (r32)v.x, (r32)v.y };
+    v2 result = { (f32)v.x, (f32)v.y };
+    return result;
+}
+
+inline v2i
+V2i( const v2& v )
+{
+    v2i result = { I32( v.x ), I32( v.y ) };
     return result;
 }
 
@@ -157,6 +172,13 @@ inline v2i
 operator +( const v2i& a, const v2i& b )
 {
     v2i result = { a.x + b.x, a.y + b.y };
+    return result;
+}
+
+inline v2
+operator *( const v2i &v, f32 s )
+{
+    v2 result = V2( (f32)v.x * s, (f32)v.y * s );
     return result;
 }
 
@@ -175,7 +197,7 @@ Round( const v2 &v )
 }
 
 // Vector 2 unsigned
-
+#if 0
 union v2u
 {
     struct
@@ -234,9 +256,9 @@ operator +( const v2u& a, const v2u& b )
 }
 
 inline v2u
-operator *( const v2u &v, r32 s )
+operator *( const v2u &v, f32 s )
 {
-    v2u result = V2u( V2( (r32)v.x * s, (r32)v.y * s ) );
+    v2u result = V2u( V2( (f32)v.x * s, (f32)v.y * s ) );
     return result;
 }
 
@@ -252,6 +274,7 @@ Hadamard( const v2u& a, const v2u& b )
     v2u result = { a.x * b.x, a.y * b.y };
     return result;
 }
+#endif
 
 
 // Vector 3 integer
@@ -276,11 +299,20 @@ union v3i
 };
 
 const v3i V3iZero = { 0, 0, 0 };
+const v3i V3iOne = { 1, 1, 1 };
+
 
 inline v3i
 V3i( i32 x, i32 y, i32 z )
 {
     v3i result = { x, y, z };
+    return result;
+}
+
+inline v3i
+V3i( i32 s )
+{
+    v3i result = { s, s, s };
     return result;
 }
 
@@ -317,8 +349,36 @@ operator -( const v3i &a, const v3i &b )
     return result;
 }
 
-// Vector 3 unsigned
+inline v3i
+operator /( const v3i& v, i32 s )
+{
+    v3i result = { v.x / s, v.y / s, v.z / s };
+    return result;
+}
 
+inline void
+operator /=( v3i& v, i32 s )
+{
+    v.x /= s;
+    v.y /= s;
+    v.z /= s;
+}
+
+inline v3i
+Hadamard( const v3i& a, const v3i& b )
+{
+    v3i result = { a.x * b.x, a.y * b.y, a.z * b.z };
+    return result;
+}
+
+inline bool
+AnyZero( v3i const& v )
+{
+    return v.x == 0 || v.y == 0 || v.z == 0;
+}
+
+// Vector 3 unsigned
+#if 0
 union v3u
 {
     struct
@@ -358,7 +418,7 @@ V3u( u32 s )
 inline v3u
 V3u( v3i const& v )
 {
-    v3u result = { ToU32Safe( v.x ), ToU32Safe( v.y ), ToU32Safe( v.z ) };
+    v3u result = { U32( v.x ), U32( v.y ), U32( v.z ) };
     return result;
 }
 
@@ -394,6 +454,7 @@ Hadamard( const v3u& a, const v3u& b )
     v3u result = { a.x * b.x, a.y * b.y, a.z * b.z };
     return result;
 }
+#endif
 
 // Vector 3
 
@@ -401,38 +462,38 @@ union v3
 {
     struct
     {
-        r32 x, y, z;
+        f32 x, y, z;
     };
     struct
     {
-        r32 u, v, __;
+        f32 u, v, __;
     };
     struct
     {
-        r32 r, g, b;
+        f32 r, g, b;
     };
     struct
     {
         v2 xy;
-        r32 _ignored0;
+        f32 _ignored0;
     };
     struct
     {
-        r32 _ignored1;
+        f32 _ignored1;
         v2 yz;
     };
     struct
     {
         v2 uv;
-        r32 _ignored2;
+        f32 _ignored2;
     };
-    r32 e[3];
+    f32 e[3];
 };
 
 const v3 V3Zero = { 0.0f, 0.0f, 0.0f };
 const v3 V3One = { 1.f, 1.f, 1.f };
-const v3 V3Undefined = { R32NAN, R32NAN, R32NAN };
-const v3 V3Inf = { R32INF, R32INF, R32INF };
+const v3 V3Undefined = { -F32INF, F32INF, -F32INF };
+const v3 V3Inf = { F32INF, F32INF, F32INF };
 // Canonical world orientations
 // We define our right-handed game world as having the positive Z axis pointing up
 // (consequently the positive Y axis points 'forward')
@@ -444,28 +505,28 @@ const v3 V3Forward = { 0.0f, 1.0f, 0.0f };
 const v3 V3Up      = { 0.0f, 0.0f, 1.0f };
 
 inline v3
-V3( r32 s )
+V3( f32 s )
 {
     v3 result = { s, s, s };
     return result;
 }
 
 inline v3
-V3( r32 x, r32 y, r32 z )
+V3( f32 x, f32 y, f32 z )
 {
     v3 result = { x, y, z };
     return result;
 }
 
 inline v3
-V3( u32 x, u32 y, u32 z )
+V3( i32 x, i32 y, i32 z )
 {
-    v3 result = { (r32)x, (r32)y, (r32)z };
+    v3 result = { (f32)x, (f32)y, (f32)z };
     return result;
 }
 
 inline v3
-V3( const v2 &v, r32 z )
+V3( const v2 &v, f32 z )
 {
     v3 result = { v.x, v.y, z };
     return result;
@@ -474,14 +535,29 @@ V3( const v2 &v, r32 z )
 inline v3
 V3( const v3i& v )
 {
-    v3 result = { (r32)v.x, (r32)v.y, (r32)v.z };
+    v3 result = { (f32)v.x, (f32)v.y, (f32)v.z };
     return result;
 }
 
+inline v3i
+V3i( v3 const& v )
+{
+    v3i result = { I32( v.x ), I32( v.y ), I32( v.z ) };
+    return result;
+}
+
+inline v3i
+V3iRound( v3 const& v )
+{
+    v3i result = { I32Round( v.x ), I32Round( v.y ), I32Round( v.z ) };
+    return result;
+}
+
+#if 0
 inline v3
 V3( const v3u& v )
 {
-    v3 result = { (r32)v.x, (r32)v.y, (r32)v.z };
+    v3 result = { (f32)v.x, (f32)v.y, (f32)v.z };
     return result;
 }
 
@@ -491,6 +567,7 @@ V3uCeil( v3 const& v )
     v3u result = { Ceil( v.x ), Ceil( v.y ), Ceil( v.z ) };
     return result;
 }
+#endif
 
 inline bool
 operator ==( const v3 &a, const v3 &b )
@@ -505,11 +582,19 @@ operator !=( const v3 &a, const v3 &b )
 }
 
 inline bool
-AlmostEqual( const v3& a, const v3& b, r32 absoluteEpsilon = 0 )
+AlmostEqual( const v3& a, const v3& b, f32 absoluteEpsilon = 0 )
 {
     return AlmostEqual( a.x, b.x, absoluteEpsilon )
         && AlmostEqual( a.y, b.y, absoluteEpsilon )
         && AlmostEqual( a.z, b.z, absoluteEpsilon );
+}
+
+inline bool
+AlmostZero( const v3& v, f32 absoluteEpsilon = 1e-6f )
+{
+    return AlmostZero( v.x, absoluteEpsilon )
+        && AlmostZero( v.y, absoluteEpsilon )
+        && AlmostZero( v.z, absoluteEpsilon );
 }
 
 inline v3
@@ -542,28 +627,28 @@ operator +=( v3 &a, const v3 &b )
 }
 
 inline v3
-operator *( const v3 &v, r32 s )
+operator *( const v3 &v, f32 s )
 {
     v3 result = { v.x * s, v.y * s, v.z * s };
     return result;
 }
 
 inline v3
-operator *( const v3i &v, r32 s )
+operator *( const v3i &v, f32 s )
 {
-    v3 result = { (r32)v.x * s, (r32)v.y * s, (r32)v.z * s };
+    v3 result = { (f32)v.x * s, (f32)v.y * s, (f32)v.z * s };
     return result;
 }
 
 inline v3
-operator *( r32 s, const v3 &v )
+operator *( f32 s, const v3 &v )
 {
     v3 result = { v.x * s, v.y * s, v.z * s };
     return result;
 }
 
 inline void
-operator *=( v3& v, r32 s )
+operator *=( v3& v, f32 s )
 {
     v.x *= s;
     v.y *= s;
@@ -571,24 +656,24 @@ operator *=( v3& v, r32 s )
 }
 
 inline v3
-operator /( const v3& v, r32 s )
+operator /( const v3& v, f32 s )
 {
     v3 result = { v.x / s, v.y / s, v.z / s };
     return result;
 }
 
 inline void
-operator /=( v3& v, r32 s )
+operator /=( v3& v, f32 s )
 {
     v.x /= s;
     v.y /= s;
     v.z /= s;
 }
 
-inline r32
+inline f32
 Dot( const v3& a, const v3& b )
 {
-    r32 result = a.x * b.x + a.y * b.y + a.z * b.z;
+    f32 result = a.x * b.x + a.y * b.y + a.z * b.z;
     return result;
 }
 
@@ -618,75 +703,122 @@ Abs( const v3& v )
     return result;
 }
 
-inline r32
-Length( const v3& v )
+inline f32
+LengthFast( const v3& v )
 {
-    r32 result = Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
+    f32 result = SqrtFast( v.x * v.x + v.y * v.y + v.z * v.z );
     return result;
 }
 
-inline r32
+inline f32
+LengthSlow( const v3& v )
+{
+    f32 result = Sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
+    return result;
+}
+
+inline f32
 LengthSq( const v3& v )
 {
-    r32 result = v.x * v.x + v.y * v.y + v.z * v.z;
+    f32 result = v.x * v.x + v.y * v.y + v.z * v.z;
     return result;
 }
 
 inline bool
-IsUnit( const v3& v, r32* outLengthSq = nullptr )
+IsUnit( const v3& v, f32* outLengthSq = nullptr )
 {
-    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
     if( outLengthSq )
         *outLengthSq = lengthSq;
 
-    return AlmostEqual( lengthSq, 1.f, 1e-05f );
+    return AlmostEqual( lengthSq, 1.f, 1e-03f );
 }
 
-inline r32
-Distance( const v3& a, const v3& b )
+inline f32
+DistanceFast( const v3& a, const v3& b )
 {
-    r32 result = Length(a - b);
+    f32 result = LengthFast(a - b);
     return result;
 }
 
-inline r32
+inline f32
+DistanceSlow( const v3& a, const v3& b )
+{
+    f32 result = LengthSlow(a - b);
+    return result;
+}
+
+inline f32
 DistanceSq( const v3& a, const v3& b )
 {
-    r32 result = LengthSq(a - b);
+    f32 result = LengthSq(a - b);
     return result;
 }
 
 inline void
-Normalize( v3& v )
+NormalizeFast( v3& v )
 {
-    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
 
     if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
     {
-        r32 invL = 1.0f / Sqrt( lengthSq );
+        f32 invL = RcpSqrtFast( lengthSq );
+        v *= invL;
+    }
+}
+
+inline void
+NormalizeSlow( v3& v )
+{
+    f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+
+    if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
+    {
+        f32 invL = 1.0f / Sqrt( lengthSq );
         v *= invL;
     }
 }
 
 inline v3
-Normalized( const v3 &v )
+NormalizedFast( const v3 &v )
 {
     v3 result = v;
 
-    r32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
     if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
     {
-        r32 invL = 1.0f / Sqrt( lengthSq );
+        f32 invL = RcpSqrtFast( lengthSq );
         result = v * invL;
     }
     return result;
 }
 
 inline v3
-Lerp( v3 const& a, v3 const& b, r32 t )
+NormalizedSlow( const v3 &v )
+{
+    v3 result = v;
+
+    f32 lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
+    if( !AlmostEqual( lengthSq, 1.f, 1e-05f ) )
+    {
+        f32 invL = 1.0f / Sqrt( lengthSq );
+        result = v * invL;
+    }
+    return result;
+}
+
+inline v3
+Lerp( v3 const& a, v3 const& b, f32 t )
 {
     return a + (b - a) * t;
 }
+
+inline bool
+IsNan( v3 const& v )
+{
+    return IsNan( v.x ) || IsNan( v.y ) || IsNan( v.z );
+}
+
 
 // Vector 4
 
@@ -699,11 +831,11 @@ union v4
             v3 xyz;
             struct
             {
-                r32 x, y, z;
+                f32 x, y, z;
             };
         };
         
-        r32 w;
+        f32 w;
     };
     struct
     {
@@ -712,56 +844,84 @@ union v4
             v3 rgb;
             struct
             {
-                r32 r, g, b;
+                f32 r, g, b;
             };
         };
         
-        r32 a;
+        f32 a;
     };
     struct
     {
         v2 xy;
-        r32 _ignored0;
-        r32 _ignored1;
+        f32 _ignored0;
+        f32 _ignored1;
     };
     struct
     {
-        r32 _ignored2;
+        f32 _ignored2;
         v2 yz;
-        r32 _ignored3;
+        f32 _ignored3;
     };
     struct
     {
-        r32 _ignored4;
-        r32 _ignored5;
+        f32 _ignored4;
+        f32 _ignored5;
         v2 zw;
     };
-    r32 e[4];
+    f32 e[4];
 };
 
+
+const v4 V4Zero = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+
 inline v4
-V4( r32 x, r32 y, r32 z, r32 w )
+V4( f32 x, f32 y, f32 z, f32 w )
 {
     v4 result = { x, y, z, w };
     return result;
 }
 
 inline v4
-V4( const v3 &v, r32 w )
+V4( const v3 &v, f32 w )
 {
     v4 result = { v.x, v.y, v.z, w };
     return result;
 }
 
+inline bool
+operator ==( const v4 &a, const v4 &b )
+{
+    return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+}
+
+inline bool
+operator !=( const v4 &a, const v4 &b )
+{
+    return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
+}
+
 inline v4
-operator *( r32 f, const v4 &v )
+operator +( v4 const& a, v4 const& b )
+{
+    return { a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w };
+}
+
+inline v4
+operator -( v4 const& a, v4 const& b )
+{
+    return { a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
+}
+
+inline v4
+operator *( f32 f, const v4 &v )
 {
     v4 result = { f * v.x, f * v.y, f * v.z, f * v.w };
     return result;
 }
 
 inline v4
-operator /( const v4& v, r32 s )
+operator /( const v4& v, f32 s )
 {
     v4 result = { v.x / s, v.y / s, v.z / s, v.w / s };
     return result;
@@ -777,10 +937,10 @@ Hadamard( const v4& a, const v4& b )
 inline u32
 Pack01ToRGBA( const v4& c )
 {
-    u32 result = (((Round( c.a * 255 ) & 0xFF) << 24)
-                | ((Round( c.b * 255 ) & 0xFF) << 16)
-                | ((Round( c.g * 255 ) & 0xFF) << 8)
-                |  (Round( c.r * 255 ) & 0xFF));
+    u32 result = (((U32( Round( c.a * 255 ) ) & 0xFF) << 24)
+                | ((U32( Round( c.b * 255 ) ) & 0xFF) << 16)
+                | ((U32( Round( c.g * 255 ) ) & 0xFF) << 8)
+                |  (U32( Round( c.r * 255 ) ) & 0xFF));
     return result;
 }
 
@@ -798,11 +958,12 @@ UnpackRGBAToV401( u32 c )
 }
 
 
-// Matrix 4x4
+// Matrix 4x4 (ROW major)
 
 union m4
 {
-    r32 e[4][4];
+    f32 e[4][4];
+    v4 r[4];
 };
 
 const m4 M4Identity =
@@ -876,10 +1037,10 @@ M4Translation( const v3 &p )
 }
 
 inline m4
-M4XRotation( r32 pitchAngleRads )
+M4XRotation( f32 pitchAngleRads )
 {
-    r32 s = Sin( pitchAngleRads );
-    r32 c = Cos( pitchAngleRads );
+    f32 s = Sin( pitchAngleRads );
+    f32 c = Cos( pitchAngleRads );
 
     m4 result =
     {{
@@ -893,10 +1054,10 @@ M4XRotation( r32 pitchAngleRads )
 }
 
 inline m4
-M4YRotation( r32 rollAngleRads )
+M4YRotation( f32 rollAngleRads )
 {
-    r32 s = Sin( rollAngleRads );
-    r32 c = Cos( rollAngleRads );
+    f32 s = Sin( rollAngleRads );
+    f32 c = Cos( rollAngleRads );
 
     m4 result =
     {{
@@ -910,10 +1071,10 @@ M4YRotation( r32 rollAngleRads )
 }
 
 inline m4
-M4ZRotation( r32 yawAngleRads )
+M4ZRotation( f32 yawAngleRads )
 {
-    r32 s = Sin( yawAngleRads );
-    r32 c = Cos( yawAngleRads );
+    f32 s = Sin( yawAngleRads );
+    f32 c = Cos( yawAngleRads );
 
     m4 result =
     {{
@@ -927,18 +1088,18 @@ M4ZRotation( r32 yawAngleRads )
 }
 
 inline m4
-M4AxisAngle( const v3& v, const r32 angleRads )
+M4AxisAngle( const v3& v, const f32 angleRads )
 {
-    r32 s = Sin( angleRads );
-    r32 c = Cos( angleRads );
-    r32 c1 = 1 - c;
+    f32 s = Sin( angleRads );
+    f32 c = Cos( angleRads );
+    f32 c1 = 1 - c;
 
-    r32 xx = v.x * v.x;
-    r32 yy = v.y * v.y;
-    r32 zz = v.z * v.z;
-    r32 xy = v.x * v.y;
-    r32 xz = v.x * v.z;
-    r32 yz = v.y * v.z;
+    f32 xx = v.x * v.x;
+    f32 yy = v.y * v.y;
+    f32 zz = v.z * v.z;
+    f32 xy = v.x * v.y;
+    f32 xz = v.x * v.z;
+    f32 yz = v.y * v.z;
 
     m4 result =
     {{
@@ -1115,8 +1276,8 @@ M4CameraTransform( const m4& rot, const v3& p )
 inline m4
 M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 {
-    v3 vUpN = Normalized( vUp );
-    v3 vZ = Normalized( -(pTgt - pSrc) );
+    v3 vUpN = NormalizedFast( vUp );
+    v3 vZ = NormalizedFast( -(pTgt - pSrc) );
     
     v3 vX = V3X;
     v3 vY = V3Y;
@@ -1126,8 +1287,8 @@ M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
         vY = -V3Y;
     else
     {
-        vX = Normalized( Cross( vUpN, vZ ) );
-        vY = Normalized( Cross( vZ, vX ) );
+        vX = NormalizedFast( Cross( vUpN, vZ ) );
+        vY = NormalizedFast( Cross( vZ, vX ) );
     }
 
     m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
@@ -1137,8 +1298,8 @@ M4CameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 inline m4
 M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
 {
-    v3 vUpN = Normalized( vUp );
-    v3 vZ = Normalized( -vDir );
+    v3 vUpN = NormalizedFast( vUp );
+    v3 vZ = NormalizedFast( -vDir );
 
     v3 vX = V3X;
     v3 vY = V3Y;
@@ -1148,8 +1309,8 @@ M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
         vY = -V3Y;
     else
     {
-        vX = Normalized( Cross( vUpN, vZ ) );
-        vY = Normalized( Cross( vZ, vX ) );
+        vX = NormalizedFast( Cross( vUpN, vZ ) );
+        vY = NormalizedFast( Cross( vZ, vX ) );
     }
 
     m4 r = M4CameraTransform( vX, vY, vZ, pSrc );
@@ -1157,14 +1318,14 @@ M4CameraLookAtDir( const v3 &pSrc, const v3 &vDir, const v3 &vUp )
 }
 
 inline m4
-M4Perspective( r32 aspectRatio, r32 fovYDeg )
+M4Perspective( f32 aspectRatio, f32 fovYDeg )
 {
-    r32 n = 0.1f;		// Make this configurable?
-    r32 f = 1000.0f;
-    r32 d = f - n;
-    r32 a = aspectRatio;
-    r32 fovy = Radians( fovYDeg );
-    r32 ctf = 1 / (r32)tan( fovy / 2 );
+    f32 n = 0.1f;		// Make this configurable?
+    f32 f = 1000.0f;
+    f32 d = f - n;
+    f32 a = aspectRatio;
+    f32 fovy = Radians( fovYDeg );
+    f32 ctf = 1 / (f32)tan( fovy / 2 );
 
     m4 result =
     {{
@@ -1178,10 +1339,10 @@ M4Perspective( r32 aspectRatio, r32 fovYDeg )
 }
 
 inline m4
-M4Orthographic( r32 width, r32 height )
+M4Orthographic( f32 width, f32 height )
 {
-    r32 w = width;
-    r32 h = -height;
+    f32 w = width;
+    f32 h = -height;
 
     m4 result =
     {{
@@ -1221,7 +1382,7 @@ SetTranslation( m4 &m, const v3 &p )
 }
 
 inline v4
-GetRow( const m4 &m, u32 row )
+GetRow( const m4 &m, int row )
 {
     ASSERT( row >= 0 && row < 4 );
     v4 result = { m.e[row][0], m.e[row][1], m.e[row][2], m.e[row][3] };
@@ -1229,7 +1390,7 @@ GetRow( const m4 &m, u32 row )
 }
 
 inline v4
-GetColumn( const m4 &m, u32 col )
+GetColumn( const m4 &m, int col )
 {
     ASSERT( col >= 0 && col < 4 );
     v4 result = { m.e[0][col], m.e[1][col], m.e[2][col], m.e[3][col] };
@@ -1307,14 +1468,14 @@ Transposed( const m4 &m )
 union m4Symmetric
 {
     // TODO Try if it would be acceptable to use just floats here
-    r64 e[10];
+    f64 e[10];
 };
 
 const m4Symmetric M4SymmetricZero = {0};
 
 // Make plane
 inline m4Symmetric
-M4Symmetric( r64 a, r64 b, r64 c, r64 d )
+M4Symmetric( f64 a, f64 b, f64 c, f64 d )
 {
     m4Symmetric result =
     {{
@@ -1322,7 +1483,7 @@ M4Symmetric( r64 a, r64 b, r64 c, r64 d )
                b * b, b * c, b * d,
                       c * c, c * d,
                              d * d,
-     }};
+    }};
 
     return result;
 }
@@ -1350,13 +1511,13 @@ operator +=( m4Symmetric& a, const m4Symmetric& b )
                                                           a.e[9] += b.e[9];
 }
 
-inline r64
+inline f64
 Determinant3x3( const m4Symmetric& m,
                 int e11, int e12, int e13,
                 int e21, int e22, int e23, 
                 int e31, int e32, int e33 )
 {
-    r64 result = m.e[e11]*m.e[e22]*m.e[e33] + m.e[e13]*m.e[e21]*m.e[e32] + m.e[e12]*m.e[e23]*m.e[e31]
+    f64 result = m.e[e11]*m.e[e22]*m.e[e33] + m.e[e13]*m.e[e21]*m.e[e32] + m.e[e12]*m.e[e23]*m.e[e31]
                - m.e[e13]*m.e[e22]*m.e[e31] - m.e[e11]*m.e[e23]*m.e[e32] - m.e[e12]*m.e[e21]*m.e[e33];
 
     return result;
@@ -1373,36 +1534,36 @@ union qn
             v3 xyz;
             struct
             {
-                r32 x, y, z;
+                f32 x, y, z;
             };
         };
         
-        r32 w;
+        f32 w;
     };
-    r32 e[4];
+    f32 e[4];
 };
 
 const qn QnIdentity = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 // TODO (Unit) Test everything quaternion related
 
-inline r32
+inline f32
 SqNorm( const qn& q )
 {
-    r32 result = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+    f32 result = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
     return result;
 }
 
-inline r32
+inline f32
 Norm( const qn& q )
 {
     return Sqrt( SqNorm( q ) );
 }
 
 inline bool
-IsUnit( const qn& q, r32* outSqNorm = nullptr )
+IsUnit( const qn& q, f32* outSqNorm = nullptr )
 {
-    r32 sqNorm = SqNorm( q );
+    f32 sqNorm = SqNorm( q );
     if( outSqNorm )
         *outSqNorm = sqNorm;
     
@@ -1412,10 +1573,10 @@ IsUnit( const qn& q, r32* outSqNorm = nullptr )
 inline void
 Normalize( qn& q )
 {
-    r32 sqNorm;
+    f32 sqNorm;
     if( !IsUnit( q, &sqNorm ) )
     {
-        r32 invNorm = 1.0f / Sqrt( sqNorm );
+        f32 invNorm = 1.0f / Sqrt( sqNorm );
         q.x *= invNorm;
         q.y *= invNorm;
         q.z *= invNorm;
@@ -1424,13 +1585,13 @@ Normalize( qn& q )
 }
 
 inline qn
-Qn( const v3& vAxis, r32 angleRads )
+Qn( const v3& vAxis, f32 angleRads )
 {
-    v3 vAxisN = Normalized( vAxis );
+    v3 vAxisN = NormalizedFast( vAxis );
 
-    r32 halfAngleRads = angleRads * 0.5f;
-    r32 sinTheta = Sin( halfAngleRads );
-    r32 cosTheta = Cos( halfAngleRads );
+    f32 halfAngleRads = angleRads * 0.5f;
+    f32 sinTheta = Sin( halfAngleRads );
+    f32 cosTheta = Cos( halfAngleRads );
 
     qn result =
     {
@@ -1439,22 +1600,22 @@ Qn( const v3& vAxis, r32 angleRads )
         vAxisN.z * sinTheta,
         cosTheta
     };
-    //r32 norm = Norm( result );
+    //f32 norm = Norm( result );
 
     return result;
 }
 
 inline qn
-QnXRotation( r32 pitchAngleRads )
+QnXRotation( f32 pitchAngleRads )
 {
     v3 vAngle = V3X;
     qn result = Qn( vAngle, pitchAngleRads );
-    r32 norm = Norm( result );
+    f32 norm = Norm( result );
     return result;
 }
 
 inline qn
-QnYRotation( r32 rollAngleRads )
+QnYRotation( f32 rollAngleRads )
 {
     v3 vAngle = V3Y;
     qn result = Qn( vAngle, rollAngleRads );
@@ -1462,7 +1623,7 @@ QnYRotation( r32 rollAngleRads )
 }
 
 inline qn
-QnZRotation( r32 yawAngleRads )
+QnZRotation( f32 yawAngleRads )
 {
     v3 vAngle = V3Z;
     qn result = Qn( vAngle, yawAngleRads );
@@ -1522,7 +1683,7 @@ QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
     v3 vTargetFwdN = Normalized( pTgt - pSrc );
     v3 vCamFwdDefaultN = V3( 0, 0, -1 );
 
-    r32 theta = PI;
+    f32 theta = PI;
     v3 vRotAxis = { 1, 0, 0 };
     qn result = QnIdentity;
 
@@ -1535,7 +1696,7 @@ QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
     }
     else
     {
-        r32 cosTheta = Dot( vCamFwdDefaultN, vTargetFwdN );
+        f32 cosTheta = Dot( vCamFwdDefaultN, vTargetFwdN );
         // The camera transform is actually the transform we would apply to the _world_ to put it in front of the camera,
         // so we invert the angle here..
         // @Speed Find a way to build the quat directly without this
@@ -1554,38 +1715,38 @@ QnCameraLookAt( const v3 &pSrc, const v3 &pTgt, const v3 &vUp )
 inline m4
 ToM4( const qn& q )
 {
-    r64 sqw = q.w * q.w;
-    r64 sqx = q.x * q.x;
-    r64 sqy = q.y * q.y;
-    r64 sqz = q.z * q.z;
+    f64 sqw = q.w * q.w;
+    f64 sqx = q.x * q.x;
+    f64 sqy = q.y * q.y;
+    f64 sqz = q.z * q.z;
 
     m4 result = {};
-    r64 invs = 1.0;
-    r64 sqNorm = sqx + sqy + sqz + sqw;
+    f64 invs = 1.0;
+    f64 sqNorm = sqx + sqy + sqz + sqw;
     if( !AlmostEqual( sqNorm, 1.0 ) )
     {
         // Inverse square lenght, only required if quaternion is not already normalized (multiply all matrix terms by it)
         invs = 1.0 / sqNorm;
     }
 
-    result.e[0][0] = r32(( sqx - sqy - sqz + sqw) * invs);
-    result.e[1][1] = r32((-sqx + sqy - sqz + sqw) * invs);
-    result.e[2][2] = r32((-sqx - sqy + sqz + sqw) * invs);
+    result.e[0][0] = f32(( sqx - sqy - sqz + sqw) * invs);
+    result.e[1][1] = f32((-sqx + sqy - sqz + sqw) * invs);
+    result.e[2][2] = f32((-sqx - sqy + sqz + sqw) * invs);
 
-    r64 tmp1 = q.x * q.y;
-    r64 tmp2 = q.z * q.w;
-    result.e[1][0] = r32(2.0 * (tmp1 + tmp2) * invs);
-    result.e[0][1] = r32(2.0 * (tmp1 - tmp2) * invs);
+    f64 tmp1 = q.x * q.y;
+    f64 tmp2 = q.z * q.w;
+    result.e[1][0] = f32(2.0 * (tmp1 + tmp2) * invs);
+    result.e[0][1] = f32(2.0 * (tmp1 - tmp2) * invs);
     
     tmp1 = q.x * q.z;
     tmp2 = q.y * q.w;
-    result.e[2][0] = r32(2.0 * (tmp1 - tmp2) * invs);
-    result.e[0][2] = r32(2.0 * (tmp1 + tmp2) * invs);
+    result.e[2][0] = f32(2.0 * (tmp1 - tmp2) * invs);
+    result.e[0][2] = f32(2.0 * (tmp1 + tmp2) * invs);
 
     tmp1 = q.y * q.z;
     tmp2 = q.x * q.w;
-    result.e[2][1] = r32(2.0 * (tmp1 + tmp2) * invs);
-    result.e[1][2] = r32(2.0 * (tmp1 - tmp2) * invs);
+    result.e[2][1] = f32(2.0 * (tmp1 + tmp2) * invs);
+    result.e[1][2] = f32(2.0 * (tmp1 - tmp2) * invs);
 
     result.e[3][3] = 1.f;
     return result;
@@ -1604,7 +1765,7 @@ Inverse( const qn& q )
     qn result = Conjugate( q );
     if( !IsUnit( q ) )
     {
-        r32 invSqNorm = 1.0f / SqNorm( q );
+        f32 invSqNorm = 1.0f / SqNorm( q );
         result.x *= invSqNorm;
         result.y *= invSqNorm;
         result.z *= invSqNorm;
@@ -1616,10 +1777,10 @@ Inverse( const qn& q )
 inline qn
 operator *( const qn& a, const qn& b )
 {
-    r32 rw = b.w*a.w - b.x*a.x - b.y*a.y - b.z*a.z;
-    r32 rx = b.w*a.x + b.x*a.w - b.y*a.z + b.z*a.y;
-    r32 ry = b.w*a.y + b.x*a.z + b.y*a.w - b.z*a.x;
-    r32 rz = b.w*a.z - b.x*a.y + b.y*a.x + b.z*a.w;
+    f32 rw = b.w*a.w - b.x*a.x - b.y*a.y - b.z*a.z;
+    f32 rx = b.w*a.x + b.x*a.w - b.y*a.z + b.z*a.y;
+    f32 ry = b.w*a.y + b.x*a.z + b.y*a.w - b.z*a.x;
+    f32 rz = b.w*a.z - b.x*a.y + b.y*a.x + b.z*a.w;
     qn result = { rx, ry, rz, rw };
     return result;
 }
@@ -1664,7 +1825,7 @@ Tri( const v3& v0, const v3& v1, const v3& v2, bool findNormal = false )
     tri result = { v0, v1, v2 };
 
     if( findNormal )
-        result.n = Normalized( Cross( v1 - v0, v2 - v0 ) );
+        result.n = NormalizedFast( Cross( v1 - v0, v2 - v0 ) );
 
     return result;
 }
@@ -1674,80 +1835,196 @@ Tri( const v3& v0, const v3& v1, const v3& v2, bool findNormal = false )
 
 struct aabb
 {
-    v3 min;
-    v3 max;
+    v3 center;
+    v3 halfSize;
 };
 
 inline aabb
-AABB( v3 const& min, v3 const& max )
+AABBMinMax( v3 const& min, v3 const& max )
 {
-    aabb result = { min, max };
+    ASSERT( max.x >= min.x && max.y >= min.y && max.z >= min.z );
+
+    v3 halfSize = (max - min) * 0.5f;
+    aabb result = { min + halfSize, halfSize };
     return result;
 }
 
 inline aabb
-AABB( const v3& min, r32 size )
+AABBMinSize( const v3& min, f32 size )
 {
-    aabb result =
-    {
-        min,
-        { min.x + size, min.y + size, min.z + size, }
-    };
+    v3 halfSize = V3( size * 0.5f );
+    aabb result = { min + halfSize, halfSize };
     return result;
 }
 
 inline aabb
-AABBCenterDim( const v3& p, r32 size )
+AABBCenterSize( const v3& p, f32 size )
 {
-    r32 halfSize = size * 0.5f;
-    aabb result =
-    {
-        { p.x - halfSize, p.y - halfSize, p.z - halfSize, },
-        { p.x + halfSize, p.y + halfSize, p.z + halfSize, }
-    };
+    v3 halfSize = V3( size * 0.5f );
+    aabb result = { p, halfSize };
     return result;
 }
 
 inline aabb
-AABBCenterDim( const v3& p, const v3& dim )
+AABBCenterSize( const v3& p, const v3& size )
 {
-    v3 halfDim = dim * 0.5f;
-    aabb result =
-    {
-        { p.x - halfDim.x, p.y - halfDim.y, p.z - halfDim.z, },
-        { p.x + halfDim.x, p.y + halfDim.y, p.z + halfDim.z, }
-    };
+    v3 halfSize = size * 0.5f;
+    aabb result = { p, halfSize };
     return result;
 }
 
 inline v3
 Dim( aabb const& b )
 {
-    return b.max - b.min;
+    return b.halfSize * 2.f;
 }
 
-inline v3
-Center( const aabb& b )
+inline void
+MinMax( aabb const& b, v3* min, v3* max )
 {
-    v3 result = b.min + (b.max - b.min) * 0.5f;
-    return result;
+    *min = b.center - b.halfSize;
+    *max = b.center + b.halfSize;
 }
 
 inline bool
 Contains( aabb const& b, v3 const& p )
 {
-    return (b.min.x < p.x && p.x < b.max.x)
-        && (b.min.y < p.y && p.y < b.max.y)
-        && (b.min.z < p.z && p.z < b.max.z);
+    v3 dist = Abs( p - b.center );
+    return dist.x < b.halfSize.x && dist.y < b.halfSize.y && dist.z < b.halfSize.z;
+}
+
+inline bool
+ContainsOrTouches( aabb const& b, v3 const& p )
+{
+    v3 dist = Abs( p - b.center );
+    return dist.x <= b.halfSize.x && dist.y <= b.halfSize.y && dist.z <= b.halfSize.z;
 }
 
 inline void
 Clamp( v3* v, aabb const& b )
 {
-    Clamp( &v->x, b.min.x, b.max.x );
-    Clamp( &v->y, b.min.y, b.max.y );
-    Clamp( &v->z, b.min.z, b.max.z );
+    v3 min, max;
+    MinMax( b, &min, &max );
+    Clamp( &v->x, min.x, max.x );
+    Clamp( &v->y, min.y, max.y );
+    Clamp( &v->z, min.z, max.z );
 }
+
+inline bool
+Intersect( aabb const& a, aabb const& b )
+{
+    return (Abs( a.center.x - b.center.x ) < (a.halfSize.x + b.halfSize.x))
+        && (Abs( a.center.y - b.center.y ) < (a.halfSize.y + b.halfSize.y))
+        && (Abs( a.center.z - b.center.z ) < (a.halfSize.z + b.halfSize.z));
+}
+
+inline aabb
+Enclose( aabb const& a, aabb const& b )
+{
+    v3 aMin = a.center - a.halfSize;
+    v3 aMax = a.center + a.halfSize;
+    v3 bMin = b.center - b.halfSize;
+    v3 bMax = b.center + b.halfSize;
+
+    aabb result = AABBMinMax( { Min( aMin.x, bMin.x ), Min( aMin.y, bMin.y ), Min( aMin.z, bMin.z ) },
+                              { Max( aMax.x, bMax.x ), Max( aMax.y, bMax.y ), Max( aMax.z, bMax.z ) } );
+    return result;
+}
+
+// Taken from https://gist.github.com/Kinwailo/d9a07f98d8511206182e50acda4fbc9b
+// (adapted tests as our plane normals point inwards)
+// FIXME Test & debug
+inline bool
+IsInFrustum( aabb const& b, v4 planes[6] )
+{
+    bool result = true;
+    v3 min = b.center - b.halfSize;
+    v3 max = b.center + b.halfSize;
+    v3 p, n;
+
+    for( int i = 0; i < 6; ++i )
+    {
+        // TODO Use a LUT & precalc min/max corners for all 6 planes as explained in http://www.cse.chalmers.se/~uffe/vfc.pdf page 11
+        v4& plane = planes[i];
+        if( plane.x < 0.f )
+        {
+            p.x = min.x;
+            n.x = max.x;
+        }
+        else
+        {
+            p.x = max.x;
+            n.x = min.x;
+        }
+
+        if( plane.y < 0.f )
+        {
+            p.y = min.y;
+            n.y = max.y;
+        }
+        else
+        {
+            p.y = max.y;
+            n.y = min.y;
+        }
+
+        if( plane.z < 0.f )
+        {
+            p.z = min.z;
+            n.z = max.z;
+        }
+        else
+        {
+            p.z = max.z;
+            n.z = min.z;
+        }
+
+        if( Dot( plane.xyz, p ) + plane.w < 0.f )
+            // Outside
+            return false;
+        //if( Dot( plane.xyz, n ) + plane.w <= 0.f )
+            //// Intersect
+            //result = true;
+    }
+
+    return result;
+}
+// TODO Also test against the code in Rustbuckets, which has no branches:
+// Test AABB against frustum
+// N.B. this will produce false positives when all the corners of the AABB are not behind any one plane, but it's still outside the frustum. 
+// To fix, test 8 corners of the frustum against the AABB planes
+#if 0
+inline bool AABBInFrustum( v3 aabb_min, v3 aabb_max, const v4* frustum )
+{
+    // TODO: Can SIMD this by doing 4 plane tests at once, with a bit of precalculation
+
+    // Convert to center/extent rep (ideally AABBs should use this rep to begin with)
+    v3 center = (aabb_min + aabb_max) * 0.5f;
+    v3 extent = (aabb_max - aabb_min) * 0.5f;
+
+    // Give the debug build a chance
+    float cx = center.getX();
+    float cy = center.getY();
+    float cz = center.getZ();
+    float ex = extent.getX();
+    float ey = extent.getY();
+    float ez = extent.getZ();
+
+    // Test each plane any that would classify as wholly outside the frustum
+    // Plane format: ax + by + cz + d = 0
+    for (int i = 0; i < 6; i++)
+    {
+        float* p = (float*)&frustum[i];
+        float d = p[0] * cx + p[1] * cy + p[2] * cz + p[3];
+        float r = fabs(p[0]) * ex + fabs(p[1]) * ey + fabs(p[2]) * ez;
+        if (d + r < 0)
+            return false;
+    }
+
+    return true;
+}
+#endif
+
 
 // Ray
 
@@ -1758,7 +2035,7 @@ struct ray
 };
 
 inline bool
-Intersects( const ray& r, tri& t, v3* pI = nullptr, r32 absoluteEpsilon = 0 )
+Intersects( const ray& r, tri& t, v3* pI = nullptr, f32 absoluteEpsilon = 0 )
 {
     bool result = false;
 
@@ -1766,14 +2043,14 @@ Intersects( const ray& r, tri& t, v3* pI = nullptr, r32 absoluteEpsilon = 0 )
     v3 v = t.v2 - t.v0;
 
     if( t.n == V3Zero )
-        t.n = Normalized( Cross( u, v ) );
+        t.n = NormalizedFast( Cross( u, v ) );
     ASSERT( !AlmostEqual( t.n, V3Zero ) );
 
-    r32 denom = Dot( t.n, r.dir );
+    f32 denom = Dot( t.n, r.dir );
     if( AlmostEqual( denom, 0 ) )
     {
         // Check if ray is coplanar
-        if( AlmostEqual( Distance( r.p, t.v0 ), 0 ) )
+        if( AlmostEqual( DistanceFast( r.p, t.v0 ), 0 ) )
         {
             if( pI )
                 *pI = V3Undefined;
@@ -1783,8 +2060,8 @@ Intersects( const ray& r, tri& t, v3* pI = nullptr, r32 absoluteEpsilon = 0 )
     else
     {
         v3 dist = t.v0 - r.p;
-        r32 num = Dot( t.n, dist );
-        r32 rDist = num / denom;
+        f32 num = Dot( t.n, dist );
+        f32 rDist = num / denom;
 
         if( AlmostEqual( rDist, 0 ) )
         {
@@ -1801,19 +2078,19 @@ Intersects( const ray& r, tri& t, v3* pI = nullptr, r32 absoluteEpsilon = 0 )
                 *pI = i;
 
             // Is it inside?
-            r32 uu = Dot( u, u );
-            r32 vv = Dot( v, v );
-            r32 uv = Dot( u, v );
+            f32 uu = Dot( u, u );
+            f32 vv = Dot( v, v );
+            f32 uv = Dot( u, v );
             denom = uv * uv - uu * vv;
 
             v3 w = i - t.v0;
-            r32 wu = Dot( w, u );
-            r32 wv = Dot( w, v );
+            f32 wu = Dot( w, u );
+            f32 wv = Dot( w, v );
 
-            r32 sI = (uv * wv - vv * wu) / denom;
+            f32 sI = (uv * wv - vv * wu) / denom;
             if( GreaterOrAlmostEqual( sI, 0, absoluteEpsilon ) && LessOrAlmostEqual( sI, 1, absoluteEpsilon ) )
             {
-                r32 tI = (uv * wu - uu * wv) / denom;
+                f32 tI = (uv * wu - uu * wv) / denom;
                 if( GreaterOrAlmostEqual( tI, 0, absoluteEpsilon ) && LessOrAlmostEqual( sI + tI, 1, absoluteEpsilon ) )
                 {
                     result = true;

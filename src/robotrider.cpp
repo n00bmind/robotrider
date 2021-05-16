@@ -34,6 +34,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "renderer.cpp"
 
+#pragma warning( push )
+#pragma warning( disable: 4365 )
+#pragma warning( disable: 4774 )
+
 #include "imgui/imgui_draw.cpp"
 #include "imgui/imgui.cpp"
 #include "imgui/imgui_widgets.cpp"
@@ -55,6 +59,8 @@ void  LibFree( void* p );
 #define STBI_NO_STDIO
 #include "stb/stb_image.h"
 
+#pragma warning( pop )
+
 #include "ui.h"
 #include "util.cpp"
 #include "ui.cpp"
@@ -71,6 +77,9 @@ PlatformAPI globalPlatform;
 internal GameConsole *gameConsole;
 // TODO Remove
 internal MemoryArena* auxArena;
+#if !RELEASE
+bool* DEBUGglobalQuit;
+#endif
 
 
 // FIXME Put these in some kind of more general pool (similar to the MeshPool)
@@ -122,8 +131,11 @@ LIB_EXPORT
 GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     globalPlatform = *memory->platformAPI;
+#if !RELEASE
+    DEBUGglobalQuit = &memory->platformAPI->DEBUGquit;
+#endif
 
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     ASSERT( sizeof(GameState) <= memory->permanentStorageSize );
     GameState* gameState = (GameState*)memory->permanentStorage;
@@ -157,16 +169,20 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         // TODO Check if these are all ok here so that we can remove GAME_SETUP_AFTER_RELOAD
         gameConsole = &gameState->gameConsole;
-        // Re-set platform's ImGui context
+        // Set platform's ImGui context (and allocators!)
         ImGui::SetCurrentContext( memory->imGuiContext );
+        ImGui::SetAllocatorFunctions( memory->imGuiAllocFunc, memory->imGuiFreeFunc );
 
         // FIXME
         auxArena = &gameState->worldArena;
 
-#if !RELEASE
-        memory->DEBUGglobalEditing = true;
+#if 0 //!RELEASE
+        memory->DEBUGglobalEditing = false;
         InitEditor( { width, height }, gameState, &gameState->DEBUGeditorState, transientState,
                     &gameState->worldArena, &gameState->transientArena );
+#else
+        memory->DEBUGglobalEditing = true;
+        gameState->DEBUGeditorState.selectedTest.index = 1;
 #endif
     }
 
@@ -208,14 +224,18 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if( memory->DEBUGglobalEditing )
     {
         UpdateAndRenderEditor( *input, gameState, transientState, debugState, renderCommands, statsText,
-                               &gameState->worldArena, frameMemory );
+                               &gameState->worldArena, &gameState->transientArena );
     }
-    else if( memory->DEBUGglobalDebugging )
+     
+    if( memory->DEBUGglobalDebugging )
     {
-        DrawConsole( &gameState->gameConsole, width, height, statsText );
-        DrawPerformanceCountersWindow( debugState, width, height, frameMemory );
+        bool focusInputBox = !memory->DEBUGglobalWasDebugging;
+        DrawConsole( &gameState->gameConsole, width, height, focusInputBox );
+        DrawPerformanceCountersWindow( debugState, width, height, &gameState->transientArena );
     }
-    else
+    memory->DEBUGglobalWasDebugging = memory->DEBUGglobalDebugging;
+    
+    if( !memory->DEBUGglobalEditing )
         DrawStats( width, height, statsText );
 #endif
 
@@ -238,14 +258,24 @@ DEBUG_GAME_FRAME_END(DebugGameFrameEnd)
     DebugState* debugState = (DebugState*)memory->debugStorage;
     debugState->counterLogsCount = 0;
 
-    // TODO Counter stats
-    u32 snapshotIndex = debugState->counterSnapshotIndex;
-    for( u32 i = 0; i < ARRAYCOUNT(DEBUGglobalCounters); ++i )
-    {
-        DebugCycleCounter* source = DEBUGglobalCounters + i;
-        DebugCounterLog* dest = debugState->counterLogs + debugState->counterLogsCount++;
+    // TODO Monitor and report big changes in this ratio
+    f64 cyclesPerMillisecond = (f64)frameInfo.totalFrameCycles / frameInfo.totalFrameSeconds / 1000.0 ;
 
-        UnpackAndResetFrameCounter( source, dest, snapshotIndex );
+    persistent f64 minCPM = F64MAX;
+    persistent f64 maxCPM = F64MIN;
+
+    minCPM = Min( minCPM, cyclesPerMillisecond );
+    maxCPM = Max( maxCPM, cyclesPerMillisecond );
+    debugState->avgCyclesPerMillisecond = (minCPM + maxCPM) * 0.5;
+
+    // TODO Counter stats
+    int snapshotIndex = debugState->counterSnapshotIndex;
+    for( int i = 0; i < ARRAYCOUNT(DEBUGglobalCounters); ++i )
+    {
+        DebugCycleCounter* counter = DEBUGglobalCounters + i;
+        DebugCounterLog* log = debugState->counterLogs + debugState->counterLogsCount++;
+
+        LogFrameCounter( counter, log, snapshotIndex, cyclesPerMillisecond );
     }
 
     debugState->counterSnapshotIndex++;

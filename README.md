@@ -18,10 +18,12 @@ This is a (very work in progress) game engine & game where I get to experiment w
 - Hot code reloading (any change in the game layer code is immediately applied live)
 - Looped live code editing a la Handmade Hero (press F1 and input will start recording, press F1 again and whatever was recorded will be played back in a loop.. you can still modify the code live as per the previous point!)
 - Live shaders recompilation (a la ShaderToy)
-- Debug mode (tilde) & editor mode (Ctrl+tilde)
+- Debug overlay (tilde) & editor mode (F11)
 - Infinite procedural world (WIP)
 - Minimal dependencies (only ImGui and stb_image so far)
 - Pure C++ without all the OOP crap (a.k.a. "C+")
+
+If you wanna have a peek, there's usually a ready to run .exe in the dist/ folder (might be a bit outdated). Otherwise, building on a modern Windows machine should be relatively easy. You'll need to run the build.py script using any version of Python 3. If you encounter any problems, please let me know.
 
 
 ## References

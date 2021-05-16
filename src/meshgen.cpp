@@ -30,39 +30,78 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 
-IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2u const& cellsPerAxis )
+inline Mesh
+CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<i32> const& indices, MemoryArena* arena )
+{
+    Mesh result;
+    InitMesh( &result );
+
+    INIT( &result.vertices ) Array<TexturedVertex>( arena, vertices.count );
+    vertices.CopyTo( &result.vertices );
+    INIT( &result.indices ) Array<i32>( arena, indices.count );
+    indices.CopyTo( &result.indices );
+
+    return result;
+}
+
+inline Mesh
+CreateMeshFromFQSBuffers( Array<FQSVertex> const& vertices, Array<FQSTriangle> const& triangles, MemoryArena* arena )
+{
+    Mesh result;
+    InitMesh( &result );
+
+    INIT( &result.vertices ) Array<TexturedVertex>( arena, vertices.count );
+    result.vertices.ResizeToCapacity();
+    for( int i = 0; i < vertices.count; ++i )
+    {
+        result.vertices[i] = *vertices[i].vertex;
+        result.vertices[i].p = vertices[i].p;
+    }
+    INIT( &result.indices ) Array<i32>( arena, triangles.count * 3 );
+    result.indices.ResizeToCapacity();
+    for( int i = 0; i < triangles.count; ++i )
+    {
+        result.indices[ i*3 + 0 ] = triangles[i].v[0];
+        result.indices[ i*3 + 1 ] = triangles[i].v[1];
+        result.indices[ i*3 + 2 ] = triangles[i].v[2];
+    }
+
+    return result;
+}
+
+IsoSurfaceSamplingCache InitSurfaceSamplingCache( MemoryArena* arena, v2i const& cellsPerAxis )
 {
     IsoSurfaceSamplingCache result;
     result.cellsPerAxis = cellsPerAxis;
 
     // NOTE We add an extra row at the ends to account for the edges at the extremes,
     // which simplifies the algorithm by eliminating "edge" cases ¬¬
-    v2u stepsPerAxis = cellsPerAxis + V2uOne;
-    u32 layerCellCount = stepsPerAxis.x * stepsPerAxis.y;
+    v2i stepsPerAxis = cellsPerAxis + V2iOne;
+    int layerCellCount = stepsPerAxis.x * stepsPerAxis.y;
 
-    result.bottomLayerSamples = PUSH_ARRAY( arena, r32, layerCellCount );
-    result.topLayerSamples = PUSH_ARRAY( arena, r32, layerCellCount );
-    result.bottomLayerVertexIndices = PUSH_ARRAY( arena, u32, layerCellCount * 2 );
-    result.middleLayerVertexIndices = PUSH_ARRAY( arena, u32, layerCellCount );
-    result.topLayerVertexIndices = PUSH_ARRAY( arena, u32, layerCellCount * 2 );
+    result.bottomLayerSamples = PUSH_ARRAY( arena, f32, layerCellCount );
+    result.topLayerSamples = PUSH_ARRAY( arena, f32, layerCellCount );
+    result.bottomLayerVertexIndices = PUSH_ARRAY( arena, i32, layerCellCount * 2 );
+    result.middleLayerVertexIndices = PUSH_ARRAY( arena, i32, layerCellCount );
+    result.topLayerVertexIndices = PUSH_ARRAY( arena, i32, layerCellCount * 2 );
 
     return result;
 }
 
 void ClearVertexCaches( IsoSurfaceSamplingCache* samplingCache, bool clearBottomLayer )
 {
-    v2u stepsPerAxis = samplingCache->cellsPerAxis + V2uOne;
-    u32 layerCellCount = stepsPerAxis.x * stepsPerAxis.y;
+    v2i stepsPerAxis = samplingCache->cellsPerAxis + V2iOne;
+    int layerCellCount = stepsPerAxis.x * stepsPerAxis.y;
 
     if( clearBottomLayer )
     {
         PSET( samplingCache->bottomLayerVertexIndices, U32MAX,
-             layerCellCount * 2 * sizeof(u32) );
+             layerCellCount * 2 * sizeof(i32) );
     }
     PSET( samplingCache->middleLayerVertexIndices, U32MAX,
-         layerCellCount * sizeof(u32) );
+         layerCellCount * sizeof(i32) );
     PSET( samplingCache->topLayerVertexIndices, U32MAX, 
-         layerCellCount * 2 * sizeof(u32) );
+         layerCellCount * 2 * sizeof(i32) );
 }
 
 void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache )
@@ -78,8 +117,8 @@ void SwapTopAndBottomLayers( IsoSurfaceSamplingCache* samplingCache )
 void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size )
 {
     // TODO Measure whether it's faster to just have a really big contiguous array for these
-    pool->scratchVertices = BucketArray<TexturedVertex>( arena, 1024 );
-    pool->scratchIndices = BucketArray<u32>( arena, 1024 );
+    INIT( &pool->scratchVertices ) BucketArray<TexturedVertex>( arena, 1024 );
+    INIT( &pool->scratchIndices ) BucketArray<i32>( arena, 1024 );
 
     // Initialize empty sentinel
     pool->memorySentinel.prev = &pool->memorySentinel;
@@ -99,10 +138,10 @@ void ClearScratchBuffers( MeshPool* pool )
     pool->scratchIndices.Clear();
 }
 
-Mesh* AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
+Mesh* AllocateMesh( MeshPool* pool, int vertexCount, int indexCount )
 {
     sz vertexSize = sizeof(TexturedVertex) * vertexCount;
-    sz indexSize = sizeof(u32) * indexCount;
+    sz indexSize = sizeof(i32) * indexCount;
     sz totalMeshSize = sizeof(Mesh) + vertexSize + indexSize;
 
     Mesh* result = nullptr;
@@ -118,8 +157,8 @@ Mesh* AllocateMesh( MeshPool* pool, u32 vertexCount, u32 indexCount )
         u8* indexData = vertexData + vertexSize;
 
         InitMesh( result );
-        result->vertices = Array<TexturedVertex>( (TexturedVertex*)vertexData, vertexCount );
-        result->indices = Array<u32>( (u32*)indexData, indexCount );
+        INIT( &result->vertices ) Array<TexturedVertex>( (TexturedVertex*)vertexData, vertexCount );
+        INIT( &result->indices ) Array<i32>( (i32*)indexData, indexCount );
         result->ownerPool = pool;
 
         pool->meshCount++;
@@ -458,9 +497,10 @@ v3 QEFMinimizePlanesClassic( v3 const* positions, v3 const* normals, int count, 
 
 // New probabilistic quadric error minimizer
 // Adapted from https://www.graphics.rwth-aachen.de/publication/03308/
-// (inlined everything, replaced with plain types, got 100% speed increase!)
-// TODO Estimate error
+// (inlined everything, replaced with plain types, reduced time taken by 50%! Zero cost abstractions right!?)
+// TODO Estimate error using equation 1 in https://www.cse.wustl.edu/~taoju/research/dualContour.pdf
 // TODO SIMD
+//#pragma optimize( "g", off )
 v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int count, float stdDevP, float stdDevN )
 {
 	float A00 = 0.f;
@@ -533,6 +573,7 @@ v3 QEFMinimizePlanesProbabilistic( v3 const* points, v3 const* normals, int coun
 	v3 result = { nom0 * denom, nom1 * denom, nom2 * denom };
 	return result;
 }
+#pragma optimize( "", on )
 
 // TODO Estimate error
 // TODO SIMD
@@ -635,30 +676,30 @@ struct VertexCacheIndex
 namespace
 {
     extern v3i cornerOffsets[8];
-    extern u32 edgeVertexOffsets[12][2];
+    extern i32 edgeVertexOffsets[12][2];
     extern VertexCacheIndex vertexCacheIndices[12];
     extern int triangleTable[][16];
 }
 
-void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cellsPerAxis, r32 cellSizeMeters,
-                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices,
+void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2i const& cellsPerAxis, f32 cellSizeMeters,
+                IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices,
                 const bool interpolate /*= true*/ )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     // Cache layers contain one sample per _edge_
-    v2u layerStepsPerAxis = cellsPerAxis + V2uOne;
+    v2i layerStepsPerAxis = cellsPerAxis + V2iOne;
 
     // Construct case mask from 8 corner samples
-    u32 caseIndex = 0;
-    r32 cornerSamples[8];
+    int caseIndex = 0;
+    f32 cornerSamples[8];
     for( int i = 0; i < 8; ++i )
     {
         v3i cornerOffset = cornerOffsets[i];
         v3i layerP = V3i( gridCellP ) + cornerOffset;
-        u32 layerOffset = layerP.y * layerStepsPerAxis.x + layerP.x;
+        int layerOffset = layerP.y * layerStepsPerAxis.x + layerP.x;
 
-        r32 sample = cornerOffset.z
+        f32 sample = cornerOffset.z
             ? samplingCache->topLayerSamples[layerOffset]
             : samplingCache->bottomLayerSamples[layerOffset];
 
@@ -672,7 +713,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
     if( caseIndex == 0 || caseIndex == 0xFF )
         return;
 
-    u32* vertexCaches[3] =
+    i32* vertexCaches[3] =
     {
         samplingCache->bottomLayerVertexIndices,
         samplingCache->middleLayerVertexIndices,
@@ -690,10 +731,10 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
 
             // First check if the vertex for this edge case is already in the cache
             VertexCacheIndex& idx = vertexCacheIndices[edgeCaseIndex];
-            u32* vertexCache = vertexCaches[idx.cacheTableIndex];
+            i32* vertexCache = vertexCaches[idx.cacheTableIndex];
 
             v2i layerP = gridCellP + idx.vCellOffset;
-            u32 vertexCacheOffset = layerP.y * layerStepsPerAxis.x + layerP.x;
+            int vertexCacheOffset = layerP.y * layerStepsPerAxis.x + layerP.x;
             if( idx.cacheTableIndex != 1)
             {
                 // Top or bottom layers
@@ -701,7 +742,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
             }
 
 #if 1       // Use vertex cache (produces around 1/8th vertices)
-            u32 cachedVertexIndex = vertexCache[vertexCacheOffset];
+            i32 cachedVertexIndex = vertexCache[vertexCacheOffset];
             if( cachedVertexIndex != U32MAX )
             {
                 indices->Push( cachedVertexIndex );
@@ -710,8 +751,8 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
 #endif
             {
                 // No cached vertex, so go on and create one
-                u32 indexA = edgeVertexOffsets[edgeCaseIndex][0];   // Edge start
-                u32 indexB = edgeVertexOffsets[edgeCaseIndex][1];   // Edge end
+                int indexA = edgeVertexOffsets[edgeCaseIndex][0];   // Edge start
+                int indexB = edgeVertexOffsets[edgeCaseIndex][1];   // Edge end
 
                 v3 pA = cellCornerWorldP + V3( cornerOffsets[indexA] ) * cellSizeMeters;
                 v3 pB = cellCornerWorldP + V3( cornerOffsets[indexB] ) * cellSizeMeters;
@@ -735,7 +776,7 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
                 }
 
                 // Add new vertex to the mesh
-                u32 newVertexIndex = vertices->count;
+                int newVertexIndex = vertices->count;
                 indices->Push( newVertexIndex );
                 TexturedVertex v = {};
                 v.p = vPos;
@@ -752,35 +793,35 @@ void MarchCube( const v3& cellCornerWorldP, const v2i& gridCellP, v2u const& cel
 }
 
 void
-MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
-                 const void* samplingData, IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices,
-                 BucketArray<u32>* indices, const bool interpolate = true )
+MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc,
+                 SamplingData const* samplingData, IsoSurfaceSamplingCache* samplingCache, BucketArray<TexturedVertex>* vertices,
+                 BucketArray<i32>* indices, const bool interpolate /*= true*/ )
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
     vertices->Clear();
     indices->Clear();
 
     // TODO Should do ceil
-    v2u cellsPerSliceAxis = V2u( volumeSideMeters.xy / cellSizeMeters );
-    u32 sliceCount = (u32)(volumeSideMeters.z / cellSizeMeters);
+    v2i cellsPerSliceAxis = V2i( volumeSideMeters.xy / cellSizeMeters );
+    int sliceCount = (int)(volumeSideMeters.z / cellSizeMeters);
     ASSERT( samplingCache->cellsPerAxis.x >= cellsPerSliceAxis.x && samplingCache->cellsPerAxis.y >= cellsPerSliceAxis.y );
     v3 halfSideMeters = volumeSideMeters / 2;
     v3 cornerOffset = -halfSideMeters;
 
-    v3 vXDelta = V3( cellSizeMeters, 0, 0 );
-    v3 vYDelta = V3( 0, cellSizeMeters, 0 );
+    v3 vXDelta = V3( cellSizeMeters, 0.f, 0.f );
+    v3 vYDelta = V3( 0.f, cellSizeMeters, 0.f );
 
-    v2u gridLinesPerAxis = cellsPerSliceAxis + V2uOne;
+    v2i gridLinesPerAxis = cellsPerSliceAxis + V2iOne;
     bool firstSlice = true;
 
     WorldCoords p = worldP;
 
     // Iterate slices, we consider both the bottom and the top samples of the cubes on each pass
-    for( u32 k = 0; k < sliceCount; ++k )
+    for( int k = 0; k < sliceCount; ++k )
     {
-        r32* bottomSamples = samplingCache->bottomLayerSamples;
-        r32* topSamples = samplingCache->topLayerSamples;
+        f32* bottomSamples = samplingCache->bottomLayerSamples;
+        f32* topSamples = samplingCache->topLayerSamples;
 
         // Pre-sample top and bottom corners of cubes for each slice (actually only the top for all slices except the first one)
         // so we only sample one corner per cube instead of 8
@@ -789,16 +830,16 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cell
             if( n == 0 && !firstSlice )
                 continue;
 
-            r32* sampledLayer = n ? topSamples : bottomSamples;
+            f32* sampledLayer = n ? topSamples : bottomSamples;
 
             p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k + n ) * cellSizeMeters;
 
-            r32* sample = sampledLayer;
+            f32* sample = sampledLayer;
             // Iterate grid lines when sampling each layer, since we need to have samples at the extremes too
-            for( u32 j = 0; j < gridLinesPerAxis.y; ++j )
+            for( int j = 0; j < gridLinesPerAxis.y; ++j )
             {
                 v3 pAtRowStart = p.relativeP;
-                for( u32 i = 0; i < gridLinesPerAxis.x; ++i )
+                for( int i = 0; i < gridLinesPerAxis.x; ++i )
                 {
                     *sample++ = sampleFunc( p, samplingData );
                     p.relativeP += vXDelta;
@@ -811,10 +852,10 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cell
         ClearVertexCaches( samplingCache, firstSlice );
 
         p.relativeP = worldP.relativeP + cornerOffset + V3i( 0, 0, k ) * cellSizeMeters;
-        for( u32 j = 0; j < cellsPerSliceAxis.y; ++j )
+        for( int j = 0; j < cellsPerSliceAxis.y; ++j )
         {
             v3 pAtRowStart = p.relativeP;
-            for( u32 i = 0; i < cellsPerSliceAxis.x; ++i )
+            for( int i = 0; i < cellsPerSliceAxis.x; ++i )
             {
                 MarchCube( p.relativeP, V2i( i, j ), cellsPerSliceAxis, cellSizeMeters, samplingCache, vertices, indices, interpolate );
                 p.relativeP += vXDelta;
@@ -828,23 +869,278 @@ MarchVolumeFast( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cell
 }
 
 
+struct EdgeLocator
+{
+    i32 cornerA;
+    i32 cornerB;
+    i32 neighbourIndex;
+    i32 storeIndex;
+};
+
+struct CellData
+{
+    // NOTE If we clamped the final SDF field, say -1 to 1, we could probably get away with much smaller fixed-point numbers
+    // 0, 1, 2 correspond to the edges aligned to X, Y, Z in each cell
+    v3 edgeCrossingsP[3];
+    v3 edgeCrossingsN[3];
+    // v3 n; // NOTE Unused for now
+    // Only one sample per cell (the 'max' corner of the aabb)
+    f32 sampledValue;
+    i32 vertexIndex;
+};
+
+
+
+internal void ComputeEdgeCrossings( int i, int j, int k, v3 const& cellP, f32 cellSizeMeters, WorldCoords worldP, IsoSurfaceFunc* sampleFunc,
+                                    SamplingData* samplingData, v3 edgePoints[12], v3 edgeNormals[12], int* pointCount,
+                                    const v3i dcCornerOffsets[8], const EdgeLocator dcEdgeLocators[12],
+                                    f32 cornerSamples[8], Grid3D<CellData> *cellData, bool approximateEdgeIntersection )
+{
+    static const f32 delta = 0.01f;
+    static const f32 deltaInv = 1.f / (2.f * delta);
+
+    for( int e = 0; e < 12; ++e )
+    {
+        EdgeLocator const& locator = dcEdgeLocators[e];
+
+        int indexA = locator.cornerA;
+        int indexB = locator.cornerB;
+        f32 sA = cornerSamples[ indexA ];
+        f32 sB = cornerSamples[ indexB ];
+
+        // Is there a crossing at this edge
+        if( Sign( sA ) != Sign( sB ) )
+        {
+            int neighbourIndex = locator.neighbourIndex;
+            v3i neighbourCoords = V3i( i, j, k ) + dcCornerOffsets[neighbourIndex];
+            bool atOuterEdge = neighbourCoords.z < 0 || neighbourCoords.y < 0 || neighbourCoords.x < 0;
+
+            if( atOuterEdge || indexB == 7 || indexA == 7 )
+            {
+                // It's one of the edges stored in this cell, so find the intersection & normal
+                v3 pA = cellP + V3( dcCornerOffsets[indexA] ) * cellSizeMeters;
+                v3 pB = cellP + V3( dcCornerOffsets[indexB] ) * cellSizeMeters;
+                v3 edgeP = V3Undefined;
+
+                static const f32 epsilon = 0.01f;
+                //if( sB == F32MAX || AlmostEqual( sA, 0.f, epsilon ) )
+                    //edgeP = pA;
+                //else if( sA == F32MAX || AlmostEqual( sB, 0.f, epsilon ) )
+                    //edgeP = pB;
+                //else
+                {
+                    if( approximateEdgeIntersection )
+                    {
+                        // Just interpolate along the edge
+                        f32 t = sA / (sA - sB);
+                        Clamp01( t );
+                        edgeP = Lerp( pA, pB, t );
+                    }
+                    else
+                    {
+                        // Do a binary search along the edge
+                        static const int maxSearchSteps = 100;
+                        int searchSteps = maxSearchSteps;
+                        f32 edgeSample = 0.f;
+                        v3 lastP = V3Undefined;
+
+                        while( --searchSteps )
+                        {
+                            worldP.relativeP = (pA + pB) * 0.5f;
+                            if( worldP.relativeP == lastP )
+                            {
+                                // Float precision is limited
+                                edgeP = lastP;
+                                break;
+                            }
+                            lastP = worldP.relativeP;
+                                
+                            edgeSample = sampleFunc( worldP, samplingData );
+
+                            if( AlmostEqual( edgeSample, 0.f, epsilon ) )
+                            {
+                                edgeP = lastP;
+                                break;
+                            }
+                            else
+                            {
+                                if( Sign( edgeSample ) == Sign( sA ) )
+                                    pA = lastP;
+                                else
+                                    pB = lastP;
+                            }
+                        }
+                        ASSERT( searchSteps > 0 );
+                    }
+                }
+
+                edgePoints[*pointCount] = edgeP;
+                if( !atOuterEdge )
+                    (*cellData)( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
+
+                ASSERT( edgeP != V3Undefined );
+                if( *pointCount )
+                    ASSERT( DistanceFast( edgePoints[*pointCount-1], edgePoints[*pointCount] ) < 3.f * VoxelSizeMeters );
+
+                // Find normal vector by sampling near the intersection point we found
+                worldP.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };
+                f32 xPSample = sampleFunc( worldP, samplingData );
+                worldP.relativeP = { edgeP.x - delta, edgeP.y, edgeP.z };
+                f32 xNSample = sampleFunc( worldP, samplingData );
+
+                worldP.relativeP = { edgeP.x, edgeP.y + delta, edgeP.z };
+                f32 yPSample = sampleFunc( worldP, samplingData );
+                worldP.relativeP = { edgeP.x, edgeP.y - delta, edgeP.z };
+                f32 yNSample = sampleFunc( worldP, samplingData );
+
+                worldP.relativeP = { edgeP.x, edgeP.y, edgeP.z + delta };
+                f32 zPSample = sampleFunc( worldP, samplingData );
+                worldP.relativeP = { edgeP.x, edgeP.y, edgeP.z - delta };
+                f32 zNSample = sampleFunc( worldP, samplingData );
+
+                v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
+                NormalizeFast( normal );
+                edgeNormals[*pointCount] = normal;
+                if( !atOuterEdge )
+                    (*cellData)( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
+            }
+            else
+            {
+                // This has already been calculated and stored in a neighbour cell so go get it
+                ASSERT( neighbourIndex != 7 );
+
+                edgePoints[*pointCount] = (*cellData)( neighbourCoords ).edgeCrossingsP[locator.storeIndex];
+                edgeNormals[*pointCount] = (*cellData)( neighbourCoords ).edgeCrossingsN[locator.storeIndex];
+
+                if( *pointCount )
+                    ASSERT( DistanceFast( edgePoints[*pointCount-1], edgePoints[*pointCount] ) < 3.f * VoxelSizeMeters );
+            }
+
+            (*pointCount)++;
+        }
+    }
+
+}
+
+// FIXME Enabling this (which disables /Og -global optimizations-) causes some vertices that are clamped with full optimizations to be
+// generated correctly. Ofc it makes everything run twice as slow, too!
+// NOTE The clamping doesn't happen either if we specify /Os next to /O2 in the build script.
+// NOTE It seems hot reloading affects it, if we compile with this disabled (thus with errors), then enable the pragma and recompile live,
+// the errors don't go away. Yet, simply closing and restarting will make them disappear!
+
+// TODO Keep narrowing down!
+
+#pragma optimize( "g", off )
+
+internal void ComputeCellPointAndNormal( v3 edgePoints[12], v3 edgeNormals[12], int pointCount, DCSettings const& settings,
+                                         v3 const& cellBoundsMin, v3 const& cellBoundsMax, v3* cellVertex, v3* cellNormal, bool* clamped )
+{
+    switch( settings.cellPointsComputationMethod )
+    {
+        case DCComputeMethod::Average:
+        {
+            v3 massPoint = V3Zero;
+            for( int pIndex = 0; pIndex < pointCount; ++pIndex )
+                massPoint += edgePoints[pIndex];
+            massPoint /= (f32)pointCount;
+
+            *cellVertex = massPoint;
+
+            // TODO When merging cells in the octree, we still need to do a part of the QEF computation, as stated in "The Secret Sauce":
+            // "In addition to the data already stored for the mass point, we also store the dimension of the mass point"
+        } break;
+        case DCComputeMethod::QEFClassic:
+        {
+            *cellVertex = QEFMinimizePlanesClassic( edgePoints, edgeNormals, pointCount );
+        } break;
+        case DCComputeMethod::QEFProbabilistic:
+        {
+            *cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 1.f, settings.sigmaN );
+        } break;
+        case DCComputeMethod::QEFProbabilisticDouble:
+        {
+            *cellVertex = QEFMinimizePlanesProbabilistic64( edgePoints, edgeNormals, pointCount, 1.f, settings.sigmaNDouble );
+        } break;
+
+        default:
+        NOT_IMPLEMENTED;
+    }
+
+    // FIXME We're creating weird clamped vertices when compiling on Develop but not in Debug!?
+    if( settings.clampCellPoints )
+    {
+        // TODO Ideally we should do the solve with constrains as explained in https://www.mattkeeter.com/projects/qef/
+        // (also check https://github.com/BorisTheBrave/mc-dc/blob/a165b326849d8814fb03c963ad33a9faf6cc6dea/qef.py#L146)
+
+        //Clamp( cellVertex, cellBounds );
+        if( cellVertex->x < cellBoundsMin.x )
+        {
+            cellVertex->x = cellBoundsMin.x;
+            *clamped = true;
+        }
+        if( cellVertex->x > cellBoundsMax.x )
+        {
+            cellVertex->x = cellBoundsMax.x;
+            *clamped = true;
+        }
+        if( cellVertex->y < cellBoundsMin.y )
+        {
+            cellVertex->y = cellBoundsMin.y;
+            *clamped = true;
+        }
+        if( cellVertex->y > cellBoundsMax.y )
+        {
+            cellVertex->y = cellBoundsMax.y;
+            *clamped = true;
+        }
+        if( cellVertex->z < cellBoundsMin.z )
+        {
+            cellVertex->z = cellBoundsMin.z;
+            *clamped = true;
+        }
+        if( cellVertex->z > cellBoundsMax.z )
+        {
+            cellVertex->z = cellBoundsMax.z;
+            *clamped = true;
+        }
+    }
+    else
+    {
+        f32 boundsTolerance = 0.1f;
+        // FIXME 
+#if 0
+        ASSERT( ContainsOrTouches( AABBMinMax( cellBoundsMin - V3One * boundsTolerance,
+                                               cellBoundsMax + V3One * boundsTolerance ), *cellVertex ) );
+#endif
+    }
+
+    //ASSERT( !IsNan( cellVertex ) );
+
+    v3 avgNormal = V3Zero;
+    for( int n = 0; n < pointCount; ++n )
+        avgNormal += edgeNormals[n];
+    NormalizeFast( avgNormal );
+    *cellNormal = avgNormal;
+}
+
+// Reset optimizations to the configuration set in the build
+#pragma optimize( "", on )
+
 
 // TODO Clean up asserts
+// TODO Clean up asserts
+// TODO Clean up asserts
 void
-DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, const void* samplingData,
-          BucketArray<TexturedVertex>* vertices, BucketArray<u32>* indices, MemoryArena* tempArena, DCSettings const& settings )
+DCVolume( WorldCoords const& worldP, v3 const& volumeSizeMeters, f32 cellSizeMeters, IsoSurfaceFunc* sampleFunc, SamplingData* samplingData,
+          BucketArray<TexturedVertex>* vertices, BucketArray<i32>* indices, MemoryArena* arena, MemoryArena* tmpArena, DCSettings const& settings )
 {
-    struct CellData
+    struct MergingData
     {
-        // NOTE If we clamped the final SDF field, say -1 to 1, we could probably get away with much smaller fixed-point numbers
-        // 0, 1, 2 correspond to the edges aligned to X, Y, Z in each cell
-        v3 edgeCrossingsP[3];
-        v3 edgeCrossingsN[3];
-        // v3 n; // NOTE Unused for now
-        // Only one sample per cell (the 'max' corner of the aabb)
-        r32 sampledValue;
-        u32 vertexIndex;
+        i32 count;
     };
+
+    // TODO Pack these LUTs so they use less cache
+    // ALSO align properly!
 
     // Relative to 'max' aabb point, also used to locate neighbour cells
     static const v3i dcCornerOffsets[8] =
@@ -857,14 +1153,6 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
         V3i(  0, -1,  0 ),
         V3i( -1,  0,  0 ),
         V3i(  0,  0,  0 ),
-    };
-
-    struct EdgeLocator
-    {
-        u32 cornerA;
-        u32 cornerB;
-        u32 neighbourIndex;
-        u32 storeIndex;
     };
 
     static const EdgeLocator dcEdgeLocators[12] =
@@ -887,57 +1175,99 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
     indices->Clear();
 
     // One extra layer of cells in X,Y,Z (around the min grid corner) to store the edges and samples at the border
-    v3u cellsPerAxis = V3uCeil( volumeSideMeters / cellSizeMeters ) + V3uOne;
+    v3i cellsPerAxis = V3iRound( volumeSizeMeters / cellSizeMeters ) + V3iOne;
+    Grid3D<CellData> cellData( tmpArena, cellsPerAxis, Temporary() );
 
-    Grid3D<CellData> cellData = Grid3D<CellData>( tempArena, cellsPerAxis, Temporary() );
-    PZERO( cellData.data, cellsPerAxis.x * cellsPerAxis.y * cellsPerAxis.z * sizeof(CellData) );
+    v3i groupsPerAxis = V3iRound( volumeSizeMeters / cellSizeMeters / 2.f ) + V3iOne;
+    Grid3D<MergingData> mergeData( tmpArena, groupsPerAxis, Temporary() );
 
-    v3 halfSideMeters = volumeSideMeters / 2;
-    v3 minGridP = worldP.relativeP - halfSideMeters;
+    v3 halfSizeMeters = volumeSizeMeters / 2;
+    v3 minGridP = worldP.relativeP - halfSizeMeters;
     WorldCoords p = worldP;
 
-    const r32 delta = 0.01f;
-    const r32 deltaInv = 1.f / (2.f * delta);
-
-    for( u32 k = 0; k < cellsPerAxis.z; ++k )
+    Cluster* debugCluster = nullptr;
+    if( samplingData->type == SamplingDataType::ClusterData )
     {
-        for( u32 j = 0; j < cellsPerAxis.y; ++j )
-        {
-            for( u32 i = 0; i < cellsPerAxis.x; ++i )
-            {
-                v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
+        ClusterSamplingData* clusterData = (ClusterSamplingData*)samplingData;
+        debugCluster = clusterData->debugCluster;
+    }
 
-                r32 boundsTolerance = 0.5f;
-                aabb cellBounds = AABB( cellP - V3( cellSizeMeters + boundsTolerance ),
-                                        cellP + V3( boundsTolerance ) );
+    const v3 debugSampleSize = V3( 0.03f );
+    const v4 inColor = { 1, 0, 0, 0 };
+    const v4 outColor = { 0, 0, 1, 0 };
+
+    bool thicknessSetting = samplingData->zeroThickness;
+
+    // Do everything in a single pass by:
+    // - Storing the surface sample at the 'max' corner for each cell
+    // - Adding an extra layer of cells on each axis, along the 'min' bounds of the volume, which don't generate triangles,
+    //   but store their corresponding sample and compute their minimizing point so non-edge neighbours can use that
+    // - Once we're past this extra 'dummy' layer, compute the quads that cross each edge containing the 'min' corner of each cell,
+    //   as we know all vertices on adjacent cells in each edge have already been computed
+    for( int k = 0; k < cellsPerAxis.z; ++k )
+    {
+        for( int j = 0; j < cellsPerAxis.y; ++j )
+        {
+            for( int i = 0; i < cellsPerAxis.x; ++i )
+            {
+                samplingData->zeroThickness = thicknessSetting;
+
+#if 1
+                // Cell at { 0, 0, 0 } gets the sample at world position minGridP + { 1, 1, 1 } * cellSize
+                v3 minCellP = minGridP + V3( i, j, k ) * cellSizeMeters;
+                v3 cellBoundsMin = minCellP;
+                v3 cellBoundsMax = minCellP + V3( cellSizeMeters );
+                v3 cellP = cellBoundsMax;
+#else
+                // Cell at { 0, 0, 0 } gets the sample at world position minGridP
+                // (so it can generate a minimizing vertex which is outside the sampled bounds)
+                v3 cellP = minGridP + V3( i, j, k ) * cellSizeMeters;
+                v3 cellBoundsMax = cellP;
+                v3 cellBoundsMin = cellP - V3( cellSizeMeters );
+#endif
 
                 u32 caseMask = 0;
-                r32 cornerSamples[8] = {};
+                f32 cornerSamples[8] = {};
 
                 // Build our bitmask using the samples from every corner
                 // (each cell only samples its 'max' corner)
                 for( int s = 0; s < 8; ++s )
                 {
-                    cornerSamples[s] = R32MAX;
+                    cornerSamples[s] = F32MAX;
                     v3i cornerOffset = dcCornerOffsets[s];
 
-                    r32 sample = R32NAN;
+                    f32 sample = F32INF;
                     if( s == 7 )
                     {
                         // Sample our own
-                        // Cell at { 0, 0, 0 } (border) gets the sample at world position minGridP + { 0, 0, 0 }
-                        // Account for -0
+                        // Account for -0 by just adding +0 to the value
                         p.relativeP = cellP;
                         sample = sampleFunc( p, samplingData ) + 0.f;
                         cellData( i, j, k ).sampledValue = sample;
+
+                        // TODO Use instancing and just draw three crossing axis lines at each point to make this viable
+#if 0 //!RELEASE
+                        if( debugCluster && (i == 0 || j == 0 || k == 0 || i == cellsPerAxis.x-1 || j == cellsPerAxis.y-1 || k == cellsPerAxis.z-1) )
+                        {
+                            v4 color = sample >= 0.f ? outColor : inColor;
+                            color.a = Clamp01( 1.f - Abs( sample ) / 5.f );
+                            debugCluster->debugVolumes.Push( { { cellP, debugSampleSize }, color } );
+                        }
+#endif
+
                     }
                     else
                     {
-                        v3i cellOffset = V3i( i, j, k ) + dcCornerOffsets[s];
-                        if( cellOffset.x < 0 || cellOffset.y < 0 || cellOffset.z < 0 )
-                            continue;
-
-                        sample = cellData( cellOffset ).sampledValue;
+                        v3i cellGridP = V3i( i, j, k ) + dcCornerOffsets[s];
+                        // For corners belonging to cells outside the grid, sample the SDF anyway
+                        // so we at least have real values to determine crossings
+                        if( cellGridP.x < 0 || cellGridP.y < 0 || cellGridP.z < 0 )
+                        {
+                            p.relativeP = cellP + V3( dcCornerOffsets[s] ) * cellSizeMeters;
+                            sample = sampleFunc( p, samplingData ) + 0.f;
+                        }
+                        else
+                            sample = cellData( cellGridP ).sampledValue;
                     }
 
                     if( Sign( sample ) )
@@ -946,245 +1276,72 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                 }
 
                 // Early out if entirely inside or outside
-                if( caseMask == 0 || caseMask == 0xFF )
+                if( caseMask == 0u || caseMask == 0xFFu )
                     continue;
 
-                v2u edges[12];
                 v3 edgePoints[12];
                 v3 edgeNormals[12];
                 int pointCount = 0;
 
-                // We only need to process 3 edges per cell (those containing the corner associated with each cell)
-                // Find edge intersections or get them from neighbours
-                for( int e = 0; e < 12; ++e )
-                {
-                    EdgeLocator const& locator = dcEdgeLocators[e];
-
-                    u32 indexA = locator.cornerA;
-                    u32 indexB = locator.cornerB;
-                    r32 sA = cornerSamples[ indexA ];
-                    r32 sB = cornerSamples[ indexB ];
-
-                    if( Sign( sA ) != Sign( sB ) )
-                    {
-                        if( indexB == 7 || indexA == 7 )
-                        {
-                            // It's one of the edges stored in this cell, so find the intersection & normal
-                            v3 pA = cellP + V3( dcCornerOffsets[indexA] ) * cellSizeMeters;
-                            v3 pB = cellP + V3( dcCornerOffsets[indexB] ) * cellSizeMeters;
-                            v3 edgeP = V3Undefined;
-
-                            static const r32 epsilon = 0.01f;
-                            if( sB == R32MAX || AlmostEqual( sA, 0.f, epsilon ) )
-                                edgeP = pA;
-                            else if( sA == R32MAX || AlmostEqual( sB, 0.f, epsilon ) )
-                                edgeP = pB;
-                            else
-                            {
-                                if( settings.approximateEdgeIntersection )
-                                {
-                                    // Just interpolate along the edge
-                                    r32 t = sA / (sA - sB);
-                                    Clamp01( t );
-                                    edgeP = Lerp( pA, pB, t );
-                                }
-                                else
-                                {
-                                    // Do a binary search along the edge
-                                    static const int maxSearchSteps = 100;
-                                    int searchSteps = maxSearchSteps;
-                                    r32 edgeSample = 0.f;
-                                    v3 lastP = V3Undefined;
-
-                                    while( --searchSteps )
-                                    {
-                                        p.relativeP = (pA + pB) * 0.5f;
-                                        if( p.relativeP == lastP )
-                                        {
-                                            // Float precision is limited
-                                            edgeP = lastP;
-                                            break;
-                                        }
-                                        lastP = p.relativeP;
-                                            
-                                        edgeSample = sampleFunc( p, samplingData );
-
-                                        if( AlmostEqual( edgeSample, 0.f, epsilon ) )
-                                        {
-                                            edgeP = lastP;
-                                            break;
-                                        }
-                                        else
-                                        {
-                                            if( Sign( edgeSample ) == Sign( sA ) )
-                                                pA = lastP;
-                                            else
-                                                pB = lastP;
-                                        }
-                                    }
-                                    ASSERT( searchSteps > 0 );
-                                }
-                            }
-                            cellData( i, j, k ).edgeCrossingsP[locator.storeIndex] = edgeP;
-                            edgePoints[pointCount] = edgeP;
-
-                            ASSERT( edgeP != V3Undefined );
-                            if( pointCount )
-                                ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
-
-                            // Find normal vector by sampling near the intersection point we found
-                            p.relativeP = { edgeP.x + delta, edgeP.y, edgeP.z };
-                            r32 xPSample = sampleFunc( p, samplingData );
-                            p.relativeP = { edgeP.x - delta, edgeP.y, edgeP.z };
-                            r32 xNSample = sampleFunc( p, samplingData );
-
-                            p.relativeP = { edgeP.x, edgeP.y + delta, edgeP.z };
-                            r32 yPSample = sampleFunc( p, samplingData );
-                            p.relativeP = { edgeP.x, edgeP.y - delta, edgeP.z };
-                            r32 yNSample = sampleFunc( p, samplingData );
-
-                            p.relativeP = { edgeP.x, edgeP.y, edgeP.z + delta };
-                            r32 zPSample = sampleFunc( p, samplingData );
-                            p.relativeP = { edgeP.x, edgeP.y, edgeP.z - delta };
-                            r32 zNSample = sampleFunc( p, samplingData );
-
-                            v3 normal = V3( xPSample - xNSample, yPSample - yNSample, zPSample - zNSample ) * deltaInv;
-                            Normalize( normal );
-                            cellData( i, j, k ).edgeCrossingsN[locator.storeIndex] = normal;
-                            edgeNormals[pointCount] = normal;
-                        }
-                        else
-                        {
-                            // This has already been calculated and stored in a neighbour cell so go get it
-                            int neighbourIndex = locator.neighbourIndex;
-                            ASSERT( neighbourIndex != 7 );
-
-                            v3u neighbourCoords = V3u( V3i( i, j, k ) + dcCornerOffsets[neighbourIndex] );
-                            edgePoints[pointCount] = cellData( neighbourCoords ).edgeCrossingsP[locator.storeIndex];
-                            edgeNormals[pointCount] = cellData( neighbourCoords ).edgeCrossingsN[locator.storeIndex];
-
-                            if( pointCount )
-                                ASSERT( Distance( edgePoints[pointCount-1], edgePoints[pointCount] ) < 3.f );
-                        }
-
-                        edges[pointCount] = { indexA, indexB };
-                        pointCount++;
-                    }
-                }
-
+                // We only process 3 edges per cell (those containing the corner stored in each cell)
+                // Find edge intersections for those, get them from neighbours for the rest
+                ComputeEdgeCrossings( i, j, k, cellP, cellSizeMeters, p, sampleFunc, samplingData, edgePoints, edgeNormals, &pointCount,
+                                      dcCornerOffsets, dcEdgeLocators, cornerSamples, &cellData, settings.approximateEdgeIntersection );
                 ASSERT( pointCount );
 
-                bool clamped = false;
                 v3 cellVertex = V3Undefined;
-                switch( settings.cellPointsComputationMethod )
-                {
-                    case DCComputeMethod::Average:
-                    {
-                        v3 massPoint = V3Zero;
-                        for( int pIndex = 0; pIndex < pointCount; ++pIndex )
-                            massPoint += edgePoints[pIndex];
-                        massPoint /= (r32)pointCount;
+                v3 cellNormal = V3Zero;
+                bool clamped = false;
+                ComputeCellPointAndNormal( edgePoints, edgeNormals, pointCount, settings, cellBoundsMin, cellBoundsMax,
+                                           &cellVertex, &cellNormal, &clamped );
 
-                        cellVertex = massPoint;
+                //cellData( i, j, k ).n = cellNormal;
+                p.relativeP = cellVertex + cellNormal * 0.1f;
+                samplingData->zeroThickness = true;
 
-                        // TODO When merging cells in the octree, we still need to do a part of the QEF computation, as stated in "The Secret Sauce":
-                        // "In addition to the data already stored for the mass point, we also store the dimension of the mass point"
-                    } break;
-                    case DCComputeMethod::QEFClassic:
-                    {
-                        cellVertex = QEFMinimizePlanesClassic( edgePoints, edgeNormals, pointCount );
-                    } break;
-                    case DCComputeMethod::QEFProbabilistic:
-                    {
-                        cellVertex = QEFMinimizePlanesProbabilistic( edgePoints, edgeNormals, pointCount, 1.f, settings.sigmaN );
-                    } break;
-                    case DCComputeMethod::QEFProbabilisticDouble:
-                    {
-                        cellVertex = QEFMinimizePlanesProbabilistic64( edgePoints, edgeNormals, pointCount, 1.f, settings.sigmaNDouble );
-                    } break;
+                bool inside = sampleFunc( p, samplingData ) < 0.f;
 
-                    default:
-                        NOT_IMPLEMENTED;
-                }
+                //if( inside )
+                    //continue;
 
-                if( settings.clampCellPoints )
-                {
-                    // TODO Ideally we should do the solve with constrains as explained in https://www.mattkeeter.com/projects/qef/
-                    // (also check https://github.com/BorisTheBrave/mc-dc/blob/a165b326849d8814fb03c963ad33a9faf6cc6dea/qef.py#L146)
-
-                    //Clamp( &cellVertex, cellBounds );
-                    if( cellVertex.x < cellBounds.min.x )
-                    {
-                        cellVertex.x = cellBounds.min.x;
-                        clamped = true;
-                    }
-                    if( cellVertex.x > cellBounds.max.x )
-                    {
-                        cellVertex.x = cellBounds.max.x;
-                        clamped = true;
-                    }
-                    if( cellVertex.y < cellBounds.min.y )
-                    {
-                        cellVertex.y = cellBounds.min.y;
-                        clamped = true;
-                    }
-                    if( cellVertex.y > cellBounds.max.y )
-                    {
-                        cellVertex.y = cellBounds.max.y;
-                        clamped = true;
-                    }
-                    if( cellVertex.z < cellBounds.min.z )
-                    {
-                        cellVertex.z = cellBounds.min.z;
-                        clamped = true;
-                    }
-                    if( cellVertex.z > cellBounds.max.z )
-                    {
-                        cellVertex.z = cellBounds.max.z;
-                        clamped = true;
-                    }
-                }
-                else
-                {
-                    //ASSERT( Contains( cellBounds, cellVertex ) );
-                }
-
-                u32 vertexIndex = vertices->count;
+                int vertexIndex = vertices->count;
                 TexturedVertex v = {};
                 v.p = cellVertex;
+                v.n = cellNormal;
                 v.color = clamped ? Pack01ToRGBA( 1, 0, 0, 1 ) : Pack01ToRGBA( 1, 1, 1, 1 );
+                //v.color = inside ? Pack01ToRGBA( 0, 1, 0, 1 ) : Pack01ToRGBA( 0, 0, 1, 1 );
+                // TODO Generalize this into a 'tagger' function callback?
+                v.tag = inside ? VertexTag::Inner : VertexTag::Outer;
                 vertices->Push( v );
-
                 cellData( i, j, k ).vertexIndex = vertexIndex;
-#if 0
-                v3 avgNormal = V3Zero;
-                for( u32 p = 0; p < pointCount; ++p )
-                    avgNormal += edgeNormals[p];
-                avgNormal /= pointCount;
-                cellData( i, j, k ).n = avgNormal;
-#endif
+
+                mergeData( i >> 1, j >> 1, k >> 1 ).count++;
 
 
                 // Now we look 'backwards' and create at most 3 quads corresponding to the edges that include the 'min' corner instead,
                 // as we know those vertices will be ready by now
-                static const u32 edgesProducingPolys[3][2] =
+                static const i32 edgesProducingPolys[3][2] =
                 {
                     { 0, 1 },
                     { 0, 2 },
                     { 0, 4 },
                 };
 
-                for( u32 e = 0; e < 3; ++e )
+                for( int e = 0; e < 3; ++e )
                 {
-                    r32 sA = cornerSamples[ edgesProducingPolys[e][0] ];
-                    r32 sB = cornerSamples[ edgesProducingPolys[e][1] ];
+                    f32 sA = cornerSamples[ edgesProducingPolys[e][0] ];
+                    f32 sB = cornerSamples[ edgesProducingPolys[e][1] ];
 
+                    // This edge crosses the surface, so we need a quad here
                     if( Sign( sA ) != Sign( sB ) )
                     {
                         switch( e )
                         {
                         case 0:     // Normal aligned to +/- X
                         {
+                            if( k == 0 || j == 0 )
+                                break;
+
                             if( sA < sB )
                             {
                                 indices->Push( vertexIndex );
@@ -1208,6 +1365,9 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                         } break;
                         case 1:     // Normal aligned to +/- Y
                         {
+                            if( k == 0 || i == 0 )
+                                break;
+
                             if( sA < sB )
                             {
                                 indices->Push( vertexIndex );
@@ -1231,6 +1391,9 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
                         } break;
                         case 2:     // Normal aligned to +/- Z
                         {
+                            if( j == 0 || i == 0 )
+                                break;
+
                             if( sA < sB )
                             {
                                 indices->Push( vertexIndex );
@@ -1262,20 +1425,321 @@ DCVolume( WorldCoords const& worldP, v3 const& volumeSideMeters, r32 cellSizeMet
 
 
 
+// This is just a crude vertex clustering algorithm to quickly discard coplanar vertices,
+// in the same spirit as http://www.andrewwillmott.com/papers/rsmam/RSMAM-Final.pdf but simpler
+// NOTE Given cell size should be at most double the size at which the volume was sampled (assuming one vertex per cell)
+// This is because we currently merge at most 8 vertices per cell!
+// FIXME FIX BUGS
+// - Disappearing vertices / tris
+// - Crazy elongated tris popping up
+// - Tris changing winding direction due to extreme vertex displacement
+void FastDecimate( BucketArray<TexturedVertex> const& vertices, BucketArray<i32> const& indices, v3 const& volumeCenterP,
+                   v3 const& volumeSizeMeters, f32 cellSizeMeters, VertexTag filterTag, MemoryArena* arena, MemoryArena* tmpArena,
+                   Array<TexturedVertex>* outVertices, Array<i32>* outIndices )
+{
+    struct Vert
+    {
+        TexturedVertex const* attrs;
+        i32 refs;
+    };
+
+    struct ClusteringData
+    {
+        v3 normals[8];
+        v3 points[8];
+        i32 indices[8];
+        i32 count;
+        bool excluded; // Can no longer be merged
+    };
+
+
+    v3i cellsPerAxis = V3iRound( volumeSizeMeters / cellSizeMeters ) + V3iOne;
+    Grid3D<ClusteringData> cellData( tmpArena, cellsPerAxis, Temporary() );
+    v3 halfSizeMeters = volumeSizeMeters * 0.5f;
+    v3 minVolumeP = volumeCenterP - halfSizeMeters;
+
+    MemoryParams params = {};
+    params.flags &= ~MemoryFlags_ClearToZero;
+    params.flags = MemoryFlags_TemporaryMemory;
+
+    Array<Vert> vertexArray( tmpArena, vertices.count, params );
+    vertexArray.ResizeToCapacity();
+    int dst = 0;
+    int droppedVertices = 0;
+    auto idx = vertices.First();
+    while( idx )
+    {
+        // We copy them regardless of filtering so as to not break the indices, they'll be discarded on exit as they'll get no references
+        Vert& v = vertexArray[dst];
+        v.attrs = &(*idx);
+        v.refs = -1;
+
+        if( filterTag == VertexTag::None || filterTag == (*idx).tag )
+        {
+            v3 offsetP = (v.attrs->p - minVolumeP);
+            v3 cellPReal = offsetP / cellSizeMeters;
+            v3i cellP = V3i( cellPReal );
+            //v3i cellP = V3i( (v.attrs->p - minVolumeP) / cellSizeMeters );
+            ClusteringData& cell = cellData( cellP );
+            // FIXME Something is obviously busted here
+            //ASSERT( cell.count < ARRAYCOUNT(ClusteringData::indices) );
+            if( cell.count < ARRAYCOUNT(ClusteringData::indices) )
+            {
+                cell.normals[cell.count] = v.attrs->n;
+                cell.points[cell.count] = v.attrs->p;
+                cell.indices[cell.count] = dst;
+                cell.count++;
+            }
+            else
+                droppedVertices++;
+        }
+        idx.Next();
+        dst++;
+    }
+    if( droppedVertices )
+        // FIXME 
+        LOG( "WARN :: %d vertices discarded in FastDecimate", droppedVertices );
+
+    // Indices to previous array
+    Array<i32> vertexIndices( tmpArena, vertexArray.count, params );
+    vertexIndices.ResizeToCapacity();
+    for( int i = 0; i < vertexIndices.count; ++i )
+        vertexIndices.data[i] = i;
+
+    // Triangle indices point to the intermediate indices array above
+    struct Tri
+    {
+        i32 indices[3];
+        i32 discarded;
+    };
+    // TODO Build list of triangles directly
+    Array<i32> indexArray( tmpArena, indices.count, params );
+    indices.CopyTo( &indexArray );
+    Array<Tri> triangles( tmpArena, indexArray.count / 3, params );
+    triangles.ResizeToCapacity();
+    dst = 0;
+    for( int i = 0; i < triangles.count; ++i )
+    {
+        i32 ind0 = indexArray[i*3 + 0]; 
+        i32 ind1 = indexArray[i*3 + 1]; 
+        i32 ind2 = indexArray[i*3 + 2]; 
+        VertexTag tag0 = vertexArray[ind0].attrs->tag;
+        VertexTag tag1 = vertexArray[ind1].attrs->tag;
+        VertexTag tag2 = vertexArray[ind2].attrs->tag;
+        // FIXME Find out why this fails and what to do about it
+        //ASSERT( tag0 == tag1 && tag0 == tag2 );
+        if( filterTag == VertexTag::None || filterTag == tag0 )
+        {
+            Tri& tri = triangles[dst++];
+            tri.indices[0] = ind0;
+            tri.indices[1] = ind1;
+            tri.indices[2] = ind2;
+            tri.discarded = false;
+        }
+    }
+    triangles.count = dst;
+
+
+// FIXME FIX BUGS
+// - Disappearing vertices / tris
+// - Crazy elongated tris popping up
+// - Tris changing winding direction due to extreme vertex movement
+    int clustered = 0;
+    bool firstPass = true;
+    //while( firstPass || clustered > 0 && !AnyZero( cellsPerAxis ) )
+    {
+        Grid3D<ClusteringData> parentCellData = {};
+
+        v3i parentCellsPerAxis = cellsPerAxis / 2 + V3iOne;
+        INIT( &parentCellData ) Grid3D<ClusteringData>( tmpArena, parentCellsPerAxis, Temporary() );
+
+        clustered = 0;
+        for( int k = 0; k < cellsPerAxis.z; ++k )
+        {
+            for( int j = 0; j < cellsPerAxis.y; ++j )
+            {
+                for( int i = 0; i < cellsPerAxis.x; ++i )
+                {
+                    ClusteringData& cell = cellData( i, j ,k );
+                    if( !cell.excluded && cell.count > 1 )
+                    {
+                        // TODO We could be much more aggresive clustering by finding new safe heuristics that we can add here
+                        v3& normal0 = cell.normals[0];
+                        v3& point0 = cell.points[0];
+
+                        //bool aligned = (!AlmostZero( normal0.x ) && AlmostZero( normal0.y ) && AlmostZero( normal0.z ))
+                        //|| (AlmostZero( normal0.x ) && !AlmostZero( normal0.y ) && AlmostZero( normal0.z ))
+                        //|| (AlmostZero( normal0.x ) && AlmostZero( normal0.y ) && !AlmostZero( normal0.z ));
+                        bool aligned = true;
+
+                        if( aligned )
+                        {
+                            // Are all normals mostly the same?
+                            for( int n = 1; n < cell.count; ++n )
+                            {
+                                //if( AlmostEqual( Dot( normal0, cell.normals[n] ), 1.f, 0.001f ) )
+                                if( !AlmostEqual( normal0, cell.normals[n], 0.001f ) )
+                                {
+                                    cell.excluded = true;
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                            cell.excluded = true;
+
+                        if( !cell.excluded )
+                        {
+                            // Are all points coplanar?
+                            const f32 dCoeff = Dot( normal0, point0 );
+                            for( int n = 1; n < cell.count; ++n )
+                            {
+                                f32 dist = Dot( normal0, cell.points[n] ) - dCoeff;
+                                if( !AlmostZero( dist, 0.001f ) )
+                                {
+                                    cell.excluded = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        ClusteringData& parentCell = parentCellData( i >> 1, j >> 1, k >> 1 );
+
+                        if( cell.excluded )
+                        {
+                            parentCell.excluded = true;
+                            continue;
+                        }
+
+                        // We're good. Substitute all indices to point to the first one in the cell
+                        i32 index0 = cell.indices[0];
+                        for( int n = 1; n < 8; ++n )
+                            vertexIndices[ cell.indices[n] ] = index0;
+                        clustered++;
+
+                        // Add surviving point to next coarser grid for next iteration
+                        ASSERT( parentCell.count < ARRAYCOUNT(ClusteringData::indices) );
+                        //if( parentCell.count < ARRAYCOUNT(ClusteringData::indices) )
+                        {
+                            parentCell.normals[parentCell.count] = normal0;
+                            parentCell.points[parentCell.count] = point0;
+                            parentCell.indices[parentCell.count] = cell.indices[0];
+                            parentCell.count++;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Discard degenerate tris and fix all others to stop pointing to vertices that have been clustered
+        for( int i = 0; i < triangles.count; ++i )
+        {
+            Tri& tri = triangles[i];
+            if( tri.discarded )
+                continue;
+
+            i32& ind0 = tri.indices[0];
+            i32& ind1 = tri.indices[1];
+            i32& ind2 = tri.indices[2];
+            i32& vertex0 = vertexIndices[ind0];
+            i32& vertex1 = vertexIndices[ind1];
+            i32& vertex2 = vertexIndices[ind2];
+
+            if( vertex0 == vertex1 || vertex0 == vertex2 )
+                tri.discarded = true;
+            else
+            {
+                ind0 = vertex0;
+                ind1 = vertex1;
+                ind2 = vertex2;
+            }
+        }
+
+        cellData = parentCellData;
+        cellsPerAxis = parentCellsPerAxis;
+
+        firstPass = false;
+    }
+
+    // Compact
+    // TODO Do this in the same pass above
+    dst = 0;
+    for( int i = 0; i < triangles.count; ++i )
+    {
+        Tri& tri = triangles[i];
+        if( !tri.discarded )
+        {
+            for( int j = 0; j < 3; ++j )
+            {
+                // Reference vertex attributes array directly
+                int v = vertexIndices[ tri.indices[j] ];
+                tri.indices[j] = v;
+                vertexArray[v].refs = 1;
+            }
+            triangles[dst++] = tri;
+        }
+    }
+    triangles.count = dst;
+
+    dst = 0;
+    for( int i = 0; i < vertexArray.count; ++i )
+    {
+        Vert& v = vertexArray[i];
+        if( v.refs > 0 )
+        {
+            v.refs = dst;
+            // Pack at the front
+            ASSERT( v.attrs );
+            vertexArray[dst].attrs = v.attrs;
+            dst++;
+        }
+    }
+
+    for( int i = 0; i < triangles.count; ++i )
+    {
+        Tri& tri = triangles[i];
+        for( int j = 0; j < 3; ++j )
+            tri.indices[j] = vertexArray[ tri.indices[j] ].refs;
+    }
+    vertexArray.count = dst;
+
+
+    INIT( outVertices ) Array<TexturedVertex>( arena, vertexArray.count, NoClear() );
+    outVertices->ResizeToCapacity();
+    for( int i = 0; i < vertexArray.count; ++i )
+    {
+        outVertices->data[i] = *vertexArray[i].attrs;
+    }
+
+    INIT( outIndices ) Array<i32>( arena, triangles.count * 3, NoClear() );
+    outIndices->ResizeToCapacity();
+    for( int i = 0; i < triangles.count; ++i )
+    {
+        Tri& tri = triangles[i];
+        outIndices->data[i*3 + 0] = tri.indices[0];
+        outIndices->data[i*3 + 1] = tri.indices[1];
+        outIndices->data[i*3 + 2] = tri.indices[2];
+    }
+}
+
+
+
+
 struct Metaball
 {
     v3 pCenter;
-    r32 radiusMeters;
+    f32 radiusMeters;
 };
 
 ISO_SURFACE_FUNC(SampleMetaballs)
 {
+    ASSERT( !"Need a new samplingData type for this stuff!" );
     const Array<Metaball>& balls = *(const Array<Metaball>*)samplingData;
 
-    r32 minValue = R32MAX;
-    for( u32 i = 0; i < balls.capacity; ++i )
+    f32 minValue = F32MAX;
+    for( int i = 0; i < balls.capacity; ++i )
     {
-        r32 value = DistanceSq( balls[i].pCenter, worldP.relativeP ) - balls[i].radiusMeters;
+        f32 value = DistanceSq( balls[i].pCenter, worldP.relativeP ) - balls[i].radiusMeters;
         if( value < minValue )
             minValue = value;
     }
@@ -1292,23 +1756,23 @@ TestMetaballs( float areaSideMeters, float cellSizeMeters, float elapsedT, IsoSu
 
     if( balls[0].radiusMeters == 0 )
     {
-        for( u32 i = 0; i < balls.count; ++i )
+        for( int i = 0; i < balls.count; ++i )
         {
-            //r32 x = RandomRange( -halfSideMeters, halfSideMeters );
-            //r32 y = RandomRange( -halfSideMeters, halfSideMeters );
-            //r32 z = RandomRange( -halfSideMeters, halfSideMeters );
-            r32 r = RandomRangeR32( 1.0f, 5.0f );
+            //f32 x = RandomRange( -halfSideMeters, halfSideMeters );
+            //f32 y = RandomRange( -halfSideMeters, halfSideMeters );
+            //f32 z = RandomRange( -halfSideMeters, halfSideMeters );
+            f32 r = RandomRangeF32( 1.0f, 5.0f );
             balls.Push( { V3Zero, r } );
         }
     }
 
     // Update positions
-    for( u32 i = 0; i < balls.count; ++i )
+    for( int i = 0; i < balls.count; ++i )
     {
         Metaball& ball = balls[i];
-        r32 x = (i+1) / 2.0f * Cos( elapsedT - i );
-        r32 y = (i+2) / 2.0f * Sin( elapsedT + i );
-        r32 z = (i+3) / 2.0f * Sin( elapsedT - i );
+        f32 x = (i+1) / 2.0f * Cos( elapsedT - i );
+        f32 y = (i+2) / 2.0f * Sin( elapsedT + i );
+        f32 z = (i+3) / 2.0f * Sin( elapsedT - i );
 
         ball.pCenter = { x, y, z };
     }
@@ -1327,7 +1791,7 @@ ISO_SURFACE_FUNC( TorusSurfaceFunc )
     // NOTE We're axis aligned for now, so just translate
     v3 invWorldP = worldP.relativeP - V3Zero;
 
-    r32 result = SDFTorus( invWorldP, 70, 30 );
+    f32 result = SDFTorus( invWorldP, 70, 30 );
     return result;
 }
 
@@ -1336,42 +1800,23 @@ ISO_SURFACE_FUNC( BoxSurfaceFunc )
     // NOTE We're axis aligned for now, so just translate
     v3 invWorldP = worldP.relativeP - V3Zero;
 
-    r32 result = SDFBox( invWorldP, { 70, 70, 70 } );
+    f32 result = SDFBox( invWorldP, { 70, 70, 70 } );
     return result;
 }
 
-#define SURFACE_LIST(x) \
-    x(MechanicalPart)   \
-    x(Torus)            \
-    x(HollowCube)       \
-    x(Devil)            \
-    x(QuarticCylinder)  \
-    x(TangleCube)       \
-    x(TrefoilKnot)      \
-    x(Genus2)           \
-    //x(Cone)            \
-    //x(LinkedTorii)      \
-
-STRUCT_ENUM(SimpleSurface, SURFACE_LIST);
-#undef SURFACE_LIST
-
-
-struct SamplingData
-{
-    m4 invWorldTransform;
-    u32 surfaceType;
-};
 
 
 ISO_SURFACE_FUNC( SimpleSurfaceFunc )
 {
-    SamplingData* data = (SamplingData*)samplingData;
+    ASSERT( samplingData->type == SamplingDataType::SimpleSurface );
+
+    SimpleSurfaceData* data = (SimpleSurfaceData*)samplingData;
     int surfaceIndex = data->surfaceType;
 
     // NOTE Don't care about translation
     v3 const& invWorldP = Transform( data->invWorldTransform, worldP.relativeP );
 
-    r32 result = R32INF;
+    f32 result = F32INF;
     switch( surfaceIndex )
     {
         case SimpleSurface::Torus().index:
@@ -1395,24 +1840,24 @@ ISO_SURFACE_FUNC( SimpleSurfaceFunc )
         case SimpleSurface::TangleCube().index:
             result = SDFTangleCube( invWorldP );
             break;
-        case SimpleSurface::TrefoilKnot().index:
-            result = SDFTrefoilKnot( invWorldP );
-            break;
+        //case SimpleSurface::TrefoilKnot().index:
+            //result = SDFTrefoilKnot( invWorldP );
+            //break;
         case SimpleSurface::Genus2().index:
             result = SDFGenus2( invWorldP );
             break;
 
         case SimpleSurface::MechanicalPart().index:
         {
-            r32 b = SDFBox( invWorldP, { 50, 50, 50 } );
-            r32 c = SDFCylinder( invWorldP, 40 );
+            f32 b = SDFBox( invWorldP, { 50, 50, 50 } );
+            f32 c = SDFCylinder( invWorldP, 40 );
             result = SDFUnion( b, c );
 
             v3 yRotP = { invWorldP.z, invWorldP.y, invWorldP.x };
-            r32 c1 = SDFCylinder( yRotP, 30 );
+            f32 c1 = SDFCylinder( yRotP, 30 );
             result = SDFSubstraction( result, c1 );
             v3 zRotP = { -invWorldP.y, invWorldP.x, invWorldP.z };
-            r32 c2 = SDFCylinder( zRotP, 30 );
+            f32 c2 = SDFCylinder( zRotP, 30 );
             result = SDFSubstraction( result, c2 );
         } break;
     }
@@ -1426,19 +1871,19 @@ ISO_SURFACE_FUNC( SimpleSurfaceFunc )
 
 ///// MESH SIMPLIFICATION /////
 
-internal inline r64
-FQSVertexError( const m4Symmetric& q, r64 x, r64 y, r64 z )
+internal inline f64
+FQSVertexError( const m4Symmetric& q, f64 x, f64 y, f64 z )
 {
     // Error between vertex and quadric
-    r64 result = q.e[0]*x*x + 2*q.e[1]*x*y + 2*q.e[2]*x*z + 2*q.e[3]*x
+    f64 result = q.e[0]*x*x + 2*q.e[1]*x*y + 2*q.e[2]*x*z + 2*q.e[3]*x
                + q.e[4]*y*y + 2*q.e[5]*y*z + 2*q.e[6]*y
                + q.e[7]*z*z + 2*q.e[8]*z
                + q.e[9];
     return result;
 }
 
-internal r64
-FQSCalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
+internal f64
+FQSCalculateError( FQSMesh* mesh, int v1Idx, int v2Idx, v3* result )
 {
     FQSVertex& v1 = mesh->vertices[v1Idx];
     FQSVertex& v2 = mesh->vertices[v2Idx];
@@ -1446,16 +1891,16 @@ FQSCalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
     // Compute interpolated vertex
     m4Symmetric q = v1.q + v2.q;
     bool border = v1.border && v2.border;
-    r64 error = 0;
-    r64 det = Determinant3x3( q, 0, 1, 2, 1, 4, 5, 2, 5, 7 );
+    f64 error = 0;
+    f64 det = Determinant3x3( q, 0, 1, 2, 1, 4, 5, 2, 5, 7 );
 
     // TODO Epsilon?
     if( det != 0 && !border )
     {
         // Invertible
-        result->x = (r32)(-1 / det * Determinant3x3( q, 1, 2, 3, 4, 5, 6, 5, 7, 8 ));
-        result->y = (r32)( 1 / det * Determinant3x3( q, 0, 2, 3, 1, 5, 6, 2, 7, 8 ));
-        result->z = (r32)(-1 / det * Determinant3x3( q, 0, 1, 3, 1, 4, 6, 2, 5, 8 ));
+        result->x = (f32)(-1 / det * Determinant3x3( q, 1, 2, 3, 4, 5, 6, 5, 7, 8 ));
+        result->y = (f32)( 1 / det * Determinant3x3( q, 0, 2, 3, 1, 5, 6, 2, 7, 8 ));
+        result->z = (f32)(-1 / det * Determinant3x3( q, 0, 1, 3, 1, 4, 6, 2, 5, 8 ));
         error = FQSVertexError( q, result->x, result->y, result->z );
     }
     else
@@ -1464,9 +1909,9 @@ FQSCalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
         v3 p1 = v1.p;
         v3 p2 = v2.p;
         v3 p3 = (p1 + p2) / 2;
-        r64 error1 = FQSVertexError( q, p1.x, p1.y, p1.z );
-        r64 error2 = FQSVertexError( q, p2.x, p2.y, p2.z );
-        r64 error3 = FQSVertexError( q, p3.x, p3.y, p3.z );
+        f64 error1 = FQSVertexError( q, p1.x, p1.y, p1.z );
+        f64 error2 = FQSVertexError( q, p2.x, p2.y, p2.z );
+        f64 error3 = FQSVertexError( q, p3.x, p3.y, p3.z );
         error = Min( error1, Min( error2, error3 ) );
 
         if( error1 == error )
@@ -1482,17 +1927,17 @@ FQSCalculateError( FQSMesh* mesh, u32 v1Idx, u32 v2Idx, v3* result )
 
 internal bool
 FQSFlipped( const FQSMesh& mesh, const Array<FQSVertexRef>& refs,
-            const v3& p, u32 i0, u32 i1, const FQSVertex& v0, const FQSVertex& v1, Array<bool>* deleted )
+            const v3& p, int i0, int i1, const FQSVertex& v0, const FQSVertex& v1, Array<bool>* deleted )
 {
-    for( u32 k = 0; k < v0.refCount; ++k )
+    for( int k = 0; k < v0.refCount; ++k )
     {
         const FQSTriangle& tri = mesh.triangles[refs[v0.refStart + k].tId];
         if( tri.deleted )
             continue;
 
-        u32 s = refs[v0.refStart + k].tVertex;
-        u32 id1 = tri.v[(s+1)%3];
-        u32 id2 = tri.v[(s+2)%3];
+        int s = refs[v0.refStart + k].tVertex;
+        int id1 = tri.v[(s+1)%3];
+        int id2 = tri.v[(s+2)%3];
 
         if( id1 == i1 || id2 == i1 )    // delete?
         {
@@ -1500,12 +1945,12 @@ FQSFlipped( const FQSMesh& mesh, const Array<FQSVertexRef>& refs,
             continue;
         }
 
-        v3 d1 = Normalized( mesh.vertices[id1].p - p );
-        v3 d2 = Normalized( mesh.vertices[id2].p - p );
+        v3 d1 = NormalizedFast( mesh.vertices[id1].p - p );
+        v3 d2 = NormalizedFast( mesh.vertices[id2].p - p );
         if( Abs( Dot( d1, d2 ) ) > 0.999f )
             return true;
 
-        v3 n = Normalized( Cross( d1, d2 ) );
+        v3 n = NormalizedFast( Cross( d1, d2 ) );
         (*deleted)[k] = false;
 
         if( Dot( n, tri.n ) < 0.2f )
@@ -1517,11 +1962,11 @@ FQSFlipped( const FQSMesh& mesh, const Array<FQSVertexRef>& refs,
 
 // Update triangle connections and edge error after an edge is collapsed
 internal void
-FQSUpdateTriangles( u32 i0, const FQSVertex& v, const Array<bool>& deleted,
-                    FQSMesh* mesh, Array<FQSVertexRef>* refs, u32* deleteTriangleCount )
+FQSUpdateTriangles( int i0, const FQSVertex& v, const Array<bool>& deleted,
+                    FQSMesh* mesh, Array<FQSVertexRef>* refs, i32* deleteTriangleCount )
 {
     v3 p;
-    for( u32 k = 0; k < v.refCount; ++k )
+    for( int k = 0; k < v.refCount; ++k )
     {
         FQSVertexRef& ref = (*refs)[v.refStart + k];
         FQSTriangle& tri = mesh->triangles[ref.tId];
@@ -1552,17 +1997,17 @@ FQSUpdateTriangles( u32 i0, const FQSVertex& v, const Array<bool>& deleted,
 // This would also have the advantage of being able to generate all LODs in a single pass.
 // Also, see if we can find an ultra-fast method mostly for coplanar regions and have it applied always after contouring regardless of LOD
 // (or make one!)
-void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemory& tmpMemory,
-                          r32 agressiveness = 7 )
+// TODO Test using just floats for the quadric matrices
+void FastQuadricSimplify( FQSMesh* mesh, int targetTriCount, MemoryArena* tmpArena, f32 agressiveness = 7 )
 {
-    u32 triangleCount = mesh->triangles.count;
-    u32 deletedTriangleCount = 0;
+    int triangleCount = mesh->triangles.count;
+    int deletedTriangleCount = 0;
 
-    for( u32 i = 0; i < triangleCount; ++i )
+    for( int i = 0; i < triangleCount; ++i )
         mesh->triangles[i].deleted = false;
 
     // Need extra space for FQSUpdateTriangles below
-    Array<FQSVertexRef> refs( tmpMemory.arena, triangleCount * 3 * 3, Temporary() );
+    Array<FQSVertexRef> refs( tmpArena, triangleCount * 3 * 3, Temporary() );
     for( int iteration = 0; iteration < 100; ++iteration )
     {
         if( triangleCount - deletedTriangleCount <= targetTriCount )
@@ -1575,10 +2020,10 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             // Required at the first iteration. Not required later, but could improve the result for closed meshes
             if( iteration == 0 )
             {
-                for( u32 i = 0; i < mesh->vertices.count; ++i )
+                for( int i = 0; i < mesh->vertices.count; ++i )
                     mesh->vertices[i].q = M4SymmetricZero;
 
-                for( u32 i = 0; i < mesh->triangles.count; ++i )
+                for( int i = 0; i < mesh->triangles.count; ++i )
                 {
                     FQSTriangle& tri = mesh->triangles[i];
                     v3 p[3] =
@@ -1588,7 +2033,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
                         mesh->vertices[tri.v[2]].p
                     };
 
-                    v3 n = Normalized( Cross( p[1] - p[0], p[2] - p[0] ) );
+                    v3 n = NormalizedFast( Cross( p[1] - p[0], p[2] - p[0] ) );
                     tri.n = n;
 
                     for( int j = 0; j < 3; ++j )
@@ -1597,7 +2042,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
                     }
                 }
 
-                for( u32 i = 0; i < mesh->triangles.count; ++i )
+                for( int i = 0; i < mesh->triangles.count; ++i )
                 {
                     FQSTriangle& tri = mesh->triangles[i];
                     v3 p;
@@ -1611,8 +2056,8 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             else
             {
                 // Compact tri array
-                u32 dst = 0;
-                for( u32 i = 0; i < mesh->triangles.count; ++i )
+                int dst = 0;
+                for( int i = 0; i < mesh->triangles.count; ++i )
                 {
                     if( !mesh->triangles[i].deleted )
                     {
@@ -1626,20 +2071,20 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             }
 
             // Rebuild refs list
-            for( u32 i = 0; i < mesh->vertices.count; ++i )
+            for( int i = 0; i < mesh->vertices.count; ++i )
             {
                 mesh->vertices[i].refStart = 0;
                 mesh->vertices[i].refCount = 0;
             }
-            for( u32 i = 0; i < mesh->triangles.count; ++i )
+            for( int i = 0; i < mesh->triangles.count; ++i )
             {
                 FQSTriangle& tri = mesh->triangles[i];
                 for( int j = 0; j < 3; ++j )
                     mesh->vertices[tri.v[j]].refCount++;
             }
 
-            u32 refStart = 0;
-            for( u32 i = 0; i < mesh->vertices.count; ++i )
+            int refStart = 0;
+            for( int i = 0; i < mesh->vertices.count; ++i )
             {
                 FQSVertex& v = mesh->vertices[i];
                 v.refStart = refStart;
@@ -1648,7 +2093,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             }
 
             refs.Resize( mesh->triangles.count * 3 );
-            for( u32 i = 0; i < mesh->triangles.count; ++i )
+            for( int i = 0; i < mesh->triangles.count; ++i )
             {
                 FQSTriangle& tri = mesh->triangles[i];
                 for( int j = 0; j < 3; ++j )
@@ -1665,28 +2110,28 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             // Identify boundary vertices
             if( iteration == 0 )
             {
-                Array<u32> vCount( tmpMemory.arena, 1000, Temporary() );
-                Array<u32> vIds( tmpMemory.arena, 1000, Temporary() );
+                Array<i32> vCount( tmpArena, 1000, Temporary() );
+                Array<i32> vIds( tmpArena, 1000, Temporary() );
 
-                for( u32 i = 0; i < mesh->vertices.count; ++i )
+                for( int i = 0; i < mesh->vertices.count; ++i )
                     mesh->vertices[i].border = false;
                 
-                for( u32 i = 0; i < mesh->vertices.count; ++i )
+                for( int i = 0; i < mesh->vertices.count; ++i )
                 {
                     vCount.count = 0;
                     vIds.count = 0;
 
                     FQSVertex& v = mesh->vertices[i];
 
-                    for( u32 j = 0; j < v.refCount; ++j )
+                    for( int j = 0; j < v.refCount; ++j )
                     {
-                        u32 tId = refs[v.refStart + j].tId;
+                        int tId = refs[v.refStart + j].tId;
                         FQSTriangle& tri = mesh->triangles[tId];
 
                         for( int k = 0; k < 3; ++k )
                         {
-                            u32 ofs = 0;
-                            u32 id = tri.v[k];
+                            int ofs = 0;
+                            int id = tri.v[k];
                             while( ofs < vCount.count )
                             {
                                 if( vIds[ofs] == id )
@@ -1704,7 +2149,7 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
                         }
                     }
 
-                    for( u32 j = 0; j < vCount.count; ++j )
+                    for( int j = 0; j < vCount.count; ++j )
                     {
                         if( vCount[j] == 1 )
                             mesh->vertices[vIds[j]].border = true;
@@ -1713,17 +2158,17 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             }
         }
 
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        for( int i = 0; i < mesh->triangles.count; ++i )
             mesh->triangles[i].dirty = false;
 
         // All triangles with edges below the threshold will be removed
         // NOTE The following numbers usually work. Adjust as needed
-        r64 threshold = 0.000000001 * PowR64( r64(iteration + 3), agressiveness );
+        f64 threshold = 0.000000001 * PowF64( f64(iteration + 3), agressiveness );
 
         if( iteration % 5 == 0 )
             LOG( "Iteration %d - tris %d  threshold %g", iteration, triangleCount - deletedTriangleCount, threshold );
 
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        for( int i = 0; i < mesh->triangles.count; ++i )
         {
             FQSTriangle& tri = mesh->triangles[i];
             if( tri.error[3] > threshold || tri.deleted || tri.dirty )
@@ -1733,11 +2178,11 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
             {
                 if( tri.error[j] < threshold )
                 {
-                    Array<bool> deleted0( tmpMemory.arena, 1000, Temporary() );
-                    Array<bool> deleted1( tmpMemory.arena, 1000, Temporary() );
+                    Array<bool> deleted0( tmpArena, 1000, Temporary() );
+                    Array<bool> deleted1( tmpArena, 1000, Temporary() );
 
-                    u32 i0 = tri.v[j];          FQSVertex& v0 = mesh->vertices[i0];
-                    u32 i1 = tri.v[(j+1)%3];    FQSVertex& v1 = mesh->vertices[i1];
+                    int i0 = tri.v[j];          FQSVertex& v0 = mesh->vertices[i0];
+                    int i1 = tri.v[(j+1)%3];    FQSVertex& v1 = mesh->vertices[i1];
 
                     if( v0.border != v1.border )
                         continue;
@@ -1758,10 +2203,10 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
                     v0.p = p;
                     v0.q = v1.q + v0.q;
 
-                    u32 refStart = refs.count;
+                    int refStart = refs.count;
                     FQSUpdateTriangles( i0, v0, deleted0, mesh, &refs, &deletedTriangleCount );
                     FQSUpdateTriangles( i0, v1, deleted1, mesh, &refs, &deletedTriangleCount );
-                    u32 refCount = refs.count - refStart;
+                    int refCount = refs.count - refStart;
 
                     if( refCount <= v0.refCount )
                     {
@@ -1784,11 +2229,11 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
 
     // Compact mesh
     {
-        for( u32 i = 0; i < mesh->vertices.count; ++i )
+        for( int i = 0; i < mesh->vertices.count; ++i )
             mesh->vertices[i].refCount = 0;
 
-        u32 dst = 0;
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        int dst = 0;
+        for( int i = 0; i < mesh->triangles.count; ++i )
         {
             FQSTriangle& tri = mesh->triangles[i];
             if( !tri.deleted )
@@ -1801,18 +2246,19 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
         mesh->triangles.count = dst;
         dst = 0;
 
-        for( u32 i = 0; i < mesh->vertices.count; ++i )
+        for( int i = 0; i < mesh->vertices.count; ++i )
         {
             FQSVertex& v = mesh->vertices[i];
             if( v.refCount )
             {
                 v.refStart = dst;
+                mesh->vertices[dst].vertex = v.vertex;
                 mesh->vertices[dst].p = v.p;
                 dst++;
             }
         }
 
-        for( u32 i = 0; i < mesh->triangles.count; ++i )
+        for( int i = 0; i < mesh->triangles.count; ++i )
         {
             FQSTriangle& tri = mesh->triangles[i];
             for( int j = 0; j < 3; ++j )
@@ -1823,18 +2269,48 @@ void FastQuadricSimplify( FQSMesh* mesh, u32 targetTriCount, const TemporaryMemo
 }
 
 
-FQSMesh CreateFQSMesh( Array<TexturedVertex> const& vertices, Array<u32> const& indices, TemporaryMemory const& tmpMemory )
+FQSMesh CreateFQSMesh( Array<TexturedVertex> const& vertices, Array<i32> const& indices, MemoryArena* tmpArena )
 {
     FQSMesh result;
-    result.vertices = Array<FQSVertex>( tmpMemory.arena, vertices.count, Temporary() );
+    INIT( &result.vertices ) Array<FQSVertex>( tmpArena, vertices.count, Temporary() );
     result.vertices.ResizeToCapacity();
 
-    for( u32 i = 0; i < result.vertices.count; ++i )
+    for( int i = 0; i < result.vertices.count; ++i )
+    {
+        result.vertices[i].vertex = &vertices[i];
         result.vertices[i].p = vertices[i].p;
+    }
 
-    result.triangles = Array<FQSTriangle>( tmpMemory.arena, indices.count / 3, Temporary() );
+    INIT( &result.triangles ) Array<FQSTriangle>( tmpArena, indices.count / 3, Temporary() );
     result.triangles.Resize( result.triangles.capacity );
-    for( u32 i = 0; i < result.triangles.count; ++i )
+    for( int i = 0; i < result.triangles.count; ++i )
+    {
+        result.triangles[i].v[0] = indices[ i*3 + 0 ];
+        result.triangles[i].v[1] = indices[ i*3 + 1 ];
+        result.triangles[i].v[2] = indices[ i*3 + 2 ];
+    }
+
+    return result;
+}
+
+FQSMesh CreateFQSMesh( BucketArray<TexturedVertex> const& vertices, BucketArray<i32> const& indices, MemoryArena* tmpArena )
+{
+    FQSMesh result;
+    INIT( &result.vertices ) Array<FQSVertex>( tmpArena, vertices.count, Temporary() );
+    result.vertices.ResizeToCapacity();
+
+    int i = 0;
+    auto vIt = vertices.First();
+    while( vIt )
+    {
+        result.vertices[i].vertex = &(*vIt);
+        result.vertices[i++].p = (*vIt).p;
+        vIt++;
+    }
+
+    INIT( &result.triangles ) Array<FQSTriangle>( tmpArena, indices.count / 3, Temporary() );
+    result.triangles.Resize( result.triangles.capacity );
+    for( i = 0; i < result.triangles.count; ++i )
     {
         result.triangles[i].v[0] = indices[ i*3 + 0 ];
         result.triangles[i].v[1] = indices[ i*3 + 1 ];
@@ -2186,7 +2662,7 @@ int Map(int a,int mx, std::vector<int> const& collapse_map) {
 
 
 // Adapted from https://github.com/dougbinks/BunnyLOD. Based on the article http://www.melax.com/gdmag.pdf
-void BunnyLODSimplify( Array<TexturedVertex>& srcVertices, Array<u32>& srcIndices )
+void BunnyLODSimplify( Array<TexturedVertex>& srcVertices, Array<i32>& srcIndices )
 {
     std::vector<v3> vert;       // global Array of vertices
     std::vector<tridata> tri;       // global Array of triangles
@@ -2196,10 +2672,10 @@ void BunnyLODSimplify( Array<TexturedVertex>& srcVertices, Array<u32>& srcIndice
     {
         // Copy the geometry from the arrays of data in rabdata.cpp into
         // the vert and tri Arrays which we send to the reduction routine
-        for( u32 i=0;i<srcVertices.count;i++) {
+        for( int i=0;i<srcVertices.count;i++) {
             vert.push_back( srcVertices[i].p );
         }
-        for( u32 i=0;i<srcIndices.count;i+=3) {
+        for( int i=0;i<srcIndices.count;i+=3) {
             tridata td;
             td.v[0]=srcIndices[i+0];
             td.v[1]=srcIndices[i+1];
@@ -2230,7 +2706,7 @@ void BunnyLODSimplify( Array<TexturedVertex>& srcVertices, Array<u32>& srcIndice
         }
     }
 
-    for( u32 i = 0; i < vert.size(); ++i )
+    for( int i = 0; i < vert.size(); ++i )
         // TODO Take care of the rest of the attributes
         srcVertices[i].p = vert[i];
 
@@ -2273,7 +2749,7 @@ void BunnyLODSimplify( Array<TexturedVertex>& srcVertices, Array<u32>& srcIndice
 struct Hit
 {
     v2i gridCoords;
-    r32 hitCoord;
+    f32 hitCoord;
 };
 
 internal void
@@ -2282,7 +2758,7 @@ AddSorted( const Hit& hit, Array<Hit>* result )
     Array<Hit>& out = *result;
     out.PushEmpty();
 
-    u32 i = out.count - 1;
+    int i = out.count - 1;
     for( ; i > 0; --i )
     {
         if( out[i-1].hitCoord < hit.hitCoord )
@@ -2304,85 +2780,85 @@ internal void
 FilterHits( const Array<Hit>& hits, const v2i& gridCoords, Array<Hit>* result )
 {
     result->Clear();
-    for( u32 i = 0; i < hits.count; ++i )
+    for( int i = 0; i < hits.count; ++i )
     {
         if( hits[i].gridCoords == gridCoords )
             AddSorted( hits[i], result );
     }
 }
 
-Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 displayedLayer, IsoSurfaceSamplingCache* samplingCache,
-                               MeshPool* meshPool, const TemporaryMemory& tmpMemory, RenderCommands* renderCommands )
+Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, f32 drawingDistance, int displayedLayer, IsoSurfaceSamplingCache* samplingCache,
+                               MeshPool* meshPool, MemoryArena* tmpArena, RenderCommands* renderCommands )
 {
     // Make bounds same length on all axes
-    v3 centerP = Center( sourceMesh.bounds );
+    v3 const& centerP = sourceMesh.bounds.center;
     v3 dim = Dim( sourceMesh.bounds );
-    r32 cubeSide = Max( dim.x, Max( dim.y, dim.z ) );
+    f32 cubeSide = Max( dim.x, Max( dim.y, dim.z ) );
 
-    aabb box = AABBCenterDim( centerP, cubeSide );
-    v3 const &gridOriginP = box.min;
+    aabb bounds = AABBCenterSize( centerP, cubeSide );
+    v3 boundsMin, boundsMax;
+    MinMax( bounds, &boundsMin, &boundsMax );
 
     ASSERT( samplingCache->cellsPerAxis.x == samplingCache->cellsPerAxis.y );
-    u32 cellsPerAxis = samplingCache->cellsPerAxis.x;
-    u32 gridLinesPerAxis = cellsPerAxis + 1;
-    r32 step = cubeSide / cellsPerAxis;
+    int cellsPerAxis = samplingCache->cellsPerAxis.x;
+    int gridLinesPerAxis = cellsPerAxis + 1;
+    f32 step = cubeSide / cellsPerAxis;
 
     // We store all intersections with grid rays in a hashtable where encoded integer coords are the hash
     // For example, for X rays, the Y|Z coords are the hash, for Y rays, the X|Z coords, etc.
     // NOTE This can be heavily compressed if needed by using a more compact hash, since most entries will be empty anyway
-    u32 rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
-    Array<Hit> gridHits( tmpMemory.arena, 100000, Temporary() );
+    int rayCount = gridLinesPerAxis * gridLinesPerAxis;       // Must be power of 2
+    Array<Hit> gridHits( tmpArena, 100000, Temporary() );
 
     RenderSetShader( ShaderProgramName::PlainColor, renderCommands );
     RenderSetMaterial( nullptr, renderCommands );
 
     // Get all triangles and find their bounds
-    u32 triangleCount = sourceMesh.indices.count / 3;
+    int triangleCount = sourceMesh.indices.count / 3;
     ASSERT( triangleCount * 3 == sourceMesh.indices.count );
 
-    u32 vertIndex = 0;
-    for( u32 i = 0; i < triangleCount; ++i )
+    int vertIndex = 0;
+    for( int i = 0; i < triangleCount; ++i )
     {
         TexturedVertex const& v0 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
         TexturedVertex const& v1 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
         TexturedVertex const& v2 = sourceMesh.vertices[sourceMesh.indices[vertIndex++]];
         tri t = { v0.p, v1.p, v2.p };
 
-        aabb triBounds =
+        v3 triBoundsMin =
         {
-            {
-                Min( v0.p.x, Min( v1.p.x, v2.p.x ) ),
-                Min( v0.p.y, Min( v1.p.y, v2.p.y ) ),
-                Min( v0.p.z, Min( v1.p.z, v2.p.z ) ),
-            },
-            {
-                Max( v0.p.x, Max( v1.p.x, v2.p.x ) ),
-                Max( v0.p.y, Max( v1.p.y, v2.p.y ) ),
-                Max( v0.p.z, Max( v1.p.z, v2.p.z ) ),
-            }
+            Min( v0.p.x, Min( v1.p.x, v2.p.x ) ),
+            Min( v0.p.y, Min( v1.p.y, v2.p.y ) ),
+            Min( v0.p.z, Min( v1.p.z, v2.p.z ) ),
+        };
+        v3 triBoundsMax = 
+        {
+            Max( v0.p.x, Max( v1.p.x, v2.p.x ) ),
+            Max( v0.p.y, Max( v1.p.y, v2.p.y ) ),
+            Max( v0.p.z, Max( v1.p.z, v2.p.z ) ),
         };
 
         // Test each tri for intersection against all marching grid rays (early out using bounds first)
         // (this could be accelerated easily by using a binary search on grid coords)
         
         // Y rays
-        for( u32 x = 0; x < gridLinesPerAxis; ++x )
+        for( int x = 0; x < gridLinesPerAxis; ++x )
         {
-            r32 xGrid = box.min.x + x * step;
+            f32 xGrid = boundsMin.x + x * step;
 
-            if( triBounds.max.x < xGrid )
+            if( triBoundsMax.x < xGrid )
                 break;
-            if( xGrid >= triBounds.min.x )
+            if( xGrid >= triBoundsMin.x )
             {
-                for( u32 z = 0; z < gridLinesPerAxis; ++z )
+                for( int z = 0; z < gridLinesPerAxis; ++z )
                 {
-                    r32 zGrid = box.min.z + z * step;
+                    f32 zGrid = boundsMin.z + z * step;
 
-                    if( triBounds.max.z < zGrid )
+                    if( triBoundsMax.z < zGrid )
                         break;
-                    if( zGrid >= triBounds.min.z )
+                    if( zGrid >= triBoundsMin.z )
                     {
-                        ray r = { { xGrid, box.min.y, zGrid }, { 0, 1, 0 } };
+                        ray r = { { xGrid, boundsMin.y, zGrid }, { 0, 1, 0 } };
                         v3 pI = V3Zero;
 
                         // NOTE Rays intersecting at the very edges of tris can be a problem at finer resolutions
@@ -2390,7 +2866,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
                         if( Intersects( r, t, &pI ) )
                         {
                             // Store intersection coords relative to grid
-                            r32 hitCoord = (pI - gridOriginP).y;
+                            f32 hitCoord = (pI - boundsMin).y;
                             gridHits.Push( { V2i( x, z ), hitCoord } );
                         }
                     }
@@ -2402,10 +2878,10 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
     ClearScratchBuffers( meshPool );
     bool firstLayer = true;
 
-    for( u32 k = 0; k < cellsPerAxis; ++k )
+    for( int k = 0; k < cellsPerAxis; ++k )
     {
-        r32* bottomSamples = samplingCache->bottomLayerSamples;
-        r32* topSamples = samplingCache->topLayerSamples;
+        f32* bottomSamples = samplingCache->bottomLayerSamples;
+        f32* topSamples = samplingCache->topLayerSamples;
 
         // Pre-sample top and bottom slices of values for each layer
         // so we only sample one corner per cube instead of 8
@@ -2414,9 +2890,9 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
             if( n == 0 && !firstLayer )
                 continue;
 
-            r32* sampledLayer = n ? topSamples : bottomSamples;
-            r32* sample = sampledLayer;
-            for( u32 i = 0; i < gridLinesPerAxis; ++i )
+            f32* sampledLayer = n ? topSamples : bottomSamples;
+            f32* sample = sampledLayer;
+            for( int i = 0; i < gridLinesPerAxis; ++i )
             {
                 v2i vIK = n == 0 ? V2i( i, k ) : V2i( i, k+1 );
 
@@ -2427,18 +2903,18 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
                 // This usually signals a tolerance error in Intersects() (or a bogus mesh, of course)
                 ASSERT( (rayHits.count & 0x1) == 0 );
 
-                u32 h = 0;
+                int h = 0;
                 int value = 1;
-                for( u32 j = 0; j < gridLinesPerAxis; ++j )
+                for( int j = 0; j < gridLinesPerAxis; ++j )
                 {
-                    r32 yGrid = j * step;
+                    f32 yGrid = j * step;
                     while( h < rayHits.count && rayHits[h].hitCoord < yGrid )
                     {
                         value *= -1;
                         h++;
                     }
 
-                    *sample++ = (r32)value;
+                    *sample++ = (f32)value;
                 }
             }
         }
@@ -2446,27 +2922,27 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
         // Keep a cache of already calculated vertices to eliminate duplication
         ClearVertexCaches( samplingCache, firstLayer );
 
-        for( u32 i = 0; i < cellsPerAxis; ++i )
+        for( int i = 0; i < cellsPerAxis; ++i )
         {
-            for( u32 j = 0; j < cellsPerAxis; ++j )
+            for( int j = 0; j < cellsPerAxis; ++j )
             {
-                v3 p = gridOriginP + V3i( i, j, k ) * step;
+                v3 p = boundsMin + V3i( i, j, k ) * step;
 
 #if 1
                 if( displayedLayer == k )
                 {
                     u32 color = Pack01ToRGBA( 0, 1, 0, 1 );
-                    r32 value = samplingCache->bottomLayerSamples[i * gridLinesPerAxis + j];
+                    f32 value = samplingCache->bottomLayerSamples[i * gridLinesPerAxis + j];
                     //if( value < 0 )
                         //RenderBoundsAt( p, 0.005f * drawingDistance, color, renderCommands );
 
                     value = samplingCache->topLayerSamples[i * gridLinesPerAxis + j];
                     if( value < 0 )
-                        RenderBoundsAt( p + V3( 0, 0, step ), 0.005f * drawingDistance, color, renderCommands );
+                        RenderBoundsAt( p + V3( 0.f, 0.f, step ), 0.005f * drawingDistance, color, renderCommands );
                 }
 #endif
 
-                MarchCube( p, V2i( i, j ), V2u( cellsPerAxis ), step, samplingCache,
+                MarchCube( p, V2i( i, j ), V2i( cellsPerAxis ), step, samplingCache,
                            &meshPool->scratchVertices, &meshPool->scratchIndices );
             }
         }
@@ -2476,7 +2952,7 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
     }
 
     Mesh* result = AllocateMeshFromScratchBuffers( meshPool );
-    result->bounds = box;
+    result->bounds = bounds;
     return result;
 }
 
@@ -2487,6 +2963,8 @@ Mesh* ConvertToIsoSurfaceMesh( const Mesh& sourceMesh, r32 drawingDistance, u32 
 
 ISO_SURFACE_FUNC(SampleCuboid)
 {
+    ASSERT( false, "Need a new sampling data type!" );
+
     MeshGeneratorPathData* path = (MeshGeneratorPathData*)samplingData;
     v3 vRight = GetBasisX( path->basis );
     v3 vForward = GetBasisY( path->basis );
@@ -2494,17 +2972,17 @@ ISO_SURFACE_FUNC(SampleCuboid)
 
     // Calc distance to both aligned planes along dir
     // NOTE Max() means 'intersection'
-    r32 dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
-    r32 dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
+    f32 dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
+    f32 dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
  
-    r32 result = Max( dUp, dRight );
+    f32 result = Max( dUp, dRight );
 
     // Turns
     if( path->nextBasis )
     {
         // Cut with plane across motion dir
         // NOTE For now we're gonna assume that all turns take place at the area's center point
-        r32 d = 0; // path->areaSideMeters/2 - path->distanceToNextTurn;
+        f32 d = 0; // path->areaSideMeters/2 - path->distanceToNextTurn;
         result += Clamp0( Dot( vForward, p ) + d );
 
         vRight = GetBasisX( *path->nextBasis );
@@ -2514,7 +2992,7 @@ ISO_SURFACE_FUNC(SampleCuboid)
         dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
         dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
 
-        r32 newResult = Max( dUp, dRight );
+        f32 newResult = Max( dUp, dRight );
         // Cut with plane across motion dir (backwards)
         // NOTE For now we're gonna assume that all turns take place at the area's center point
         d = 0; // path->areaSideMeters/2 - path->distanceToNextTurn;
@@ -2534,10 +3012,10 @@ ISO_SURFACE_FUNC(SampleCuboid)
         dUp = Max( Dot( vUp, p ), Dot( -vUp, p ) ) - path->thicknessSq;
         dRight = Max( Dot( vRight, p ), Dot( -vRight, p ) ) - path->thicknessSq;
 
-        r32 newResult = Max( dUp, dRight );
+        f32 newResult = Max( dUp, dRight );
         // Cut with plane across motion dir (bakcwards)
         // NOTE For now we're gonna assume that all forks take place at the area's center point
-        r32 d = 0; // path->areaSideMeters/2 - path->distanceToNextFork;
+        f32 d = 0; // path->areaSideMeters/2 - path->distanceToNextFork;
         newResult += Clamp0( Dot( -vForward, p ) + d );
 
         // NOTE Min() means 'union'
@@ -2548,7 +3026,7 @@ ISO_SURFACE_FUNC(SampleCuboid)
     return result + 0.1f;
 }
 
-internal r32
+internal f32
 SampleCylinder( const void* samplingData, const v3& p )
 {
     MeshGeneratorPathData* path = (MeshGeneratorPathData*)samplingData;
@@ -2556,23 +3034,23 @@ SampleCylinder( const void* samplingData, const v3& p )
 
     v3 vP = p - path->pCenter;
     // l is the length of the projection of vP along the director line
-    r32 l = Dot( vForward, vP );
+    f32 l = Dot( vForward, vP );
     // Translate p the previous distance along vDir (backwards) to align it with pCenter
     v3 pPrime = p - vForward * l;
 
-    r32 result = DistanceSq( path->pCenter, pPrime ) - path->thicknessSq;
+    f32 result = DistanceSq( path->pCenter, pPrime ) - path->thicknessSq;
     return result;
 }
 
 u32
-GenerateOnePathStep( MeshGeneratorPathData* path, r32 resolutionMeters, bool advancePosition,
+GenerateOnePathStep( MeshGeneratorPathData* path, f32 resolutionMeters, bool advancePosition,
                      IsoSurfaceSamplingCache* samplingCache,
                      MeshPool* meshPool, Mesh** outMesh, MeshGeneratorPathData* nextFork )
 {
     bool turnInThisStep = path->distanceToNextTurn < path->areaSideMeters;
     bool forkInThisStep = path->distanceToNextFork < path->areaSideMeters;
 
-    r32 pi2 = PI / 2;
+    f32 pi2 = PI / 2;
     m4 rotations[4] =
     {
         // Expressed as if +Y == 'forward'
@@ -2624,11 +3102,11 @@ GenerateOnePathStep( MeshGeneratorPathData* path, r32 resolutionMeters, bool adv
         if( turnInThisStep )
         {
             path->basis = nextBasis;
-            path->distanceToNextTurn = RandomRangeR32( path->minDistanceToTurn, path->maxDistanceToTurn );
+            path->distanceToNextTurn = RandomRangeF32( path->minDistanceToTurn, path->maxDistanceToTurn );
         }
         if( forkInThisStep )
         {
-            path->distanceToNextFork = RandomRangeR32( path->minDistanceToFork, path->maxDistanceToFork );
+            path->distanceToNextFork = RandomRangeF32( path->minDistanceToFork, path->maxDistanceToFork );
         }
 
         v3 vForward = GetBasisY( path->basis );
@@ -2642,13 +3120,14 @@ GenerateOnePathStep( MeshGeneratorPathData* path, r32 resolutionMeters, bool adv
 
 ISO_SURFACE_FUNC(SampleRoomBody)
 {
-    TIMED_BLOCK;
+    TIMED_FUNC;
 
+    ASSERT( !"Need a new sampling data type!" );
     MeshGeneratorRoomData* roomData = (MeshGeneratorRoomData*)samplingData;
 
     // Box
     v3 d = Abs( worldP.relativeP ) - roomData->dim * 0.5f;
-    r32 result = Max( Max( d.x, d.y ), d.z );
+    f32 result = Max( Max( d.x, d.y ), d.z );
     return result;
 }
 
@@ -2662,19 +3141,6 @@ MESH_GENERATOR_FUNC(MeshGeneratorRoomFunc)
     return result;
 }
 #endif
-
-ISO_SURFACE_FUNC(RoomSurfaceFunc)
-{
-    TIMED_BLOCK;
-
-    Room* roomData = (Room*)samplingData;
-    // NOTE We're axis aligned for now, so just translate
-    v3 invWorldP = worldP.relativeP - roomData->worldP.relativeP;
-
-    // Inflate the size a little
-    r32 result = SDFBox( invWorldP, roomData->halfSize + V3( VoxelSizeMeters * 0.5f ) );
-    return result;
-}
 
 
 
@@ -2697,7 +3163,7 @@ namespace
 
     // Offsets from the minimal corner to 2 ends of the edges
     // (each entry is an index to the previous table)
-    u32 edgeVertexOffsets[12][2] =
+    i32 edgeVertexOffsets[12][2] =
     {
         { 0, 1 },           // Bottom (horizontal)
         { 1, 2 },

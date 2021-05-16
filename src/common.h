@@ -1,5 +1,5 @@
-#ifndef __DEFS_H__
-#define __DEFS_H__ 
+#ifndef __COMMON_H__
+#define __COMMON_H__ 
 
 #if NON_UNITY_BUILD
 #include <stdint.h>
@@ -39,6 +39,7 @@ AssertHandlerFunc* globalAssertHandler = DefaultAssertHandler;
 #define INVALID_DEFAULT_CASE default: { INVALID_CODE_PATH; } break;
 
 
+#define SIZE(s) I64( sizeof(s) )
 #define ARRAYCOUNT(array) (sizeof(array) / sizeof((array)[0]))
 #define OFFSETOF(type, member) ((sz)&(((type *)0)->member))
 #define STR(s) _STR(s)
@@ -73,25 +74,132 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef unsigned long long u64;
 
-typedef float r32;
-typedef double r64;
+typedef float f32;
+typedef double f64;
 
 typedef size_t sz;
 
 #define U8MAX UINT8_MAX
 #define I32MAX INT32_MAX
 #define I32MIN INT32_MIN
+#define U16MAX UINT16_MAX
 #define U32MAX UINT32_MAX
 #define U64MAX UINT64_MAX
 #define I64MAX INT64_MAX
 #define I64MIN INT64_MIN
 
-#define R32MAX FLT_MAX
-#define R32MIN FLT_MIN
-#define R32INF INFINITY
-#define R32NAN NAN
-#define R64INF (r64)INFINITY
+#define F32MAX FLT_MAX
+#define F32MIN FLT_MIN
+#define F32INF INFINITY
+#define F64MAX DBL_MAX
+#define F64MIN DBL_MIN
+#define F64INF (f64)INFINITY
 
+
+INLINE i32
+I32( sz value )
+{
+    ASSERT( value <= I32MAX );
+    return (i32)value;
+}
+
+INLINE i32
+I32( ptrdiff_t value )
+{
+    ASSERT( I32MIN <= value && value <= I32MAX );
+    return (i32)value;
+}
+
+INLINE i32
+I32( f32 value )
+{
+    ASSERT( I32MIN <= value && value <= I32MAX );
+    return (i32)value;
+}
+
+INLINE i32
+I32( f64 value )
+{
+    ASSERT( I32MIN <= value && value <= I32MAX );
+    return (i32)value;
+}
+
+INLINE i32
+I32( u32 value )
+{
+    ASSERT( value <= (u32)I32MAX );
+    return (i32)value;
+}
+
+INLINE i64
+I64( sz value )
+{
+    ASSERT( value <= (sz)I64MAX );
+    return (i64)value;
+}
+
+INLINE u32
+U32( i32 value )
+{
+    ASSERT( value >= 0 );
+    return (u32)value;
+}
+
+INLINE u32
+U32( u64 value )
+{
+    ASSERT( value <= U32MAX );
+    return (u32)value;
+}
+
+INLINE u32
+U32( f64 value )
+{
+    ASSERT( 0 <= value && value <= U32MAX );
+    return (u32)value;
+}
+
+INLINE u16
+U16( i64 value )
+{
+    ASSERT( 0 <= value && value <= U16MAX );
+    return (u16)value;
+}
+
+INLINE u16
+U16( f64 value )
+{
+    ASSERT( 0 <= value && value <= U16MAX );
+    return (u16)value;
+}
+
+INLINE u8
+U8( u32 value )
+{
+    ASSERT( value <= U8MAX );
+    return (u8)value;
+}
+
+INLINE u8
+U8( i32 value )
+{
+    ASSERT( value >= 0 && value <= U8MAX );
+    return (u8)value;
+}
+
+INLINE sz
+Sz( i32 value )
+{
+    ASSERT( value >= 0 );
+    return (sz)value;
+}
+
+INLINE sz
+Sz( i64 value )
+{
+    ASSERT( value >= 0 );
+    return (sz)value;
+}
 
 
 /////     STRUCT ENUM    /////
@@ -142,35 +250,38 @@ int main()
 #define _ENUM_ITEM(x, ...) x(),
 
 #define _CREATE_ENUM(enumName, valueType, xValueList, xBuilder) \
-struct enumName                                                \
-{                                                              \
-    char const* name;                                          \
-    u32 index;                                                 \
-    valueType value;                                           \
-                                                               \
-    using EnumName = enumName;                                 \
-    using ValueType = valueType;                               \
-    xValueList(xBuilder)                                       \
-                                                               \
-    struct Values;                                             \
-                                                               \
-private:                                                       \
-    enum class Enum : u32                                      \
-    {                                                          \
-        xValueList(_ENUM_ENTRY)                                \
-    };                                                         \
-};                                                             \
-struct enumName::Values                                        \
-{                                                              \
-    static constexpr char const* const names[] =               \
-    {                                                          \
-        xValueList(_ENUM_NAME)                                 \
-    };                                                         \
-    static constexpr const enumName items[] = {                \
-        xValueList(_ENUM_ITEM)                                 \
-    };                                                         \
-    static constexpr const int count = ARRAYCOUNT(items);      \
-};                                                             \
+struct enumName                                                 \
+{                                                               \
+    char const* name;                                           \
+    u32 index;                                                  \
+    valueType value;                                            \
+                                                                \
+    bool operator ==( enumName const& other ) const             \
+    { return index == other.index; }                            \
+                                                                \
+    using EnumName = enumName;                                  \
+    using ValueType = valueType;                                \
+    xValueList(xBuilder)                                        \
+                                                                \
+    struct Values;                                              \
+                                                                \
+private:                                                        \
+    enum class Enum : u32                                       \
+    {                                                           \
+        xValueList(_ENUM_ENTRY)                                 \
+    };                                                          \
+};                                                              \
+struct enumName::Values                                         \
+{                                                               \
+    static constexpr char const* const names[] =                \
+    {                                                           \
+        xValueList(_ENUM_NAME)                                  \
+    };                                                          \
+    static constexpr const enumName items[] = {                 \
+        xValueList(_ENUM_ITEM)                                  \
+    };                                                          \
+    static constexpr const int count = ARRAYCOUNT(items);       \
+};                                                              \
 
 #define STRUCT_ENUM(enumName, xValueList)                           _CREATE_ENUM(enumName, u32, xValueList, _ENUM_BUILDER)
 #define STRUCT_ENUM_WITH_TYPE(enumName, valueType, xValueList)      _CREATE_ENUM(enumName, valueType, xValueList, _ENUM_BUILDER)
@@ -179,4 +290,4 @@ struct enumName::Values                                        \
 
 
 
-#endif /* __DEFS_H__ */
+#endif /* __COMMON_H__ */

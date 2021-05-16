@@ -28,8 +28,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "common.h"
 #include "memory.h"
 #include "world.h"
-#include "editor.h"
 #include "wfc.h"
+#include "editor.h"
 #endif
 
 
@@ -57,8 +57,8 @@ struct GameConsole
     ConsoleEntry entries[4096];
     char inputBuffer[CONSOLE_LINE_MAXLEN];
 
-    u32 entryCount;
-    u32 nextEntryIndex;
+    i32 entryCount;
+    i32 nextEntryIndex;
     bool scrollToBottom;
 };
 
@@ -77,56 +77,16 @@ struct GameState
     GameConsole gameConsole;
 };
 
-#define VALUES(x) \
-    x(DualContouring) \
-    x(MarchingCubes) \
 
-STRUCT_ENUM(ContouringTechnique, VALUES)
-#undef VALUES
-
-struct ContouringSettings
-{
-    // Marching Cubes
-    struct
-    {
-        bool mcInterpolate;
-    };
-    // Dual Contour
-    DCSettings dc;
-
-    v3 surfaceRotDegrees;
-    int currentSurfaceIndex;
-    int currentTechniqueIndex;
-};
-
+// This is for generated stuff that can be rebuilt on the spot if necessary
 struct TransientState
 {
-    IsoSurfaceSamplingCache samplingCache;
-    Mesh testMesh;
-
-    ContouringSettings settings;
-    r64 contourTimeMillis;
-    r64 simplifyTimeMillis;
-    r32 nextRebuildTimeSeconds;
-
-    // NOTE All this needs to be here for stuff to compile, but it's not being used
-#if 1
-    // Mesh resampling test
-    Mesh sampledMesh;
-    Mesh* testIsoSurfaceMesh;
-    EditorEntity testEditorEntity;
-    r32 drawingDistance;
-    u32 displayedLayer;
-    
-    // Wave Function Collapse test
-    Array<WFC::Spec> wfcSpecs;
-    u32 selectedSpecIndex;
-    MemoryArena wfcArena;
-    MemoryArena wfcDisplayArena;
-    WFC::GlobalState* wfcGlobalState;
-    WFC::DisplayState wfcDisplayState;
-#endif
 
 };
+
+
+#if !RELEASE
+extern bool* DEBUGglobalQuit;
+#endif
 
 #endif /* __ROBOTRIDER_H__ */

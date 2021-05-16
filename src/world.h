@@ -102,31 +102,65 @@ struct LiveEntity
 };
 
 // NOTE Everything related to maze generation and connectivity is measured in voxel units
-const r32 VoxelSizeMeters = 1.f;
+// Also, all integer voxel coords are relative to the "lower left" corner of the grid (cluster)
+const f32 VoxelSizeMeters = 2.f;
 const i32 VoxelsPerClusterAxis = 256;
 
-const r32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;
+const f32 ClusterSizeMeters = VoxelsPerClusterAxis * VoxelSizeMeters;
+static_assert( (f32)(u32)(VoxelsPerClusterAxis * VoxelSizeMeters) == ClusterSizeMeters, "FAIL" );
+const v3 ClusterHalfSize = V3( ClusterSizeMeters * 0.5f );
+
 typedef Grid3D<u8> ClusterVoxelGrid;
 
 
+// TODO Most of this will be in the stored entity when we turn rooms into that
 struct Room
 {
-    v3u voxelP;
-    v3u sizeVoxels;
-    // TODO This will be in the stored entity when we turn rooms into that
-    // TODO Make sure everything in the pipeline uses these right up until we send the meshes for rendering
-    WorldCoords worldP;
-    v3 halfSize;
+    aabb bounds;
 
-    Mesh* mesh;
+    v3i voxelP;
+    v3i sizeVoxels;
 };
 
 struct Hall
 {
-    v3u startP;
-    v3u endP;
-    // Encoded as 2 bits per axis, first axis is LSB
+    // TODO It seems more and more pointless to have to compute and maintain both voxel and real world coords for everything
+    aabb bounds;
+    aabb sectionBounds[3];
+
+    v3 startP;
+    v3 endP;
+    // Encoded as 2 bits per axis (X == 0, Y == 1, Z == 2), first axis is LSB
     u8 axisOrder;
+};
+
+// TODO Pack minimal 8 byte coords for rooms and halls inline into this struct so everything is in contiguous memory and fast
+struct ClusterSamplingData
+{
+    SamplingData header;
+
+    Array<Room> const& rooms;
+    Array<Hall> const& halls;
+    // Show debug visualizations for this guy
+    Cluster* debugCluster;
+    // Room index when sampling rooms, hall index for halls
+    i32 sampledVolumeIndex;
+};
+
+ClusterSamplingData InitClusterSamplingData( Array<Room> const& rooms, Array<Hall> const& halls, int sampledVolumeIndex )
+{
+    SamplingData header = { SamplingDataType::ClusterData, true };
+    ClusterSamplingData result = { header, rooms, halls };
+    result.sampledVolumeIndex = sampledVolumeIndex;
+
+    return result;
+}
+
+enum VolumeFlags : u32
+{
+    VF_None = 0,
+    HasRoom = 0x1,
+    HasHall = 0x2,
 };
 
 struct BinaryVolume
@@ -134,14 +168,23 @@ struct BinaryVolume
     BinaryVolume* leftChild;
     BinaryVolume* rightChild;
 
+    // Used only as temporary storage during the partitioning
+    // Only leaf volumes have rooms, only non-leaf volumes have connecting halls
     union
     {
         Room room;
         Hall hall;
     };
 
-    v3u voxelP;
-    v3u sizeVoxels;
+    v3i voxelP;
+    v3i sizeVoxels;
+    u32 flags;
+};
+
+struct DebugVolume
+{
+    aabb bounds;
+    v4 color;
 };
 
 struct Cluster
@@ -149,22 +192,29 @@ struct Cluster
     // TODO Determine what the bucket size should be so we have just one bucket most of the time
     BucketArray<StoredEntity> entityStorage;
 
-    // @Remove Just for visualization
-    Array<BinaryVolume> volumes;
-
-    Array<Room> rooms;
     ClusterVoxelGrid voxelGrid;
+    // TODO These should be actual entities (maybe just keep a minimal cache-friendly version here for fast iteration)
+    Array<Room> rooms;
+    Array<Hall> halls;
+
+#if !RELEASE
+    // Just for visualization
+    BucketArray<DebugVolume> debugVolumes;
+#endif
+
+    // TODO This probably should go in a global mesh pool
+    Array<Mesh> meshStore;
 
     bool populated;
 };
 
-inline u32 ClusterHash( const v3i& key, u32 tableSize );
-inline u32 EntityHash( const u32& key, u32 tableSize );
+inline u32 ClusterHash( const v3i& key, i32 tableSize );
+inline u32 EntityHash( const u32& key, i32 tableSize );
 
 // 'Thickness' of the sim region on each side of the origin cluster
 // (in number of clusters)
 const int SimExteriorHalfSize = 0;
-const u32 SimRegionSizePerAxis = 2 * SimExteriorHalfSize + 1;
+const int SimRegionSizePerAxis = 2 * SimExteriorHalfSize + 1;
 
 enum MeshGeneratorType
 {
@@ -175,16 +225,12 @@ enum MeshGeneratorType
 
 struct World
 {
-    v3 pPlayer;
-    r32 playerPitch;
-    r32 playerYaw;
-
     Player *player;
 
-#if 0
-    Array<Mesh> hullMeshes;
-    Array<MeshGeneratorPath> pathsBuffer;
-#endif
+    v3 pPlayer;
+    f32 playerPitch;
+    f32 playerYaw;
+
 
     // 'REAL' stuff
     //
@@ -209,7 +255,7 @@ struct World
     MeshPool* meshPools;
 
     MeshGeneratorJob generatorJobs[PLATFORM_MAX_JOBQUEUE_JOBS];
-    u32 lastAddedJob;
+    i32 lastAddedJob;
 
     Array<v3> simClusterOffsets;
 };
@@ -220,13 +266,13 @@ struct World
 
 struct SectorParams
 {
-    r32 minVolumeRatio;
-    r32 maxVolumeRatio;
-    r32 minRoomSizeRatio;
-    r32 maxRoomSizeRatio;
+    f32 minVolumeRatio;
+    f32 maxVolumeRatio;
+    f32 minRoomSizeRatio;
+    f32 maxRoomSizeRatio;
     i32 volumeSafeMarginSize;
     // Probability of keeping partitioning a volume once all its dimensions are smaller that the max size
-    r32 volumeExtraPartitioningProbability;
+    f32 volumeExtraPartitioningProbability;
 };
 
 SectorParams

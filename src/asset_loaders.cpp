@@ -36,9 +36,8 @@ Texture LoadTexture( const char* path, bool flipVertically, bool filtered /*= tr
     stbi_set_flip_vertically_on_load( flipVertically );
 
     i32 imageWidth = 0, imageHeight = 0, imageChannels = 0;
-    u8* imageBuffer =
-        stbi_load_from_memory( (u8*)read.contents, read.contentSize,
-                               &imageWidth, &imageHeight, &imageChannels, desiredChannels );
+    u8* imageBuffer = stbi_load_from_memory( (u8*)read.contents, read.contentSize,
+                                             &imageWidth, &imageHeight, &imageChannels, desiredChannels );
     // TODO Async texture uploads (and unload)
     void* textureHandle
         = globalPlatform.AllocateOrUpdateTexture( imageBuffer, imageWidth, imageHeight, filtered, nullptr );
@@ -104,7 +103,7 @@ Array<WFC::Spec> LoadWFCVars( const char* path, MemoryArena* arena, const Tempor
         return empty;
     }
 
-    u32 currentLineNumber = 2;
+    int currentLineNumber = 2;
     WFC::Spec* currentSpec = nullptr;
     bool specHasName = false;
     bool specHasSource = false;
@@ -180,7 +179,7 @@ Array<WFC::Spec> LoadWFCVars( const char* path, MemoryArena* arena, const Tempor
                 if( !nWord || !nWord.ToU32( &n ) )
                     LOG( "ERROR :: Argument to 'N' must be an unsigned integer at line %d", currentLineNumber );
                 else
-                    currentSpec->N = n;
+                    currentSpec->N = I32( n );
             }
             else if( var.IsEqual( "outputDim", false ) )
             {
@@ -197,7 +196,7 @@ Array<WFC::Spec> LoadWFCVars( const char* path, MemoryArena* arena, const Tempor
                         LOG( "ERROR :: Argument to 'outputDim' must be a vector2 of unsigned integer at line %d",
                              currentLineNumber );
                     else
-                        currentSpec->outputChunkDim = V3u( x, y, 0 );
+                        currentSpec->outputChunkDim = V3i( I32( x ), I32( y ), 0 );
                 }
             }
             else if( var.IsEqual( "periodic", false ) )
@@ -240,9 +239,9 @@ Array<WFC::Spec> LoadWFCVars( const char* path, MemoryArena* arena, const Tempor
 
 struct VertexKey
 {
-    u32 pIdx;
-    u32 uvIdx;
-    u32 nIdx;
+    i32 pIdx;
+    i32 uvIdx;
+    i32 nIdx;
 
     bool operator==( const VertexKey& other ) const
     {
@@ -253,9 +252,9 @@ struct VertexKey
 };
 
 inline u32
-VertexHash( const VertexKey& key, u32 tableSize )
+VertexHash( const VertexKey& key, i32 tableSize )
 {
-    return key.pIdx;
+    return U32( key.pIdx );
 }
 
 Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMemory, const m4& appliedTransform /*= M4Identity*/ )
@@ -265,7 +264,7 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
     DEBUGReadFileResult read = globalPlatform.DEBUGReadEntireFile( path );
     ASSERT( read.contents );
 
-    u32 vertexCount = 0, indexCount = 0, uvCount = 0, normalCount = 0;
+    int vertexCount = 0, indexCount = 0, uvCount = 0, normalCount = 0;
 
     String contents( (char *)read.contents );
     while( contents )
@@ -300,7 +299,7 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
         }
     }
 
-    Array<u32> indices( arena, indexCount );
+    Array<i32> indices( arena, indexCount );
 
     Array<v3> positions( tmpMemory.arena, vertexCount, Temporary() );
     Array<v2> uvs( tmpMemory.arena, uvCount, Temporary() );
@@ -311,8 +310,8 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
     // the way face data is specified, we may need to spawn additional vertices
     // that will share the same position but differ in tex coord and/or normal
     // @Test If we end up using many of these meshes, we should get some hard stats about how many vertices we're duplicating etc.
-    u32 tableSize = NextPowerOf2( vertexCount );
-    HashTable<VertexKey, u32, VertexHash> cachedVertices( tmpMemory.arena, tableSize, Temporary() );
+    int tableSize = I32( NextPowerOf2( U32( vertexCount ) ) );
+    HashTable<VertexKey, i32, VertexHash> cachedVertices( tmpMemory.arena, tableSize, Temporary() );
     BucketArray<TexturedVertex> vertices( tmpMemory.arena, 1024, Temporary() );
 
     contents = (char*)read.contents;
@@ -347,12 +346,12 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
             v3 n;
             int matches = line.Scan( "%f %f %f", &n.x, &n.y, &n.z );
             ASSERT( matches == 3 );
-            Normalize( n );
+            NormalizeFast( n );
             normals.Push( n );
         }
         else if( firstWord.IsEqual( "f" ) )
         {
-            u32 vertexIndex[4] = {};
+            i32 vertexIndex[4] = {};
             i32 pIndex[4] = {}, uvIndex[4] = {}, nIndex[4] = {};
             bool haveUVs = false, haveNormals = false;
 
@@ -401,8 +400,8 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
                     nIndex[i]--;
 
                 // Try to fetch an existing vertex from the table
-                VertexKey key = { (u32)pIndex[i], (u32)uvIndex[i], (u32)nIndex[i] };
-                u32* cachedIndex = cachedVertices.Find( key );
+                VertexKey key = { pIndex[i], uvIndex[i], nIndex[i] };
+                i32 const* cachedIndex = cachedVertices.Find( key );
 
                 if( cachedIndex )
                 {
@@ -465,14 +464,14 @@ Mesh LoadOBJ( const char* path, MemoryArena* arena, const TemporaryMemory& tmpMe
     // Pre apply transform
     if( !AlmostEqual( appliedTransform, M4Identity ) )
     {
-        for( u32 i = 0; i < packedVertices.count; ++i )
+        for( int i = 0; i < packedVertices.count; ++i )
             packedVertices.data[i].p = appliedTransform * packedVertices.data[i].p;
     }
 
     Mesh result;
     InitMesh( &result );
-    result.vertices = Array<TexturedVertex>( packedVertices.data, packedVertices.count );
-    result.indices = Array<u32>( indices.data, indices.count );
+    INIT( &result.vertices ) Array<TexturedVertex>( packedVertices.data, packedVertices.count );
+    INIT( &result.indices ) Array<i32>( indices.data, indices.count );
     CalcBounds( &result );
 
     return result;

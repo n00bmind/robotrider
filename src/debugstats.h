@@ -34,47 +34,59 @@ struct DebugCycleCounter
 {
     volatile u64 frameHitCount24CycleCount40;
 
+    const char* name;
     const char* filename;
-    const char* function;
     u32 lineNumber;
+    bool computeTotals;
 };
 
 struct DebugCounterSnapshot
 {
-    u64 cycleCount;
-    u32 hitCount;
+    u64 frameCycles;
+    f32 frameMillis;
+    u32 frameHits;
 };
 
 struct DebugCounterLog
 {
+    DebugCounterSnapshot snapshots[300];
+
+    const char* name;
     const char* filename;
-    const char* function;
     u32 lineNumber;
 
-    u32 totalHitCount;
-    u64 totalCycleCount;
+    volatile u32 totalHits;
+    volatile u64 totalCycles;
+    volatile f32 totalMillis;
 
-    DebugCounterSnapshot snapshots[300];
+    bool computeTotals;
 };
 
 inline void
-UnpackAndResetFrameCounter( DebugCycleCounter* c, DebugCounterLog* dest, u32 snapshotIndex )
+LogFrameCounter( DebugCycleCounter* c, DebugCounterLog* log, int snapshotIndex, f64 cyclesPerMillisecond )
 {
     u64 result = AtomicExchange( &c->frameHitCount24CycleCount40, 0 );
-
     u32 frameHitCount = (u32)(result >> 40);
     u64 frameCycleCount = (result & 0xFFFFFFFFFF);
 
-    if( !dest->filename )
+    DebugCounterSnapshot& snapshot = log->snapshots[snapshotIndex];
+    snapshot.frameHits = frameHitCount;
+    snapshot.frameCycles = frameCycleCount;
+    snapshot.frameMillis = (f32)(frameCycleCount / cyclesPerMillisecond);
+
+    if( !log->name )
     {
-        dest->filename = c->filename;
-        dest->function = c->function;
-        dest->lineNumber = c->lineNumber;
+        log->name = c->name;
+        log->filename = c->filename;
+        log->lineNumber = c->lineNumber;
+        log->computeTotals = c->computeTotals;
     }
-    dest->snapshots[snapshotIndex].hitCount = frameHitCount;
-    dest->snapshots[snapshotIndex].cycleCount = frameCycleCount;
-    AtomicAdd( &dest->totalHitCount, frameHitCount );
-    AtomicAdd( &dest->totalCycleCount, frameCycleCount );
+
+    if( log->computeTotals )
+    {
+        AtomicAdd( &log->totalHits, frameHitCount );
+        AtomicAdd( &log->totalCycles, frameCycleCount );
+    }
 }
 
 
@@ -83,50 +95,57 @@ struct DebugState
     // NOTE Since we use __COUNTER__ for indexing, we'd need a separate array for platform counters
     // FIXME Use a constexpr counter instead
     DebugCounterLog counterLogs[1024];
-    u32 counterLogsCount;
-    u32 counterSnapshotIndex;
+    i32 counterLogsCount;
+    i32 counterSnapshotIndex;
+    f64 avgCyclesPerMillisecond;
 
     u32 totalDrawCalls;
     u32 totalVertexCount;
     u32 totalPrimitiveCount;
     u32 totalInstanceCount;
     u32 totalGeneratedVerticesCount;
-    u32 totalEntities;
+    i32 totalEntities;
     u32 totalMeshCount;
 };
 
 
 extern DebugCycleCounter DEBUGglobalCounters[];
 
-// TODO Use rdtsc intrinsic
 struct DebugTimedBlock
 {
     DebugCycleCounter& counter;
     u64 startCycleCount;
 
-    DebugTimedBlock( u32 index_, u32 lineNumber_, const char* filename_, const char* function_ )
-        : counter( DEBUGglobalCounters[index_] )
+    DebugTimedBlock( u32 index, char const* name, char const* filename, u32 lineNumber, bool computeTotals = false )
+        : counter( DEBUGglobalCounters[index] )
     {
-        counter.lineNumber = lineNumber_;
-        counter.filename = filename_;
-        counter.function = function_;
+        counter.name = name;
+        counter.filename = filename;
+        counter.lineNumber = lineNumber;
+        counter.computeTotals = computeTotals;
 
-        startCycleCount = __rdtsc();
+        startCycleCount = Rdtsc();
     }
 
     ~DebugTimedBlock()
     {
-        u64 cycleCount = __rdtsc() - startCycleCount;
+        u64 totalCycles = Rdtsc() - startCycleCount;
 
-        u64 frameDelta = ((u64)1 << 40) | (cycleCount & 0xFFFFFFFFFF);
+        u64 frameDelta = ((u64)1 << 40) | (totalCycles & 0xFFFFFFFFFF);
         AtomicAdd( &counter.frameHitCount24CycleCount40, frameDelta );
     }
 };
 
 #if RELEASE
-#define TIMED_BLOCK
+#define TIMED_FUNC
+#define TIMED_SCOPE(...)
+#define TIMED_FUNC_WITH_TOTALS
+#define TIMED_SCOPE_WITH_TOTALS(...)
 #else
-#define TIMED_BLOCK DebugTimedBlock __timedBlock( __COUNTER__, __LINE__, __FILE__, __FUNCTION__ );
+#define TIMED_FUNC DebugTimedBlock __timedBlock( __COUNTER__, __FUNCTION__, __FILE__, __LINE__ );
+#define TIMED_SCOPE(name) DebugTimedBlock __timedBlock( __COUNTER__, name, __FILE__, __LINE__ );
+#define TIMED_FUNC_WITH_TOTALS DebugTimedBlock __timedBlock( __COUNTER__, __FUNCTION__, __FILE__, __LINE__, true );
+#define TIMED_SCOPE_WITH_TOTALS(name) DebugTimedBlock __timedBlock( __COUNTER__, name, __FILE__, __LINE__, true );
 #endif
 
 

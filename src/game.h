@@ -23,6 +23,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __GAME_H__
 #define __GAME_H__ 
 
+#pragma warning( push )
+
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -32,6 +34,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <float.h>
 #include <time.h>
 
+#pragma warning( pop )
 
 #include "common.h"
 #include "intrinsics.h"
@@ -56,7 +59,7 @@ struct GameAudioBuffer
 {
     // TODO Remove this
     u32 samplesPerSecond;
-    u32 frameCount;         // Audio frames to output
+    i32 frameCount;         // Audio frames to output
     u16 channelCount;       // Channels per frame
     // TODO Convert this to a format that is independent of final bitdepth (32bit-float?)
     // (even off-the-shelf audio mixers support this natively, it seems)
@@ -66,12 +69,12 @@ struct GameAudioBuffer
 struct GameStickState
 {
     // -1.0 to 1.0 range (negative is left/down, positive is up/right)
-    r32 startX;
-    r32 startY;
-    r32 avgX;
-    r32 avgY;
-    r32 endX;
-    r32 endY;
+    f32 startX;
+    f32 startY;
+    f32 avgX;
+    f32 avgY;
+    f32 endX;
+    f32 endY;
 };
 
 struct GameButtonState
@@ -89,8 +92,8 @@ struct GameControllerInput
     GameStickState rightStick;
 
     // TODO Left/right triggers (Win)
-    r32 leftTriggerValue;               // 0 to 1 range
-    r32 rightTriggerValue;
+    f32 leftTriggerValue;               // 0 to 1 range
+    f32 rightTriggerValue;
 
     union
     {
@@ -261,7 +264,7 @@ struct KeyMouseInput
     i32 mouseX, mouseY, mouseZ;
     // Raw mouse data as obtained from the platform
     i32 mouseRawXDelta, mouseRawYDelta;
-    r32 mouseRawZDelta;
+    f32 mouseRawZDelta;
     GameButtonState mouseButtons[5];
 
     // Platform-agnostic key codes
@@ -271,8 +274,8 @@ struct KeyMouseInput
 struct GameInput
 {
     bool gameCodeReloaded;
-    r32 frameElapsedSeconds;
-    r32 totalElapsedSeconds;
+    f32 frameElapsedSeconds;
+    f32 totalElapsedSeconds;
     u32 frameCounter;
 
     GameControllerInput _controllers[5];
@@ -284,14 +287,14 @@ struct GameInput
 #define PLATFORM_KEYMOUSE_CONTROLLER_SLOT 0
 
 inline GameControllerInput *
-GetController( GameInput *input, u32 controllerIndex )
+GetController( GameInput *input, int controllerIndex )
 {
     ASSERT( controllerIndex < ARRAYCOUNT( input->_controllers ) );
     GameControllerInput *result = &input->_controllers[controllerIndex];
     return result;
 }
 inline const GameControllerInput&
-GetController( const GameInput& input, u32 controllerIndex )
+GetController( const GameInput& input, int controllerIndex )
 {
     ASSERT( controllerIndex < ARRAYCOUNT( input._controllers ) );
     return input._controllers[controllerIndex];
@@ -314,14 +317,15 @@ struct GameMemory
     u64 debugStorageSize;
     void *debugStorage;             // NOTE Required to be cleared to zero at startup
 
-    // TODO Put these inside DebugState
-    // (and make the platform not modify them directly, just pass the relevant input so the game can do that!)
     bool DEBUGglobalDebugging;
+    bool DEBUGglobalWasDebugging;
     bool DEBUGglobalEditing;
 #endif
 
     PlatformAPI* platformAPI;
     ImGuiContext* imGuiContext;
+    void* (*imGuiAllocFunc)(size_t size, void* user_data);
+    void  (*imGuiFreeFunc)(void* ptr, void* user_data);
 };
 
 
@@ -343,13 +347,15 @@ typedef GAME_LOG_CALLBACK(GameLogCallbackFunc);
 
 struct DebugFrameInfo
 {
-    r32 inputProcessedSeconds;
-    r32 gameUpdatedSeconds;
-    r32 audioUpdatedSeconds;
-    r32 endOfFrameSeconds;
+    // Cycles since the beginning of the frame
+    u64 inputProcessedCycles;
+    u64 gameUpdatedCycles;
+    u64 audioUpdatedCycles;
+    u64 totalFrameCycles;
+    f32 totalFrameSeconds;
 };
 
-#define DEBUG_GAME_FRAME_END(name) void name( GameMemory* memory, const DebugFrameInfo* frameInfo )
+#define DEBUG_GAME_FRAME_END(name) void name( const DebugFrameInfo& frameInfo, GameMemory* memory )
 typedef DEBUG_GAME_FRAME_END(DebugGameFrameEndFunc);
 
 #endif /* __GAME_H__ */

@@ -36,7 +36,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // NOTE Absolute epsilon comparison will be necessary when comparing against zero
 inline bool
-AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon /*= 0*/ )
+AlmostEqual( f32 a, f32 b, f32 absoluteEpsilon /*= 0*/ )
 {
     bool result = false;
 
@@ -53,19 +53,25 @@ AlmostEqual( r32 a, r32 b, r32 absoluteEpsilon /*= 0*/ )
 }
 
 inline bool
-GreaterOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon /*= 0*/ )
+AlmostZero( f32 v, f32 absoluteEpsilon /*= 1e-6f */ )
+{
+    return Abs( v ) <= absoluteEpsilon;
+}
+
+inline bool
+GreaterOrAlmostEqual( f32 a, f32 b, f32 absoluteEpsilon /*= 0*/ )
 {
     return a > b || AlmostEqual( a, b, absoluteEpsilon );
 }
 
 inline bool
-LessOrAlmostEqual( r32 a, r32 b, r32 absoluteEpsilon /*= 0*/ )
+LessOrAlmostEqual( f32 a, f32 b, f32 absoluteEpsilon /*= 0*/ )
 {
     return a < b || AlmostEqual( a, b, absoluteEpsilon );
 }
 
 inline bool
-AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon /*= 0*/ )
+AlmostEqual( f64 a, f64 b, f64 absoluteEpsilon /*= 0*/ )
 {
     bool result = false;
 
@@ -81,10 +87,10 @@ AlmostEqual( r64 a, r64 b, r64 absoluteEpsilon /*= 0*/ )
     return result;
 }
 
-inline r32
-Radians( r32 degrees )
+inline f32
+Radians( f32 degrees )
 {
-    r32 result = degrees * PI / 180;
+    f32 result = degrees * PI / 180;
     return result;
 }
 
@@ -101,56 +107,56 @@ RandomSeed()
     srand( (u32)time( nullptr ) );
 }
 
-inline r32
-RandomNormalizedR32()
+inline f32
+RandomNormalizedF32()
 {
-    r32 result = (r32)rand() / (r32)RAND_MAX;
+    f32 result = (f32)rand() / (f32)RAND_MAX;
     return result;
 }
 
-inline r32
-RandomBinormalizedR32()
+inline f32
+RandomBinormalizedF32()
 {
-    r32 result = RandomNormalizedR32() * 2.f - 1.f;
+    f32 result = RandomNormalizedF32() * 2.f - 1.f;
     return result;
 }
 
-inline r64
-RandomNormalizedR64()
+inline f64
+RandomNormalizedF64()
 {
-    r64 result = (r64)rand() / (r64)RAND_MAX;
+    f64 result = (f64)rand() / (f64)RAND_MAX;
     return result;
 }
 
-inline r64
-RandomBinormalizedR64()
+inline f64
+RandomBinormalizedF64()
 {
-    r64 result = RandomNormalizedR64() * 2.0 - 1.0;
+    f64 result = RandomNormalizedF64() * 2.0 - 1.0;
     return result;
 }
 
 inline u32
 RandomU32()
 {
-    return (u32)(RandomNormalizedR32() * U32MAX);
+    return (u32)(RandomNormalizedF32() * U32MAX);
 }
 
 inline i32
 RandomI32()
 {
-    return (i32)(RandomNormalizedR32() * U32MAX);
+    return (i32)(RandomNormalizedF32() * U32MAX);
 }
 
 inline u64
 RandomU64()
 {
-    return (u64)(RandomNormalizedR64() * U64MAX);
+    return (u64)(RandomNormalizedF64() * U64MAX);
 }
 
-inline u64
+inline i64
 RandomI64()
 {
-    return (i64)(RandomNormalizedR64() * U64MAX);
+    return (i64)(RandomNormalizedF64() * U64MAX);
 }
 
 // Includes min & max
@@ -158,7 +164,7 @@ inline i32
 RandomRangeI32( i32 min, i32 max )
 {
     ASSERT( min < max );
-    r32 t = RandomNormalizedR32();
+    f32 t = RandomNormalizedF32();
     i32 result = (i32)(min + t * (max - min));
     return result;
 }
@@ -167,26 +173,26 @@ inline u32
 RandomRangeU32( u32 min, u32 max )
 {
     ASSERT( min < max );
-    r32 t = RandomNormalizedR32();
+    f32 t = RandomNormalizedF32();
     u32 result = (u32)(min + t * (max - min));
     return result;
 }
 
-inline r32
-RandomRangeR32( r32 min, r32 max )
+inline f32
+RandomRangeF32( f32 min, f32 max )
 {
     ASSERT( min < max );
-    r32 t = RandomNormalizedR32();
-    r32 result = min + t * (max - min);
+    f32 t = RandomNormalizedF32();
+    f32 result = min + t * (max - min);
     return result;
 }
 
-inline r64
-RandomRangeR64( r64 min, r64 max )
+inline f64
+RandomRangeF64( f64 min, f64 max )
 {
     ASSERT( min < max );
-    r64 t = RandomNormalizedR64();
-    r64 result = min + t * (max - min);
+    f64 t = RandomNormalizedF64();
+    f64 result = min + t * (max - min);
     return result;
 }
 
@@ -228,17 +234,17 @@ Log2( u32 value )
 // (improve it with http://zimbry.blogspot.com/2011/09/better-bit-mixing-improving-on.html)
 // TODO Add Meow Hash for hashing large blocks (also get the code and study it a little, there's gems in the open there!)
 inline u32
-Fletcher32( const void* buffer, sz len )
+Fletchef32( const void* buffer, int len )
 {
 	const u8* data = (u8*)buffer;
 	u32 fletch1 = 0xFFFF;
 	u32 fletch2 = 0xFFFF;
 
-	while( data && len )
+	while( data && len > 0 )
 	{
-		sz l = (len <= 360) ? len : 360;
+		int l = (len <= 360) ? len : 360;
 		len -= l;
-		while (l)
+		while( l > 0 )
 		{
             fletch1 += *data++;
             fletch2 += fletch1;
@@ -251,12 +257,12 @@ Fletcher32( const void* buffer, sz len )
 }
 
 inline u32
-Pack01ToRGBA( r32 r, r32 g, r32 b, r32 a )
+Pack01ToRGBA( f32 r, f32 g, f32 b, f32 a )
 {
-    u32 result = (((Round( a * 255 ) & 0xFF) << 24)
-                | ((Round( b * 255 ) & 0xFF) << 16)
-                | ((Round( g * 255 ) & 0xFF) << 8)
-                |  (Round( r * 255 ) & 0xFF));
+    u32 result = (((U32( Round( a * 255 ) ) & 0xFF) << 24)
+                | ((U32( Round( b * 255 ) ) & 0xFF) << 16)
+                | ((U32( Round( g * 255 ) ) & 0xFF) << 8)
+                |  (U32( Round( r * 255 ) ) & 0xFF));
     return result;
 }
 

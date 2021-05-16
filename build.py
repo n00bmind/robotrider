@@ -23,7 +23,7 @@
 
 
 
-import os, sys, subprocess, atexit, random, argparse
+import os, sys, subprocess, atexit, random, argparse, shutil
 from collections import namedtuple
 
 
@@ -35,9 +35,29 @@ platform_win = Platform(
         toolset               = 'CL',
         #  TODO Add /GL to the compiler and /LTCG to the linker https://devblogs.microsoft.com/cppblog/quick-tips-on-using-whole-program-optimization/
         common_compiler_flags = [
-            '-MTd', '-nologo', '-FC', '-W4', '-WX', '-Oi', '-GR-', '-EHa-',
+            '-MTd', '-nologo', '-FC', '-Wall', '-WX', '-Oi', '-GR-', '-EHa-',
             '-D_HAS_EXCEPTIONS=0', '-D_CRT_SECURE_NO_WARNINGS',
-            '-wd4201', '-wd4100', '-wd4189', '-wd4101', '-wd4505', '-wd4312', '-wd4200'
+            '-wd4061',          # Unhandled enum case in switch
+            '-wd4062',          # Unhandled enum case in switch
+            '-wd4100',          # Unreferenced parameter
+            '-wd4101',          # Unused local variable
+            '-wd4189',          # Initialized but unreferenced local variable
+            '-wd4200',          # Zero-sized array in struct
+            '-wd4201',          # Nameless struct/union
+            '-wd4312',          # Conversion from int to pointer
+            '-wd4426',          # Optimizations changed 
+            '-wd4505',          # Unreferenced function
+            '-wd4514',          # Unreferenced inline function removed
+            '-wd4623',          # Default constructor implicitly deleted
+            '-wd4625',          # Copy constructor implicitly deleted
+            '-wd4626',          # Assignment operator implicitly deleted
+            '-wd4668',          # Undefined preprocessor macro
+            '-wd4710',          # Function not inlined
+            '-wd4711',          # Function inlined
+            '-wd4820',          # Padding added
+            '-wd5026',          # Move constructor implicitly deleted
+            '-wd5027',          # Move assignment implicitly deleted
+            '-wd5045'          # Spectre mitigations
             ],
         libs                  = ['user32.lib', 'gdi32.lib', 'winmm.lib', 'ole32.lib', 'opengl32.lib', 'shlwapi.lib'],
         common_linker_flags   = ['/opt:ref', '/incremental:no']
@@ -76,7 +96,7 @@ config_win_develop = Config(
         name           = 'Develop',
         platform       = platform_win,
         cmdline_opts   = ['dev', 'develop'],
-        compiler_flags = ['-DDEVELOP=1', '-Z7', '-O2'],
+        compiler_flags = ['-DDEVELOP=1', '-Z7', '-O2',],
         linker_flags   = ['/debug:full']
 )
 config_win_release = Config(
@@ -137,6 +157,7 @@ if __name__ == '__main__':
     config_group.add_argument('-d', '--debug', help='Create Debug build', action='store_true')
     config_group.add_argument('--dev', help='Create Develop build', action='store_true')
     config_group.add_argument('-r', '--release', help='Create Release build', action='store_true')
+    parser.add_argument('-c', '--clean', help='Delete contents of the bin folder before building', action='store_true')
     parser.add_argument('-v', '--verbose', help='Increase verbosity', action='store_true')
     in_args = parser.parse_args()
 
@@ -159,6 +180,18 @@ if __name__ == '__main__':
                 except WindowsError:
                     # print('Couldn\'t remove {} (probably in use)'.format(pdbpath))
                     pass
+
+    if in_args.clean:
+        print(f'Removing contents of \'{binpath}\'..')
+        for f in os.listdir(binpath):
+            path = os.path.join(binpath, f)
+            try:
+                if os.path.isfile(path) or os.path.islink(path):
+                    os.unlink(path)
+                elif os.path.isdir(path):
+                    shutil.rmtree(path)
+            except Exception as e:
+                print(f'Couldn\'t delete \'{path}\' ({e})')
 
     # TODO Determine platform/config
     platform = default_platform

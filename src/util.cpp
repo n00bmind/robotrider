@@ -28,6 +28,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 
+inline void
+Swap( i32* a, i32* b )
+{
+    i32 tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
 void
 InsertSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
 {
@@ -117,7 +125,8 @@ QuickSort( Array<i32>* input, bool ascending, int lo = 0, int hi = -1 )
 
 // NOTE May be faster than RadixSort11 for a small number of items (< 1000)
 // NOTE Modifies input array during sorting
-void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
+// TODO This has never been analyzed with VTune or similar, so there's probably still a good chunk of perf to squeeze from it
+void RadixSort( void* inOut, int count, sz offset, sz stride, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
 {
     u8* in = (u8*)inOut;
     u8* out = PUSH_ARRAY( tmpArena, u8, count * stride, Temporary() );
@@ -140,7 +149,7 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
 
             // Build digit count
             u64* inKey = (u64*)(in + offset);
-            for( u32 i = 0; i < count; ++i )
+            for( int i = 0; i < count; ++i )
             {
                 u64 key = *inKey;
                 if( is32Bits )
@@ -151,11 +160,11 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
                 {
                     if( keyType == RadixKey::I32 )
                         key |= 0x80000000u;
-                    else if( keyType == RadixKey::R32 )
+                    else if( keyType == RadixKey::F32 )
                         key ^= !!(key & 0x80000000u) ? 0xFFFFFFFFu : 0x80000000u;
                     else if( keyType == RadixKey::I64 )
                         key |= 0x8000000000000000u;
-                    else if( keyType == RadixKey::R64 )
+                    else if( keyType == RadixKey::F64 )
                         key ^= !!(key & 0x8000000000000000u) ? 0xFFFFFFFFFFFFFFFFu : 0x8000000000000000u;
 
                     if( key > maxKey )
@@ -175,7 +184,7 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
 
             u32* dc = digitCounts;
             u32 sum = 0, sumPrev = 0;
-            for( u32 i = 0; i < Radix; ++i, ++dc )
+            for( int i = 0; i < Radix; ++i, ++dc )
             {
                 if( *dc )
                 {
@@ -186,7 +195,7 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
             }
 
             u8* inIt = in;
-            for( u32 i = 0; i < count; ++i, inIt += stride )
+            for( int i = 0; i < count; ++i, inIt += stride )
             {
                 inKey = (u64*)(inIt + offset);
                 u64 key = *inKey;
@@ -202,11 +211,11 @@ void RadixSort( void* inOut, sz count, sz offset, sz stride, RadixKey keyType, b
                 {
                     if( keyType == RadixKey::I32 )
                         key |= 0x80000000u;
-                    else if( keyType == RadixKey::R32 )
+                    else if( keyType == RadixKey::F32 )
                         key ^= !!(key & 0x80000000u) ? 0x80000000u : 0xFFFFFFFFu;
                     else if( keyType == RadixKey::I64 )
                         key |= 0x8000000000000000u;
-                    else if( keyType == RadixKey::R64 )
+                    else if( keyType == RadixKey::F64 )
                         key ^= !!(key & 0x8000000000000000u) ? 0x8000000000000000u : 0xFFFFFFFFFFFFFFFFu;
 
                     *inKey = is32Bits ? (*inKey & 0xFFFFFFFF00000000u | key) : key; 
@@ -243,9 +252,9 @@ RadixSort( Array<i32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 }
 
 void
-RadixSort( Array<r32>* inputOutput, bool ascending, MemoryArena* tmpArena )
+RadixSort( Array<f32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::R32, ascending, tmpArena );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u32), RadixKey::F32, ascending, tmpArena );
 }
 
 void
@@ -268,9 +277,9 @@ RadixSort( Array<i64>* inputOutput, bool ascending, MemoryArena* tmpArena )
 }
 
 void
-RadixSort( Array<r64>* inputOutput, bool ascending, MemoryArena* tmpArena )
+RadixSort( Array<f64>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::R64, ascending, tmpArena );
+    RadixSort( inputOutput->data, inputOutput->count, 0, sizeof(u64), RadixKey::F64, ascending, tmpArena );
 }
 
 void RadixSort( Array<KeyIndex64>* inputOutput, RadixKey keyType, bool ascending, MemoryArena* tmpArena )
@@ -289,7 +298,7 @@ RadixSort( Array<T>* inputOutput, sz offset, RadixKey keyType, bool ascending, M
 // Builds the histograms in just one pass and processes input 11 bits at a time
 // so that each histogram array fits in one cache line
 // NOTE Modifies 'in' array during sorting
-void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, MemoryArena* tmpArena )
+void RadixSort11( u32* inOut, int count, bool ascending, RadixKey transform, MemoryArena* tmpArena )
 {
     u32* in = inOut;
     u32* out = PUSH_ARRAY( tmpArena, u32, count, Temporary() );
@@ -305,12 +314,12 @@ void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, Mem
 
     // Build counts
     u32* it = in;
-    for( u32 i = 0; i < count; ++i, ++it )
+    for( int i = 0; i < count; ++i, ++it )
     {
         // Transform input value
         if( transform == RadixKey::I32 )
             *it += 0x80000000u;
-        else if( transform == RadixKey::R32 )
+        else if( transform == RadixKey::F32 )
             *it ^= (-i32(*it >> 31) | 0x80000000);
 
         hist0[MASK0(*it)]++;
@@ -321,7 +330,7 @@ void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, Mem
     // Each histogram entry records the number of values with index less than itself
     u32 *it0 = hist0, *it1 = hist1, *it2 = hist2;
     u32 sum0 = 0, sum1 = 0, sum2 = 0, sum;
-    for( u32 i = 0; i < kHistSize; ++i, ++it0, ++it1, ++it2 )
+    for( int i = 0; i < kHistSize; ++i, ++it0, ++it1, ++it2 )
     {
         if( *it0 )
         {
@@ -347,7 +356,7 @@ void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, Mem
 
     // Offset 0: Transform entire input value, read/write histogram, write to out
     it = in;
-    for( u32 i = 0; i < count; ++i, ++it )
+    for( int i = 0; i < count; ++i, ++it )
     {
         u32 idx = MASK0(*it);
         out[++hist0[idx]] = *it;
@@ -355,7 +364,7 @@ void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, Mem
 
     // Offset 1: Read/write histogram, copy to in
     it = out;
-    for( u32 i = 0; i < count; ++i, ++it )
+    for( int i = 0; i < count; ++i, ++it )
     {
         u32 idx = MASK1(*it);
         in[++hist1[idx]] = *it;
@@ -363,14 +372,14 @@ void RadixSort11( u32* inOut, u32 count, bool ascending, RadixKey transform, Mem
 
     // Offset 2: Read/write histogram, undo transform, write to out
     it = in;
-    for( u32 i = 0; i < count; ++i, ++it )
+    for( int i = 0; i < count; ++i, ++it )
     {
         u32 idx = MASK2(*it);
 
         // Undo input transformation
         if( transform == RadixKey::I32 )
             *it -= 0x80000000u;
-        else if( transform == RadixKey::R32 )
+        else if( transform == RadixKey::F32 )
             *it ^= (((*it >> 31) - 1) | 0x80000000);
 
         out[++hist2[idx]] = *it;
@@ -390,16 +399,16 @@ RadixSort11( Array<i32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 }
 
 void
-RadixSort11( Array<r32>* inputOutput, bool ascending, MemoryArena* tmpArena )
+RadixSort11( Array<f32>* inputOutput, bool ascending, MemoryArena* tmpArena )
 {
-    RadixSort11( (u32*)inputOutput->data, inputOutput->count, ascending, RadixKey::R32, tmpArena );
+    RadixSort11( (u32*)inputOutput->data, inputOutput->count, ascending, RadixKey::F32, tmpArena );
 }
 
 
 template <typename T> void
 BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex>* result )
 {
-    for( u32 i = 0; i < sourceTypeArray.count; ++i )
+    for( int i = 0; i < sourceTypeArray.count; ++i )
     {
         u8* base = (u8*)&sourceTypeArray[i];
         u32* key = (u32*)(base + typeKeyOffset);
@@ -410,7 +419,7 @@ BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array
 template <typename T> void
 BuildSortableKeysArray( const Array<T>& sourceTypeArray, sz typeKeyOffset, Array<KeyIndex64>* result )
 {
-    for( u32 i = 0; i < sourceTypeArray.count; ++i )
+    for( int i = 0; i < sourceTypeArray.count; ++i )
     {
         u8* base = (u8*)&sourceTypeArray[i];
         u64* key = (u64*)(base + typeKeyOffset);

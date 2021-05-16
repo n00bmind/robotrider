@@ -11,22 +11,22 @@ enum class RadixKey
 {
     U32 = 0,
     I32,
-    R32,
+    F32,
     U64,
     I64,
-    R64,
+    F64,
 };
 
 struct KeyIndex
 {
     u32 key;
-    u32 index;
+    i32 index;
 };
 
 struct KeyIndex64
 {
     u64 key;
-    u32 index;
+    i32 index;
     u32 _padding;
 };
 

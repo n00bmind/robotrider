@@ -54,26 +54,40 @@ enum class RenderSwitchType
 
 struct Camera
 {
-    m4 worldToCamera;
-    r32 fovYDeg;
+    m4 cameraFromWorld;
+    m4 projectFromWorld;
+    // Non-normalized, normals point to the INSIDE
+    v4 cachedFrustumPlanes[6];
+    f32 fovYDeg;
 };
 
 inline Camera
-DefaultCamera( r32 fovYDeg = 60 )
+DefaultCamera( f32 fovYDeg = 60 )
 {
-    Camera result = { M4Identity, fovYDeg };
+    Camera result = {};
+    result.cameraFromWorld = M4Identity;
+    result.projectFromWorld = M4Identity;
+    result.fovYDeg = fovYDeg;
     return result;
 }
+
+enum class VertexTag : u16
+{
+    None = 0,
+    Inner,
+    Outer,
+};
 
 // TODO Test different layouts and investigate alignment etc here
 struct TexturedVertex
 {
     v3 p;
     u32 color;
-    // TODO Should we just ignore these and do it all in the GS based on what shading we want?
-    // TODO In any case, create a separate vertex format for all the debug stuff etc. that will never need this
-    v3 n;
     v2 uv;
+    // TODO Decide whether we'll need this for lighting, or we're fine with shader-generated face normals
+    v3 n;
+    VertexTag tag;
+    u16 flags;
 };
 
 struct Texture
@@ -81,9 +95,9 @@ struct Texture
     void* handle;
     void* imageBuffer;
 
-    u32 width;
-    u32 height;
-    u32 channelCount;
+    i32 width;
+    i32 height;
+    i32 channelCount;
 };
 
 struct Material
@@ -98,7 +112,7 @@ struct Mesh
     MeshPool* ownerPool;
 
     Array<TexturedVertex> vertices;
-    Array<u32> indices;
+    Array<i32> indices;
 
     Material* material;
     aabb bounds;
@@ -108,7 +122,7 @@ struct Mesh
     m4 mTransform;
 
     // Index into the global cluster offset array to determine final translation in the shader
-    u32 simClusterIndex;
+    i32 simClusterIndex;
 };
 
 inline void
@@ -125,46 +139,32 @@ Empty( Mesh const& mesh )
     return mesh.vertices.count == 0;
 }
 
-inline Mesh
-CreateMeshFromBuffers( BucketArray<TexturedVertex> const& vertices, BucketArray<u32> const& indices, MemoryArena* arena )
-{
-    Mesh result;
-    InitMesh( &result );
-
-    result.vertices = Array<TexturedVertex>( arena, vertices.count );
-    vertices.CopyTo( &result.vertices );
-    result.indices = Array<u32>( arena, indices.count );
-    indices.CopyTo( &result.indices );
-
-    return result;
-}
-
 inline void
 CalcBounds( Mesh* mesh )
 {
-    aabb result = { V3Inf, -V3Inf };
+    v3 min = V3Inf, max = -V3Inf;
 
-    for( u32 i = 0; i < mesh->vertices.count; ++i )
+    for( int i = 0; i < mesh->vertices.count; ++i )
     {
         v3& p = mesh->vertices[i].p;
 
-        if( result.min.x > p.x )
-            result.min.x = p.x;
-        if( result.max.x < p.x )
-            result.max.x = p.x;
+        if( min.x > p.x )
+            min.x = p.x;
+        if( max.x < p.x )
+            max.x = p.x;
 
-        if( result.min.y > p.y )
-            result.min.y = p.y;
-        if( result.max.y < p.y )
-            result.max.y = p.y;
+        if( min.y > p.y )
+            min.y = p.y;
+        if( max.y < p.y )
+            max.y = p.y;
 
-        if( result.min.z > p.z )
-            result.min.z = p.z;
-        if( result.max.z < p.z )
-            result.max.z = p.z;
+        if( min.z > p.z )
+            min.z = p.z;
+        if( max.z < p.z )
+            max.z = p.z;
     }
 
-    mesh->bounds = result;
+    mesh->bounds = AABBMinMax( min, max );
 }
 
 
@@ -176,10 +176,10 @@ struct InstanceData
 
 struct MeshData
 {
-    u32 vertexCount;
-    u32 indexCount;
-    u32 indexStartOffset;
-    u32 simClusterIndex;
+    i32 vertexCount;
+    i32 indexCount;
+    i32 indexStartOffset;
+    i32 simClusterIndex;
 };
 
 
@@ -199,7 +199,7 @@ enum class RenderEntryType
 struct RenderEntry
 {
     RenderEntryType type;
-    u32 size;
+    i32 size;
 };
 
 struct RenderEntryClear
@@ -213,10 +213,10 @@ struct RenderEntryTexturedTris
 {
     RenderEntry header;
 
-    u32 vertexBufferOffset;
-    u32 vertexCount;
-    u32 indexBufferOffset;
-    u32 indexCount;
+    i32 vertexBufferOffset;
+    i32 vertexCount;
+    i32 indexBufferOffset;
+    i32 indexCount;
 
     // Material **materialArray;
 };
@@ -225,8 +225,8 @@ struct RenderEntryLines
 {
     RenderEntry header;
 
-    u32 vertexBufferOffset;
-    u32 lineCount;
+    i32 vertexBufferOffset;
+    i32 lineCount;
 };
 
 struct RenderEntryProgramChange
@@ -255,60 +255,60 @@ struct RenderEntryVoxelGrid
 {
     RenderEntry header;
 
-    u32 vertexBufferOffset;
-    u32 instanceBufferOffset;
-    u32 instanceCount;
+    i32 vertexBufferOffset;
+    i32 instanceBufferOffset;
+    i32 instanceCount;
 };
 
 struct RenderEntryVoxelChunk
 {
     RenderEntry header;
 
-    u32 vertexBufferOffset;
-    u32 indexBufferOffset;
-    u32 instanceBufferOffset;
-    u32 instanceCount;
+    i32 vertexBufferOffset;
+    i32 indexBufferOffset;
+    i32 instanceBufferOffset;
+    i32 instanceCount;
 };
 
 struct RenderEntryMeshChunk
 {
     RenderEntry header;
 
-    u32 vertexBufferOffset;
-    u32 indexBufferOffset;
-    u32 instanceBufferOffset;
-    u32 meshCount;
+    i32 vertexBufferOffset;
+    i32 indexBufferOffset;
+    i32 instanceBufferOffset;
+    i32 meshCount;
 
-    u32 runningVertexCount;
+    i32 runningVertexCount;
 };
 
 
 struct RenderBuffer
 {
     u8 *base;
-    u32 size;
-    u32 maxSize;
+    i32 size;
+    i32 maxSize;
 };
 
 struct VertexBuffer
 {
     TexturedVertex *base;
-    u32 count;
-    u32 maxCount;
+    i32 count;
+    i32 maxCount;
 };
 
 struct IndexBuffer
 {
-    u32 *base;
-    u32 count;
-    u32 maxCount;
+    i32 *base;
+    i32 count;
+    i32 maxCount;
 };
 
 struct InstanceBuffer
 {
     u8* base;
-    u32 size;
-    u32 maxSize;
+    i32 size;
+    i32 maxSize;
 };
 
 
@@ -330,17 +330,19 @@ struct RenderCommands
     u16 height;
 
     v3* simClusterOffsets;
-    u32 simClusterCount;
+    i32 simClusterCount;
 
     bool isValid;
 };
 
 inline RenderCommands
-InitRenderCommands( u8 *renderBuffer, u32 renderBufferMaxSize,
-                    TexturedVertex *vertexBuffer, u32 vertexBufferMaxCount,
-                    u32 *indexBuffer, u32 indexBufferMaxCount,
-                    u8* instanceBuffer, u32 instanceBufferMaxSize )
+InitRenderCommands( u8 *renderBuffer, int renderBufferMaxSize,
+                    TexturedVertex *vertexBuffer, int vertexBufferMaxCount,
+                    i32 *indexBuffer, int indexBufferMaxCount,
+                    u8* instanceBuffer, int instanceBufferMaxSize )
 {
+    ASSERT( renderBufferMaxSize > 0 && vertexBufferMaxCount > 0 && indexBufferMaxCount > 0 && instanceBufferMaxSize > 0 );
+
     RenderCommands result;
 
     result.renderBuffer.base = renderBuffer;
@@ -389,13 +391,15 @@ void RenderSetShader( ShaderProgramName programName, RenderCommands *commands );
 void RenderSetMaterial( Material* material, RenderCommands* commands );
 void RenderSwitch( RenderSwitchType renderSwitch, bool enable, RenderCommands* commands );
 void RenderMesh( const Mesh& mesh, RenderCommands *commands );
+void RenderMeshCulled( const Mesh& mesh, RenderCommands *commands );
 void RenderBounds( const aabb& box, u32 color, RenderCommands* renderCommands );
-void RenderBoundsAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands );
-void RenderBoxAt( const v3& p, r32 size, u32 color, RenderCommands* renderCommands );
-void RenderFloorGrid( r32 areaSizeMeters, r32 resolutionMeters, RenderCommands* renderCommands );
-void RenderCubicGrid( const aabb& boundingBox, r32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands );
+void RenderBoundsAt( const v3& p, f32 size, u32 color, RenderCommands* renderCommands );
+void RenderBoxAt( const v3& p, f32 size, u32 color, RenderCommands* renderCommands );
+void RenderFloorGrid( f32 areaSizeMeters, f32 resolutionMeters, RenderCommands* renderCommands );
+void RenderCubicGrid( const aabb& boundingBox, f32 step, u32 color, bool drawZAxis, RenderCommands* renderCommands );
 void RenderVoxelGrid( ClusterVoxelGrid const& voxelGrid, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands );
 void RenderClusterVoxels( Cluster const& cluster, v3 const& clusterOffsetP, u32 color, RenderCommands* renderCommands );
+void RenderCamera( m4 const& cameraFromWorld, RenderCommands* commands );
 
 
 
