@@ -21,6 +21,7 @@ NEXT
 
 
 WORLDGEN
+- Try ISPC for optimizing the DC code
 - Space Volumes partitioning using BSP at various scale levels
 - Procedural generation of some kind of infinite pipe-like world structure
 - Unify all mesh pools and put them behind a ticket mutex so they can be shared by threads. In general, think about how to minimize synchronization between workers and the main thread.

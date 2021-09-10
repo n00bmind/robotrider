@@ -58,10 +58,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 
-#ifdef _WIN32
+#if COMPILER_MSVC
 #define LIB_EXPORT extern "C" __declspec(dllexport)
 #else
-#define LIB_EXPORT extern "C" __declspec(dllexport)
+#define LIB_EXPORT extern "C" __attribute__((visibility("default")))
 #endif
 
 #if COMPILER_MSVC

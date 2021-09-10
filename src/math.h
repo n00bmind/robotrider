@@ -87,13 +87,6 @@ AlmostEqual( f64 a, f64 b, f64 absoluteEpsilon /*= 0*/ )
     return result;
 }
 
-inline f32
-Radians( f32 degrees )
-{
-    f32 result = degrees * PI / 180;
-    return result;
-}
-
 // FIXME Make all random generating functions repeatable for PCG
 // https://www.gamasutra.com/blogs/RuneSkovboJohansen/20150105/233505/A_Primer_on_Repeatable_Random_Numbers.php
 // https://www.scratchapixel.com/lessons/mathematics-physics-for-computer-graphics/monte-carlo-methods-in-practice/generating-random-numbers
@@ -283,6 +276,22 @@ UnpackRGBA( u32 c, u32* r, u32* g, u32* b, u32* a = nullptr )
     if( b ) *b = (c >> 16) & 0xFF;
     if( g ) *g = (c >>  8) & 0xFF;
     if( r ) *r = c & 0xFF;
+}
+
+
+inline f32
+Radians( f32 degrees )
+{
+    f32 result = degrees * PI / 180;
+    return result;
+}
+
+inline f32
+Atan2Fast( f32 x, f32 y )
+{
+    // TODO https://mazzo.li/posts/vectorized-atan2.html?s=03
+    // https://gist.github.com/bitonic/d0f5a0a44e37d4f0be03d34d47acb6cf#file-vectorized-atan2f-cpp-L580
+    return 0f;
 }
 
 #endif /* __MATH_H__ */

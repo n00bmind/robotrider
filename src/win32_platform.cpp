@@ -1621,7 +1621,6 @@ Win32ResolvePaths( Win32State *state )
 
     {
         bool result = false;
-        char buffer[] = "robotrider.dll";
 
 #if !RELEASE
         // This is just to support the dist mechanism
@@ -1635,7 +1634,7 @@ Win32ResolvePaths( Win32State *state )
         }
 #endif
 
-        char *sourceDLLName = buffer;
+        char *sourceDLLName = "robotrider.dll";
         if( !result )
         {
             Win32JoinPaths( state->binFolderPath, sourceDLLName, state->sourceDLLPath, false );
@@ -1649,7 +1648,7 @@ Win32ResolvePaths( Win32State *state )
         {
             TrimFileExtension( sourceDLLName );
             char tempDLLPath[PLATFORM_PATH_MAX];
-            sprintf_s( state->tempDLLPath, ARRAYCOUNT(state->tempDLLPath), "%s\\%s.temp.dll",
+            snprintf( state->tempDLLPath, ARRAYCOUNT(state->tempDLLPath), "%s\\%s.temp.dll",
                        state->binFolderPath, sourceDLLName );
         }
 
@@ -1681,7 +1680,7 @@ Win32ResolvePaths( Win32State *state )
 
         ASSERT( result );
         if( !result )
-            LOG( ".FATAL: Could not data root folder!" );
+            LOG( ".FATAL: Could not find data root folder!" );
     }
 }
 
