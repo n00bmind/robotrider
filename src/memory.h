@@ -226,14 +226,11 @@ struct MemoryBlock
 };
 
 inline MemoryBlock*
-InsertBlock( MemoryBlock* prev, sz size, void* memory )
+InsertBlock( MemoryBlock* prev, void* blockStart, sz availableBytes )
 {
-    // TODO 'size' includes the MemoryBlock struct itself for now
-    // Are we sure we wanna do this??
-    ASSERT( size > sizeof(MemoryBlock) );
-    MemoryBlock* block = (MemoryBlock*)memory;
-    // TODO Are we sure this shouldn't be the other way around??
-    block->size = size - sizeof(MemoryBlock);
+    ASSERT( availableBytes > sizeof(MemoryBlock) );
+    MemoryBlock* block = (MemoryBlock*)blockStart;
+    block->size = availableBytes - sizeof(MemoryBlock);
     block->flags = MemoryBlockFlags::None;
     block->prev = prev;
     block->next = prev->next;
@@ -262,18 +259,18 @@ FindBlockForSize( MemoryBlock* sentinel, sz size )
 }
 
 inline void*
-UseBlock( MemoryBlock* block, sz size, sz splitThreshold )
+UseBlock( MemoryBlock* block, sz useBytes, sz splitThreshold )
 {
-    ASSERT( size <= block->size );
+    ASSERT( useBytes <= block->size );
 
     block->flags |= MemoryBlockFlags::Used;
     void* result = (block + 1);
 
-    sz remainingSize = block->size - size;
+    sz remainingSize = block->size - useBytes;
     if( remainingSize > splitThreshold )
     {
-        block->size -= remainingSize;
-        InsertBlock( block, remainingSize, (u8*)result + size );
+        block->size = useBytes;
+        InsertBlock( block, (u8*)result + useBytes, remainingSize );
     }
     else
     {

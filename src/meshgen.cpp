@@ -127,7 +127,7 @@ void InitMeshPool( MeshPool* pool, MemoryArena* arena, sz size )
     pool->memorySentinel.flags = MemoryBlockFlags::None;
 
     // Insert empty block with the whole memory chunk
-    InsertBlock( &pool->memorySentinel, size, PUSH_SIZE( arena, size ) );
+    InsertBlock( &pool->memorySentinel, PUSH_SIZE( arena, size ), size );
 
     pool->meshCount = 0;
 }
@@ -145,7 +145,6 @@ Mesh* AllocateMesh( MeshPool* pool, int vertexCount, int indexCount )
     sz totalMeshSize = sizeof(Mesh) + vertexSize + indexSize;
 
     Mesh* result = nullptr;
-    // FIXME This is wrong. Not accounting for the size of the MemoryBlock struct (which we shouldn't have to do anyway!)
     MemoryBlock* block = FindBlockForSize( &pool->memorySentinel, totalMeshSize );
     if( block )
     {
