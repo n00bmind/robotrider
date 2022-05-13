@@ -20,3 +20,4 @@ rr.cap
 *.vim
 SyncToy*
 *.rdbg
+.ccls-cache/
